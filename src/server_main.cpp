@@ -1,5 +1,4 @@
 #include "server.hpp"
-#include "routes/greet_route.hpp"
 #include "routes/chat_completion_route.hpp"
 #include <memory>
 
@@ -10,7 +9,6 @@ int main() {
     }
 
     // Register routes. New routes can be added here easily.
-    server.addRoute(std::make_unique<GreetRoute>());
     server.addRoute(std::make_unique<ChatCompletionsRoute>());
 
     server.run();

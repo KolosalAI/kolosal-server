@@ -18,7 +18,7 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann)
 add_executable(KolosalServer
     src/server_main.cpp
     src/server.cpp
-    src/routes/greet_route.cpp
+    
     src/routes/chat_completion_route.cpp)
 
 find_package(Threads REQUIRED)
