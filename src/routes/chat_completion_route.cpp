@@ -1,5 +1,6 @@
 #include "routes/chat_completion_route.hpp"
 #include "utils.hpp"
+#include "logger.hpp"
 #include "models/chat_response_model.hpp"
 #include "models/chat_response_chunk_model.hpp"
 #include <json.hpp>
@@ -33,7 +34,7 @@ void ChatCompletionsRoute::handle(SocketType sock, const std::string& body) {
 
         if (request.stream) {
             // Handle streaming response
-            std::cout << "Sending streaming chat completion response" << std::endl;
+            Logger::logDebug("Sending streaming chat completion response");
 
             // Create a persistent ID for this completion
             std::string completionId = "chatcmpl-" + std::to_string(std::time(nullptr));
@@ -101,6 +102,8 @@ void ChatCompletionsRoute::handle(SocketType sock, const std::string& body) {
         }
         else {
             // Handle normal (non-streaming) response
+            Logger::logDebug("Sending non-streaming chat completion response");
+
             ChatCompletionResponse response;
             response.model = request.model;
 
