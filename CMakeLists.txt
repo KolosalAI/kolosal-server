@@ -20,3 +20,6 @@ add_executable(KolosalServer
     src/server.cpp
     src/routes/greet_route.cpp
 )
+
+find_package(Threads REQUIRED)
+target_link_libraries(KolosalServer PRIVATE Threads::Threads)
