@@ -1,9 +1,9 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.14)
 project(KolosalServer)
 
-# Use C++11 for this project.
-set(CMAKE_CXX_STANDARD 11)
-set(CMAKE_CXX_STANDARD_REQUIRED True)
+# Use C++17 for this project.
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # On Windows, define _WIN32_WINNT to ensure compatibility.
 if(WIN32)
@@ -19,7 +19,7 @@ add_executable(KolosalServer
     src/server_main.cpp
     src/server.cpp
     src/routes/greet_route.cpp
-)
+    src/routes/chat_completion_route.cpp)
 
 find_package(Threads REQUIRED)
 target_link_libraries(KolosalServer PRIVATE Threads::Threads)
