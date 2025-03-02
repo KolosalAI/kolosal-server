@@ -1,7 +1,9 @@
 #include "server.hpp"
 #include "utils.hpp"
+#include "logger.hpp"
 #include <iostream>
 #include <cstring>
+#include <string>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -52,7 +54,7 @@ bool Server::init() {
 #ifdef _WIN32
 	WSADATA wsaData;
 	if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-		std::cerr << "WSAStartup failed\n";
+		Logger::logError("WSAStartup failed");
 		return false;
 	}
 #endif
@@ -66,9 +68,9 @@ bool Server::init() {
 	int rv;
 	if ((rv = getaddrinfo(NULL, port.c_str(), &hints, &servinfo)) != 0) {
 #ifdef _WIN32
-		std::cerr << "getaddrinfo: " << gai_strerrorA(rv) << "\n";
+		Logger::logError("getaddrinfo: %s", gai_strerrorA(rv));
 #else
-		std::cerr << "getaddrinfo: " << gai_strerror(rv) << "\n";
+		Logger::logError("getaddrinfo: %s", gai_strerror(rv));
 #endif
 		return false;
 	}
@@ -113,16 +115,16 @@ bool Server::init() {
 #else
 	if (p == nullptr) {
 #endif
-		std::cerr << "Failed to bind socket\n";
+		Logger::logError("Failed to bind socket");
 		return false;
 	}
 
 	if (listen(listen_sock, 10) == -1) {
-		std::cerr << "Listen failed\n";
+		Logger::logError("Listen failed");
 		return false;
 	}
 
-	std::cout << "Server listening on port " << port << "\n";
+	Logger::logInfo("Server listening on port %s", port.c_str());
 	return true;
 }
 
@@ -147,7 +149,7 @@ void Server::run() {
 #else
 		if (client_sock == -1) {
 #endif
-			std::cerr << "Accept failed\n";
+			Logger::logError("Accept failed");
 			continue;
 		}
 
