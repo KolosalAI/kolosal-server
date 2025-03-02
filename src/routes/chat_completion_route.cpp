@@ -13,7 +13,7 @@
 using json = nlohmann::json;
 
 bool ChatCompletionsRoute::match(const std::string& method, const std::string& path) {
-    return (method == "POST" && path == "/v1/chat/completions");
+    return (method == "POST" && (path == "/v1/chat/completions" || path == "/chat/completions"));
 }
 
 void ChatCompletionsRoute::handle(SocketType sock, const std::string& body) {
