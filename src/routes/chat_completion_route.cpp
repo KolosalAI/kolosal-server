@@ -1,8 +1,11 @@
-#include "routes/chat_completion_route.hpp"
-#include "utils.hpp"
-#include "logger.hpp"
-#include "models/chat_response_model.hpp"
-#include "models/chat_response_chunk_model.hpp"
+#pragma once
+
+#include "kolosal/routes/chat_completion_route.hpp"
+#include "kolosal/utils.hpp"
+#include "kolosal/models/chat_response_model.hpp"
+#include "kolosal/models/chat_response_chunk_model.hpp"
+#include "kolosal/server_api.hpp"
+#include "kolosal/logger.hpp"
 #include <json.hpp>
 #include <iostream>
 #include <stdexcept>
@@ -13,175 +16,86 @@
 
 using json = nlohmann::json;
 
-bool ChatCompletionsRoute::match(const std::string& method, const std::string& path) {
-    return (method == "POST" && (path == "/v1/chat/completions" || path == "/chat/completions"));
-}
+namespace kolosal {
 
-void ChatCompletionsRoute::handle(SocketType sock, const std::string& body) {
-    try {
-        auto j = json::parse(body);
+    bool ChatCompletionsRoute::match(const std::string& method, const std::string& path) {
+        return (method == "POST" && path == "/v1/chat/completions");
+    }
 
-        // Parse the request
-        ChatCompletionRequest request;
-        request.from_json(j);
+    void ChatCompletionsRoute::handle(SocketType sock, const std::string& body) {
+        try {
+            auto j = json::parse(body);
+            Logger::logInfo("Received chat completion request");
 
-        if (!request.validate()) {
-            throw std::invalid_argument("Invalid request body");
-        }
+            // Parse the request
+            ChatCompletionRequest request;
+            request.from_json(j);
 
-        // Generate a response based on the request
-        std::string responseText = generateResponse(request);
-
-        if (request.stream) {
-            // Handle streaming response
-            Logger::logDebug("Sending streaming chat completion response");
-
-            // Create a persistent ID for this completion
-            std::string completionId = "chatcmpl-" + std::to_string(std::time(nullptr));
-
-            // Start the streaming response
-            begin_streaming_response(sock, 200);
-
-            // First, send the role
-            ChatCompletionChunk firstChunk;
-            firstChunk.id = completionId;
-            firstChunk.model = request.model;
-
-            ChatCompletionChunkChoice choice;
-            choice.index = 0;
-            choice.delta.role = "assistant";
-            choice.finish_reason = "";
-
-            firstChunk.choices.push_back(choice);
-
-            send_stream_chunk(sock, StreamChunk(firstChunk.to_json().dump(), false));
-
-            // Now tokenize the response (simulated here - in a real LLM you'd get tokens from your model)
-            std::vector<std::string> tokens;
-            std::istringstream iss(responseText);
-            std::string token;
-            while (iss >> token) {
-                tokens.push_back(token);
+            if (!request.validate()) {
+                throw std::invalid_argument("Invalid request body");
             }
 
-            // Send content tokens in chunks
-            for (size_t i = 0; i < tokens.size(); i++) {
-                ChatCompletionChunk chunk;
-                chunk.id = completionId;
-                chunk.model = request.model;
+            if (request.stream) {
+                // Handle streaming response
+                Logger::logInfo("Processing streaming chat completion request");
 
-                ChatCompletionChunkChoice contentChoice;
-                contentChoice.index = 0;
-                contentChoice.delta.content = tokens[i];
-                if (i < tokens.size() - 1) {
-                    contentChoice.delta.content += " ";
+                // Create a persistent ID for this completion
+                std::string completionId = "chatcmpl-" + std::to_string(std::time(nullptr));
+
+                // Start the streaming response
+                begin_streaming_response(sock, 200);
+
+                // Get the streaming callback
+                auto streamingCallback = ServerAPI::instance().getStreamingInferenceCallback();
+
+                // Process streaming generation
+                int chunkIndex = 0;
+                bool hasMoreChunks = true;
+
+                while (hasMoreChunks) {
+                    ChatCompletionChunk chunk;
+
+                    // Call the callback to get the next chunk
+                    hasMoreChunks = streamingCallback(request, completionId, chunkIndex, chunk);
+
+                    // Send the chunk to the client
+                    send_stream_chunk(sock, StreamChunk(chunk.to_json().dump(), false));
+
+                    chunkIndex++;
                 }
-                contentChoice.finish_reason = "";
 
-                chunk.choices.push_back(contentChoice);
+                // Send the final empty chunk to terminate the stream
+                send_stream_chunk(sock, StreamChunk("", true));
 
-                send_stream_chunk(sock, StreamChunk(chunk.to_json().dump(), false));
-
-                // Simulate thinking time
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                Logger::logInfo("Completed streaming response with %d chunks", chunkIndex);
             }
+            else {
+                // Handle normal (non-streaming) response
+                Logger::logInfo("Processing non-streaming chat completion request");
 
-            // Send the final completion message
-            ChatCompletionChunk finalChunk;
-            finalChunk.id = completionId;
-            finalChunk.model = request.model;
+                // Get the inference callback
+                auto inferenceCallback = ServerAPI::instance().getInferenceCallback();
 
-            ChatCompletionChunkChoice finalChoice;
-            finalChoice.index = 0;
-            finalChoice.delta = {}; // Empty delta
-            finalChoice.finish_reason = "stop";
+                // Call the callback to generate the response
+                ChatCompletionResponse response = inferenceCallback(request);
 
-            finalChunk.choices.push_back(finalChoice);
+                // Send the response
+                send_response(sock, 200, response.to_json().dump());
 
-            send_stream_chunk(sock, StreamChunk(finalChunk.to_json().dump(), true));
-        }
-        else {
-            // Handle normal (non-streaming) response
-            Logger::logDebug("Sending non-streaming chat completion response");
-
-            ChatCompletionResponse response;
-            response.model = request.model;
-
-            // Add the generated message
-            ChatCompletionChoice choice;
-            choice.index = 0;
-            choice.message.role = "assistant";
-            choice.message.content = responseText;
-            choice.finish_reason = "stop";
-
-            response.choices.push_back(choice);
-
-            // Set usage statistics
-            int promptTokens = 0;
-            for (const auto& msg : request.messages) {
-                promptTokens += countTokens(msg.content);
+                Logger::logInfo("Completed non-streaming response");
             }
-
-            int completionTokens = countTokens(responseText);
-
-            response.usage.prompt_tokens = promptTokens;
-            response.usage.completion_tokens = completionTokens;
-            response.usage.total_tokens = promptTokens + completionTokens;
-
-            // Send the response
-            send_response(sock, 200, response.to_json().dump());
         }
-    }
-    catch (const std::exception& ex) {
-        json jError = { {"error", {
-          {"message", std::string("Error: ") + ex.what()},
-          {"type", "invalid_request_error"},
-          {"param", nullptr},
-          {"code", nullptr}
-        }} };
-        send_response(sock, 400, jError.dump());
-    }
-}
+        catch (const std::exception& ex) {
+            Logger::logError("Error handling chat completion: %s", ex.what());
 
-std::string ChatCompletionsRoute::generateResponse(const ChatCompletionRequest& request) {
-    // Simple response generator based on the last user message
-    std::string lastUserContent;
-
-    // Find the last user message
-    for (auto it = request.messages.rbegin(); it != request.messages.rend(); ++it) {
-        if (it->role == "user") {
-            lastUserContent = it->content;
-            break;
+            json jError = { {"error", {
+              {"message", std::string("Error: ") + ex.what()},
+              {"type", "invalid_request_error"},
+              {"param", nullptr},
+              {"code", nullptr}
+            }} };
+            send_response(sock, 400, jError.dump());
         }
     }
 
-    // Generate a simple response
-    if (lastUserContent.empty()) {
-        return "I'm here to help. What can I assist you with?";
-    }
-
-    if (lastUserContent.find("hello") != std::string::npos ||
-        lastUserContent.find("hi") != std::string::npos) {
-        return "Hello there! How can I assist you today?";
-    }
-
-    if (lastUserContent.find("?") != std::string::npos) {
-        return "That's an interesting question. I'd say it depends on various factors, but I'd be happy to explore this topic with you in more detail.";
-    }
-
-    return "I understand what you're saying. Would you like me to elaborate on any particular aspect of this topic?";
-}
-
-int ChatCompletionsRoute::countTokens(const std::string& text) {
-    // This is a very simplistic token counter that just counts words
-    // In a real implementation, you'd use a proper tokenizer
-    int count = 0;
-    std::istringstream iss(text);
-    std::string token;
-
-    while (iss >> token) {
-        count++;
-    }
-
-    return count;
-}
+} // namespace kolosal

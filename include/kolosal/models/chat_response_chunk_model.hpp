@@ -1,6 +1,6 @@
-#ifndef CHAT_COMPLETION_CHUNK_HPP
-#define CHAT_COMPLETION_CHUNK_HPP
+#pragma once
 
+#include "../export.hpp"
 #include "model_interface.hpp"
 #include <string>
 #include <vector>
@@ -20,7 +20,7 @@ struct ChatCompletionChunkChoice {
     std::string finish_reason;
 };
 
-class ChatCompletionChunk : public IModel {
+class KOLOSAL_SERVER_API ChatCompletionChunk : public IModel {
 public:
     std::string id;
     std::string object = "chat.completion.chunk";
@@ -81,5 +81,3 @@ public:
         return j;
     }
 };
-
-#endif // CHAT_COMPLETION_CHUNK_HPP

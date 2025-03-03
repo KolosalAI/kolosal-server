@@ -1,6 +1,6 @@
-#ifndef CHAT_COMPLETION_REQUEST_HPP
-#define CHAT_COMPLETION_REQUEST_HPP
+#pragma once
 
+#include "../export.hpp"
 #include "model_interface.hpp"
 #include "chat_message_model.hpp"
 #include <string>
@@ -8,7 +8,7 @@
 #include <optional>
 #include <json.hpp>
 
-class ChatCompletionRequest : public IModel {
+class KOLOSAL_SERVER_API ChatCompletionRequest : public IModel {
 public:
     std::string model;
     std::vector<ChatMessage> messages;
@@ -22,7 +22,7 @@ public:
     std::optional<std::string> user;
     std::optional<int> seed;
 
-    // We're ignoring the following as requested:
+    // We're ignoring the following:
     // - tools
     // - tool_choice
     // - parallel_tool_calls
@@ -127,5 +127,3 @@ public:
         return j;
     }
 };
-
-#endif // CHAT_COMPLETION_REQUEST_HPP
