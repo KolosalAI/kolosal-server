@@ -1,11 +1,11 @@
-#ifndef CHAT_MESSAGE_HPP
-#define CHAT_MESSAGE_HPP
+#pragma once
 
+#include "../export.hpp"
 #include "model_interface.hpp"
 #include <string>
 #include <json.hpp>
 
-class ChatMessage : public IModel {
+class KOLOSAL_SERVER_API ChatMessage : public IModel {
 public:
     std::string role;
     std::string content;
@@ -31,5 +31,3 @@ public:
         return nlohmann::json{ {"role", role}, {"content", content} };
     }
 };
-
-#endif // CHAT_MESSAGE_HPP

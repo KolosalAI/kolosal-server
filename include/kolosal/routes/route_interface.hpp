@@ -1,5 +1,6 @@
-#ifndef IROUTE_HPP
-#define IROUTE_HPP
+#pragma once
+
+#include "../export.hpp"
 
 #include <string>
 
@@ -10,7 +11,7 @@ using SocketType = SOCKET;
 using SocketType = int;
 #endif
 
-class IRoute {
+class KOLOSAL_SERVER_API IRoute {
 public:
     // Returns true if this route should handle the given method and path.
     virtual bool match(const std::string& method,
@@ -19,5 +20,3 @@ public:
     virtual void handle(SocketType sock, const std::string& body) = 0;
     virtual ~IRoute() {}
 };
-
-#endif  // IROUTE_HPP

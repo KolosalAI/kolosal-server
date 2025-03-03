@@ -1,5 +1,6 @@
-#ifndef UTILS_HPP
-#define UTILS_HPP
+#pragma once
+
+#include "export.hpp"
 
 #include <string>
 #include <sstream>
@@ -23,7 +24,7 @@ struct StreamChunk {
 };
 
 // Regular response helper
-inline void send_response(SocketType sock, int status_code,
+inline KOLOSAL_SERVER_API void send_response(SocketType sock, int status_code,
     const std::string& body,
     const std::string& contentType = "application/json") {
     std::string status_text;
@@ -45,7 +46,7 @@ inline void send_response(SocketType sock, int status_code,
 }
 
 // Function to start a streaming response (sends headers)
-inline void begin_streaming_response(
+inline KOLOSAL_SERVER_API void begin_streaming_response(
     SocketType sock,
     int status_code,
     const std::string& contentType = "application/json") {
@@ -70,7 +71,7 @@ inline void begin_streaming_response(
 }
 
 // Function to send a single stream chunk
-inline void send_stream_chunk(SocketType sock, const StreamChunk& chunk) {
+inline KOLOSAL_SERVER_API void send_stream_chunk(SocketType sock, const StreamChunk& chunk) {
     // Only send non-empty chunks
     if (!chunk.data.empty()) {
         // Format the chunk according to HTTP chunked encoding
@@ -91,5 +92,3 @@ inline void send_stream_chunk(SocketType sock, const StreamChunk& chunk) {
         send(sock, end_chunk, strlen(end_chunk), 0);
     }
 }
-
-#endif  // UTILS_HPP

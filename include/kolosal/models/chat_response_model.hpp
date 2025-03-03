@@ -1,6 +1,6 @@
-#ifndef CHAT_COMPLETION_RESPONSE_HPP
-#define CHAT_COMPLETION_RESPONSE_HPP
+#pragma once
 
+#include "../export.hpp"
 #include "model_interface.hpp"
 #include "chat_message_model.hpp"
 #include <string>
@@ -22,7 +22,7 @@ struct ChatCompletionUsage {
     int total_tokens;
 };
 
-class ChatCompletionResponse : public IModel {
+class KOLOSAL_SERVER_API ChatCompletionResponse : public IModel {
 public:
     std::string id;
     std::string object = "chat.completion";
@@ -84,5 +84,3 @@ public:
         return j;
     }
 };
-
-#endif // CHAT_COMPLETION_RESPONSE_HPP

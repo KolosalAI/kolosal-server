@@ -1,5 +1,6 @@
-#ifndef LOGGER_HPP
-#define LOGGER_HPP
+#pragma once
+
+#include "export.hpp"
 
 #include <string>
 #include <vector>
@@ -25,7 +26,7 @@ struct LogEntry {
 	std::string message;
 };
 
-class Logger {
+class KOLOSAL_SERVER_API Logger {
 public:
 	static Logger& instance();
 
@@ -85,5 +86,3 @@ private:
 	std::string logFilePath;
 	std::mutex logMutex;
 };
-
-#endif // LOGGER_HPP
