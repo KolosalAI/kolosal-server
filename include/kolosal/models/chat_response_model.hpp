@@ -13,6 +13,14 @@ struct ChatCompletionChoice {
     int index;
     ChatMessage message;
     std::string finish_reason;
+
+    nlohmann::json to_json() const {
+        return nlohmann::json{
+            {"index", index},
+            {"message", message.to_json()},
+            {"finish_reason", finish_reason}
+        };
+    }
 };
 
 // Usage statistics
@@ -20,6 +28,14 @@ struct ChatCompletionUsage {
     int prompt_tokens;
     int completion_tokens;
     int total_tokens;
+
+    nlohmann::json to_json() const {
+        return nlohmann::json{
+            {"prompt_tokens", prompt_tokens},
+            {"completion_tokens", completion_tokens},
+            {"total_tokens", total_tokens}
+        };
+    }
 };
 
 class KOLOSAL_SERVER_API ChatCompletionResponse : public IModel {
@@ -31,6 +47,7 @@ public:
     std::string system_fingerprint = "fp_4d29efe704";
     std::vector<ChatCompletionChoice> choices;
     ChatCompletionUsage usage;
+    std::string error;
 
     ChatCompletionResponse() {
         created = static_cast<int64_t>(std::time(nullptr));
@@ -61,25 +78,15 @@ public:
           {"object", object},
           {"created", created},
           {"model", model},
-          {"system_fingerprint", system_fingerprint}
+          {"system_fingerprint", system_fingerprint},
+          {"choices", nlohmann::json::array()}
         };
 
-        nlohmann::json choicesJson = nlohmann::json::array();
         for (const auto& choice : choices) {
-            nlohmann::json choiceJson = {
-              {"index", choice.index},
-              {"message", choice.message.to_json()},
-              {"finish_reason", choice.finish_reason}
-            };
-            choicesJson.push_back(choiceJson);
+            j["choices"].push_back(choice.to_json());
         }
-        j["choices"] = choicesJson;
 
-        j["usage"] = {
-          {"prompt_tokens", usage.prompt_tokens},
-          {"completion_tokens", usage.completion_tokens},
-          {"total_tokens", usage.total_tokens}
-        };
+        j["usage"] = usage.to_json();
 
         return j;
     }

@@ -9,15 +9,11 @@
 #include <memory>
 #include <iostream>
 
-#ifdef ERROR
-#undef ERROR
-#endif
-
 enum class LogLevel {
-	ERROR,
-	WARNING,
-	INFO,
-	DEBUG
+	SERVER_ERROR,
+	SERVER_WARNING,
+	SERVER_INFO,
+	SERVER_DEBUG
 };
 
 struct LogEntry {
