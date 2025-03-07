@@ -11,6 +11,17 @@
 struct ChatCompletionDelta {
     std::string role;
     std::string content;
+
+    nlohmann::json to_json() const {
+        nlohmann::json j = nlohmann::json::object();
+        if (!role.empty()) {
+            j["role"] = role;
+        }
+        if (!content.empty()) {
+            j["content"] = content;
+        }
+        return j;
+    }
 };
 
 // For streaming - represents a chunk choice
@@ -18,6 +29,22 @@ struct ChatCompletionChunkChoice {
     int index;
     ChatCompletionDelta delta;
     std::string finish_reason;
+
+    nlohmann::json to_json() const {
+        nlohmann::json j = {
+            {"index", index},
+            {"delta", delta.to_json()}
+        };
+
+        if (!finish_reason.empty()) {
+            j["finish_reason"] = finish_reason;
+        }
+        else {
+            j["finish_reason"] = nullptr;
+        }
+
+        return j;
+    }
 };
 
 class KOLOSAL_SERVER_API ChatCompletionChunk : public IModel {
@@ -52,32 +79,18 @@ public:
 
         nlohmann::json choicesJson = nlohmann::json::array();
         for (const auto& choice : choices) {
-            nlohmann::json deltaJson = nlohmann::json::object();
-
-            if (!choice.delta.role.empty()) {
-                deltaJson["role"] = choice.delta.role;
-            }
-
-            if (!choice.delta.content.empty()) {
-                deltaJson["content"] = choice.delta.content;
-            }
-
-            nlohmann::json choiceJson = {
-              {"index", choice.index},
-              {"delta", deltaJson}
-            };
-
-            if (!choice.finish_reason.empty()) {
-                choiceJson["finish_reason"] = choice.finish_reason;
-            }
-            else {
-                choiceJson["finish_reason"] = nullptr;
-            }
-
-            choicesJson.push_back(choiceJson);
+            choicesJson.push_back(choice.to_json());
         }
         j["choices"] = choicesJson;
 
         return j;
+    }
+
+    // Format as a SSE (Server-Sent Events) message for streaming
+    std::string to_sse() const {
+        std::string output = "data: ";
+        output += this->to_json().dump();
+        output += "\n\n";
+        return output;
     }
 };

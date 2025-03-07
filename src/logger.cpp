@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <cstdarg>
 
-Logger::Logger() : minLevel(LogLevel::INFO) {
+Logger::Logger() : minLevel(LogLevel::SERVER_INFO) {
     // Default constructor
 }
 
@@ -46,63 +46,63 @@ bool Logger::setLogFile(const std::string& filePath) {
 }
 
 void Logger::error(const std::string& message) {
-    log(LogLevel::ERROR, message);
+    log(LogLevel::SERVER_ERROR, message);
 }
 
 void Logger::warning(const std::string& message) {
-    log(LogLevel::WARNING, message);
+    log(LogLevel::SERVER_WARNING, message);
 }
 
 void Logger::info(const std::string& message) {
-    log(LogLevel::INFO, message);
+    log(LogLevel::SERVER_INFO, message);
 }
 
 void Logger::debug(const std::string& message) {
-    log(LogLevel::DEBUG, message);
+    log(LogLevel::SERVER_DEBUG, message);
 }
 
 void Logger::error(const char* format, ...) {
-    if (LogLevel::ERROR > minLevel) return;
+    if (LogLevel::SERVER_ERROR > minLevel) return;
 
     va_list args;
     va_start(args, format);
     std::string formattedMsg = formatString(format, args);
     va_end(args);
 
-    log(LogLevel::ERROR, formattedMsg);
+    log(LogLevel::SERVER_ERROR, formattedMsg);
 }
 
 void Logger::warning(const char* format, ...) {
-    if (LogLevel::WARNING > minLevel) return;
+    if (LogLevel::SERVER_WARNING > minLevel) return;
 
     va_list args;
     va_start(args, format);
     std::string formattedMsg = formatString(format, args);
     va_end(args);
 
-    log(LogLevel::WARNING, formattedMsg);
+    log(LogLevel::SERVER_WARNING, formattedMsg);
 }
 
 void Logger::info(const char* format, ...) {
-    if (LogLevel::INFO > minLevel) return;
+    if (LogLevel::SERVER_INFO > minLevel) return;
 
     va_list args;
     va_start(args, format);
     std::string formattedMsg = formatString(format, args);
     va_end(args);
 
-    log(LogLevel::INFO, formattedMsg);
+    log(LogLevel::SERVER_INFO, formattedMsg);
 }
 
 void Logger::debug(const char* format, ...) {
-    if (LogLevel::DEBUG > minLevel) return;
+    if (LogLevel::SERVER_DEBUG > minLevel) return;
 
     va_list args;
     va_start(args, format);
     std::string formattedMsg = formatString(format, args);
     va_end(args);
 
-    log(LogLevel::DEBUG, formattedMsg);
+    log(LogLevel::SERVER_DEBUG, formattedMsg);
 }
 
 void Logger::logError(const std::string& message) {
@@ -210,10 +210,10 @@ void Logger::log(LogLevel level, const std::string& message) {
 
 std::string Logger::levelToString(LogLevel level) {
     switch (level) {
-    case LogLevel::ERROR:   return "ERROR";
-    case LogLevel::WARNING: return "WARNING";
-    case LogLevel::INFO:    return "INFO";
-    case LogLevel::DEBUG:   return "DEBUG";
+    case LogLevel::SERVER_ERROR:   return "ERROR";
+    case LogLevel::SERVER_WARNING: return "WARNING";
+    case LogLevel::SERVER_INFO:    return "INFO";
+    case LogLevel::SERVER_DEBUG:   return "DEBUG";
     default:                return "UNKNOWN";
     }
 }

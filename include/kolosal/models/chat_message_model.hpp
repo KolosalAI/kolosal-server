@@ -15,15 +15,28 @@ public:
     }
 
     void from_json(const nlohmann::json& j) override {
+        if (!j.is_object()) {
+            throw std::runtime_error("Message must be a JSON object");
+        }
+
+        if (!j.contains("role")) {
+            throw std::runtime_error("Message must have a role field");
+        }
+
+        if (!j["role"].is_string()) {
+            throw std::runtime_error("Role must be a string");
+        }
+
         j.at("role").get_to(role);
 
         // Content can be null in some cases (like function calls), but we're
         // ignoring those for now
+        content = ""; // Default to empty
         if (j.contains("content") && !j["content"].is_null()) {
+            if (!j["content"].is_string()) {
+                throw std::runtime_error("Content must be a string or null");
+            }
             j.at("content").get_to(content);
-        }
-        else {
-            content = "";
         }
     }
 

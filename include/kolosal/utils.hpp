@@ -5,6 +5,7 @@
 #include <string>
 #include <sstream>
 #include <iomanip>
+#include <map>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -23,54 +24,79 @@ struct StreamChunk {
     }
 };
 
-// Regular response helper
-inline KOLOSAL_SERVER_API void send_response(SocketType sock, int status_code,
-    const std::string& body,
-    const std::string& contentType = "application/json") {
-    std::string status_text;
+// Get standard status text for HTTP status code
+inline std::string get_status_text(int status_code) {
     switch (status_code) {
-    case 200: status_text = "OK"; break;
-    case 400: status_text = "Bad Request"; break;
-    case 404: status_text = "Not Found"; break;
-    case 405: status_text = "Method Not Allowed"; break;
-    default:  status_text = "Error"; break;
+    case 200: return "OK";
+    case 400: return "Bad Request";
+    case 404: return "Not Found";
+    case 405: return "Method Not Allowed";
+    default:  return "Error";
     }
-
-    std::string response =
-        "HTTP/1.1 " + std::to_string(status_code) + " " + status_text + "\r\n" +
-        "Content-Type: " + contentType + "\r\n" +
-        "Connection: close\r\n" +
-        "Content-Length: " + std::to_string(body.size()) + "\r\n\r\n" +
-        body;
-    send(sock, response.c_str(), response.size(), 0);
 }
 
-// Function to start a streaming response (sends headers)
+// Regular response helper with support for custom headers
+inline KOLOSAL_SERVER_API void send_response(
+    SocketType sock,
+    int status_code,
+    const std::string& body,
+    const std::map<std::string, std::string>& headers = { {"Content-Type", "application/json"} }) {
+
+    std::ostringstream response;
+    response << "HTTP/1.1 " << status_code << " " << get_status_text(status_code) << "\r\n";
+    response << "Content-Length: " << body.size() << "\r\n";
+    response << "Connection: close\r\n";
+
+    // Add all custom headers
+    for (const auto& [name, value] : headers) {
+        response << name << ": " << value << "\r\n";
+    }
+
+    // End of headers
+    response << "\r\n";
+    // Add body
+    response << body;
+
+    send(sock, response.str().c_str(), response.str().size(), 0);
+}
+
+// Function to start a streaming response with SSE support
 inline KOLOSAL_SERVER_API void begin_streaming_response(
     SocketType sock,
     int status_code,
-    const std::string& contentType = "application/json") {
+    const std::map<std::string, std::string>& headers = {}) {
 
-    std::string status_text;
-    switch (status_code) {
-    case 200: status_text = "OK"; break;
-    case 400: status_text = "Bad Request"; break;
-    case 404: status_text = "Not Found"; break;
-    case 405: status_text = "Method Not Allowed"; break;
-    default:  status_text = "Error"; break;
+    std::ostringstream headerStream;
+    headerStream << "HTTP/1.1 " << status_code << " " << get_status_text(status_code) << "\r\n";
+
+    // Default headers for streaming
+    headerStream << "Transfer-Encoding: chunked\r\n";
+    headerStream << "Connection: keep-alive\r\n";
+
+    // Add SSE headers if not present in custom headers
+    bool hasContentType = false;
+
+    // Add all custom headers
+    for (const auto& [name, value] : headers) {
+        headerStream << name << ": " << value << "\r\n";
+        if (name == "Content-Type") {
+            hasContentType = true;
+        }
     }
 
-    // Send the headers with Transfer-Encoding: chunked
-    std::string headers =
-        "HTTP/1.1 " + std::to_string(status_code) + " " + status_text + "\r\n" +
-        "Content-Type: " + contentType + "\r\n" +
-        "Connection: close\r\n" +
-        "Transfer-Encoding: chunked\r\n\r\n";
+    // Default to application/json if no Content-Type provided
+    if (!hasContentType) {
+        headerStream << "Content-Type: application/json\r\n";
+    }
 
-    send(sock, headers.c_str(), headers.size(), 0);
+    // End of headers
+    headerStream << "\r\n";
+
+    std::string headerString = headerStream.str();
+    send(sock, headerString.c_str(), headerString.size(), 0);
 }
 
-// Function to send a single stream chunk
+// Function to send a single stream chunk - modified to handle SSE format better
 inline KOLOSAL_SERVER_API void send_stream_chunk(SocketType sock, const StreamChunk& chunk) {
     // Only send non-empty chunks
     if (!chunk.data.empty()) {

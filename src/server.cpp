@@ -3,6 +3,10 @@
 #include "kolosal/logger.hpp"
 #include <iostream>
 #include <cstring>
+#include <thread>
+#include <vector>
+#include <mutex>
+#include <json.hpp>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -30,6 +34,59 @@ namespace kolosal {
 		if (second == std::string::npos)
 			return;
 		path = requestLine.substr(first + 1, second - first - 1);
+	}
+
+	// Thread function to handle a client request
+	void handle_client(SocketType client_sock,
+		const std::vector<std::unique_ptr<IRoute>>& routes,
+		const std::string& request,
+		const char* clientIP) {
+		// Parse the HTTP request line
+		size_t pos = request.find("\r\n");
+		if (pos == std::string::npos) {
+			Logger::logWarning("Malformed request received from %s", clientIP);
+			send_response(client_sock, 400, "{\"error\":\"Bad Request\"}");
+#ifdef _WIN32
+			closesocket(client_sock);
+#else
+			close(client_sock);
+#endif
+			return;
+		}
+		std::string requestLine = request.substr(0, pos);
+		std::string method, path;
+		parse_request_line(requestLine, method, path);
+
+		Logger::logInfo("[Thread %u] Processing %s request for %s from %s",
+			std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
+
+		// Extract body (if any)
+		size_t headerEnd = request.find("\r\n\r\n");
+		std::string body;
+		if (headerEnd != std::string::npos)
+			body = request.substr(headerEnd + 4);
+
+		bool routeFound = false;
+		for (const auto& route : routes) {
+			if (route->match(method, path)) {
+				routeFound = true;
+				route->handle(client_sock, body);
+				break;
+			}
+		}
+
+		if (!routeFound) {
+			Logger::logWarning("No route found for %s %s", method.c_str(), path.c_str());
+			send_response(client_sock, 404, "{\"error\":\"Not Found\"}");
+		}
+
+#ifdef _WIN32
+		closesocket(client_sock);
+#else
+		close(client_sock);
+#endif
+		Logger::logInfo("[Thread %u] Completed request for %s",
+			std::this_thread::get_id(), path.c_str());
 	}
 
 	Server::Server(const std::string& port) : port(port), running(false) {
@@ -136,7 +193,7 @@ namespace kolosal {
 
 	void Server::run() {
 		running = true;
-		Logger::logInfo("Server entering main loop");
+		Logger::logInfo("Server entering main loop with concurrent request handling");
 
 		while (running) {
 			struct sockaddr_storage client_addr;
@@ -200,68 +257,155 @@ namespace kolosal {
 #endif
 			Logger::logInfo("New client connection from %s", clientIP);
 
-			// Read the request.
-			const int bufferSize = 4096;
-			char buffer[bufferSize];
-			int bytes_received = recv(client_sock, buffer, bufferSize - 1, 0);
-			if (bytes_received <= 0) {
+			// Spawn a thread to handle this client
+			std::thread([this, client_sock, clientIP]() {
+				Logger::logInfo("[Thread %d] Processing request from %s",
+					std::this_thread::get_id(), clientIP);
+
+				// Read the HTTP headers
+				const int headerBufferSize = 8192;
+				char headerBuffer[headerBufferSize];
+				int headerBytesReceived = recv(client_sock, headerBuffer, headerBufferSize - 1, 0);
+
+				if (headerBytesReceived <= 0) {
+					Logger::logError("[Thread %d] Failed to read HTTP headers", std::this_thread::get_id());
 #ifdef _WIN32
-				closesocket(client_sock);
+					closesocket(client_sock);
 #else
-				close(client_sock);
+					close(client_sock);
 #endif
-				continue;
-			}
-			buffer[bytes_received] = '\0';
-			std::string request(buffer);
-
-			// Parse the HTTP request line
-			size_t pos = request.find("\r\n");
-			if (pos == std::string::npos) {
-				Logger::logWarning("Malformed request received");
-				send_response(client_sock, 400, "{\"error\":\"Bad Request\"}");
-#ifdef _WIN32
-				closesocket(client_sock);
-#else
-				close(client_sock);
-#endif
-				continue;
-			}
-			std::string requestLine = request.substr(0, pos);
-			std::string method, path;
-			parse_request_line(requestLine, method, path);
-
-			Logger::logInfo("Received %s request for %s", method.c_str(), path.c_str());
-
-			// Extract body (if any)
-			size_t headerEnd = request.find("\r\n\r\n");
-			std::string body;
-			if (headerEnd != std::string::npos)
-				body = request.substr(headerEnd + 4);
-
-			bool routeFound = false;
-			for (auto& route : routes) {
-				if (route->match(method, path)) {
-					routeFound = true;
-					route->handle(client_sock, body);
-					break;
+					return;
 				}
-			}
 
-			if (!routeFound) {
-				Logger::logWarning("No route found for %s %s", method.c_str(), path.c_str());
-				send_response(client_sock, 404, "{\"error\":\"Not Found\"}");
-			}
+				headerBuffer[headerBytesReceived] = '\0';
+				std::string request(headerBuffer, headerBytesReceived);
+
+				// Parse the HTTP request line
+				size_t endOfLine = request.find("\r\n");
+				if (endOfLine == std::string::npos) {
+					Logger::logWarning("[Thread %d] Malformed request received", std::this_thread::get_id());
+					send_response(client_sock, 400, "{\"error\":\"Bad Request\"}");
+#ifdef _WIN32
+					closesocket(client_sock);
+#else
+					close(client_sock);
+#endif
+					return;
+				}
+
+				std::string requestLine = request.substr(0, endOfLine);
+				std::string method, path;
+				parse_request_line(requestLine, method, path);
+
+				Logger::logInfo("[Thread %d] Processing %s request for %s from %s",
+					std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
+
+				// Find Content-Length header
+				int contentLength = 0;
+				std::string contentLengthHeader = "Content-Length: ";
+				size_t contentLengthPos = request.find(contentLengthHeader);
+
+				if (contentLengthPos != std::string::npos) {
+					size_t valueStart = contentLengthPos + contentLengthHeader.length();
+					size_t valueEnd = request.find("\r\n", valueStart);
+					if (valueEnd != std::string::npos) {
+						std::string lengthStr = request.substr(valueStart, valueEnd - valueStart);
+						try {
+							contentLength = std::stoi(lengthStr);
+							Logger::logDebug("[Thread %d] Content-Length: %d",
+								std::this_thread::get_id(), contentLength);
+						}
+						catch (const std::exception& e) {
+							Logger::logWarning("[Thread %d] Invalid Content-Length header: %s",
+								std::this_thread::get_id(), lengthStr.c_str());
+						}
+					}
+				}
+
+				// Find the start of the body
+				size_t bodyStart = request.find("\r\n\r\n");
+				std::string body;
+
+				if (bodyStart != std::string::npos) {
+					// Extract the body we've already read
+					body = request.substr(bodyStart + 4);
+
+					// If Content-Length indicates there's more data to read
+					if (contentLength > 0 && body.length() < static_cast<size_t>(contentLength)) {
+						int remaining = contentLength - body.length();
+						std::vector<char> bodyBuffer(remaining + 1, 0);
+
+						int totalRead = 0;
+						while (totalRead < remaining) {
+							int bytesRead = recv(client_sock, bodyBuffer.data() + totalRead,
+								remaining - totalRead, 0);
+							if (bytesRead <= 0) {
+								break;  // Error or connection closed
+							}
+							totalRead += bytesRead;
+						}
+
+						if (totalRead > 0) {
+							body.append(bodyBuffer.data(), totalRead);
+						}
+
+						Logger::logDebug("[Thread %d] Read %d additional bytes for body",
+							std::this_thread::get_id(), totalRead);
+					}
+				}
+
+				// Route the request
+				bool routeFound = false;
+				for (auto& route : routes) {
+					if (route->match(method, path)) {
+						routeFound = true;
+						try {
+							route->handle(client_sock, body);
+						}
+						catch (const std::exception& ex) {
+							Logger::logError("[Thread %d] Error in route handler: %s",
+								std::this_thread::get_id(), ex.what());
+
+							// If we haven't sent a response yet, send an error
+							nlohmann::json jError = { {"error", {
+							   {"message", std::string("Internal error: ") + ex.what()},
+							   {"type", "server_error"},
+							   {"param", nullptr},
+							   {"code", nullptr}
+							}} };
+							send_response(client_sock, 500, jError.dump());
+						}
+						break;
+					}
+				}
+
+				if (!routeFound) {
+					Logger::logWarning("[Thread %d] No route found for %s %s",
+						std::this_thread::get_id(), method.c_str(), path.c_str());
+
+					nlohmann::json jError = { {"error", {
+					  {"message", "Not found"},
+					  {"type", "invalid_request_error"},
+					  {"param", nullptr},
+					  {"code", nullptr}
+					}} };
+					send_response(client_sock, 404, jError.dump());
+				}
+
+				Logger::logInfo("[Thread %d] Completed request for %s",
+					std::this_thread::get_id(), path.c_str());
 
 #ifdef _WIN32
-			closesocket(client_sock);
+				closesocket(client_sock);
 #else
-			close(client_sock);
+				close(client_sock);
 #endif
+				}).detach();  // Detach the thread to handle the request independently
 		}
 
 		Logger::logInfo("Server main loop exited");
 	}
+
 
 	void Server::stop() {
 		if (running) {
