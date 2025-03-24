@@ -1,6 +1,7 @@
 #include "kolosal/server_api.hpp"
 #include "kolosal/server.hpp"
 #include "kolosal/routes/chat_completion_route.hpp"
+#include "kolosal/routes/completion_route.hpp"
 #include "kolosal/logger.hpp"
 #include <memory>
 #include <stdexcept>
@@ -8,7 +9,7 @@
 namespace kolosal {
 
     // Default inference implementation (returns a simple not-implemented response)
-    ChatCompletionResponse defaultInference(const ChatCompletionRequest& request) {
+    ChatCompletionResponse defaultChatCompletion(const ChatCompletionRequest& request) {
         ChatCompletionResponse response;
         response.model = request.model;
 
@@ -29,7 +30,7 @@ namespace kolosal {
     }
 
     // Default streaming inference (returns a simple not-implemented message in chunks)
-    bool defaultStreamingInference(const ChatCompletionRequest& request,
+    bool defaultChatCompletionStreaming(const ChatCompletionRequest& request,
         const std::string& requestId,
         int chunkIndex,
         ChatCompletionChunk& outputChunk) {
@@ -61,15 +62,73 @@ namespace kolosal {
         return chunkIndex < 2;
     }
 
+    // Default completion implementation (returns a simple not-implemented response)
+    CompletionResponse defaultCompletion(const CompletionRequest& request) {
+        CompletionResponse response;
+        response.model = request.model;
+
+        CompletionChoice choice;
+        choice.index = 0;
+        choice.text = "No completion implementation has been registered.";
+        choice.finish_reason = "stop";
+
+        response.choices.push_back(choice);
+
+        // Simple token count estimation
+        response.usage.prompt_tokens = 10;
+        response.usage.completion_tokens = 10;
+        response.usage.total_tokens = 20;
+
+        return response;
+    }
+
+    // Default streaming completion (returns a simple not-implemented message in chunks)
+    bool defaultCompletionStreaming(const CompletionRequest& request,
+        const std::string& requestId,
+        int chunkIndex,
+        CompletionChunk& outputChunk) {
+        outputChunk.id = requestId;
+        outputChunk.model = request.model;
+
+        CompletionChunkChoice choice;
+        choice.index = 0;
+
+        if (chunkIndex == 0) {
+            // First chunk
+            choice.text = "No streaming ";
+            choice.finish_reason = "";
+        }
+        else if (chunkIndex == 1) {
+            // Second chunk
+            choice.text = "completion implementation ";
+            choice.finish_reason = "";
+        }
+        else if (chunkIndex == 2) {
+            // Third chunk
+            choice.text = "has been registered.";
+            choice.finish_reason = "stop";
+        }
+
+        outputChunk.choices.push_back(choice);
+
+        // Return false when finished
+        return chunkIndex < 2;
+    }
+
     class ServerAPI::Impl {
     public:
         std::unique_ptr<Server> server;
-        InferenceCallback inferenceCallback;
-        StreamingInferenceCallback streamingInferenceCallback;
+        ChatCompletionCallback chatCompletionCallback;
+        ChatCompletionStreamingCallback chatCompletionStreamingCallback;
+        CompletionCallback completionCallback;
+        CompletionStreamingCallback completionStreamingCallback;
 
         Impl()
-            : inferenceCallback(defaultInference),
-            streamingInferenceCallback(defaultStreamingInference) {
+            : chatCompletionCallback(defaultChatCompletion)
+            , chatCompletionStreamingCallback(defaultChatCompletionStreaming)
+            , completionCallback(defaultCompletion)
+            , completionStreamingCallback(defaultCompletionStreaming)
+        {
         }
     };
 
@@ -97,6 +156,7 @@ namespace kolosal {
             // Register routes
             Logger::logInfo("Registering routes");
             pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
+            pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
 
             // Start server in a background thread
             std::thread([this]() {
@@ -120,34 +180,64 @@ namespace kolosal {
         }
     }
 
-    void ServerAPI::setInferenceCallback(InferenceCallback callback) {
+    void ServerAPI::setChatCompletionCallback(ChatCompletionCallback callback) {
         if (callback) {
-            pImpl->inferenceCallback = std::move(callback);
-            Logger::logInfo("Inference callback registered");
+            pImpl->chatCompletionCallback = std::move(callback);
+            Logger::logInfo("Chat completion callback registered");
         }
         else {
-            pImpl->inferenceCallback = defaultInference;
-            Logger::logWarning("Null inference callback provided, using default");
+            pImpl->chatCompletionCallback = defaultChatCompletion;
+            Logger::logWarning("Null chat completion callback provided, using default");
         }
     }
 
-    void ServerAPI::setStreamingInferenceCallback(StreamingInferenceCallback callback) {
+    void ServerAPI::setChatCompletionStreamingCallback(ChatCompletionStreamingCallback callback) {
         if (callback) {
-            pImpl->streamingInferenceCallback = std::move(callback);
-            Logger::logInfo("Streaming inference callback registered");
+            pImpl->chatCompletionStreamingCallback = std::move(callback);
+            Logger::logInfo("Streaming chat completion callback registered");
         }
         else {
-            pImpl->streamingInferenceCallback = defaultStreamingInference;
-            Logger::logWarning("Null streaming inference callback provided, using default");
+            pImpl->chatCompletionStreamingCallback = defaultChatCompletionStreaming;
+            Logger::logWarning("Null streaming chat completion callback provided, using default");
         }
     }
 
-    InferenceCallback ServerAPI::getInferenceCallback() const {
-        return pImpl->inferenceCallback;
+    ChatCompletionCallback ServerAPI::getChatCompletionCallback() const {
+        return pImpl->chatCompletionCallback;
     }
 
-    StreamingInferenceCallback ServerAPI::getStreamingInferenceCallback() const {
-        return pImpl->streamingInferenceCallback;
+    ChatCompletionStreamingCallback ServerAPI::getChatCompletionStreamingCallback() const {
+        return pImpl->chatCompletionStreamingCallback;
+    }
+
+    void ServerAPI::setCompletionCallback(CompletionCallback callback) {
+        if (callback) {
+            pImpl->completionCallback = std::move(callback);
+            Logger::logInfo("Completion callback registered");
+        }
+        else {
+            pImpl->completionCallback = defaultCompletion;
+            Logger::logWarning("Null completion callback provided, using default");
+        }
+    }
+
+    void ServerAPI::setCompletionStreamingCallback(CompletionStreamingCallback callback) {
+        if (callback) {
+            pImpl->completionStreamingCallback = std::move(callback);
+            Logger::logInfo("Streaming completion callback registered");
+        }
+        else {
+            pImpl->completionStreamingCallback = defaultCompletionStreaming;
+            Logger::logWarning("Null streaming completion callback provided, using default");
+        }
+    }
+
+    CompletionCallback ServerAPI::getCompletionCallback() const {
+        return pImpl->completionCallback;
+    }
+
+    CompletionStreamingCallback ServerAPI::getCompletionStreamingCallback() const {
+        return pImpl->completionStreamingCallback;
     }
 
 } // namespace kolosal
