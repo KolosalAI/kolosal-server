@@ -52,20 +52,35 @@ namespace kolosal {
                 begin_streaming_response(sock, 200, {
                     {"Content-Type", "text/event-stream"},
                     {"Cache-Control", "no-cache"}
-                    });
-
-                // Get the streaming callback
-                auto streamingCallback = ServerAPI::instance().getChatCompletionStreamingCallback();
-
-                // Process streaming generation
+                    });                // Process streaming generation with fixed response
                 int chunkIndex = 0;
                 bool hasMoreChunks = true;
 
                 while (hasMoreChunks) {
                     ChatCompletionChunk chunk;
+                    chunk.id = completionId;
+                    chunk.model = request.model;
 
-                    // Call the callback to get the next chunk
-                    hasMoreChunks = streamingCallback(request, completionId, chunkIndex, chunk);
+                    ChatCompletionChunkChoice choice;
+                    choice.index = 0;
+
+                    if (chunkIndex == 0) {
+                        // First chunk should include role
+                        choice.delta.role = "assistant";
+                        choice.finish_reason = "";
+                    }
+                    else if (chunkIndex == 1) {
+                        // Second chunk with content
+                        choice.delta.content = "This is a default response from kolosal-server.";
+                        choice.finish_reason = "";
+                    }
+                    else {
+                        // Last chunk
+                        choice.delta.content = "";
+                        choice.finish_reason = "stop";
+                    }
+
+                    chunk.choices.push_back(choice);
 
                     // Format as SSE data message (this is crucial for OpenAI client)
                     std::string sseData = "data: " + chunk.to_json().dump() + "\n\n";
@@ -74,6 +89,7 @@ namespace kolosal {
                     send_stream_chunk(sock, StreamChunk(sseData, false));
 
                     chunkIndex++;
+                    hasMoreChunks = chunkIndex < 3;
                 }
 
                 // Send the final [DONE] marker required by OpenAI client
@@ -88,28 +104,22 @@ namespace kolosal {
             else {
                 // Handle normal (non-streaming) response
                 ServerLogger::logInfo("[Thread %u] Processing non-streaming chat completion request",
-                    std::this_thread::get_id());
+                    std::this_thread::get_id());                // Generate fixed response
+                ChatCompletionResponse response;
+                response.model = request.model;
 
-                // Get the inference callback
-                auto inferenceCallback = ServerAPI::instance().getChatCompletionCallback();
+                ChatCompletionChoice choice;
+                choice.index = 0;
+                choice.message.role = "assistant";
+                choice.message.content = "This is a default response from kolosal-server.";
+                choice.finish_reason = "stop";
 
-                // Call the callback to generate the response
-                ChatCompletionResponse response = inferenceCallback(request);
+                response.choices.push_back(choice);
 
-                if (!response.error.empty()) {
-                    ServerLogger::logError("[Thread %u] Inference error: %s",
-                        std::this_thread::get_id(), response.error.c_str());
-
-                    json jError = { {"error", {
-                        {"message", response.error},
-                        {"type", "invalid_request_error"},
-                        {"param", nullptr},
-                        {"code", nullptr}
-                    }} };
-
-                    send_response(sock, 400, jError.dump());
-                    return;
-                }
+                // Simple token count estimation
+                response.usage.prompt_tokens = 10;
+                response.usage.completion_tokens = 10;
+                response.usage.total_tokens = 20;
 
                 // Send the response
                 send_response(sock, 200, response.to_json().dump());

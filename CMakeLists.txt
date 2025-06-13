@@ -5,9 +5,8 @@ project(KolosalServer VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# On Windows, define _WIN32_WINNT to ensure compatibility.
-if(WIN32)
-  add_definitions(-D_WIN32_WINNT=0x0601)
+if (MINGW)
+    add_compile_definitions(_WIN32_WINNT=0x602)
 endif()
 
 # Options for inference engine
@@ -28,12 +27,23 @@ set(SOURCES
     src/routes/chat_completion_route.cpp
     src/routes/completion_route.cpp
     src/routes/models_route.cpp
+    src/routes/add_engine_route.cpp
+    src/routes/list_engines_route.cpp
+    src/routes/remove_engine_route.cpp
+    src/routes/engine_status_route.cpp
+    src/routes/health_status_route.cpp
+    src/node_manager.cpp
     src/inference.cpp
 )
 
 # Create shared library instead of static library.
 add_library(kolosal_server SHARED ${SOURCES})
 target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE_EXPORTS)
+
+# Create executable
+add_executable(kolosal_server_exe src/main.cpp)
+target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
+set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
 
 # Find and setup llama.cpp
 set(LLAMA_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
@@ -150,7 +160,7 @@ if(WIN32)
 endif()
 
 # Add installation targets.
-install(TARGETS kolosal_server
+install(TARGETS kolosal_server kolosal_server_exe
     ARCHIVE DESTINATION lib
     LIBRARY DESTINATION lib
     RUNTIME DESTINATION bin
@@ -161,17 +171,3 @@ install(DIRECTORY include/
     DESTINATION include
     FILES_MATCHING PATTERN "*.hpp"
 )
-
-# Optional: Create example application.
-option(BUILD_EXAMPLES "Build examples" OFF)
-if(BUILD_EXAMPLES)
-    add_executable(kolosal_example examples/simple.cpp)
-    target_link_libraries(kolosal_example PRIVATE kolosal_server)
-    
-    # Platform-specific link libraries.
-    if(WIN32)
-        target_link_libraries(kolosal_example PRIVATE ws2_32)
-    endif()
-    
-    target_link_libraries(kolosal_example PRIVATE Threads::Threads)
-endif()
