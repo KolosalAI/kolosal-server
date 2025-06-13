@@ -79,22 +79,22 @@ bool customStreamingInference(const ChatCompletionRequest& request, const std::s
 
 int main() {
     // Initialize logger
-    Logger::instance().setLogFile("server.log");
-    Logger::instance().setLevel(LogLevel::DEBUG);
-    Logger::logInfo("Starting example application");
+    ServerLogger::instance().setLogFile("server.log");
+    ServerLogger::instance().setLevel(LogLevel::SERVER_DEBUG);
+    ServerLogger::logInfo("Starting example application");
 
     // Set custom inference callbacks
-    ServerAPI::instance().setInferenceCallback(customInference);
-    ServerAPI::instance().setStreamingInferenceCallback(customStreamingInference);
+    ServerAPI::instance().setChatCompletionCallback(customInference);
+    ServerAPI::instance().setChatCompletionStreamingCallback(customStreamingInference);
 
     // Start the server
     if (!ServerAPI::instance().init("8080")) {
-        Logger::logError("Failed to start server");
+        ServerLogger::logError("Failed to start server");
         return 1;
     }
 
-    Logger::logInfo("Server started on port 8080");
-    Logger::logInfo("Press Ctrl+C to exit");
+    ServerLogger::logInfo("Server started on port 8080");
+    ServerLogger::logInfo("Press Ctrl+C to exit");
 
     // Keep the main thread alive
     try {
@@ -103,12 +103,12 @@ int main() {
         }
     }
     catch (const std::exception& ex) {
-        Logger::logError("Error: %s", ex.what());
+        ServerLogger::logError("Error: %s", ex.what());
     }
 
     // Cleanup
     ServerAPI::instance().shutdown();
-    Logger::logInfo("Server shut down, exiting application");
+    ServerLogger::logInfo("Server shut down, exiting application");
 
     return 0;
 }

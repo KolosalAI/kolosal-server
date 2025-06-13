@@ -44,7 +44,7 @@ namespace kolosal {
 		// Parse the HTTP request line
 		size_t pos = request.find("\r\n");
 		if (pos == std::string::npos) {
-			Logger::logWarning("Malformed request received from %s", clientIP);
+			ServerLogger::logWarning("Malformed request received from %s", clientIP);
 			send_response(client_sock, 400, "{\"error\":\"Bad Request\"}");
 #ifdef _WIN32
 			closesocket(client_sock);
@@ -57,7 +57,7 @@ namespace kolosal {
 		std::string method, path;
 		parse_request_line(requestLine, method, path);
 
-		Logger::logInfo("[Thread %u] Processing %s request for %s from %s",
+		ServerLogger::logInfo("[Thread %u] Processing %s request for %s from %s",
 			std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
 
 		// Extract body (if any)
@@ -76,7 +76,7 @@ namespace kolosal {
 		}
 
 		if (!routeFound) {
-			Logger::logWarning("No route found for %s %s", method.c_str(), path.c_str());
+			ServerLogger::logWarning("No route found for %s %s", method.c_str(), path.c_str());
 			send_response(client_sock, 404, "{\"error\":\"Not Found\"}");
 		}
 
@@ -85,7 +85,7 @@ namespace kolosal {
 #else
 		close(client_sock);
 #endif
-		Logger::logInfo("[Thread %u] Completed request for %s",
+		ServerLogger::logInfo("[Thread %u] Completed request for %s",
 			std::this_thread::get_id(), path.c_str());
 	}
 
@@ -113,7 +113,7 @@ namespace kolosal {
 #ifdef _WIN32
 		WSADATA wsaData;
 		if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-			Logger::logError("WSAStartup failed");
+			ServerLogger::logError("WSAStartup failed");
 			return false;
 		}
 #endif
@@ -127,9 +127,9 @@ namespace kolosal {
 		int rv;
 		if ((rv = getaddrinfo(NULL, port.c_str(), &hints, &servinfo)) != 0) {
 #ifdef _WIN32
-			Logger::logError("getaddrinfo: %s", gai_strerrorA(rv));
+			ServerLogger::logError("getaddrinfo: %s", gai_strerrorA(rv));
 #else
-			Logger::logError("getaddrinfo: %s", gai_strerror(rv));
+			ServerLogger::logError("getaddrinfo: %s", gai_strerror(rv));
 #endif
 			return false;
 		}
@@ -174,16 +174,16 @@ namespace kolosal {
 #else
 		if (p == nullptr) {
 #endif
-			Logger::logError("Failed to bind socket");
+			ServerLogger::logError("Failed to bind socket");
 			return false;
 		}
 
 		if (listen(listen_sock, 10) == -1) {
-			Logger::logError("Listen failed");
+			ServerLogger::logError("Listen failed");
 			return false;
 		}
 
-		Logger::logInfo("Server initialized and listening on port %s", port.c_str());
+		ServerLogger::logInfo("Server initialized and listening on port %s", port.c_str());
 		return true;
 	}
 
@@ -193,7 +193,7 @@ namespace kolosal {
 
 	void Server::run() {
 		running = true;
-		Logger::logInfo("Server entering main loop with concurrent request handling");
+		ServerLogger::logInfo("Server entering main loop with concurrent request handling");
 
 		while (running) {
 			struct sockaddr_storage client_addr;
@@ -215,7 +215,7 @@ namespace kolosal {
 			int select_result = select(listen_sock + 1, &readfds, NULL, NULL, &tv);
 
 			if (select_result == -1) {
-				Logger::logError("Select failed");
+				ServerLogger::logError("Select failed");
 				break;
 			}
 
@@ -236,7 +236,7 @@ namespace kolosal {
 #else
 			if (client_sock == -1) {
 #endif
-				Logger::logError("Accept failed");
+				ServerLogger::logError("Accept failed");
 				continue;
 			}
 
@@ -255,11 +255,11 @@ namespace kolosal {
 				(void*)&(((struct sockaddr_in6*)&client_addr)->sin6_addr),
 				clientIP, sizeof(clientIP));
 #endif
-			Logger::logInfo("New client connection from %s", clientIP);
+			ServerLogger::logInfo("New client connection from %s", clientIP);
 
 			// Spawn a thread to handle this client
 			std::thread([this, client_sock, clientIP]() {
-				Logger::logInfo("[Thread %d] Processing request from %s",
+				ServerLogger::logInfo("[Thread %d] Processing request from %s",
 					std::this_thread::get_id(), clientIP);
 
 				// Read the HTTP headers
@@ -268,7 +268,7 @@ namespace kolosal {
 				int headerBytesReceived = recv(client_sock, headerBuffer, headerBufferSize - 1, 0);
 
 				if (headerBytesReceived <= 0) {
-					Logger::logError("[Thread %d] Failed to read HTTP headers", std::this_thread::get_id());
+					ServerLogger::logError("[Thread %d] Failed to read HTTP headers", std::this_thread::get_id());
 #ifdef _WIN32
 					closesocket(client_sock);
 #else
@@ -283,7 +283,7 @@ namespace kolosal {
 				// Parse the HTTP request line
 				size_t endOfLine = request.find("\r\n");
 				if (endOfLine == std::string::npos) {
-					Logger::logWarning("[Thread %d] Malformed request received", std::this_thread::get_id());
+					ServerLogger::logWarning("[Thread %d] Malformed request received", std::this_thread::get_id());
 					send_response(client_sock, 400, "{\"error\":\"Bad Request\"}");
 #ifdef _WIN32
 					closesocket(client_sock);
@@ -297,7 +297,7 @@ namespace kolosal {
 				std::string method, path;
 				parse_request_line(requestLine, method, path);
 
-				Logger::logInfo("[Thread %d] Processing %s request for %s from %s",
+				ServerLogger::logInfo("[Thread %d] Processing %s request for %s from %s",
 					std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
 
 				// Find Content-Length header
@@ -312,11 +312,11 @@ namespace kolosal {
 						std::string lengthStr = request.substr(valueStart, valueEnd - valueStart);
 						try {
 							contentLength = std::stoi(lengthStr);
-							Logger::logDebug("[Thread %d] Content-Length: %d",
+							ServerLogger::logDebug("[Thread %d] Content-Length: %d",
 								std::this_thread::get_id(), contentLength);
 						}
 						catch (const std::exception& e) {
-							Logger::logWarning("[Thread %d] Invalid Content-Length header: %s",
+							ServerLogger::logWarning("[Thread %d] Invalid Content-Length header: %s",
 								std::this_thread::get_id(), lengthStr.c_str());
 						}
 					}
@@ -349,7 +349,7 @@ namespace kolosal {
 							body.append(bodyBuffer.data(), totalRead);
 						}
 
-						Logger::logDebug("[Thread %d] Read %d additional bytes for body",
+						ServerLogger::logDebug("[Thread %d] Read %d additional bytes for body",
 							std::this_thread::get_id(), totalRead);
 					}
 				}
@@ -363,7 +363,7 @@ namespace kolosal {
 							route->handle(client_sock, body);
 						}
 						catch (const std::exception& ex) {
-							Logger::logError("[Thread %d] Error in route handler: %s",
+							ServerLogger::logError("[Thread %d] Error in route handler: %s",
 								std::this_thread::get_id(), ex.what());
 
 							// If we haven't sent a response yet, send an error
@@ -380,7 +380,7 @@ namespace kolosal {
 				}
 
 				if (!routeFound) {
-					Logger::logWarning("[Thread %d] No route found for %s %s",
+					ServerLogger::logWarning("[Thread %d] No route found for %s %s",
 						std::this_thread::get_id(), method.c_str(), path.c_str());
 
 					nlohmann::json jError = { {"error", {
@@ -392,7 +392,7 @@ namespace kolosal {
 					send_response(client_sock, 404, jError.dump());
 				}
 
-				Logger::logInfo("[Thread %d] Completed request for %s",
+				ServerLogger::logInfo("[Thread %d] Completed request for %s",
 					std::this_thread::get_id(), path.c_str());
 
 #ifdef _WIN32
@@ -403,13 +403,13 @@ namespace kolosal {
 				}).detach();  // Detach the thread to handle the request independently
 		}
 
-		Logger::logInfo("Server main loop exited");
+		ServerLogger::logInfo("Server main loop exited");
 	}
 
 
 	void Server::stop() {
 		if (running) {
-			Logger::logInfo("Stopping server");
+			ServerLogger::logInfo("Stopping server");
 			running = false;
 
 			// Additional cleanup could be added here

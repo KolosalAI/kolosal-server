@@ -20,6 +20,8 @@ set(SOURCES
     src/server_api.cpp
     src/logger.cpp
     src/routes/chat_completion_route.cpp
+    src/routes/completion_route.cpp
+    src/routes/models_route.cpp
 )
 
 # Create shared library instead of static library.

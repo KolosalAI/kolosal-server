@@ -22,14 +22,14 @@ struct LogEntry {
 	std::string message;
 };
 
-class KOLOSAL_SERVER_API Logger {
+class KOLOSAL_SERVER_API ServerLogger {
 public:
-	static Logger& instance();
+	static ServerLogger& instance();
 
-	Logger(const Logger&) = delete;
-	Logger& operator=(const Logger&) = delete;
-	Logger(Logger&&) = delete;
-	Logger& operator=(Logger&&) = delete;
+	ServerLogger(const ServerLogger&) = delete;
+	ServerLogger& operator=(const ServerLogger&) = delete;
+	ServerLogger(ServerLogger&&) = delete;
+	ServerLogger& operator=(ServerLogger&&) = delete;
 
 	// Set minimum log level
 	void setLevel(LogLevel level);
@@ -63,8 +63,8 @@ public:
 
 private:
 	// Private constructor for singleton
-	Logger();
-	~Logger();
+	ServerLogger();
+	~ServerLogger();
 
 	void log(LogLevel level, const std::string& message);
 

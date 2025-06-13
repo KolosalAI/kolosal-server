@@ -6,27 +6,27 @@
 #include <cstdio>
 #include <cstdarg>
 
-Logger::Logger() : minLevel(LogLevel::SERVER_INFO) {
+ServerLogger::ServerLogger() : minLevel(LogLevel::SERVER_INFO) {
     // Default constructor
 }
 
-Logger::~Logger() {
+ServerLogger::~ServerLogger() {
     if (logFile.is_open()) {
         logFile.close();
     }
 }
 
-Logger& Logger::instance() {
-    static Logger instance;
+ServerLogger& ServerLogger::instance() {
+    static ServerLogger instance;
     return instance;
 }
 
-void Logger::setLevel(LogLevel level) {
+void ServerLogger::setLevel(LogLevel level) {
     std::lock_guard<std::mutex> lock(logMutex);
     minLevel = level;
 }
 
-bool Logger::setLogFile(const std::string& filePath) {
+bool ServerLogger::setLogFile(const std::string& filePath) {
     std::lock_guard<std::mutex> lock(logMutex);
 
     // Close existing file if open
@@ -45,23 +45,23 @@ bool Logger::setLogFile(const std::string& filePath) {
     return true;
 }
 
-void Logger::error(const std::string& message) {
+void ServerLogger::error(const std::string& message) {
     log(LogLevel::SERVER_ERROR, message);
 }
 
-void Logger::warning(const std::string& message) {
+void ServerLogger::warning(const std::string& message) {
     log(LogLevel::SERVER_WARNING, message);
 }
 
-void Logger::info(const std::string& message) {
+void ServerLogger::info(const std::string& message) {
     log(LogLevel::SERVER_INFO, message);
 }
 
-void Logger::debug(const std::string& message) {
+void ServerLogger::debug(const std::string& message) {
     log(LogLevel::SERVER_DEBUG, message);
 }
 
-void Logger::error(const char* format, ...) {
+void ServerLogger::error(const char* format, ...) {
     if (LogLevel::SERVER_ERROR > minLevel) return;
 
     va_list args;
@@ -72,7 +72,7 @@ void Logger::error(const char* format, ...) {
     log(LogLevel::SERVER_ERROR, formattedMsg);
 }
 
-void Logger::warning(const char* format, ...) {
+void ServerLogger::warning(const char* format, ...) {
     if (LogLevel::SERVER_WARNING > minLevel) return;
 
     va_list args;
@@ -83,7 +83,7 @@ void Logger::warning(const char* format, ...) {
     log(LogLevel::SERVER_WARNING, formattedMsg);
 }
 
-void Logger::info(const char* format, ...) {
+void ServerLogger::info(const char* format, ...) {
     if (LogLevel::SERVER_INFO > minLevel) return;
 
     va_list args;
@@ -94,7 +94,7 @@ void Logger::info(const char* format, ...) {
     log(LogLevel::SERVER_INFO, formattedMsg);
 }
 
-void Logger::debug(const char* format, ...) {
+void ServerLogger::debug(const char* format, ...) {
     if (LogLevel::SERVER_DEBUG > minLevel) return;
 
     va_list args;
@@ -105,23 +105,23 @@ void Logger::debug(const char* format, ...) {
     log(LogLevel::SERVER_DEBUG, formattedMsg);
 }
 
-void Logger::logError(const std::string& message) {
+void ServerLogger::logError(const std::string& message) {
     instance().error(message);
 }
 
-void Logger::logWarning(const std::string& message) {
+void ServerLogger::logWarning(const std::string& message) {
     instance().warning(message);
 }
 
-void Logger::logInfo(const std::string& message) {
+void ServerLogger::logInfo(const std::string& message) {
     instance().info(message);
 }
 
-void Logger::logDebug(const std::string& message) {
+void ServerLogger::logDebug(const std::string& message) {
     instance().debug(message);
 }
 
-void Logger::logError(const char* format, ...) {
+void ServerLogger::logError(const char* format, ...) {
     va_list args;
     va_start(args, format);
     std::string formattedMsg = instance().formatString(format, args);
@@ -130,7 +130,7 @@ void Logger::logError(const char* format, ...) {
     instance().error(formattedMsg);
 }
 
-void Logger::logWarning(const char* format, ...) {
+void ServerLogger::logWarning(const char* format, ...) {
     va_list args;
     va_start(args, format);
     std::string formattedMsg = instance().formatString(format, args);
@@ -139,7 +139,7 @@ void Logger::logWarning(const char* format, ...) {
     instance().warning(formattedMsg);
 }
 
-void Logger::logInfo(const char* format, ...) {
+void ServerLogger::logInfo(const char* format, ...) {
     va_list args;
     va_start(args, format);
     std::string formattedMsg = instance().formatString(format, args);
@@ -148,7 +148,7 @@ void Logger::logInfo(const char* format, ...) {
     instance().info(formattedMsg);
 }
 
-void Logger::logDebug(const char* format, ...) {
+void ServerLogger::logDebug(const char* format, ...) {
     va_list args;
     va_start(args, format);
     std::string formattedMsg = instance().formatString(format, args);
@@ -157,11 +157,11 @@ void Logger::logDebug(const char* format, ...) {
     instance().debug(formattedMsg);
 }
 
-const std::vector<LogEntry>& Logger::getLogs() const {
+const std::vector<LogEntry>& ServerLogger::getLogs() const {
     return logs;
 }
 
-std::string Logger::formatString(const char* format, va_list args) {
+std::string ServerLogger::formatString(const char* format, va_list args) {
     va_list argsCopy;
     va_copy(argsCopy, args);
     int size = vsnprintf(nullptr, 0, format, argsCopy) + 1; // +1 for null terminator
@@ -178,7 +178,7 @@ std::string Logger::formatString(const char* format, va_list args) {
     return std::string(buffer.data(), buffer.data() + size - 1); // -1 to exclude null terminator
 }
 
-void Logger::log(LogLevel level, const std::string& message) {
+void ServerLogger::log(LogLevel level, const std::string& message) {
     // Skip if level is below minimum
     if (level > minLevel) {
         return;
@@ -208,7 +208,7 @@ void Logger::log(LogLevel level, const std::string& message) {
     }
 }
 
-std::string Logger::levelToString(LogLevel level) {
+std::string ServerLogger::levelToString(LogLevel level) {
     switch (level) {
     case LogLevel::SERVER_ERROR:   return "ERROR";
     case LogLevel::SERVER_WARNING: return "WARNING";
@@ -218,7 +218,7 @@ std::string Logger::levelToString(LogLevel level) {
     }
 }
 
-std::string Logger::getCurrentTimestamp() {
+std::string ServerLogger::getCurrentTimestamp() {
     auto now = std::chrono::system_clock::now();
     auto time_t = std::chrono::system_clock::to_time_t(now);
     auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
