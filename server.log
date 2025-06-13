@@ -1,0 +1,73 @@
+[2025-06-13 23:13:58.517] [INFO] Starting example application
+[2025-06-13 23:13:58.517] [INFO] NodeManager initialized with idle timeout: 300 seconds.
+[2025-06-13 23:13:58.518] [INFO] Chat completion callback registered
+[2025-06-13 23:13:58.518] [INFO] Streaming chat completion callback registered
+[2025-06-13 23:13:58.518] [INFO] Initializing server on port 8080
+[2025-06-13 23:13:58.518] [INFO] Autoscaling thread started.
+[2025-06-13 23:13:58.519] [INFO] Server initialized and listening on port 8080
+[2025-06-13 23:13:58.520] [INFO] Registering routes
+[2025-06-13 23:13:58.520] [INFO] Server started on port 8080
+[2025-06-13 23:13:58.520] [INFO] Press Ctrl+C to exit
+[2025-06-13 23:13:58.520] [INFO] Starting server main loop
+[2025-06-13 23:13:58.521] [INFO] Server entering main loop with concurrent request handling
+[2025-06-13 23:14:35.426] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:35.427] [INFO] [Thread 19980] Processing request from 127.0.0.1
+[2025-06-13 23:14:35.436] [INFO] [Thread 19980] Processing GET request for /health from 127.0.0.1
+[2025-06-13 23:14:35.436] [INFO] [Thread 19980] Received health status request
+[2025-06-13 23:14:35.436] [INFO] [Thread 19980] Successfully provided health status - 0 engines total (0 loaded, 0 unloaded)
+[2025-06-13 23:14:35.436] [INFO] [Thread 19980] Completed request for /health
+[2025-06-13 23:14:37.470] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:37.470] [INFO] [Thread 20144] Processing request from 127.0.0.1
+[2025-06-13 23:14:37.470] [INFO] [Thread 20144] Processing GET request for /v1/health from 127.0.0.1
+[2025-06-13 23:14:37.470] [INFO] [Thread 20144] Received health status request
+[2025-06-13 23:14:37.471] [INFO] [Thread 20144] Successfully provided health status - 0 engines total (0 loaded, 0 unloaded)
+[2025-06-13 23:14:37.471] [INFO] [Thread 20144] Completed request for /v1/health
+[2025-06-13 23:14:39.503] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:39.504] [INFO] [Thread 20676] Processing request from 127.0.0.1
+[2025-06-13 23:14:39.519] [INFO] [Thread 20676] Processing GET request for /engines from 127.0.0.1
+[2025-06-13 23:14:39.520] [INFO] [Thread 20676] Received list engines request
+[2025-06-13 23:14:39.520] [INFO] [Thread 20676] Successfully listed 0 engines
+[2025-06-13 23:14:39.520] [INFO] [Thread 20676] Completed request for /engines
+[2025-06-13 23:14:41.536] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:41.537] [INFO] [Thread 19432] Processing request from 127.0.0.1
+[2025-06-13 23:14:41.537] [INFO] [Thread 19432] Processing POST request for /engines from 127.0.0.1
+[2025-06-13 23:14:41.537] [DEBUG] [Thread 19432] Content-Length: 165
+[2025-06-13 23:14:41.537] [INFO] [Thread 19432] Received add engine request
+[2025-06-13 23:14:41.541] [ERROR] Failed to load model for engine ID 'test-comprehensive-engine' from path 'non_existent_model.gguf'.
+[2025-06-13 23:14:41.541] [INFO] Engine 'test-comprehensive-engine' added with load_immediately=false (currently loading anyway)
+[2025-06-13 23:14:41.542] [ERROR] [Thread 19432] Failed to add engine 'test-comprehensive-engine'
+[2025-06-13 23:14:41.542] [INFO] [Thread 19432] Completed request for /engines
+[2025-06-13 23:14:43.586] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:43.587] [INFO] [Thread 17832] Processing request from 127.0.0.1
+[2025-06-13 23:14:43.602] [INFO] [Thread 17832] Processing GET request for /engines from 127.0.0.1
+[2025-06-13 23:14:43.603] [INFO] [Thread 17832] Received list engines request
+[2025-06-13 23:14:43.603] [INFO] [Thread 17832] Successfully listed 0 engines
+[2025-06-13 23:14:43.603] [INFO] [Thread 17832] Completed request for /engines
+[2025-06-13 23:14:45.620] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:45.620] [INFO] [Thread 21264] Processing request from 127.0.0.1
+[2025-06-13 23:14:45.635] [INFO] [Thread 21264] Processing GET request for /engines/test-comprehensive-engine/status from 127.0.0.1
+[2025-06-13 23:14:45.636] [DEBUG] [Thread 21264] Content-Length: 42
+[2025-06-13 23:14:45.636] [DEBUG] [Thread 21264] Read 42 additional bytes for body
+[2025-06-13 23:14:45.636] [INFO] [Thread 21264] Received engine status request
+[2025-06-13 23:14:45.637] [WARNING] [Thread 21264] Engine 'test-comprehensive-engine' not found
+[2025-06-13 23:14:45.637] [INFO] [Thread 21264] Completed request for /engines/test-comprehensive-engine/status
+[2025-06-13 23:14:47.669] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:47.670] [INFO] [Thread 7948] Processing request from 127.0.0.1
+[2025-06-13 23:14:47.670] [INFO] [Thread 7948] Processing DELETE request for /engines/test-comprehensive-engine from 127.0.0.1
+[2025-06-13 23:14:47.670] [DEBUG] [Thread 7948] Content-Length: 42
+[2025-06-13 23:14:47.670] [INFO] [Thread 7948] Received remove engine request
+[2025-06-13 23:14:47.670] [WARNING] Attempted to remove non-existent engine with ID 'test-comprehensive-engine'.
+[2025-06-13 23:14:47.671] [WARNING] [Thread 7948] Failed to remove engine 'test-comprehensive-engine' - not found
+[2025-06-13 23:14:47.671] [INFO] [Thread 7948] Completed request for /engines/test-comprehensive-engine
+[2025-06-13 23:14:49.736] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:49.736] [INFO] [Thread 11012] Processing request from 127.0.0.1
+[2025-06-13 23:14:49.752] [INFO] [Thread 11012] Processing GET request for /v1/engines from 127.0.0.1
+[2025-06-13 23:14:49.752] [INFO] [Thread 11012] Received list engines request
+[2025-06-13 23:14:49.753] [INFO] [Thread 11012] Successfully listed 0 engines
+[2025-06-13 23:14:49.753] [INFO] [Thread 11012] Completed request for /v1/engines
+[2025-06-13 23:14:51.786] [INFO] New client connection from 127.0.0.1
+[2025-06-13 23:14:51.786] [INFO] [Thread 21488] Processing request from 127.0.0.1
+[2025-06-13 23:14:51.802] [INFO] [Thread 21488] Processing POST request for /engines from 127.0.0.1
+[2025-06-13 23:14:51.803] [DEBUG] [Thread 21488] Content-Length: 200
+[2025-06-13 23:14:51.803] [DEBUG] [Thread 21488] Read 200 additional bytes for body
+[2025-06-13 23:14:51.803] [INFO] [Thread 21488] Received add engine request
