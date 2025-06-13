@@ -1,9 +1,9 @@
 #pragma once
 
-#include "kolosal/routes/chat_completion_route.hpp"
+#include "kolosal/routes/completion_route.hpp"
 #include "kolosal/utils.hpp"
-#include "kolosal/models/chat_response_model.hpp"
-#include "kolosal/models/chat_response_chunk_model.hpp"
+#include "kolosal/models/completion_response_model.hpp"
+#include "kolosal/models/completion_response_chunk_model.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
 #include <json.hpp>
@@ -19,11 +19,11 @@ using json = nlohmann::json;
 
 namespace kolosal {
 
-    bool ChatCompletionsRoute::match(const std::string& method, const std::string& path) {
-        return (method == "POST" && (path == "/v1/chat/completions" || path == "/chat/completions"));
+    bool CompletionsRoute::match(const std::string& method, const std::string& path) {
+        return (method == "POST" && (path == "/v1/completions" || path == "/completions"));
     }
 
-    void ChatCompletionsRoute::handle(SocketType sock, const std::string& body) {
+    void CompletionsRoute::handle(SocketType sock, const std::string& body) {
         try {
             // Check for empty body
             if (body.empty()) {
@@ -31,10 +31,10 @@ namespace kolosal {
             }
 
             auto j = json::parse(body);
-            ServerLogger::logInfo("[Thread %u] Received chat completion request", std::this_thread::get_id());
+            ServerLogger::logInfo("[Thread %u] Received completion request", std::this_thread::get_id());
 
             // Parse the request
-            ChatCompletionRequest request;
+            CompletionRequest request;
             request.from_json(j);
 
             if (!request.validate()) {
@@ -43,10 +43,10 @@ namespace kolosal {
 
             if (request.stream) {
                 // Handle streaming response
-                ServerLogger::logInfo("[Thread %u] Processing streaming chat completion request", std::this_thread::get_id());
+                ServerLogger::logInfo("[Thread %u] Processing streaming completion request", std::this_thread::get_id());
 
                 // Create a persistent ID for this completion
-                std::string completionId = "chatcmpl-" + std::to_string(std::time(nullptr));
+                std::string completionId = "cmpl-" + std::to_string(std::time(nullptr));
 
                 // Start the streaming response with proper SSE headers
                 begin_streaming_response(sock, 200, {
@@ -55,14 +55,14 @@ namespace kolosal {
                     });
 
                 // Get the streaming callback
-                auto streamingCallback = ServerAPI::instance().getChatCompletionStreamingCallback();
+                auto streamingCallback = ServerAPI::instance().getCompletionStreamingCallback();
 
                 // Process streaming generation
                 int chunkIndex = 0;
                 bool hasMoreChunks = true;
 
                 while (hasMoreChunks) {
-                    ChatCompletionChunk chunk;
+                    CompletionChunk chunk;
 
                     // Call the callback to get the next chunk
                     hasMoreChunks = streamingCallback(request, completionId, chunkIndex, chunk);
@@ -87,14 +87,14 @@ namespace kolosal {
             }
             else {
                 // Handle normal (non-streaming) response
-                ServerLogger::logInfo("[Thread %u] Processing non-streaming chat completion request",
+                ServerLogger::logInfo("[Thread %u] Processing non-streaming completion request",
                     std::this_thread::get_id());
 
                 // Get the inference callback
-                auto inferenceCallback = ServerAPI::instance().getChatCompletionCallback();
+                auto inferenceCallback = ServerAPI::instance().getCompletionCallback();
 
                 // Call the callback to generate the response
-                ChatCompletionResponse response = inferenceCallback(request);
+                CompletionResponse response = inferenceCallback(request);
 
                 if (!response.error.empty()) {
                     ServerLogger::logError("[Thread %u] Inference error: %s",
@@ -133,7 +133,7 @@ namespace kolosal {
             send_response(sock, 400, jError.dump());
         }
         catch (const std::exception& ex) {
-            ServerLogger::logError("[Thread %u] Error handling chat completion: %s",
+            ServerLogger::logError("[Thread %u] Error handling completion: %s",
                 std::this_thread::get_id(), ex.what());
 
             json jError = { {"error", {

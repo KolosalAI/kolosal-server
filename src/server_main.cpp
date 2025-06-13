@@ -1,5 +1,7 @@
 #include "server.hpp"
 #include "routes/chat_completion_route.hpp"
+#include "routes/completion_route.hpp"
+#include "routes/models_route.hpp"
 #include "logger.hpp"
 #include <memory>
 
@@ -19,6 +21,8 @@ int main() {
     // Register routes
     Logger::logInfo("Registering routes");
     server.addRoute(std::make_unique<ChatCompletionsRoute>());
+	server.addRoute(std::make_unique<CompletionsRoute>());
+	server.addRoute(std::make_unique<ModelsRoute>());
 
     Logger::logInfo("Server initialized, starting main loop");
     server.run();
