@@ -13,6 +13,7 @@ endif()
 # Options for inference engine
 option(USE_CUDA   "Compile with CUDA support" OFF)
 option(USE_VULKAN "Compile with VULKAN support" OFF)
+option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
 
 # Define include directories.
@@ -90,10 +91,32 @@ else()
   message(STATUS "Using OpenBLAS for GGML acceleration")
 endif()
 
+# Find and configure MPI if enabled
+if(USE_MPI)
+  find_package(MPI REQUIRED)
+  if(MPI_FOUND)
+    target_include_directories(kolosal_server PRIVATE ${MPI_CXX_INCLUDE_DIRS})
+    target_link_libraries(kolosal_server PRIVATE ${MPI_CXX_LIBRARIES})
+    target_compile_definitions(kolosal_server PRIVATE ${MPI_CXX_COMPILE_DEFINITIONS})
+    if(MPI_CXX_COMPILE_FLAGS)
+      set_target_properties(kolosal_server PROPERTIES
+        COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
+    endif()
+    if(MPI_CXX_LINK_FLAGS)
+      set_target_properties(kolosal_server PROPERTIES
+        LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
+    endif()
+    message(STATUS "Found MPI: ${MPI_CXX_INCLUDE_DIRS}")
+  else()
+    message(FATAL_ERROR "MPI not found. Please install MPI implementation (OpenMPI, MPICH, or MS-MPI).")
+  endif()
+endif()
+
 # Define inference-related compile definitions
 target_compile_definitions(kolosal_server PUBLIC
   $<$<BOOL:${USE_CUDA}>:USE_CUDA>
   $<$<BOOL:${USE_VULKAN}>:USE_VULKAN>
+  $<$<BOOL:${USE_MPI}>:USE_MPI>
   $<$<BOOL:${DEBUG}>:DEBUG>
 )
 
