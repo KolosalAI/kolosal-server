@@ -32,10 +32,10 @@ graph TD
     end
     
     subgraph "Features"
-        H[Streaming Support<br/>Server-Sent Events]
-        I[GPU Acceleration<br/>CUDA/Vulkan]
-        J[Model Loading<br/>Dynamic GGUF]
-        K[Error Handling<br/>OpenAI Format]
+        H["Streaming Support<br/>Server-Sent Events"]
+        I["GPU Acceleration<br/>CUDA/Vulkan"]
+        J["Model Loading<br/>Dynamic GGUF"]
+        K["Error Handling<br/>OpenAI Format"]
     end
     
     A --> H

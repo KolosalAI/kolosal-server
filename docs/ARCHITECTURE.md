@@ -19,7 +19,7 @@ graph TB
     
     subgraph "Inference Layer"
         F[llama.cpp Engine]
-        G[Model Files<br/>(.gguf)]
+        G["Model Files<br/>(.gguf)"]
     end
     
     A <--> C
@@ -215,16 +215,16 @@ class InferenceEngine {
 
 ```mermaid
 flowchart TD
-    A[HTTP Request] --> B[Server::handleConnection]
-    B --> C[Parse HTTP Request<br/>Extract method, path, headers, body]
-    C --> D[Route Matching Loop<br/>Find appropriate route handler]
-    D --> E[IRoute::handle<br/>Execute business logic]
-    E --> F[Model Validation<br/>Parse and validate JSON]
-    F --> G[NodeManager::getEngine<br/>Get inference engine]
-    G --> H[InferenceEngine::submit*Job<br/>Submit inference job]
-    H --> I[Job Processing<br/>llama.cpp - Generate text/chat response]
-    I --> J[Response Generation<br/>Format JSON response]
-    J --> K[HTTP Response Transmission<br/>Send back to client]
+    A[HTTP Request] --> B["Server::handleConnection"]
+    B --> C["Parse HTTP Request<br/>Extract method, path, headers, body"]
+    C --> D["Route Matching Loop<br/>Find appropriate route handler"]
+    D --> E["IRoute::handle<br/>Execute business logic"]
+    E --> F["Model Validation<br/>Parse and validate JSON"]
+    F --> G["NodeManager::getEngine<br/>Get inference engine"]
+    G --> H["InferenceEngine::submit*Job<br/>Submit inference job"]
+    H --> I["Job Processing<br/>llama.cpp - Generate text/chat response"]
+    I --> J["Response Generation<br/>Format JSON response"]
+    J --> K["HTTP Response Transmission<br/>Send back to client"]
     
     style A fill:#e3f2fd
     style B fill:#f3e5f5
@@ -245,13 +245,13 @@ For streaming endpoints (`stream: true`):
 
 ```mermaid
 flowchart TD
-    A[Client Request] --> B[Set Streaming Headers<br/>Content-Type: text/event-stream]
-    B --> C[Submit Job<br/>Start inference job]
+    A[Client Request] --> B["Set Streaming Headers<br/>Content-Type: text/event-stream"]
+    B --> C["Submit Job<br/>Start inference job"]
     C --> D[Poll Job Results]
-    D --> E[Send Chunk<br/>data: {...}\n\n]
+    D --> E["Send Chunk<br/>data: {...}\n\n"]
     E --> F{Job Complete?}
     F -->|No| D
-    F -->|Yes| G[Send [DONE] Marker<br/>data: [DONE]\n\n]
+    F -->|Yes| G["Send [DONE] Marker<br/>data: [DONE]\n\n"]
     
     style A fill:#e3f2fd
     style B fill:#f3e5f5

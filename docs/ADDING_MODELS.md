@@ -21,25 +21,25 @@ The model system follows a clear data flow pattern:
 ```mermaid
 flowchart TD
     subgraph "Input"
-        A[HTTP Request<br/>JSON Data]
+        A["HTTP Request<br/>JSON Data"]
     end
     
     subgraph "Request Processing"
-        B[Parse JSON<br/>nlohmann::json]
-        C[Request Model<br/>from_json()]
-        D[Validation<br/>validate()]
+        B["Parse JSON<br/>nlohmann::json"]
+        C["Request Model<br/>from_json()"]
+        D["Validation<br/>validate()"]
     end
     
     subgraph "Business Logic"
-        E[Route Handler<br/>Process Request]
-        F[Internal Models<br/>Data Transform]
-        G[Inference Engine<br/>Execute Task]
+        E["Route Handler<br/>Process Request"]
+        F["Internal Models<br/>Data Transform"]
+        G["Inference Engine<br/>Execute Task"]
     end
     
     subgraph "Response Processing"
-        H[Response Model<br/>to_json()]
-        I[JSON Serialization<br/>nlohmann::json]
-        J[HTTP Response<br/>JSON Data]
+        H["Response Model<br/>to_json()"]
+        I["JSON Serialization<br/>nlohmann::json"]
+        J["HTTP Response<br/>JSON Data"]
     end
     
     A --> B
