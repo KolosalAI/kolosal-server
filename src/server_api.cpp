@@ -2,7 +2,6 @@
 #include "kolosal/server.hpp"
 #include "kolosal/routes/chat_completion_route.hpp"
 #include "kolosal/routes/completion_route.hpp"
-#include "kolosal/routes/models_route.hpp"
 #include "kolosal/routes/add_engine_route.hpp"
 #include "kolosal/routes/list_engines_route.hpp"
 #include "kolosal/routes/remove_engine_route.hpp"
@@ -13,9 +12,11 @@
 #include <memory>
 #include <stdexcept>
 
-namespace kolosal {
+namespace kolosal
+{
 
-    class ServerAPI::Impl {
+    class ServerAPI::Impl
+    {
     public:
         std::unique_ptr<Server> server;
         std::unique_ptr<NodeManager> nodeManager;
@@ -28,28 +29,32 @@ namespace kolosal {
 
     ServerAPI::ServerAPI() : pImpl(std::make_unique<Impl>()) {}
 
-    ServerAPI::~ServerAPI() {
+    ServerAPI::~ServerAPI()
+    {
         shutdown();
     }
 
-    ServerAPI& ServerAPI::instance() {
+    ServerAPI &ServerAPI::instance()
+    {
         static ServerAPI instance;
         return instance;
     }
 
-    bool ServerAPI::init(const std::string& port) {
-        try {
+    bool ServerAPI::init(const std::string &port)
+    {
+        try
+        {
             ServerLogger::logInfo("Initializing server on port %s", port.c_str());
 
             pImpl->server = std::make_unique<Server>(port);
-            if (!pImpl->server->init()) {
+            if (!pImpl->server->init())
+            {
                 ServerLogger::logError("Failed to initialize server");
                 return false;
-            }            // Register routes
+            } // Register routes
             ServerLogger::logInfo("Registering routes");
             pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
-			pImpl->server->addRoute(std::make_unique<ModelsRoute>());
             pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());
             pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());
@@ -57,31 +62,38 @@ namespace kolosal {
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
 
             // Start server in a background thread
-            std::thread([this]() {
+            std::thread([this]()
+                        {
                 ServerLogger::logInfo("Starting server main loop");
-                pImpl->server->run();
-                }).detach();
+                pImpl->server->run(); })
+                .detach();
 
             return true;
         }
-        catch (const std::exception& ex) {
+        catch (const std::exception &ex)
+        {
             ServerLogger::logError("Failed to initialize server: %s", ex.what());
             return false;
         }
     }
 
-    void ServerAPI::shutdown() {
-        if (pImpl->server) {
+    void ServerAPI::shutdown()
+    {
+        if (pImpl->server)
+        {
             ServerLogger::logInfo("Shutting down server");
             // Implement server shutdown mechanism
             pImpl->server.reset();
-        }    }
+        }
+    }
 
-    NodeManager& ServerAPI::getNodeManager() {
+    NodeManager &ServerAPI::getNodeManager()
+    {
         return *pImpl->nodeManager;
     }
 
-    const NodeManager& ServerAPI::getNodeManager() const {
+    const NodeManager &ServerAPI::getNodeManager() const
+    {
         return *pImpl->nodeManager;
     }
 
