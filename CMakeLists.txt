@@ -175,3 +175,6 @@ install(DIRECTORY include/
     DESTINATION include
     FILES_MATCHING PATTERN "*.hpp"
 )
+
+find_package(yaml-cpp REQUIRED)
+target_link_libraries(kolosal_server PRIVATE yaml-cpp)
