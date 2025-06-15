@@ -156,6 +156,82 @@ Create a production configuration file:
 }
 ```
 
+## Deployment Architecture
+
+The following diagram shows the recommended production deployment architecture:
+
+```mermaid
+graph TB
+    subgraph "External"
+        A[Client Applications]
+        B[Load Balancer<br/>nginx/IIS]
+    end
+    
+    subgraph "Security Layer"
+        C[API Gateway<br/>Authentication & Rate Limiting]
+        D[Firewall<br/>Network Security]
+    end
+    
+    subgraph "Application Layer"
+        E[Kolosal Server<br/>Instance 1]
+        F[Kolosal Server<br/>Instance 2]
+        G[Kolosal Server<br/>Instance N]
+    end
+    
+    subgraph "Storage Layer"
+        H[Model Storage<br/>SSD/NVMe]
+        I[Log Storage<br/>Application Logs]
+        J[Config Storage<br/>Settings & Keys]
+    end
+    
+    subgraph "Monitoring"
+        K[Application Metrics<br/>Performance & Health]
+        L[System Monitoring<br/>CPU, Memory, GPU]
+        M[Log Aggregation<br/>Centralized Logging]
+    end
+    
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    D --> F
+    D --> G
+    
+    E --> H
+    F --> H
+    G --> H
+    
+    E --> I
+    F --> I
+    G --> I
+    
+    C --> J
+    
+    E --> K
+    F --> K
+    G --> K
+    
+    E --> L
+    F --> L
+    G --> L
+    
+    I --> M
+    
+    style A fill:#e3f2fd
+    style B fill:#f3e5f5
+    style C fill:#fff3e0
+    style D fill:#ffebee
+    style E fill:#e8f5e8
+    style F fill:#e8f5e8
+    style G fill:#e8f5e8
+    style H fill:#f9fbe7
+    style I fill:#f9fbe7
+    style J fill:#f9fbe7
+    style K fill:#fce4ec
+    style L fill:#fce4ec
+    style M fill:#fce4ec
+```
+
 ## Deployment Options
 
 ### Option 1: Windows Service
@@ -289,6 +365,67 @@ server {
 ```
 
 ## Monitoring
+
+### Monitoring Flow
+
+The monitoring system collects metrics from multiple sources:
+
+```mermaid
+flowchart LR
+    subgraph "Application"
+        A[Kolosal Server]
+        B[Request Metrics]
+        C[Inference Metrics]
+        D[Error Tracking]
+    end
+    
+    subgraph "System"
+        E[CPU Metrics]
+        F[Memory Usage]
+        G[GPU Utilization]
+        H[Network I/O]
+    end
+    
+    subgraph "Storage"
+        I[Log Files]
+        J[Performance Logs]
+        K[Error Logs]
+    end
+    
+    subgraph "Monitoring Tools"
+        L[Metrics Collector]
+        M[Health Dashboard]
+        N[Alert System]
+        O[Log Aggregator]
+    end
+    
+    A --> B
+    A --> C
+    A --> D
+    A --> I
+    A --> J
+    A --> K
+    
+    B --> L
+    C --> L
+    D --> L
+    E --> L
+    F --> L
+    G --> L
+    H --> L
+    
+    L --> M
+    L --> N
+    I --> O
+    J --> O
+    K --> O
+    
+    style A fill:#e8f5e8
+    style L fill:#fff3e0
+    style M fill:#e3f2fd
+    style N fill:#ffebee
+    style O fill:#f3e5f5
+```
 
 ### Application Metrics
 

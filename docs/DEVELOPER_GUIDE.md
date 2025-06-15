@@ -50,29 +50,43 @@ This guide provides comprehensive information for developers working on or exten
 
 ### Project Structure
 
-```
-kolosal-server/
-├── build/                      # Build artifacts (generated)
-├── docs/                       # Documentation
-├── external/                   # External dependencies
-│   ├── curl/                   # HTTP client library
-│   ├── llama.cpp/              # LLM inference engine
-│   └── nlohmann/               # JSON library
-├── include/                    # Public headers
-│   ├── kolosal/                # Main library headers
-│   │   ├── models/             # Data models
-│   │   └── routes/             # Route handlers
-│   ├── inference.h             # Inference engine interface
-│   └── kolosal_server.hpp      # Main include file
-├── src/                        # Source files
-│   ├── routes/                 # Route implementations
-│   ├── main.cpp                # Application entry point
-│   ├── server.cpp              # HTTP server implementation
-│   ├── server_api.cpp          # Server API wrapper
-│   ├── node_manager.cpp        # Model management
-│   └── inference.cpp           # Inference engine implementation
-├── CMakeLists.txt              # Build configuration
-└── README.md                   # Project documentation
+```mermaid
+graph TD
+    A[kolosal-server/] --> B[build/]
+    A --> C[docs/]
+    A --> D[external/]
+    A --> E[include/]
+    A --> F[src/]
+    A --> G[CMakeLists.txt]
+    A --> H[README.md]
+    
+    B --> B1[Build artifacts - generated]
+    C --> C1[Documentation]
+    D --> D1[curl/ - HTTP client library]
+    D --> D2[llama.cpp/ - LLM inference engine]
+    D --> D3[nlohmann/ - JSON library]
+    
+    E --> E1[kolosal/]
+    E --> E2[inference.h]
+    E --> E3[kolosal_server.hpp]
+    E1 --> E11[models/ - Data models]
+    E1 --> E12[routes/ - Route handlers]
+    
+    F --> F1[routes/ - Route implementations]
+    F --> F2[main.cpp - Application entry point]
+    F --> F3[server.cpp - HTTP server implementation]
+    F --> F4[server_api.cpp - Server API wrapper]
+    F --> F5[node_manager.cpp - Model management]
+    F --> F6[inference.cpp - Inference engine implementation]
+    
+    style A fill:#e1f5fe
+    style B fill:#fff3e0
+    style C fill:#f3e5f5
+    style D fill:#e8f5e8
+    style E fill:#fff8e1
+    style F fill:#fce4ec
+    style G fill:#e0f2f1
+    style H fill:#e0f2f1
 ```
 
 ## Architecture Overview
@@ -207,13 +221,24 @@ namespace kolosal {
             
             // Send response
             send_response(sock, 200, response.dump());
-            
-        } catch (const json::exception& ex) {
+              } catch (const json::exception& ex) {
             ServerLogger::logError("JSON parsing error: %s", ex.what());
-            send_error_response(sock, 400, "Invalid JSON in request body");
+            json error = {
+                {"error", {
+                    {"message", "Invalid JSON in request body"},
+                    {"type", "invalid_request_error"}
+                }}
+            };
+            send_response(sock, 400, error.dump());
         } catch (const std::exception& ex) {
             ServerLogger::logError("Error processing request: %s", ex.what());
-            send_error_response(sock, 500, ex.what());
+            json error = {
+                {"error", {
+                    {"message", ex.what()},
+                    {"type", "internal_server_error"}
+                }}
+            };
+            send_response(sock, 500, error.dump());
         }
     }
 }
