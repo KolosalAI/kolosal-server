@@ -5,33 +5,35 @@
 
 #include "export.hpp"
 
-namespace kolosal {    // Forward declarations
+namespace kolosal
+{
+
+    // Forward declarations
     class NodeManager;
-    namespace auth {
+    namespace auth
+    {
         class AuthMiddleware;
-        class AuthManager;
     }
 
-    class KOLOSAL_SERVER_API ServerAPI {
+    class KOLOSAL_SERVER_API ServerAPI
+    {
     public:
         // Singleton pattern
-        static ServerAPI& instance();
+        static ServerAPI &instance();
 
         // Delete copy/move constructors and assignments
-        ServerAPI(const ServerAPI&) = delete;
-        ServerAPI& operator=(const ServerAPI&) = delete;
-        ServerAPI(ServerAPI&&) = delete;
-        ServerAPI& operator=(ServerAPI&&) = delete;        // Initialize and start server
-        bool init(const std::string& port);
-        void shutdown();        // NodeManager access
-        NodeManager& getNodeManager();
-        const NodeManager& getNodeManager() const;        // AuthMiddleware access
-        auth::AuthMiddleware& getAuthMiddleware();
-        const auth::AuthMiddleware& getAuthMiddleware() const;
+        ServerAPI(const ServerAPI &) = delete;
+        ServerAPI &operator=(const ServerAPI &) = delete;
+        ServerAPI(ServerAPI &&) = delete;
+        ServerAPI &operator=(ServerAPI &&) = delete; // Initialize and start server
+        bool init(const std::string &port);
+        void shutdown(); // NodeManager access
+        NodeManager &getNodeManager();
+        const NodeManager &getNodeManager() const;
 
-        // AuthManager access
-        auth::AuthManager& getAuthManager();
-        const auth::AuthManager& getAuthManager() const;
+        // AuthMiddleware access
+        auth::AuthMiddleware &getAuthMiddleware();
+        const auth::AuthMiddleware &getAuthMiddleware() const;
 
     private:
         ServerAPI();
