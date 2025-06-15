@@ -164,30 +164,30 @@ The following diagram shows the recommended production deployment architecture:
 graph TB
     subgraph "External"
         A[Client Applications]
-        B[Load Balancer<br/>nginx/IIS]
+        B["Load Balancer<br/>nginx/IIS"]
     end
     
     subgraph "Security Layer"
-        C[API Gateway<br/>Authentication & Rate Limiting]
-        D[Firewall<br/>Network Security]
+        C["API Gateway<br/>Authentication & Rate Limiting"]
+        D["Firewall<br/>Network Security"]
     end
     
     subgraph "Application Layer"
-        E[Kolosal Server<br/>Instance 1]
-        F[Kolosal Server<br/>Instance 2]
-        G[Kolosal Server<br/>Instance N]
+        E["Kolosal Server<br/>Instance 1"]
+        F["Kolosal Server<br/>Instance 2"]
+        G["Kolosal Server<br/>Instance N"]
     end
     
     subgraph "Storage Layer"
-        H[Model Storage<br/>SSD/NVMe]
-        I[Log Storage<br/>Application Logs]
-        J[Config Storage<br/>Settings & Keys]
+        H["Model Storage<br/>SSD/NVMe"]
+        I["Log Storage<br/>Application Logs"]
+        J["Config Storage<br/>Settings & Keys"]
     end
     
     subgraph "Monitoring"
-        K[Application Metrics<br/>Performance & Health]
-        L[System Monitoring<br/>CPU, Memory, GPU]
-        M[Log Aggregation<br/>Centralized Logging]
+        K["Application Metrics<br/>Performance & Health"]
+        L["System Monitoring<br/>CPU, Memory, GPU"]
+        M["Log Aggregation<br/>Centralized Logging"]
     end
     
     A --> B
