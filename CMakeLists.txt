@@ -18,11 +18,13 @@ option(DEBUG      "Compile with debugging information" OFF)
 # Define include directories.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp/include)
 
 # Define source files.
 set(SOURCES
     src/server.cpp
     src/server_api.cpp    
+    src/server_config.cpp
     src/logger.cpp
     src/download_utils.cpp
     src/routes/chat_completion_route.cpp
@@ -48,6 +50,21 @@ target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE
 add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
+
+# Find and setup yaml-cpp
+set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
+if(NOT EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
+  message(FATAL_ERROR "yaml-cpp not found at ${YAML_CPP_PATH}. Please clone it or adjust YAML_CPP_PATH.")
+endif()
+
+# Configure yaml-cpp options
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
+set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static library" FORCE)
+
+# Add yaml-cpp subdirectory
+add_subdirectory(${YAML_CPP_PATH})
 
 # Find and setup llama.cpp
 set(LLAMA_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
@@ -138,7 +155,7 @@ target_compile_definitions(kolosal_server PUBLIC
 add_subdirectory(${LLAMA_CPP_PATH})
 
 # Link llama.cpp libraries
-target_link_libraries(kolosal_server PRIVATE llama common ggml toolcall)
+target_link_libraries(kolosal_server PRIVATE llama common ggml toolcall yaml-cpp)
 
 # Link CURL libraries and include directories
 target_include_directories(kolosal_server PRIVATE ${CURL_INCLUDE_DIR})
