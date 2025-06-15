@@ -44,6 +44,18 @@ public:
     bool addEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
 
     /**
+     * @brief Registers a model for lazy loading without immediately loading it.
+     * The model will be validated but not loaded until first access.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the model was validated and registered successfully, false otherwise.
+     */
+    bool registerEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
+
+    /**
      * @brief Retrieves a pointer to an inference engine by its ID.
      * If the engine was unloaded due to inactivity, it will attempt to reload it.
      * Accessing an engine resets its idle timer.
@@ -67,6 +79,14 @@ public:
      * @return A vector of strings containing the engine IDs.
      */
     std::vector<std::string> listEngineIds() const;
+
+    /**
+     * @brief Validates if a model file exists without loading it.
+     * 
+     * @param modelPath Path to the model file (local or URL).
+     * @return True if the model file exists and is accessible, false otherwise.
+     */
+    bool validateModelPath(const std::string& modelPath);
 
 private:
     struct EngineRecord {
@@ -94,6 +114,14 @@ private:
      * Periodically checks for idle engines and unloads them.
      */
     void autoscalingLoop();
+
+    /**
+     * @brief Validates if a model file exists (either local path or URL).
+     * 
+     * @param modelPath Path to the model file (local or URL).
+     * @return True if the model file exists and is accessible, false otherwise.
+     */
+    bool validateModelFile(const std::string& modelPath);
 };
 
 } // namespace kolosal

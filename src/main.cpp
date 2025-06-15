@@ -76,15 +76,13 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     }
-    
-    // Load models if specified
+      // Load models if specified
     if (!config.models.empty()) {
         auto& nodeManager = server.getNodeManager();
         
-        for (const auto& modelConfig : config.models) {
-            std::cout << "Configuring model '" << modelConfig.id << "'..." << std::endl;
-            
-            if (modelConfig.loadAtStartup) {
+        int successfulModels = 0;
+        int failedModels = 0;        for (const auto& modelConfig : config.models) {
+            std::cout << "Configuring model '" << modelConfig.id << "'..." << std::endl;if (modelConfig.loadAtStartup) {
                 std::cout << "Loading model '" << modelConfig.id << "' from " << modelConfig.path << std::endl;
                 bool success = nodeManager.addEngine(modelConfig.id, 
                                                    modelConfig.path.c_str(), 
@@ -93,18 +91,41 @@ int main(int argc, char* argv[]) {
                 if (success) {
                     std::cout << "✓ Model '" << modelConfig.id << "' loaded successfully" << std::endl;
                     ServerLogger::logInfo("Model '%s' loaded successfully", modelConfig.id.c_str());
+                    successfulModels++;
                 } else {
-                    std::cerr << "✗ Failed to load model '" << modelConfig.id << "'" << std::endl;
-                    ServerLogger::logError("Failed to load model '%s' from %s", 
-                                         modelConfig.id.c_str(), modelConfig.path.c_str());
-                    return 1;
+                    std::cerr << "✗ Failed to load model '" << modelConfig.id << "' - skipping" << std::endl;
+                    ServerLogger::logWarning("Failed to load model '%s' from %s - continuing with other models", 
+                                           modelConfig.id.c_str(), modelConfig.path.c_str());
+                    failedModels++;
                 }
             } else {
-                std::cout << "Registering model '" << modelConfig.id << "' for lazy loading" << std::endl;
-                // For lazy loading, we might need to store the configuration for later use
-                // This would require extending the NodeManager to support lazy loading
-                ServerLogger::logInfo("Model '%s' registered for lazy loading", modelConfig.id.c_str());
+                // Register the model for lazy loading (it will be loaded on first access)
+                std::cout << "Registering model '" << modelConfig.id << "' for lazy loading from " << modelConfig.path << std::endl;
+                bool success = nodeManager.registerEngine(modelConfig.id, 
+                                                        modelConfig.path.c_str(), 
+                                                        modelConfig.loadParams, 
+                                                        modelConfig.mainGpuId);
+                if (success) {
+                    std::cout << "✓ Model '" << modelConfig.id << "' registered for lazy loading" << std::endl;
+                    ServerLogger::logInfo("Model '%s' registered for lazy loading", modelConfig.id.c_str());
+                    successfulModels++;
+                } else {
+                    std::cerr << "✗ Failed to register model '" << modelConfig.id << "' for lazy loading - skipping" << std::endl;
+                    ServerLogger::logWarning("Failed to register model '%s' from %s - continuing with other models", 
+                                           modelConfig.id.c_str(), modelConfig.path.c_str());
+                    failedModels++;
+                }
             }
+        }
+        
+        // Log summary of model loading
+        if (successfulModels > 0) {
+            std::cout << "\n✓ Successfully loaded " << successfulModels << " model(s)" << std::endl;
+        }
+        if (failedModels > 0) {
+            std::cout << "⚠ " << failedModels << " model(s) failed to load" << std::endl;
+            ServerLogger::logWarning("Server started with %d failed model(s) out of %d total", 
+                                   failedModels, (int)config.models.size());
         }
     }
     

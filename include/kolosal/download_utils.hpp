@@ -60,4 +60,11 @@ namespace kolosal {
         const std::string& base_dir = "./downloads"
     );
 
+    /**
+     * Get file information from a URL without downloading (HEAD request)
+     * @param url The URL to check
+     * @return DownloadResult with file size and accessibility information
+     */
+    KOLOSAL_SERVER_API DownloadResult get_url_file_info(const std::string& url);
+
 } // namespace kolosal

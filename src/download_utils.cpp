@@ -180,4 +180,65 @@ namespace kolosal {
         return DownloadResult(true, "", local_path, final_size);
     }
 
+    DownloadResult get_url_file_info(const std::string& url) {
+        ServerLogger::logInfo("Checking URL accessibility: %s", url.c_str());
+
+        // Validate URL
+        if (!is_valid_url(url)) {
+            std::string error = "Invalid URL format: " + url;
+            ServerLogger::logError("%s", error.c_str());
+            return DownloadResult(false, error);
+        }
+
+        // Initialize CURL
+        CURL* curl = curl_easy_init();
+        if (!curl) {
+            std::string error = "Failed to initialize CURL";
+            ServerLogger::logError("%s", error.c_str());
+            return DownloadResult(false, error);
+        }
+
+        // Configure CURL for HEAD request
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);  // HEAD request only
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+        curl_easy_setopt(curl, CURLOPT_USERAGENT, "Kolosal-Server/1.0");
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);  // 30 second timeout for validation
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYPEER, 1L);
+        curl_easy_setopt(curl, CURLOPT_SSL_VERIFYHOST, 2L);
+
+        // Perform the HEAD request
+        CURLcode res = curl_easy_perform(curl);
+        
+        // Get response code
+        long response_code = 0;
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+        
+        // Get content length
+        curl_off_t content_length = 0;
+        curl_easy_getinfo(curl, CURLINFO_CONTENT_LENGTH_DOWNLOAD_T, &content_length);
+
+        // Clean up
+        curl_easy_cleanup(curl);
+
+        // Check for errors
+        if (res != CURLE_OK) {
+            std::string error = "URL check failed: " + std::string(curl_easy_strerror(res));
+            ServerLogger::logError("%s", error.c_str());
+            return DownloadResult(false, error);
+        }
+
+        if (response_code != 200) {
+            std::string error = "HTTP error: " + std::to_string(response_code);
+            ServerLogger::logError("%s", error.c_str());
+            return DownloadResult(false, error);
+        }
+
+        size_t file_size = (content_length > 0) ? static_cast<size_t>(content_length) : 0;
+        ServerLogger::logInfo("URL is accessible. Response code: %ld, Content-Length: %zu bytes", 
+                             response_code, file_size);
+
+        return DownloadResult(true, "", "", file_size);
+    }
+
 } // namespace kolosal

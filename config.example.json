@@ -50,8 +50,8 @@
     },
     "models": [
         {
-            "id": "llama-7b",
-            "path": "./models/llama-7b-chat.q4_0.gguf",
+            "id": "qwen3-0.6b",
+            "path": "https://huggingface.co/kolosal/qwen3-0.6b/resolve/main/Qwen3-0.6B-UD-Q4_K_XL.gguf",
             "load_at_startup": true,
             "main_gpu_id": 0,
             "preload_context": false,

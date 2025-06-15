@@ -1,5 +1,7 @@
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp" // Assuming a logger is available
+#include "kolosal/download_utils.hpp"
+#include <filesystem>
 
 namespace kolosal {
 
@@ -36,22 +38,67 @@ bool NodeManager::addEngine(const std::string& engineId, const char* modelPath, 
         return false;
     }
 
+    // First, validate if the model file exists
+    ServerLogger::logInfo("Validating model file for engine \'%s\': %s", engineId.c_str(), modelPath);
+    if (!validateModelFile(modelPath)) {
+        ServerLogger::logError("Model validation failed for engine \'%s\'. Skipping engine creation.", engineId.c_str());
+        return false;
+    }
+
+    std::string actualModelPath = modelPath;
+    
+    // Check if the model path is a URL and download if necessary
+    if (is_valid_url(modelPath)) {
+        ServerLogger::logInfo("Model path for engine \'%s\' is a URL. Starting download: %s", engineId.c_str(), modelPath);
+        
+        // Generate local path for the downloaded model
+        std::string downloadsDir = "./models";
+        std::string localPath = generate_download_path(modelPath, downloadsDir);
+        
+        // Check if the file already exists locally
+        if (std::filesystem::exists(localPath)) {
+            ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
+            actualModelPath = localPath;
+        } else {
+            // Download the model with progress callback
+            auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage) {
+                if (total > 0) {
+                    ServerLogger::logInfo("Downloading model for engine \'%s\': %.1f%% (%zu/%zu bytes)", 
+                                         engineId.c_str(), percentage, downloaded, total);
+                }
+            };
+            
+            DownloadResult result = download_file(modelPath, localPath, progressCallback);
+            
+            if (!result.success) {
+                ServerLogger::logError("Failed to download model for engine \'%s\' from URL \'%s\': %s", 
+                                     engineId.c_str(), modelPath, result.error_message.c_str());
+                return false;
+            }
+            
+            ServerLogger::logInfo("Successfully downloaded model for engine \'%s\' to: %s (%.2f MB)", 
+                                 engineId.c_str(), localPath.c_str(), 
+                                 static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+            actualModelPath = localPath;
+        }
+    }
+
     auto engine = std::make_shared<InferenceEngine>();
-    if (!engine->loadModel(modelPath, loadParams, mainGpuId)) {
-        ServerLogger::logError("Failed to load model for engine ID \'%s\' from path \'%s\'.", engineId.c_str(), modelPath);
+    if (!engine->loadModel(actualModelPath.c_str(), loadParams, mainGpuId)) {
+        ServerLogger::logError("Failed to load model for engine ID \'%s\' from path \'%s\'.", engineId.c_str(), actualModelPath.c_str());
         return false;
     }
 
     EngineRecord record;
     record.engine = engine;
-    record.modelPath = modelPath;
+    record.modelPath = actualModelPath;  // Store the actual local path
     record.loadParams = loadParams;
     record.mainGpuId = mainGpuId;
     record.isLoaded = true;
     record.lastActivityTime = std::chrono::steady_clock::now();
     
     engines_[engineId] = record;
-    ServerLogger::logInfo("Successfully added and loaded engine with ID \'%s\'. Model: %s", engineId.c_str(), modelPath);
+    ServerLogger::logInfo("Successfully added and loaded engine with ID \'%s\'. Model: %s", engineId.c_str(), actualModelPath.c_str());
     autoscalingCv_.notify_one(); // Notify autoscaling thread about new engine
     return true;
 }
@@ -68,6 +115,9 @@ std::shared_ptr<InferenceEngine> NodeManager::getEngine(const std::string& engin
     if (!record.isLoaded) {
         ServerLogger::logInfo("Engine ID \'%s\' was unloaded due to inactivity. Attempting to reload.", engineId.c_str());
         record.engine = std::make_shared<InferenceEngine>(); // Create new engine instance
+        
+        // Note: During reload, we use the stored model path which should already be local
+        // because the download would have happened during the initial addEngine call
         if (!record.engine->loadModel(record.modelPath.c_str(), record.loadParams, record.mainGpuId)) {
             ServerLogger::logError("Failed to reload model for engine ID \'%s\' from path \'%s\'.", engineId.c_str(), record.modelPath.c_str());
             record.engine = nullptr; // Ensure engine is null if reload fails
@@ -107,6 +157,53 @@ std::vector<std::string> NodeManager::listEngineIds() const {
         ids.push_back(id);
     }
     return ids;
+}
+
+// Helper function to validate model file existence
+bool NodeManager::validateModelFile(const std::string& modelPath) {
+    if (is_valid_url(modelPath)) {
+        // For URLs, we can perform a HEAD request to check if the file exists
+        ServerLogger::logInfo("Validating URL accessibility: %s", modelPath.c_str());
+        
+        // Try to get file info without downloading
+        auto result = get_url_file_info(modelPath);
+        if (!result.success) {
+            ServerLogger::logError("URL validation failed: %s - %s", modelPath.c_str(), result.error_message.c_str());
+            return false;
+        }
+          ServerLogger::logInfo("URL is accessible. File size: %.2f MB", 
+                             static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+        return true;
+    } else {
+        // For local paths, check if the file exists
+        if (!std::filesystem::exists(modelPath)) {
+            ServerLogger::logError("Local model file does not exist: %s", modelPath.c_str());
+            return false;
+        }
+        
+        // Check if it's a regular file (not a directory)
+        if (!std::filesystem::is_regular_file(modelPath)) {
+            ServerLogger::logError("Model path is not a regular file: %s", modelPath.c_str());
+            return false;
+        }
+        
+        // Get file size for logging
+        std::error_code ec;
+        auto fileSize = std::filesystem::file_size(modelPath, ec);
+        if (!ec) {
+            ServerLogger::logInfo("Local model file found. Size: %.2f MB", 
+                                 static_cast<double>(fileSize) / (1024.0 * 1024.0));
+        } else {
+            ServerLogger::logWarning("Could not determine file size for: %s", modelPath.c_str());
+        }
+        
+        return true;
+    }
+}
+
+bool NodeManager::validateModelPath(const std::string& modelPath) {
+    // This is a public wrapper for the private validateModelFile function
+    return validateModelFile(modelPath);
 }
 
 void NodeManager::autoscalingLoop() {
@@ -150,6 +247,72 @@ void NodeManager::autoscalingLoop() {
         }
     }
     ServerLogger::logInfo("Autoscaling thread finished.");
+}
+
+bool NodeManager::registerEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (engines_.count(engineId)) {
+        ServerLogger::logWarning("Engine with ID \'%s\' already exists.", engineId.c_str());
+        return false;
+    }
+
+    // First, validate if the model file exists
+    ServerLogger::logInfo("Validating model file for engine registration \'%s\': %s", engineId.c_str(), modelPath);
+    if (!validateModelFile(modelPath)) {
+        ServerLogger::logError("Model validation failed for engine \'%s\'. Skipping engine registration.", engineId.c_str());
+        return false;
+    }
+
+    std::string actualModelPath = modelPath;
+    
+    // Check if the model path is a URL and pre-download if necessary
+    if (is_valid_url(modelPath)) {
+        ServerLogger::logInfo("Model path for engine \'%s\' is a URL. Pre-downloading: %s", engineId.c_str(), modelPath);
+        
+        // Generate local path for the downloaded model
+        std::string downloadsDir = "./models";
+        std::string localPath = generate_download_path(modelPath, downloadsDir);
+        
+        // Check if the file already exists locally
+        if (std::filesystem::exists(localPath)) {
+            ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
+            actualModelPath = localPath;
+        } else {
+            // Download the model with progress callback
+            auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage) {
+                if (total > 0) {
+                    ServerLogger::logInfo("Pre-downloading model for engine \'%s\': %.1f%% (%zu/%zu bytes)", 
+                                         engineId.c_str(), percentage, downloaded, total);
+                }
+            };
+            
+            DownloadResult result = download_file(modelPath, localPath, progressCallback);
+            
+            if (!result.success) {
+                ServerLogger::logError("Failed to pre-download model for engine \'%s\' from URL \'%s\': %s", 
+                                     engineId.c_str(), modelPath, result.error_message.c_str());
+                return false;
+            }
+            
+            ServerLogger::logInfo("Successfully pre-downloaded model for engine \'%s\' to: %s (%.2f MB)", 
+                                 engineId.c_str(), localPath.c_str(), 
+                                 static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+            actualModelPath = localPath;
+        }
+    }
+
+    // Create a record for lazy loading (engine is not loaded yet)
+    EngineRecord record;
+    record.engine = nullptr;  // No engine instance yet
+    record.modelPath = actualModelPath;  // Store the actual local path
+    record.loadParams = loadParams;
+    record.mainGpuId = mainGpuId;
+    record.isLoaded = false;  // Mark as not loaded for lazy loading
+    record.lastActivityTime = std::chrono::steady_clock::now();
+    
+    engines_[engineId] = record;
+    ServerLogger::logInfo("Successfully registered engine with ID \'%s\' for lazy loading. Model: %s", engineId.c_str(), actualModelPath.c_str());
+    return true;
 }
 
 } // namespace kolosal
