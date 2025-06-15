@@ -7,6 +7,8 @@
 #include <condition_variable>
 #include <functional>
 #include <type_traits>
+#include <fstream>
+#include <cstring>
 #ifdef USE_VULKAN
 #include <vulkan/vulkan.h>
 #endif
@@ -369,21 +371,35 @@ namespace
 			std::thread inferenceThread(&LlamaInferenceService::start, this);
 			inferenceThread.detach();
 		}
-
 		~LlamaInferenceService()
 		{
+			// Signal thread to stop
 			stop();
-
+			
+			// Wait for any remaining jobs to complete or timeout after reasonable period
+			auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+			while (std::chrono::steady_clock::now() < timeout) {
+				{
+					std::lock_guard<std::mutex> lock(mtx);
+					if (jobs.empty()) break;
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
+			
+			// Clean up in proper order - detach threadpool first
+			llama_detach_threadpool(context);
+			
+			// Free resources in reverse order of allocation
+			llama_batch_free(batch);
 			llama_free(context);
 			llama_free_model(model);
-			llama_batch_free(batch);
-
 			ggml_threadpool_free(threadpool);
 		}
 
 		void stop() override
 		{
 			should_terminate = true;
+			cv.notify_all(); // Wake up the inference thread
 		}
 
 		void start() override
@@ -1098,49 +1114,75 @@ struct InferenceEngine::Impl
 
 	ThreadPool threadPool;
 
-	Impl(const char* engineDir, const LoadingParameters lParams, const int mainGpuId = 0);
+	Impl(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = 0);
 	~Impl();
 
 	int submitCompletionsJob(const CompletionParameters& params);
 	int submitChatCompletionsJob(const ChatCompletionParameters& params);
 	void stopJob(int job_id);
 	bool isJobFinished(int job_id);
-	CompletionResult getJobResult(int job_id);
-	void waitForJob(int job_id);
+	CompletionResult getJobResult(int job_id);	void waitForJob(int job_id);
 	bool hasJobError(int job_id);
 	std::string getJobError(int job_id);
+	bool hasActiveJobs();
 };
 
-InferenceEngine::Impl::Impl(const char* engineDir, const LoadingParameters lParams, const int mainGpuId)
+InferenceEngine::Impl::Impl(const char* modelPath, const LoadingParameters lParams, const int mainGpuId)
 	: threadPool(lParams.n_parallel)
 {
 #ifndef DEBUG
 	llama_log_set(llama_log_callback_null, NULL);
 #endif
-
-	std::filesystem::path tokenizer_model_path;
-	for (const auto& entry : std::filesystem::directory_iterator(engineDir))
+	std::filesystem::path gguf_model_path(modelPath);
+	
+	// Check if the provided path exists and is a GGUF file
+	if (!std::filesystem::exists(gguf_model_path))
 	{
-		if (entry.path().extension() == ".gguf")
-		{
-			tokenizer_model_path = entry.path();
-			break;
-		}
+		throw std::runtime_error("[INFERENCE] [ERROR] Model file not found: " + gguf_model_path.string());
 	}
-
-	if (!std::filesystem::exists(tokenizer_model_path))
+	
+	if (gguf_model_path.extension() != ".gguf")
 	{
-		throw std::runtime_error("[INFERENCE] [ERROR] Tokenizer model not found from " + tokenizer_model_path.string());
+		throw std::runtime_error("[INFERENCE] [ERROR] Model file must be a GGUF file (.gguf extension): " + gguf_model_path.string());
 	}
+	
+	// Check if file is readable and has a reasonable size
+	std::error_code ec;
+	auto file_size = std::filesystem::file_size(gguf_model_path, ec);
+	if (ec) {
+		throw std::runtime_error("[INFERENCE] [ERROR] Cannot determine file size for: " + gguf_model_path.string());
+	}
+	
+	if (file_size == 0) {
+		throw std::runtime_error("[INFERENCE] [ERROR] Model file is empty: " + gguf_model_path.string());
+	}
+	
+	if (file_size < 1024) { // GGUF files should be at least 1KB
+		throw std::runtime_error("[INFERENCE] [ERROR] Model file is too small to be a valid GGUF file: " + gguf_model_path.string());
+	}
+	
+	// Try to open the file to check basic accessibility
+	std::ifstream file(gguf_model_path, std::ios::binary);
+	if (!file.is_open()) {
+		throw std::runtime_error("[INFERENCE] [ERROR] Cannot open model file (permission denied or file locked): " + gguf_model_path.string());
+	}
+	
+	// Check GGUF magic bytes (first 4 bytes should be "GGUF")
+	char magic[4];
+	file.read(magic, 4);
+	if (!file.good() || std::memcmp(magic, "GGUF", 4) != 0) {
+		file.close();
+		throw std::runtime_error("[INFERENCE] [ERROR] Invalid GGUF file format (missing or corrupted magic bytes): " + gguf_model_path.string());
+	}
+	file.close();
 
 	unsigned int inferenceThreads = 4;
 
 #ifdef DEBUG
 	std::cout << "[INFERENCE] Inference threads: " << inferenceThreads << std::endl;
 #endif
-
 	common_params_model params_model;
-	params_model.path = tokenizer_model_path.string().c_str();
+	params_model.path = gguf_model_path.string().c_str();
 
 	common_params params;
 	params.model						= params_model;
@@ -1172,24 +1214,56 @@ InferenceEngine::Impl::Impl(const char* engineDir, const LoadingParameters lPara
 	llama_numa_init(params.numa);
 
 #ifdef DEBUG
-	std::cout << "[INFERENCE] Loading model from " << tokenizer_model_path << std::endl;
+	std::cout << "[INFERENCE] Loading model from " << gguf_model_path << std::endl;
 #endif
 
 	common_init_result	llama_init	= common_init_from_params(params);
+	
+	// Check if model loading failed
+	if (!llama_init.model) {
+		throw std::runtime_error("[INFERENCE] [ERROR] Failed to load model: " + gguf_model_path.string() + 
+			". The file may be corrupted, invalid, or incompatible.");
+	}
+	
+	if (!llama_init.context) {
+		throw std::runtime_error("[INFERENCE] [ERROR] Failed to create context for model: " + gguf_model_path.string() + 
+			". This may be due to insufficient memory or invalid model parameters.");
+	}
+	
 	llama_model			*model		= llama_init.model.release();
 	llama_context		*ctx		= llama_init.context.release();
-
 	struct ggml_threadpool_params threadpool_params;
 	ggml_threadpool_params_init(&threadpool_params, inferenceThreads);
 	threadpool_params.prio = GGML_SCHED_PRIO_NORMAL;
 	set_process_priority(GGML_SCHED_PRIO_NORMAL);
 	struct ggml_threadpool* threadpool = ggml_threadpool_new(&threadpool_params);
+	
+	if (!threadpool) {
+		llama_free(ctx);
+		llama_free_model(model);
+		throw std::runtime_error("[INFERENCE] [ERROR] Failed to create threadpool for inference.");
+	}
+	
 	llama_attach_threadpool(ctx, threadpool, nullptr);
 
 	// Create the tokenizer
 	auto tokenizer = std::make_shared<Tokenizer>(model, ctx, params);
+	if (!tokenizer) {
+		ggml_threadpool_free(threadpool);
+		llama_free(ctx);
+		llama_free_model(model);
+		throw std::runtime_error("[INFERENCE] [ERROR] Failed to create tokenizer.");
+	}
+	
 	// Create the inference service
-	inferenceService = std::make_unique<LlamaInferenceService>(tokenizer, model, ctx, params, threadpool);
+	try {
+		inferenceService = std::make_unique<LlamaInferenceService>(tokenizer, model, ctx, params, threadpool);
+	} catch (const std::exception& e) {
+		ggml_threadpool_free(threadpool);
+		llama_free(ctx);
+		llama_free_model(model);
+		throw std::runtime_error("[INFERENCE] [ERROR] Failed to create inference service: " + std::string(e.what()));
+	}
 }
 
 int InferenceEngine::Impl::submitCompletionsJob(const CompletionParameters& params)
@@ -1401,13 +1475,33 @@ std::string InferenceEngine::Impl::getJobError(int job_id)
 	return job->errorMessage;
 }
 
+bool InferenceEngine::Impl::hasActiveJobs()
+{
+	std::lock_guard<std::mutex> lock(jobsMutex);
+	for (const auto& [job_id, job] : jobs) {
+		std::lock_guard<std::mutex> jobLock(job->mtx);
+		if (!job->isFinished && !job->hasError) {
+			return true;
+		}
+	}
+	return false;
+}
+
 InferenceEngine::Impl::~Impl()
 {
+	// Stop accepting new jobs and shutdown the thread pool
 	threadPool.shutdown();
+	
+	// Stop the inference service first
+	if (inferenceService) {
+		inferenceService.reset();
+	}
+	
+	// Clear any remaining jobs
 	jobs.clear();
+	
+	// Free backend resources
 	llama_backend_free();
-
-	inferenceService.reset();
 }
 
 INFERENCE_API InferenceEngine::InferenceEngine()
@@ -1415,18 +1509,18 @@ INFERENCE_API InferenceEngine::InferenceEngine()
 {
 }
 
-INFERENCE_API bool InferenceEngine::loadModel(const char* engineDir, const LoadingParameters lParams, const int mainGpuId)
+INFERENCE_API bool InferenceEngine::loadModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId)
 {
 #ifdef DEBUG
-	std::cout << "[INFERENCE] Loading model from " << engineDir << std::endl;
+	std::cout << "[INFERENCE] Loading model from " << modelPath << std::endl;
 #endif
 	this->pimpl.reset();
 
 	try {
-		this->pimpl = std::make_unique<Impl>(engineDir, lParams, mainGpuId);
+		this->pimpl = std::make_unique<Impl>(modelPath, lParams, mainGpuId);
 	}
 	catch (const std::exception& e) {
-		std::cerr << "[INFERENCE] [ERROR] Could not load model from: " << engineDir << "\nError: " << e.what() << "\n" << std::endl;
+		std::cerr << "[INFERENCE] [ERROR] Could not load model from: " << modelPath << "\nError: " << e.what() << "\n" << std::endl;
 		return false;
 	}
 	return true;
@@ -1490,6 +1584,11 @@ INFERENCE_API bool InferenceEngine::hasJobError(int job_id)
 INFERENCE_API std::string InferenceEngine::getJobError(int job_id)
 {
 	return pimpl->getJobError(job_id);
+}
+
+INFERENCE_API bool InferenceEngine::hasActiveJobs()
+{
+	return pimpl->hasActiveJobs();
 }
 
 INFERENCE_API InferenceEngine::~InferenceEngine() = default;

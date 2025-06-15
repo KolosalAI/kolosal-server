@@ -1,273 +1,447 @@
 # Kolosal Server
 
-Kolosal Server is a high-performance HTTP server designed for AI inference. It provides a flexible and extensible platform for serving machine learning models, with a focus on performance and ease of use.
+A high-performance inference server for large language models with OpenAI-compatible API endpoints.
 
 ## Features
 
-*   **High-performance HTTP server:** Built for speed and efficiency, Kolosal Server can handle a large number of concurrent requests.
-*   **AI Inference:** Optimized for AI inference tasks, supporting various models and frameworks.
-*   **OpenAI Compatible API:** Offers an OpenAI compatible API for chat completions and text completions, making it easy to integrate with existing tools and workflows.
-*   **Extensible:** Designed to be easily extensible, allowing you to add support for new models, frameworks, and features.
-*   **Cross-platform:** Runs on Windows, Linux, and macOS.
-*   **GPU Acceleration:** Supports CUDA and Vulkan for GPU acceleration, significantly speeding up inference tasks.
-*   **MPI Support:** Enables distributed inference across multiple nodes using MPI.
+- 🚀 **Fast Inference**: Built with llama.cpp for optimized model inference
+- 🔗 **OpenAI Compatible**: Drop-in replacement for OpenAI API endpoints
+- 📡 **Streaming Support**: Real-time streaming responses for chat completions
+- 🎛️ **Multi-Model Management**: Load and manage multiple models simultaneously
+- 🔧 **Configurable**: Flexible model loading parameters and inference settings
 
-## Endpoints
+## Quick Start
 
-*   `GET  /health`: Health status of the server.
-*   `GET  /models`: List available models.
-*   `POST /v1/chat/completions`: Chat completions (OpenAI compatible).
-*   `POST /v1/completions`: Text completions (OpenAI compatible).
-*   `GET  /engines`: List engines.
-*   `POST /engines`: Add new engine.
-*   `GET  /engines/{id}/status`: Engine status.
-*   `DELETE /engines/{id}`: Remove engine.
+### Prerequisites
 
-## Endpoint Request Examples
+- Windows 10/11
+- Visual Studio 2019 or later
+- CMake 3.20+
+- CUDA Toolkit (optional, for GPU acceleration)
 
-Below are some examples of how to interact with the server endpoints using `curl`.
-
-### Health Check
-
-To check the health status of the server:
+### Building
 
 ```bash
-curl http://localhost:8080/health
+git clone https://github.com/your-org/kolosal-server.git
+cd kolosal-server
+mkdir build && cd build
+cmake ..
+cmake --build . --config Debug
 ```
 
-**Example Response:**
-
-```json
-{
-  "status": "OK"
-}
-```
-
-### List Available Models
-
-To get a list of available models:
+### Running the Server
 
 ```bash
-curl http://localhost:8080/models
+./Debug/kolosal-server.exe
 ```
 
-**Example Response:**
+The server will start on `http://localhost:8080` by default.
 
-```json
-{
-  "models": [
-    "model1_name",
-    "model2_name"
-  ]
-}
-```
+## API Usage
 
-### Chat Completions (OpenAI Compatible)
+### 1. Add a Model Engine
 
-To get chat completions:
+Before using chat completions, you need to add a model engine:
 
 ```bash
-curl -X POST http://localhost:8080/v1/chat/completions \\
-  -H "Content-Type: application/json" \\
+curl -X POST http://localhost:8080/engines \
+  -H "Content-Type: application/json" \
   -d '{
-    "model": "your_model_name",
-    "messages": [
-      {"role": "user", "content": "Hello!"}
-    ]
+    "engine_id": "my-model",
+    "model_path": "path/to/your/model.gguf",
+    "n_ctx": 2048,
+    "n_gpu_layers": 0,
+    "main_gpu_id": 0
   }'
 ```
 
-### Text Completions (OpenAI Compatible)
+### 2. Chat Completions
 
-To get text completions:
+#### Non-Streaming Chat Completion
 
 ```bash
-curl -X POST http://localhost:8080/v1/completions \\
-  -H "Content-Type: application/json" \\
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
   -d '{
-    "model": "your_model_name",
-    "prompt": "Once upon a time",
+    "model": "my-model",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Hello, how are you today?"
+      }
+    ],
+    "stream": false,
+    "temperature": 0.7,
+    "max_tokens": 100
+  }'
+```
+
+**Response:**
+```json
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "message": {
+        "content": "Hello! I'm doing well, thank you for asking. How can I help you today?",
+        "role": "assistant"
+      }
+    }
+  ],
+  "created": 1749981228,
+  "id": "chatcmpl-80HTkM01z7aaaThFbuALkbTu",
+  "model": "my-model",
+  "object": "chat.completion",
+  "system_fingerprint": "fp_4d29efe704",
+  "usage": {
+    "completion_tokens": 15,
+    "prompt_tokens": 9,
+    "total_tokens": 24
+  }
+}
+```
+
+#### Streaming Chat Completion
+
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "model": "my-model",
+    "messages": [
+      {
+        "role": "user",
+        "content": "Tell me a short story about a robot."
+      }
+    ],
+    "stream": true,
+    "temperature": 0.8,
+    "max_tokens": 150
+  }'
+```
+
+**Response (Server-Sent Events):**
+```
+data: {"choices":[{"delta":{"content":"","role":"assistant"},"finish_reason":null,"index":0}],"created":1749981242,"id":"chatcmpl-1749981241-1","model":"my-model","object":"chat.completion.chunk","system_fingerprint":"fp_4d29efe704"}
+
+data: {"choices":[{"delta":{"content":"Once"},"finish_reason":null,"index":0}],"created":1749981242,"id":"chatcmpl-1749981241-1","model":"my-model","object":"chat.completion.chunk","system_fingerprint":"fp_4d29efe704"}
+
+data: {"choices":[{"delta":{"content":" upon"},"finish_reason":null,"index":0}],"created":1749981242,"id":"chatcmpl-1749981241-1","model":"my-model","object":"chat.completion.chunk","system_fingerprint":"fp_4d29efe704"}
+
+data: {"choices":[{"delta":{"content":""},"finish_reason":"stop","index":0}],"created":1749981242,"id":"chatcmpl-1749981241-1","model":"my-model","object":"chat.completion.chunk","system_fingerprint":"fp_4d29efe704"}
+
+data: [DONE]
+```
+
+#### Multi-Message Conversation
+
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "my-model",
+    "messages": [
+      {
+        "role": "system",
+        "content": "You are a helpful programming assistant."
+      },
+      {
+        "role": "user",
+        "content": "How do I create a simple HTTP server in Python?"
+      },
+      {
+        "role": "assistant",
+        "content": "You can create a simple HTTP server in Python using the built-in http.server module..."
+      },
+      {
+        "role": "user",
+        "content": "Can you show me the code?"
+      }
+    ],
+    "stream": false,
+    "temperature": 0.7,
+    "max_tokens": 200
+  }'
+```
+
+#### Advanced Parameters
+
+```bash
+curl -X POST http://localhost:8080/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "my-model",
+    "messages": [
+      {
+        "role": "user",
+        "content": "What is the capital of France?"
+      }
+    ],
+    "stream": false,
+    "temperature": 0.1,
+    "top_p": 0.9,
+    "max_tokens": 50,
+    "seed": 42,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.0
+  }'
+```
+
+### 3. Completions
+
+#### Non-Streaming Completion
+
+```bash
+curl -X POST http://localhost:8080/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "my-model",
+    "prompt": "The future of artificial intelligence is",
+    "stream": false,
+    "temperature": 0.7,
+    "max_tokens": 100
+  }'
+```
+
+**Response:**
+```json
+{
+  "choices": [
+    {
+      "finish_reason": "stop",
+      "index": 0,
+      "text": " bright and full of possibilities. As we continue to advance in machine learning and deep learning technologies, we can expect to see significant improvements in various fields..."
+    }
+  ],
+  "created": 1749981288,
+  "id": "cmpl-80HTkM01z7aaaThFbuALkbTu",
+  "model": "my-model",
+  "object": "text_completion",
+  "usage": {
+    "completion_tokens": 25,
+    "prompt_tokens": 8,
+    "total_tokens": 33
+  }
+}
+```
+
+#### Streaming Completion
+
+```bash
+curl -X POST http://localhost:8080/v1/completions \
+  -H "Content-Type: application/json" \
+  -H "Accept: text/event-stream" \
+  -d '{
+    "model": "my-model",
+    "prompt": "Write a haiku about programming:",
+    "stream": true,
+    "temperature": 0.8,
     "max_tokens": 50
   }'
 ```
 
-### List Engines
+**Response (Server-Sent Events):**
+```
+data: {"choices":[{"finish_reason":"","index":0,"text":""}],"created":1749981290,"id":"cmpl-1749981289-1","model":"my-model","object":"text_completion"}
 
-To get a list of currently running engines:
+data: {"choices":[{"finish_reason":"","index":0,"text":"Code"}],"created":1749981290,"id":"cmpl-1749981289-1","model":"my-model","object":"text_completion"}
 
-```bash
-curl http://localhost:8080/engines
+data: {"choices":[{"finish_reason":"","index":0,"text":" flows"}],"created":1749981290,"id":"cmpl-1749981289-1","model":"my-model","object":"text_completion"}
+
+data: {"choices":[{"finish_reason":"stop","index":0,"text":""}],"created":1749981290,"id":"cmpl-1749981289-1","model":"my-model","object":"text_completion"}
+
+data: [DONE]
 ```
 
-**Example Response:**
-
-```json
-{
-  "engines": [
-    {"id": "engine_id_1", "model": "model_name_1", "status": "running"},
-    {"id": "engine_id_2", "model": "model_name_2", "status": "loading"}
-  ]
-}
-```
-
-### Add New Engine
-
-To add/load a new inference engine:
+#### Multiple Prompts
 
 ```bash
-curl -X POST http://localhost:8080/engines \\
-  -H "Content-Type: application/json" \\
+curl -X POST http://localhost:8080/v1/completions \
+  -H "Content-Type: application/json" \
   -d '{
-    "model_name": "your_new_model_name",
-    "path_to_model_files": "/path/to/your/model/files"
+    "model": "my-model",
+    "prompt": [
+      "The weather today is",
+      "In other news,"
+    ],
+    "stream": false,
+    "temperature": 0.5,
+    "max_tokens": 30
   }'
 ```
 
-**Example Response:**
+#### Advanced Completion Parameters
+
+```bash
+curl -X POST http://localhost:8080/v1/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "my-model",
+    "prompt": "Explain quantum computing:",
+    "stream": false,
+    "temperature": 0.2,
+    "top_p": 0.9,
+    "max_tokens": 100,
+    "seed": 123,
+    "presence_penalty": 0.0,
+    "frequency_penalty": 0.1
+  }'
+```
+
+### 4. Engine Management
+
+#### List Available Engines
+
+```bash
+curl -X GET http://localhost:8080/v1/engines
+```
+
+#### Get Engine Status
+
+```bash
+curl -X GET http://localhost:8080/engines/my-model/status
+```
+
+#### Remove an Engine
+
+```bash
+curl -X DELETE http://localhost:8080/engines/my-model
+```
+
+### 4. Health Check
+
+```bash
+curl -X GET http://localhost:8080/v1/health
+```
+
+## Parameters Reference
+
+### Chat Completion Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model` | string | required | The ID of the model to use |
+| `messages` | array | required | List of message objects |
+| `stream` | boolean | false | Whether to stream responses |
+| `temperature` | number | 1.0 | Sampling temperature (0.0-2.0) |
+| `top_p` | number | 1.0 | Nucleus sampling parameter |
+| `max_tokens` | integer | 128 | Maximum tokens to generate |
+| `seed` | integer | random | Random seed for reproducible outputs |
+| `presence_penalty` | number | 0.0 | Presence penalty (-2.0 to 2.0) |
+| `frequency_penalty` | number | 0.0 | Frequency penalty (-2.0 to 2.0) |
+
+### Completion Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `model` | string | required | The ID of the model to use |
+| `prompt` | string/array | required | Text prompt or array of prompts |
+| `stream` | boolean | false | Whether to stream responses |
+| `temperature` | number | 1.0 | Sampling temperature (0.0-2.0) |
+| `top_p` | number | 1.0 | Nucleus sampling parameter |
+| `max_tokens` | integer | 16 | Maximum tokens to generate |
+| `seed` | integer | random | Random seed for reproducible outputs |
+| `presence_penalty` | number | 0.0 | Presence penalty (-2.0 to 2.0) |
+| `frequency_penalty` | number | 0.0 | Frequency penalty (-2.0 to 2.0) |
+
+### Message Object
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `role` | string | Role: "system", "user", or "assistant" |
+| `content` | string | The content of the message |
+
+### Engine Loading Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `engine_id` | string | required | Unique identifier for the engine |
+| `model_path` | string | required | Path to the GGUF model file |
+| `n_ctx` | integer | 4096 | Context window size |
+| `n_gpu_layers` | integer | 100 | Number of layers to offload to GPU |
+| `main_gpu_id` | integer | 0 | Primary GPU device ID |
+
+## Error Handling
+
+The server returns standard HTTP status codes and JSON error responses:
 
 ```json
 {
-  "id": "new_engine_id",
-  "status": "loading"
+  "error": {
+    "message": "Model 'non-existent-model' not found or could not be loaded",
+    "type": "invalid_request_error",
+    "param": null,
+    "code": null
+  }
 }
 ```
 
-### Get Engine Status
+Common error codes:
+- `400` - Bad Request (invalid JSON, missing parameters)
+- `404` - Not Found (model/engine not found)
+- `500` - Internal Server Error (inference failures)
 
-To get the status of a specific engine:
+## Examples with PowerShell
 
-```bash
-curl http://localhost:8080/engines/your_engine_id/status
+For Windows users, here are PowerShell equivalents:
+
+### Add Engine
+```powershell
+$body = @{
+    engine_id = "my-model"
+    model_path = "C:\path\to\model.gguf"
+    n_ctx = 2048
+    n_gpu_layers = 0
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8080/engines" -Method POST -Body $body -ContentType "application/json"
 ```
 
-**Example Response:**
+### Chat Completion
+```powershell
+$body = @{
+    model = "my-model"
+    messages = @(
+        @{
+            role = "user"
+            content = "Hello, how are you?"
+        }
+    )
+    stream = $false
+    temperature = 0.7
+    max_tokens = 100
+} | ConvertTo-Json -Depth 3
 
-```json
-{
-  "id": "your_engine_id",
-  "model": "model_name",
-  "status": "running"
-}
+Invoke-RestMethod -Uri "http://localhost:8080/v1/chat/completions" -Method POST -Body $body -ContentType "application/json"
 ```
 
-### Remove Engine
+### Completion
+```powershell
+$body = @{
+    model = "my-model"
+    prompt = "The future of AI is"
+    stream = $false
+    temperature = 0.7
+    max_tokens = 50
+} | ConvertTo-Json
 
-To remove/unload an engine:
-
-```bash
-curl -X DELETE http://localhost:8080/engines/your_engine_id
+Invoke-RestMethod -Uri "http://localhost:8080/v1/completions" -Method POST -Body $body -ContentType "application/json"
 ```
-
-**Example Response:**
-
-```json
-{
-  "id": "your_engine_id",
-  "status": "removed"
-}
-```
-
-## Building from Source
-
-### Prerequisites
-
-*   CMake (version 3.14 or higher)
-*   C++17 compiler
-*   cURL
-*   [llama.cpp](https://github.com/ggerganov/llama.cpp) (cloned into `external/llama.cpp`)
-
-### Optional Dependencies
-
-*   **CUDA:** For NVIDIA GPU acceleration.
-*   **Vulkan:** For AMD/Intel GPU acceleration.
-*   **MPI:** For distributed inference (OpenMPI, MPICH, or MS-MPI).
-
-### Build Steps
-
-1.  **Clone the repository:**
-
-    ```bash
-    git clone https://github.com/your-username/kolosal-server.git
-    cd kolosal-server
-    ```
-
-2.  **Initialize submodules (if any):**
-
-    ```bash
-    git submodule update --init --recursive
-    ```
-
-3.  **Create a build directory:**
-
-    ```bash
-    mkdir build
-    cd build
-    ```
-
-4.  **Configure CMake:**
-
-    *   **Basic build:**
-
-        ```bash
-        cmake ..
-        ```
-
-    *   **With CUDA support:**
-
-        ```bash
-        cmake .. -DUSE_CUDA=ON
-        ```
-
-    *   **With Vulkan support:**
-
-        ```bash
-        cmake .. -DUSE_VULKAN=ON
-        ```
-
-    *   **With MPI support:**
-
-        ```bash
-        cmake .. -DUSE_MPI=ON
-        ```
-
-5.  **Build the project:**
-
-    ```bash
-    cmake --build .
-    ```
-
-    On Windows, you might need to specify the configuration (e.g., Release or Debug):
-
-    ```bash
-    cmake --build . --config Release
-    ```
-
-### Installation
-
-After building, you can install the server using:
-
-```bash
-cmake --install .
-```
-
-This will install the executables, libraries, and header files to the default installation directory (e.g., `/usr/local` on Linux, `C:\Program Files` on Windows).
-
-## Usage
-
-```bash
-./kolosal-server [OPTIONS]
-```
-
-### Options
-
-*   `-p, --port PORT`: Server port (default: 8080)
-*   `-h, --help`: Show help message
-*   `-v, --version`: Show version information
-
-## Contributing
-
-Contributions are welcome! Please feel free to submit pull requests, report issues, or suggest new features.
 
 ## License
 
-This project is licensed under the [MIT License](LICENSE).
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
+
+## Support
+
+For issues and questions, please open an issue on GitHub.

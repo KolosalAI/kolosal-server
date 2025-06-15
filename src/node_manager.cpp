@@ -125,13 +125,18 @@ void NodeManager::autoscalingLoop() {
         if (stopAutoscaling_.load()) break; // Check again after wait
 
         auto now = std::chrono::steady_clock::now();
-        ServerLogger::logDebug("Autoscaling check at %lld", std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
-
-        for (auto& pair : engines_) {
+        ServerLogger::logDebug("Autoscaling check at %lld", std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());        for (auto& pair : engines_) {
             EngineRecord& record = pair.second;
             if (record.isLoaded && record.engine) {
                 auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(now - record.lastActivityTime);
                 if (idleDuration >= idleTimeout_) {
+                    // Check if the engine has any active jobs before unloading
+                    if (record.engine->hasActiveJobs()) {
+                        ServerLogger::logDebug("Engine ID \'%s\' has been idle for %lld seconds but has active jobs. Skipping unload.", 
+                                             pair.first.c_str(), idleDuration.count());
+                        continue;
+                    }
+                    
                     ServerLogger::logInfo("Engine ID \'%s\' has been idle for %lld seconds (threshold: %llds). Unloading.", 
                                        pair.first.c_str(), idleDuration.count(), idleTimeout_.count());
                     record.engine->unloadModel();
