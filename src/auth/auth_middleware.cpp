@@ -1,0 +1,160 @@
+#include "kolosal/auth/auth_middleware.hpp"
+#include "kolosal/logger.hpp"
+#include <algorithm>
+
+namespace kolosal {
+namespace auth {
+
+AuthMiddleware::AuthMiddleware(const RateLimiter::Config& rateLimiterConfig,
+                              const CorsHandler::Config& corsConfig)
+    : rateLimiter_(std::make_unique<RateLimiter>(rateLimiterConfig)),
+      corsHandler_(std::make_unique<CorsHandler>(corsConfig)) {
+    
+    ServerLogger::logInfo("Authentication middleware initialized");
+}
+
+AuthMiddleware::AuthResult AuthMiddleware::processRequest(const RequestInfo& requestInfo) {
+    AuthResult result;
+    
+    // Process CORS first
+    std::string origin = getHeaderValue(requestInfo.headers, "Origin");
+    std::string requestHeaders = getHeaderValue(requestInfo.headers, "Access-Control-Request-Headers");
+    std::string requestMethod = getHeaderValue(requestInfo.headers, "Access-Control-Request-Method");
+    
+    auto corsResult = corsHandler_->processCors(requestInfo.method, origin, requestHeaders, requestMethod);
+    
+    if (!corsResult.isValid) {
+        result.allowed = false;
+        result.statusCode = 403;
+        result.reason = "CORS policy violation";
+        ServerLogger::logWarning("CORS policy violation for request from %s to %s %s",
+                                requestInfo.clientIP.c_str(), requestInfo.method.c_str(), requestInfo.path.c_str());
+        return result;
+    }
+    
+    // Add CORS headers to response
+    result.headers.insert(corsResult.headers.begin(), corsResult.headers.end());
+    result.isPreflight = corsResult.isPreflight;
+    
+    // If this is a preflight request, we don't need to check rate limits
+    if (corsResult.isPreflight) {
+        result.statusCode = 204; // No Content for successful preflight
+        ServerLogger::logDebug("CORS preflight request approved for %s", requestInfo.clientIP.c_str());
+        return result;
+    }
+    
+    // Process rate limiting
+    auto rateLimitResult = rateLimiter_->checkRateLimit(requestInfo.clientIP);
+    
+    if (!rateLimitResult.allowed) {
+        result.allowed = false;
+        result.statusCode = 429; // Too Many Requests
+        result.reason = "Rate limit exceeded";
+        
+        // Add rate limit headers
+        result.headers["X-Rate-Limit-Limit"] = std::to_string(rateLimiter_->getConfig().maxRequests);
+        result.headers["X-Rate-Limit-Remaining"] = "0";
+        result.headers["X-Rate-Limit-Reset"] = std::to_string(rateLimitResult.resetTime.count());
+        result.headers["Retry-After"] = std::to_string(rateLimitResult.resetTime.count());
+        
+        ServerLogger::logWarning("Rate limit exceeded for client %s - %zu requests used",
+                                requestInfo.clientIP.c_str(), rateLimitResult.requestsUsed);
+        return result;
+    }
+    
+    // Add rate limit information to response headers
+    result.headers["X-Rate-Limit-Limit"] = std::to_string(rateLimiter_->getConfig().maxRequests);
+    result.headers["X-Rate-Limit-Remaining"] = std::to_string(rateLimitResult.requestsRemaining);
+    result.headers["X-Rate-Limit-Reset"] = std::to_string(rateLimitResult.resetTime.count());
+    
+    // Store rate limit info in result
+    result.rateLimitUsed = rateLimitResult.requestsUsed;
+    result.rateLimitRemaining = rateLimitResult.requestsRemaining;
+    result.rateLimitReset = rateLimitResult.resetTime;
+    
+    ServerLogger::logDebug("Request approved for client %s - Rate limit: %zu/%zu, CORS origin: %s",
+                          requestInfo.clientIP.c_str(), 
+                          rateLimitResult.requestsUsed,
+                          rateLimiter_->getConfig().maxRequests,
+                          origin.empty() ? "none" : origin.c_str());
+    
+    return result;
+}
+
+void AuthMiddleware::updateRateLimiterConfig(const RateLimiter::Config& config) {
+    rateLimiter_->updateConfig(config);
+}
+
+void AuthMiddleware::updateCorsConfig(const CorsHandler::Config& config) {
+    corsHandler_->updateConfig(config);
+}
+
+RateLimiter::Config AuthMiddleware::getRateLimiterConfig() const {
+    return rateLimiter_->getConfig();
+}
+
+CorsHandler::Config AuthMiddleware::getCorsConfig() const {
+    return corsHandler_->getConfig();
+}
+
+std::unordered_map<std::string, size_t> AuthMiddleware::getRateLimitStatistics() const {
+    return rateLimiter_->getStatistics();
+}
+
+void AuthMiddleware::clearRateLimitData(const std::string& clientIP) {
+    rateLimiter_->clearClient(clientIP);
+}
+
+void AuthMiddleware::clearAllRateLimitData() {
+    rateLimiter_->clearAll();
+}
+
+bool AuthMiddleware::isOriginAllowed(const std::string& origin) const {
+    return corsHandler_->isOriginAllowed(origin);
+}
+
+void AuthMiddleware::addAllowedOrigin(const std::string& origin) {
+    corsHandler_->addAllowedOrigin(origin);
+}
+
+void AuthMiddleware::removeAllowedOrigin(const std::string& origin) {
+    corsHandler_->removeAllowedOrigin(origin);
+}
+
+RateLimiter& AuthMiddleware::getRateLimiter() {
+    return *rateLimiter_;
+}
+
+const RateLimiter& AuthMiddleware::getRateLimiter() const {
+    return *rateLimiter_;
+}
+
+CorsHandler& AuthMiddleware::getCorsHandler() {
+    return *corsHandler_;
+}
+
+const CorsHandler& AuthMiddleware::getCorsHandler() const {
+    return *corsHandler_;
+}
+
+std::string AuthMiddleware::getHeaderValue(const std::map<std::string, std::string>& headers,
+                                          const std::string& name) const {
+    std::string lowerName = toLowercase(name);
+    
+    for (const auto& header : headers) {
+        if (toLowercase(header.first) == lowerName) {
+            return header.second;
+        }
+    }
+    
+    return "";
+}
+
+std::string AuthMiddleware::toLowercase(const std::string& name) const {
+    std::string result = name;
+    std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+    return result;
+}
+
+} // namespace auth
+} // namespace kolosal

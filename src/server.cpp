@@ -23,6 +23,61 @@
 
 namespace kolosal {
 
+	// Helper: extract client IP from socket address
+	static std::string extractClientIP(const struct sockaddr_storage& client_addr) {
+		char clientIP[INET6_ADDRSTRLEN];
+#ifdef _WIN32
+		inet_ntop(client_addr.ss_family,
+			client_addr.ss_family == AF_INET ?
+			(void*)&(((struct sockaddr_in*)&client_addr)->sin_addr) :
+			(void*)&(((struct sockaddr_in6*)&client_addr)->sin6_addr),
+			clientIP, sizeof(clientIP));
+#else
+		inet_ntop(client_addr.ss_family,
+			client_addr.ss_family == AF_INET ?
+			(void*)&(((struct sockaddr_in*)&client_addr)->sin_addr) :
+			(void*)&(((struct sockaddr_in6*)&client_addr)->sin6_addr),
+			clientIP, sizeof(clientIP));
+#endif
+		return std::string(clientIP);
+	}
+
+	// Helper: parse HTTP headers from request
+	static std::map<std::string, std::string> parseHeaders(const std::string& request) {
+		std::map<std::string, std::string> headers;
+		
+		size_t start = request.find("\r\n");
+		if (start == std::string::npos) return headers;
+		
+		start += 2; // Skip the first \r\n
+		size_t end = request.find("\r\n\r\n");
+		if (end == std::string::npos) return headers;
+		
+		std::string headerSection = request.substr(start, end - start);
+		std::istringstream headerStream(headerSection);
+		std::string line;
+		
+		while (std::getline(headerStream, line) && !line.empty()) {
+			if (line.back() == '\r') line.pop_back(); // Remove \r
+			
+			size_t colonPos = line.find(':');
+			if (colonPos != std::string::npos) {
+				std::string name = line.substr(0, colonPos);
+				std::string value = line.substr(colonPos + 1);
+				
+				// Trim whitespace
+				name.erase(0, name.find_first_not_of(" \t"));
+				name.erase(name.find_last_not_of(" \t") + 1);
+				value.erase(0, value.find_first_not_of(" \t"));
+				value.erase(value.find_last_not_of(" \t") + 1);
+				
+				headers[name] = value;
+			}
+		}
+		
+		return headers;
+	}
+
 	// Helper: parse the first line of the HTTP request
 	static void parse_request_line(const std::string& requestLine,
 		std::string& method, std::string& path) {
@@ -88,13 +143,14 @@ namespace kolosal {
 		ServerLogger::logInfo("[Thread %u] Completed request for %s",
 			std::this_thread::get_id(), path.c_str());
 	}
-
 	Server::Server(const std::string& port) : port(port), running(false) {
 #ifdef _WIN32
 		listen_sock = INVALID_SOCKET;
 #else
 		listen_sock = -1;
 #endif
+		// Initialize authentication middleware with default settings
+		authMiddleware_ = std::make_unique<auth::AuthMiddleware>();
 	}
 
 	Server::~Server() {
@@ -255,9 +311,7 @@ namespace kolosal {
 				(void*)&(((struct sockaddr_in6*)&client_addr)->sin6_addr),
 				clientIP, sizeof(clientIP));
 #endif
-			ServerLogger::logInfo("New client connection from %s", clientIP);
-
-			// Spawn a thread to handle this client
+			ServerLogger::logInfo("New client connection from %s", clientIP);			// Spawn a thread to handle this client
 			std::thread([this, client_sock, clientIP]() {
 				ServerLogger::logInfo("[Thread %d] Processing request from %s",
 					std::this_thread::get_id(), clientIP);
@@ -297,8 +351,59 @@ namespace kolosal {
 				std::string method, path;
 				parse_request_line(requestLine, method, path);
 
+				// Parse headers for authentication middleware
+				auto headers = parseHeaders(request);
+
 				ServerLogger::logInfo("[Thread %d] Processing %s request for %s from %s",
 					std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
+
+				// Process authentication middleware
+				auth::AuthMiddleware::RequestInfo authRequest(method, path, clientIP);
+				authRequest.headers = headers;
+				
+				auto authResult = authMiddleware_->processRequest(authRequest);
+				
+				// Add authentication response headers
+				std::map<std::string, std::string> responseHeaders = {{"Content-Type", "application/json"}};
+				responseHeaders.insert(authResult.headers.begin(), authResult.headers.end());
+				
+				// Check if request is blocked by authentication
+				if (!authResult.allowed) {
+					nlohmann::json jError = {
+						{"error", {
+							{"message", authResult.reason},
+							{"type", authResult.statusCode == 429 ? "rate_limit_exceeded" : "authentication_error"},
+							{"code", authResult.statusCode}
+						}}
+					};
+					
+					send_response(client_sock, authResult.statusCode, jError.dump(), responseHeaders);
+					
+					ServerLogger::logWarning("[Thread %d] Request blocked: %s", 
+						std::this_thread::get_id(), authResult.reason.c_str());
+					
+#ifdef _WIN32
+					closesocket(client_sock);
+#else
+					close(client_sock);
+#endif
+					return;
+				}
+				
+				// Handle CORS preflight requests
+				if (authResult.isPreflight) {
+					send_response(client_sock, authResult.statusCode, "", responseHeaders);
+					
+					ServerLogger::logInfo("[Thread %d] CORS preflight request handled", 
+						std::this_thread::get_id());
+					
+#ifdef _WIN32
+					closesocket(client_sock);
+#else
+					close(client_sock);
+#endif
+					return;
+				}
 
 				// Find Content-Length header
 				int contentLength = 0;
@@ -352,14 +457,14 @@ namespace kolosal {
 						ServerLogger::logDebug("[Thread %d] Read %d additional bytes for body",
 							std::this_thread::get_id(), totalRead);
 					}
-				}
-
-				// Route the request
+				}				// Route the request
 				bool routeFound = false;
 				for (auto& route : routes) {
 					if (route->match(method, path)) {
 						routeFound = true;
 						try {
+							// Note: Routes will need to be updated to handle authentication headers
+							// For now, they'll work as before but won't include auth headers
 							route->handle(client_sock, body);
 						}
 						catch (const std::exception& ex) {
@@ -373,7 +478,7 @@ namespace kolosal {
 							   {"param", nullptr},
 							   {"code", nullptr}
 							}} };
-							send_response(client_sock, 500, jError.dump());
+							send_response(client_sock, 500, jError.dump(), responseHeaders);
 						}
 						break;
 					}
@@ -389,7 +494,7 @@ namespace kolosal {
 					  {"param", nullptr},
 					  {"code", nullptr}
 					}} };
-					send_response(client_sock, 404, jError.dump());
+					send_response(client_sock, 404, jError.dump(), responseHeaders);
 				}
 
 				ServerLogger::logInfo("[Thread %d] Completed request for %s",
