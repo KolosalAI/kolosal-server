@@ -1,6 +1,7 @@
 #ifndef KOLOSAL_NODE_MANAGER_H
 #define KOLOSAL_NODE_MANAGER_H
 
+#include "export.hpp"
 #include "inference.h" // Assuming InferenceEngine is defined here
 #include <vector>
 #include <memory>
@@ -21,7 +22,7 @@ namespace kolosal {
  * to multiple inference engines. This allows for managing different models
  * or configurations simultaneously.
  */
-class NodeManager {
+class KOLOSAL_SERVER_API NodeManager {
 public:
     NodeManager(std::chrono::seconds idleTimeout = std::chrono::seconds(300)); // Added idleTimeout parameter
     ~NodeManager();

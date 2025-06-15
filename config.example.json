@@ -1,0 +1,88 @@
+{
+    "server": {
+        "port": "8080",
+        "host": "0.0.0.0",
+        "max_connections": 100,
+        "worker_threads": 0,
+        "request_timeout": 30,
+        "max_request_size": 16777216,
+        "idle_timeout": 300
+    },
+    "logging": {
+        "level": "INFO",
+        "file": "",
+        "access_log": false
+    },
+    "auth": {
+        "enabled": true,
+        "require_api_key": false,
+        "api_key_header": "X-API-Key",
+        "api_keys": [],
+        "rate_limit": {
+            "enabled": true,
+            "max_requests": 100,
+            "window_size": 60
+        },
+        "cors": {
+            "enabled": true,
+            "allow_credentials": false,
+            "max_age": 86400,
+            "allowed_origins": [
+                "*"
+            ],
+            "allowed_methods": [
+                "GET",
+                "POST",
+                "PUT",
+                "DELETE",
+                "OPTIONS",
+                "HEAD",
+                "PATCH"
+            ],
+            "allowed_headers": [
+                "Content-Type",
+                "Authorization",
+                "X-Requested-With",
+                "Accept",
+                "Origin"
+            ]
+        }
+    },
+    "models": [
+        {
+            "id": "llama-7b",
+            "path": "./models/llama-7b-chat.q4_0.gguf",
+            "load_at_startup": true,
+            "main_gpu_id": 0,
+            "preload_context": false,
+            "load_params": {
+                "n_ctx": 2048,
+                "n_keep": 1024,
+                "use_mmap": true,
+                "use_mlock": false,
+                "n_parallel": 1,
+                "cont_batching": true
+            }
+        },
+        {
+            "id": "gpt-3.5-turbo",
+            "path": "./models/gpt-3.5-turbo.gguf",
+            "load_at_startup": false,
+            "main_gpu_id": 0,
+            "preload_context": false,
+            "load_params": {
+                "n_ctx": 4096,
+                "n_keep": 2048,
+                "use_mmap": true,
+                "use_mlock": false,
+                "n_parallel": 1,
+                "cont_batching": true
+            }
+        }
+    ],
+    "features": {
+        "health_check": true,
+        "metrics": false,
+        "swagger": false
+    }
+}
