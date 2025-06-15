@@ -36,11 +36,17 @@ namespace kolosal {
      * 
      * This route handles GET/POST requests to /v1/example
      * and demonstrates common patterns for route implementation.
-     */
-    class KOLOSAL_SERVER_API ExampleRoute : public IRoute {
+     */    class KOLOSAL_SERVER_API ExampleRoute : public IRoute {
     public:
         bool match(const std::string& method, const std::string& path) override;
         void handle(SocketType sock, const std::string& body) override;
+        
+    private:
+        void handleGetRequest(SocketType sock);
+        void handlePostRequest(SocketType sock, const std::string& body);
+        json processStatusAction(const json& request);
+        json processListEnginesAction(const json& request);
+        json processCustomInferenceAction(const json& request);
     };
     
 } // namespace kolosal
@@ -76,32 +82,31 @@ namespace kolosal {
         try {
             ServerLogger::logInfo("[Thread %u] Processing example route request", 
                                  std::this_thread::get_id());
+              // Handle different HTTP methods
+            // Note: HTTP method parsing would need to be implemented
+            // For this example, we'll determine method from the route registration
             
-            // Handle different HTTP methods
-            auto httpInfo = parseHttpRequest(sock);
-            
-            if (httpInfo.method == "GET") {
+            // Since this route handles both GET and POST, we need to determine which
+            // For simplicity, assume POST if body is not empty, GET otherwise
+            if (body.empty()) {
                 handleGetRequest(sock);
-            } else if (httpInfo.method == "POST") {
+            } else {
                 handlePostRequest(sock, body);
             }
-            
-        } catch (const json::exception& ex) {
+              } catch (const json::exception& ex) {
             ServerLogger::logError("JSON parsing error in example route: %s", ex.what());
-            send_error_response(sock, 400, "Invalid JSON format");
+            send_response(sock, 400, "{\"error\":{\"message\":\"Invalid JSON format\"}}");
         } catch (const std::invalid_argument& ex) {
             ServerLogger::logError("Validation error in example route: %s", ex.what());
-            send_error_response(sock, 400, ex.what());
+            send_response(sock, 400, "{\"error\":{\"message\":\"" + std::string(ex.what()) + "\"}}");
         } catch (const std::runtime_error& ex) {
             ServerLogger::logError("Runtime error in example route: %s", ex.what());
-            send_error_response(sock, 500, ex.what());
+            send_response(sock, 500, "{\"error\":{\"message\":\"" + std::string(ex.what()) + "\"}}");
         } catch (const std::exception& ex) {
             ServerLogger::logError("Unexpected error in example route: %s", ex.what());
-            send_error_response(sock, 500, "Internal server error");
+            send_response(sock, 500, "{\"error\":{\"message\":\"Internal server error\"}}");
         }
-    }
-    
-private:
+    }    
     void ExampleRoute::handleGetRequest(SocketType sock) {
         // GET request - return status information
         json response = {
@@ -286,16 +291,14 @@ class StreamingRoute : public IRoute {
 public:
     void handle(SocketType sock, const std::string& body) override {
         try {
-            // Send streaming headers
-            std::string headers = 
-                "HTTP/1.1 200 OK\r\n"
-                "Content-Type: text/event-stream\r\n"
-                "Cache-Control: no-cache\r\n"
-                "Connection: keep-alive\r\n"
-                "Access-Control-Allow-Origin: *\r\n"
-                "\r\n";
+            // Start streaming response with Server-Sent Events headers
+            std::map<std::string, std::string> headers = {
+                {"Content-Type", "text/event-stream"},
+                {"Cache-Control", "no-cache"},
+                {"Access-Control-Allow-Origin", "*"}
+            };
             
-            send(sock, headers.c_str(), headers.length(), 0);
+            begin_streaming_response(sock, 200, headers);
             
             // Process request and get streaming data source
             auto dataSource = setupDataSource(body);
@@ -305,25 +308,23 @@ public:
                 auto chunk = dataSource->getNext();
                 
                 // Format as Server-Sent Event
-                std::string sseChunk = "data: " + chunk.to_json().dump() + "\n\n";
+                std::string sseData = "data: " + chunk.to_json().dump() + "\n\n";
+                StreamChunk streamChunk(sseData, false);
                 
-                if (send(sock, sseChunk.c_str(), sseChunk.length(), 0) < 0) {
-                    ServerLogger::logWarning("Client disconnected during streaming");
-                    break;
-                }
+                send_stream_chunk(sock, streamChunk);
                 
                 // Small delay to prevent overwhelming the client
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));
             }
             
             // Send completion marker
-            std::string done = "data: [DONE]\n\n";
-            send(sock, done.c_str(), done.length(), 0);
+            StreamChunk doneChunk("data: [DONE]\n\n", true);
+            send_stream_chunk(sock, doneChunk);
             
         } catch (...) {
             // Handle errors gracefully
-            std::string error = "data: {\"error\": \"Stream terminated\"}\n\n";
-            send(sock, error.c_str(), error.length(), 0);
+            StreamChunk errorChunk("data: {\"error\": \"Stream terminated\"}\n\n", true);
+            send_stream_chunk(sock, errorChunk);
         }
     }
 };
@@ -340,28 +341,36 @@ public:
         // Match pattern like /v1/models/{model_id}/status
         if (method != "GET") return false;
         
-        return std::regex_match(path, std::regex("^/v1/models/[^/]+/status$"));
+        // Simple pattern matching - check if path starts with prefix and ends with suffix
+        return (path.find("/v1/models/") == 0 && 
+                path.find("/status") != std::string::npos &&
+                path.length() > 19); // "/v1/models/" + at least 1 char + "/status"
     }
     
     void handle(SocketType sock, const std::string& body) override {
-        // Extract path parameter
-        auto httpInfo = parseHttpRequest(sock);
-        std::string modelId = extractPathParameter(httpInfo.path, "/v1/models/", "/status");
+        // Extract path parameter (this would need to be passed from the server)
+        // For now, we'll simulate extraction
+        std::string modelId = extractModelIdFromPath(getRequestPath());
         
         // Process with extracted parameter
         processModelStatus(sock, modelId);
     }
 
 private:
-    std::string extractPathParameter(const std::string& path, 
-                                   const std::string& prefix, 
-                                   const std::string& suffix) {
-        size_t start = prefix.length();
-        size_t end = path.find(suffix, start);
+    std::string extractModelIdFromPath(const std::string& path) {
+        // Extract model ID from path like /v1/models/{model_id}/status
+        size_t start = path.find("/v1/models/") + 11; // Length of "/v1/models/"
+        size_t end = path.find("/status", start);
         if (end == std::string::npos) {
             throw std::invalid_argument("Invalid path format");
         }
         return path.substr(start, end - start);
+    }
+    
+    std::string getRequestPath() {
+        // This would need to be implemented to get the actual request path
+        // For now, return a placeholder
+        return "/v1/models/example-model/status";
     }
 };
 ```
@@ -376,11 +385,11 @@ public:
     void handle(SocketType sock, const std::string& body) override {
         try {
             // Extract and validate authorization header
-            auto httpInfo = parseHttpRequest(sock);
-            std::string authHeader = getHeader(httpInfo.headers, "Authorization");
+            // Note: Actual header extraction would need to be implemented
+            std::string authHeader = getAuthorizationHeader();
             
             if (!validateAuth(authHeader)) {
-                send_error_response(sock, 401, "Invalid or missing authentication");
+                send_response(sock, 401, "{\"error\":{\"message\":\"Invalid or missing authentication\"}}");
                 return;
             }
             
@@ -388,11 +397,17 @@ public:
             processAuthenticatedRequest(sock, body);
             
         } catch (...) {
-            send_error_response(sock, 500, "Authentication validation failed");
+            send_response(sock, 500, "{\"error\":{\"message\":\"Authentication validation failed\"}}");
         }
     }
 
 private:
+    std::string getAuthorizationHeader() {
+        // This would need to be implemented to extract the Authorization header
+        // For now, return a placeholder
+        return "Bearer sample-token";
+    }
+    
     bool validateAuth(const std::string& authHeader) {
         // Implement your authentication logic
         if (authHeader.empty()) return false;
@@ -417,49 +432,103 @@ private:
 
 ## Utility Functions
 
-### HTTP Request Parsing
+The Kolosal Server provides utility functions in `utils.hpp` for handling HTTP responses:
+
+### Available Utility Functions
+
+#### `send_response()`
+Sends a complete HTTP response with headers and body:
 
 ```cpp
-struct HttpRequestInfo {
-    std::string method;
-    std::string path;
-    std::map<std::string, std::string> headers;
-    std::string queryString;
-};
-
-HttpRequestInfo parseHttpRequest(SocketType sock) {
-    // Implementation to parse HTTP request line and headers
-    // This would typically be implemented in utils.cpp
-}
+inline void send_response(
+    SocketType sock,
+    int status_code,
+    const std::string& body,
+    const std::map<std::string, std::string>& headers = {{"Content-Type", "application/json"}}
+);
 ```
 
-### Response Helpers
+**Usage Example:**
+```cpp
+// Send JSON response
+json response = {{"status", "success"}};
+send_response(sock, 200, response.dump());
+
+// Send with custom headers
+std::map<std::string, std::string> headers = {
+    {"Content-Type", "text/plain"},
+    {"Cache-Control", "no-cache"}
+};
+send_response(sock, 200, "Hello World", headers);
+```
+
+#### `begin_streaming_response()`
+Starts a streaming HTTP response with chunked transfer encoding:
 
 ```cpp
-void send_json_response(SocketType sock, int statusCode, const json& data) {
-    std::ostringstream response;
-    response << "HTTP/1.1 " << statusCode << " " << getStatusText(statusCode) << "\r\n";
-    response << "Content-Type: application/json\r\n";
-    response << "Content-Length: " << data.dump().length() << "\r\n";
-    response << "Connection: close\r\n";
-    response << "\r\n";
-    response << data.dump();
-    
-    std::string responseStr = response.str();
-    send(sock, responseStr.c_str(), responseStr.length(), 0);
+inline void begin_streaming_response(
+    SocketType sock,
+    int status_code,
+    const std::map<std::string, std::string>& headers = {}
+);
+```
+
+#### `send_stream_chunk()`
+Sends a chunk of data in a streaming response:
+
+```cpp
+inline void send_stream_chunk(SocketType sock, const StreamChunk& chunk);
+
+// StreamChunk structure:
+struct StreamChunk {
+    std::string data;        // The content to stream
+    bool isComplete = false; // Whether this is the final chunk
+};
+```
+
+**Streaming Example:**
+```cpp
+// Start streaming response
+std::map<std::string, std::string> headers = {
+    {"Content-Type", "text/event-stream"},
+    {"Cache-Control", "no-cache"}
+};
+begin_streaming_response(sock, 200, headers);
+
+// Send data chunks
+while (hasMoreData()) {
+    std::string data = getNextChunk();
+    StreamChunk chunk(data, false);
+    send_stream_chunk(sock, chunk);
 }
 
-void send_error_response(SocketType sock, int statusCode, const std::string& message) {
+// Send final chunk to complete the stream
+StreamChunk finalChunk("", true);
+send_stream_chunk(sock, finalChunk);
+```
+
+### Common Response Patterns
+
+#### JSON Error Response
+```cpp
+void sendJsonError(SocketType sock, int statusCode, const std::string& message) {
     json error = {
         {"error", {
             {"message", message},
-            {"type", getErrorType(statusCode)},
-            {"param", nullptr},
-            {"code", nullptr}
+            {"type", "error"},
+            {"code", statusCode}
         }}
     };
-    
-    send_json_response(sock, statusCode, error);
+    send_response(sock, statusCode, error.dump());
+}
+```
+
+#### Server-Sent Events (SSE) Format
+```cpp
+void sendSSEEvent(SocketType sock, const std::string& eventData, bool isLast = false) {
+    std::string sseData = "data: " + eventData + "\n\n";
+    StreamChunk chunk(sseData, isLast);
+    send_stream_chunk(sock, chunk);
 }
 ```
 

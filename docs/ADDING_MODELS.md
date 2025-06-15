@@ -16,6 +16,54 @@ public:
 };
 ```
 
+The model system follows a clear data flow pattern:
+
+```mermaid
+flowchart TD
+    subgraph "Input"
+        A[HTTP Request<br/>JSON Data]
+    end
+    
+    subgraph "Request Processing"
+        B[Parse JSON<br/>nlohmann::json]
+        C[Request Model<br/>from_json()]
+        D[Validation<br/>validate()]
+    end
+    
+    subgraph "Business Logic"
+        E[Route Handler<br/>Process Request]
+        F[Internal Models<br/>Data Transform]
+        G[Inference Engine<br/>Execute Task]
+    end
+    
+    subgraph "Response Processing"
+        H[Response Model<br/>to_json()]
+        I[JSON Serialization<br/>nlohmann::json]
+        J[HTTP Response<br/>JSON Data]
+    end
+    
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    G --> H
+    H --> I
+    I --> J
+    
+    style A fill:#e3f2fd
+    style B fill:#fff3e0
+    style C fill:#e8f5e8
+    style D fill:#ffebee
+    style E fill:#f3e5f5
+    style F fill:#f3e5f5
+    style G fill:#f3e5f5
+    style H fill:#e8f5e8
+    style I fill:#fff3e0
+    style J fill:#e3f2fd
+```
+
 ## Model Types
 
 ### 1. Request Models

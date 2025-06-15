@@ -9,6 +9,65 @@ This document provides comprehensive API specifications for the Kolosal Server, 
 - **Content-Type**: `application/json` (except streaming responses)
 - **Authentication**: None (currently)
 
+## API Overview
+
+The Kolosal Server provides both OpenAI-compatible and custom endpoints:
+
+```mermaid
+graph TD
+    subgraph "OpenAI Compatible"
+        A["/v1/chat/completions<br/>POST - Chat interface"]
+        B["/v1/completions<br/>POST - Text completion"]
+    end
+    
+    subgraph "Engine Management"
+        C["/engines<br/>GET - List engines"]
+        D["/engines<br/>POST - Add engine"]
+        E["/engines/{id}<br/>DELETE - Remove engine"]
+        F["/engines/{id}/status<br/>GET - Engine status"]
+    end
+    
+    subgraph "System"
+        G["/v1/health<br/>GET - Health check"]
+    end
+    
+    subgraph "Features"
+        H[Streaming Support<br/>Server-Sent Events]
+        I[GPU Acceleration<br/>CUDA/Vulkan]
+        J[Model Loading<br/>Dynamic GGUF]
+        K[Error Handling<br/>OpenAI Format]
+    end
+    
+    A --> H
+    B --> H
+    A --> I
+    B --> I
+    C --> J
+    D --> J
+    E --> J
+    F --> J
+    
+    A --> K
+    B --> K
+    C --> K
+    D --> K
+    E --> K
+    F --> K
+    G --> K
+    
+    style A fill:#e3f2fd
+    style B fill:#e3f2fd
+    style C fill:#e8f5e8
+    style D fill:#e8f5e8
+    style E fill:#e8f5e8
+    style F fill:#e8f5e8
+    style G fill:#fff3e0
+    style H fill:#f3e5f5
+    style I fill:#f3e5f5
+    style J fill:#f3e5f5
+    style K fill:#f3e5f5
+```
+
 ## Common Structures
 
 ### Error Response Format

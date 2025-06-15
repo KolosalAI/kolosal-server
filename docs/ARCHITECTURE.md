@@ -4,18 +4,38 @@ This document provides a detailed overview of the Kolosal Server architecture, i
 
 ## High-Level Architecture
 
-```
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   HTTP Client   │───▶│  Kolosal Server │───▶│  llama.cpp      │
-│                 │◀───│                 │◀───│  Engine         │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
-        │                        │                        │
-        │                        │                        │
-        ▼                        ▼                        ▼
-┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│ OpenAI Client   │    │ Route Handlers  │    │ Model Files     │
-│ Libraries       │    │ JSON Processing │    │ (.gguf)         │
-└─────────────────┘    └─────────────────┘    └─────────────────┘
+```mermaid
+graph TB
+    subgraph "Client Layer"
+        A[HTTP Client]
+        B[OpenAI Client Libraries]
+    end
+    
+    subgraph "Kolosal Server"
+        C[HTTP Server]
+        D[Route Handlers]
+        E[JSON Processing]
+    end
+    
+    subgraph "Inference Layer"
+        F[llama.cpp Engine]
+        G[Model Files<br/>(.gguf)]
+    end
+    
+    A <--> C
+    B --> C
+    C <--> D
+    D <--> E
+    D <--> F
+    F <--> G
+    
+    style A fill:#e1f5fe
+    style B fill:#e1f5fe
+    style C fill:#f3e5f5
+    style D fill:#f3e5f5
+    style E fill:#f3e5f5
+    style F fill:#e8f5e8
+    style G fill:#e8f5e8
 ```
 
 ## Component Architecture
@@ -193,106 +213,53 @@ class InferenceEngine {
 
 ### Request Processing Flow
 
-```
-HTTP Request
-     │
-     ▼
-┌─────────────────┐
-│ Server::handle  │  ← Socket connection accepted
-│ Connection      │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ Parse HTTP      │  ← Extract method, path, headers, body
-│ Request         │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ Route Matching  │  ← Find appropriate route handler
-│ Loop            │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ IRoute::handle  │  ← Execute business logic
-│                 │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ Model          │  ← Parse and validate JSON
-│ Validation     │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ NodeManager::  │  ← Get inference engine
-│ getEngine      │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ InferenceEngine │  ← Submit inference job
-│ ::submit*Job   │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ Job Processing │  ← Generate text/chat response
-│ (llama.cpp)    │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ Response       │  ← Format JSON response
-│ Generation     │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ HTTP Response  │  ← Send back to client
-│ Transmission   │
-└─────────────────┘
+```mermaid
+flowchart TD
+    A[HTTP Request] --> B[Server::handleConnection]
+    B --> C[Parse HTTP Request<br/>Extract method, path, headers, body]
+    C --> D[Route Matching Loop<br/>Find appropriate route handler]
+    D --> E[IRoute::handle<br/>Execute business logic]
+    E --> F[Model Validation<br/>Parse and validate JSON]
+    F --> G[NodeManager::getEngine<br/>Get inference engine]
+    G --> H[InferenceEngine::submit*Job<br/>Submit inference job]
+    H --> I[Job Processing<br/>llama.cpp - Generate text/chat response]
+    I --> J[Response Generation<br/>Format JSON response]
+    J --> K[HTTP Response Transmission<br/>Send back to client]
+    
+    style A fill:#e3f2fd
+    style B fill:#f3e5f5
+    style C fill:#f3e5f5
+    style D fill:#f3e5f5
+    style E fill:#fff3e0
+    style F fill:#fff3e0
+    style G fill:#e8f5e8
+    style H fill:#e8f5e8
+    style I fill:#e8f5e8
+    style J fill:#fff3e0
+    style K fill:#e3f2fd
 ```
 
 ### Streaming Response Flow
 
 For streaming endpoints (`stream: true`):
 
-```
-Client Request
-     │
-     ▼
-┌─────────────────┐
-│ Set Streaming   │  ← "Content-Type: text/event-stream"
-│ Headers         │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ Submit Job      │  ← Start inference job
-│                 │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐    ┌─────────────────┐
-│ Poll Job        │───▶│ Send Chunk      │  ← "data: {...}\n\n"
-│ Results         │◀───│                 │
-└─────────┬───────┘    └─────────────────┘
-          │                     │
-          ▼                     │
-┌─────────────────┐             │
-│ Job Complete?   │─────────────┘  ← Repeat until done
-│                 │
-└─────────┬───────┘
-          │
-          ▼
-┌─────────────────┐
-│ Send [DONE]     │  ← "data: [DONE]\n\n"
-│ Marker          │
-└─────────────────┘
+```mermaid
+flowchart TD
+    A[Client Request] --> B[Set Streaming Headers<br/>Content-Type: text/event-stream]
+    B --> C[Submit Job<br/>Start inference job]
+    C --> D[Poll Job Results]
+    D --> E[Send Chunk<br/>data: {...}\n\n]
+    E --> F{Job Complete?}
+    F -->|No| D
+    F -->|Yes| G[Send [DONE] Marker<br/>data: [DONE]\n\n]
+    
+    style A fill:#e3f2fd
+    style B fill:#f3e5f5
+    style C fill:#e8f5e8
+    style D fill:#fff3e0
+    style E fill:#fff3e0
+    style F fill:#ffebee
+    style G fill:#e8f5e8
 ```
 
 ## Threading Model
@@ -395,16 +362,20 @@ try {
     formatResponse();
 } catch (const json::exception& ex) {
     // JSON parsing errors → 400
-    send_error_response(sock, 400, "Invalid JSON");
+    json error = {{"error", {{"message", "Invalid JSON"}, {"type", "invalid_request_error"}}}};
+    send_response(sock, 400, error.dump());
 } catch (const std::invalid_argument& ex) {
     // Validation errors → 400
-    send_error_response(sock, 400, ex.what());
+    json error = {{"error", {{"message", ex.what()}, {"type", "invalid_request_error"}}}};
+    send_response(sock, 400, error.dump());
 } catch (const std::runtime_error& ex) {
     // Runtime errors → 500
-    send_error_response(sock, 500, ex.what());
+    json error = {{"error", {{"message", ex.what()}, {"type", "runtime_error"}}}};
+    send_response(sock, 500, error.dump());
 } catch (...) {
     // Unknown errors → 500
-    send_error_response(sock, 500, "Internal server error");
+    json error = {{"error", {{"message", "Internal server error"}, {"type", "internal_server_error"}}}};
+    send_response(sock, 500, error.dump());
 }
 ```
 
