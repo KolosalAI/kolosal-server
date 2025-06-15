@@ -7,6 +7,7 @@
 #include "kolosal/routes/remove_engine_route.hpp"
 #include "kolosal/routes/engine_status_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
+#include "kolosal/routes/auth_config_route.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
 #include <memory>
@@ -51,7 +52,7 @@ namespace kolosal
             {
                 ServerLogger::logError("Failed to initialize server");
                 return false;
-            } // Register routes
+            }            // Register routes
             ServerLogger::logInfo("Registering routes");
             pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
@@ -60,6 +61,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());
             pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
+            pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
 
             // Start server in a background thread
             std::thread([this]()
@@ -90,11 +92,25 @@ namespace kolosal
     NodeManager &ServerAPI::getNodeManager()
     {
         return *pImpl->nodeManager;
-    }
-
-    const NodeManager &ServerAPI::getNodeManager() const
+    }    const NodeManager &ServerAPI::getNodeManager() const
     {
         return *pImpl->nodeManager;
+    }
+
+    auth::AuthMiddleware& ServerAPI::getAuthMiddleware()
+    {
+        if (!pImpl->server) {
+            throw std::runtime_error("Server not initialized");
+        }
+        return pImpl->server->getAuthMiddleware();
+    }
+
+    const auth::AuthMiddleware& ServerAPI::getAuthMiddleware() const
+    {
+        if (!pImpl->server) {
+            throw std::runtime_error("Server not initialized");
+        }
+        return pImpl->server->getAuthMiddleware();
     }
 
 } // namespace kolosal
