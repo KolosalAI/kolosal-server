@@ -430,18 +430,47 @@ $body = @{
 Invoke-RestMethod -Uri "http://localhost:8080/v1/completions" -Method POST -Body $body -ContentType "application/json"
 ```
 
+## 📚 Developer Documentation
+
+For developers looking to contribute to or extend Kolosal Server, comprehensive documentation is available in the [`docs/`](docs/) directory:
+
+### 🚀 Getting Started
+- **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Complete setup, architecture, and development workflows
+- **[Architecture Overview](docs/ARCHITECTURE.md)** - Detailed system design and component relationships
+
+### 🔧 Implementation Guides
+- **[Adding New Routes](docs/ADDING_ROUTES.md)** - Step-by-step guide for implementing API endpoints
+- **[Adding New Models](docs/ADDING_MODELS.md)** - Guide for creating data models and JSON handling
+- **[API Specification](docs/API_SPECIFICATION.md)** - Complete API reference with examples
+
+### 📖 Quick Links
+- [Documentation Index](docs/README.md) - Complete documentation overview
+- [Project Structure](docs/DEVELOPER_GUIDE.md#project-structure) - Understanding the codebase
+- [Contributing Guidelines](docs/DEVELOPER_GUIDE.md#contributing) - How to contribute
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
+We welcome contributions! Please see our [Developer Documentation](docs/) for detailed guides on:
+
+1. **Getting Started**: [Developer Guide](docs/DEVELOPER_GUIDE.md)
+2. **Understanding the System**: [Architecture Overview](docs/ARCHITECTURE.md)
+3. **Adding Features**: [Route](docs/ADDING_ROUTES.md) and [Model](docs/ADDING_MODELS.md) guides
+4. **API Changes**: [API Specification](docs/API_SPECIFICATION.md)
+
+### Quick Contributing Steps
 1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
+2. Follow the [Developer Guide](docs/DEVELOPER_GUIDE.md) for setup
+3. Create a feature branch
+4. Implement your changes following our guides
+5. Add tests and update documentation
+6. Submit a Pull Request
 
 ## Support
 
-For issues and questions, please open an issue on GitHub.
+- **Issues**: Report bugs and feature requests on [GitHub Issues](https://github.com/your-org/kolosal-server/issues)
+- **Documentation**: Check the [docs/](docs/) directory for comprehensive guides
+- **Discussions**: Join [GitHub Discussions](https://github.com/your-org/kolosal-server/discussions) for questions and community support
