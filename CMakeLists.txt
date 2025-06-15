@@ -24,6 +24,7 @@ set(SOURCES
     src/server.cpp
     src/server_api.cpp    
     src/logger.cpp
+    src/download_utils.cpp
     src/routes/chat_completion_route.cpp
     src/routes/completion_route.cpp
     src/routes/add_engine_route.cpp
@@ -134,6 +135,10 @@ add_subdirectory(${LLAMA_CPP_PATH})
 
 # Link llama.cpp libraries
 target_link_libraries(kolosal_server PRIVATE llama common ggml toolcall)
+
+# Link CURL libraries and include directories
+target_include_directories(kolosal_server PRIVATE ${CURL_INCLUDE_DIR})
+target_link_libraries(kolosal_server PRIVATE ${CURL_LIBRARIES})
 
 # Include llama.cpp directories
 target_include_directories(kolosal_server PUBLIC

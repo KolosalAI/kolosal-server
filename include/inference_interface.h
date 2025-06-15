@@ -173,19 +173,20 @@ struct LoadingParameters {
 class INFERENCE_API IInferenceEngine {
 public:
     /**
+         /**
      * @brief Virtual destructor for proper cleanup.
      */
     virtual ~IInferenceEngine() = default;
 
     // Model management
     /**
-     * @brief Loads a model from the specified directory.
-     * @param engineDir Path to the model directory
+     * @brief Loads a model from the specified GGUF file path.
+     * @param modelPath Path to the GGUF model file
      * @param lParams Loading parameters configuration
      * @param mainGpuId Primary GPU ID (-1 for auto-select)
      * @return true if model loaded successfully, false otherwise
      */
-    virtual bool loadModel(const char* engineDir, 
+    virtual bool loadModel(const char* modelPath, 
                           const LoadingParameters lParams, 
                           const int mainGpuId = -1) = 0;
 
@@ -252,7 +253,11 @@ public:
      * @param job_id ID of the job
      * @return Error message string (empty if no error)
      */
-    virtual std::string getJobError(int job_id) = 0;
+    virtual std::string getJobError(int job_id) = 0;    /**
+     * @brief Checks if there are any active jobs currently running.
+     * @return True if there are active jobs, false otherwise
+     */
+    virtual bool hasActiveJobs() = 0;
 };
 
 // =============================================================================

@@ -30,9 +30,8 @@
  * loadParams.n_ctx = 4096;           // Context window size
  * loadParams.n_gpu_layers = 32;      // Offload 32 layers to GPU
  * loadParams.n_batch = 512;          // Batch size
- * 
- * // Load the model
- * if (!engine.loadModel("path/to/model", loadParams)) {
+ *  * // Load the model
+ * if (!engine.loadModel("path/to/model.gguf", loadParams)) {
  *     // Handle error
  *     return -1;
  * }
@@ -62,11 +61,10 @@
  * @endcode
  * 
  * @subsection chat_completion Chat Completion
- * @code
- * // Create and load model (same as above)
+ * @code * // Create and load model (same as above)
  * InferenceEngine engine;
  * LoadingParameters loadParams;
- * engine.loadModel("path/to/model", loadParams);
+ * engine.loadModel("path/to/model.gguf", loadParams);
  * 
  * // Set up chat messages
  * ChatCompletionParameters chatParams;
@@ -230,10 +228,8 @@ struct Job {
  */
 class INFERENCE_API InferenceEngine : public IInferenceEngine {
 public:
-    explicit InferenceEngine();
-
-    // Model management
-    bool loadModel(const char* engineDir, const LoadingParameters lParams, const int mainGpuId = -1);
+    explicit InferenceEngine();    // Model management
+    bool loadModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = -1);
     bool unloadModel();
 
     // Job submission
@@ -286,14 +282,18 @@ public:
      * @param job_id The ID of the job to check.
      * @return True if the job has an error, false otherwise.
      */
-    bool hasJobError(int job_id);
-
-    /**
+    bool hasJobError(int job_id);    /**
      * @brief Gets the error message for a job.
      * @param job_id The ID of the job to get the error message for.
      * @return The error message for the job.
      */
     std::string getJobError(int job_id);
+
+    /**
+     * @brief Checks if there are any active jobs currently running.
+     * @return True if there are active jobs, false otherwise.
+     */
+    bool hasActiveJobs();
 
     /**
      * @brief Destructor for the InferenceEngine.
