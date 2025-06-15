@@ -3,11 +3,18 @@
 #include "../export.hpp"
 #include <string>
 
+enum class PDFParseMethod
+{
+    Fast,
+    OCR,
+    Visual
+};
+
 class DocumentParser
 {
 public:
     static std::string parse_pdf(const std::string &file_path,
-                                 const std::string &method = "fast",
+                                 PDFParseMethod method = PDFParseMethod::Fast,
                                  const std::string &language = "eng");
 
 private:
