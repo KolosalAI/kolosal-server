@@ -5,10 +5,12 @@
 
 #include "export.hpp"
 
-namespace kolosal {
-
-    // Forward declaration
+namespace kolosal {    // Forward declarations
     class NodeManager;
+    namespace auth {
+        class AuthMiddleware;
+        class AuthManager;
+    }
 
     class KOLOSAL_SERVER_API ServerAPI {
     public:
@@ -21,11 +23,15 @@ namespace kolosal {
         ServerAPI(ServerAPI&&) = delete;
         ServerAPI& operator=(ServerAPI&&) = delete;        // Initialize and start server
         bool init(const std::string& port);
-        void shutdown();
-
-        // NodeManager access
+        void shutdown();        // NodeManager access
         NodeManager& getNodeManager();
-        const NodeManager& getNodeManager() const;
+        const NodeManager& getNodeManager() const;        // AuthMiddleware access
+        auth::AuthMiddleware& getAuthMiddleware();
+        const auth::AuthMiddleware& getAuthMiddleware() const;
+
+        // AuthManager access
+        auth::AuthManager& getAuthManager();
+        const auth::AuthManager& getAuthManager() const;
 
     private:
         ServerAPI();

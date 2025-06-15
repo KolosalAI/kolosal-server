@@ -32,6 +32,10 @@ set(SOURCES
     src/routes/remove_engine_route.cpp
     src/routes/engine_status_route.cpp
     src/routes/health_status_route.cpp
+    src/routes/auth_config_route.cpp
+    src/auth/rate_limiter.cpp
+    src/auth/cors_handler.cpp
+    src/auth/auth_middleware.cpp
     src/node_manager.cpp
     src/inference.cpp
 )

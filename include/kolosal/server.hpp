@@ -1,6 +1,7 @@
 #pragma once
 
 #include "routes/route_interface.hpp"
+#include "auth/auth_middleware.hpp"
 #include "export.hpp"
 
 #include <string>
@@ -17,8 +18,7 @@ using SocketType = int;
 
 namespace kolosal {
 
-    class KOLOSAL_SERVER_API Server {
-    public:
+    class KOLOSAL_SERVER_API Server {    public:
         explicit Server(const std::string& port);
         ~Server();
 
@@ -27,11 +27,16 @@ namespace kolosal {
         void run();
         void stop(); // New method to stop the server
 
+        // Authentication middleware access
+        auth::AuthMiddleware& getAuthMiddleware() { return *authMiddleware_; }
+        const auth::AuthMiddleware& getAuthMiddleware() const { return *authMiddleware_; }
+
     private:
         std::string port;
         SocketType listen_sock;
         std::vector<std::unique_ptr<IRoute>> routes;
         std::atomic<bool> running; // Control flag for server loop
+        std::unique_ptr<auth::AuthMiddleware> authMiddleware_; // Authentication middleware
     };
 
 }; // namespace kolosal
