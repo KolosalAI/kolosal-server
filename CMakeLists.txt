@@ -22,11 +22,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann)
 # Define source files.
 set(SOURCES
     src/server.cpp
-    src/server_api.cpp
+    src/server_api.cpp    
     src/logger.cpp
     src/routes/chat_completion_route.cpp
     src/routes/completion_route.cpp
-    src/routes/models_route.cpp
     src/routes/add_engine_route.cpp
     src/routes/list_engines_route.cpp
     src/routes/remove_engine_route.cpp
