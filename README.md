@@ -22,7 +22,7 @@ A high-performance inference server for large language models with OpenAI-compat
 ### Building
 
 ```bash
-git clone https://github.com/your-org/kolosal-server.git
+git clone https://github.com/KolosalAI/kolosal-server.git
 cd kolosal-server
 mkdir build && cd build
 cmake ..
@@ -471,6 +471,6 @@ We welcome contributions! Please see our [Developer Documentation](docs/) for de
 
 ## Support
 
-- **Issues**: Report bugs and feature requests on [GitHub Issues](https://github.com/your-org/kolosal-server/issues)
+- **Issues**: Report bugs and feature requests on [GitHub Issues](https://github.com/KolosalAI/kolosal-server/issues)
 - **Documentation**: Check the [docs/](docs/) directory for comprehensive guides
-- **Discussions**: Join [GitHub Discussions](https://github.com/your-org/kolosal-server/discussions) for questions and community support
+- **Discussions**: Join [GitHub Discussions](https://github.com/KolosalAI/kolosal-server/discussions) for questions and community support
