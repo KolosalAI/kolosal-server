@@ -157,12 +157,13 @@ int main(int argc, char* argv[]) {
         std::cout << "  PUT  /v1/auth/config         - Update authentication configuration" << std::endl;
         std::cout << "  GET  /v1/auth/stats          - Get authentication statistics" << std::endl;
         std::cout << "  POST /v1/auth/clear          - Clear rate limit data" << std::endl;    }
-    
-    if (config.enableMetrics) {
+      if (config.enableMetrics) {
         std::cout << "\nMetrics endpoints:" << std::endl;
         std::cout << "  GET  /metrics                - System monitoring metrics" << std::endl;
         std::cout << "  GET  /v1/metrics             - System monitoring metrics" << std::endl;
         std::cout << "  GET  /system/metrics         - System monitoring metrics" << std::endl;
+        std::cout << "  GET  /completion-metrics     - Completion performance metrics" << std::endl;
+        std::cout << "  GET  /v1/completion-metrics  - Completion performance metrics" << std::endl;
     }
     
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;

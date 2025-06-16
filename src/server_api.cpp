@@ -62,10 +62,6 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
-            
-            // Always enable completion metrics for monitoring
-            ServerLogger::logInfo("Enabling completion metrics monitoring");
-            pImpl->server->addRoute(std::make_unique<CompletionMetricsRoute>());
 
             // Start server in a background thread
             std::thread([this]()

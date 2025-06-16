@@ -17,10 +17,6 @@ namespace kolosal
         bool match(const std::string& method, const std::string& path) override;
         void handle(SocketType sock, const std::string& body) override;    private:
         CompletionMonitor* monitor_;  // Pointer to singleton instance
-        
-        // Helper method to format metrics as JSON
-        std::string formatMetricsAsJson(const AggregatedCompletionMetrics& metrics);
-        std::string formatEngineMetricsAsJson(const CompletionMetrics& metrics);
     };
 
 } // namespace kolosal

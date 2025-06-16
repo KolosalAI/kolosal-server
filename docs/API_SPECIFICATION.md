@@ -697,6 +697,8 @@ Write-Output "Loaded Engines: $($health.engines.loaded)"
 - `GET /v1/metrics`
 - `GET /system/metrics`
 
+**Requirements**: These endpoints are only available when `features.metrics: true` is set in the configuration file.
+
 **Description**: Returns real-time system resource metrics including CPU, memory, and GPU utilization.
 
 **Response**:
@@ -770,6 +772,8 @@ Write-Output "GPU Count: $($metrics.summary.gpu_count)"
 - `GET /completion-metrics`
 - `GET /v1/completion-metrics`
 - `GET /completion/metrics`
+
+**Requirements**: These endpoints are only available when `features.metrics: true` is set in the configuration file.
 
 **Description**: Returns real-time completion performance metrics including TPS, TTFT, RPS, and success rates.
 
