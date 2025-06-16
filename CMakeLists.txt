@@ -14,6 +14,7 @@ option(USE_CUDA   "Compile with CUDA support" OFF)
 option(USE_VULKAN "Compile with VULKAN support" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
+option(ENABLE_AGENTS "Enable multi-agent system" ON)
 
 # Define include directories.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -39,6 +40,31 @@ set(SOURCES
     src/node_manager.cpp
     src/inference.cpp
 )
+
+# Add agent system sources if enabled
+if(ENABLE_AGENTS)
+    list(APPEND SOURCES
+        # Agent system core
+        src/agents/logger.cpp
+        src/agents/agent_data.cpp
+        src/agents/agent_interfaces.cpp
+        src/agents/yaml_config.cpp
+        
+        # Agent functions
+        src/agents/builtin_functions.cpp
+        src/agents/function_manager.cpp
+        
+        # Agent infrastructure
+        src/agents/job_manager.cpp
+        src/agents/message_router.cpp
+        src/agents/event_system.cpp
+        
+        # Agent core and system
+        src/agents/agent_core.cpp
+        src/agents/multi_agent_system.cpp
+    )
+    message(STATUS "Agent system enabled - adding agent sources")
+endif()
 
 # Create shared library instead of static library.
 add_library(kolosal_server SHARED ${SOURCES})
@@ -126,12 +152,74 @@ if(USE_MPI)
   endif()
 endif()
 
+# Setup yaml-cpp for agent system
+if(ENABLE_AGENTS)
+    message(STATUS "Agent system enabled - setting up yaml-cpp...")
+    
+    # Try to find system yaml-cpp first
+    find_package(yaml-cpp QUIET)
+    
+    if(NOT yaml-cpp_FOUND)
+        # Check for local yaml-cpp
+        set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
+        if(EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
+            message(STATUS "Found local yaml-cpp at: ${YAML_CPP_PATH}")
+            
+            # Configure yaml-cpp options to avoid conflicts
+            set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
+            set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
+            set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
+            set(YAML_CPP_INSTALL OFF CACHE BOOL "Disable yaml-cpp install" FORCE)
+            set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static" FORCE)
+            
+            # Temporarily set minimum required version for yaml-cpp
+            set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
+            
+            # Add yaml-cpp as subdirectory
+            add_subdirectory(${YAML_CPP_PATH} yaml-cpp EXCLUDE_FROM_ALL)
+            
+            # Create an alias target for consistency
+            if(NOT TARGET yaml-cpp::yaml-cpp)
+                add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
+            endif()
+            
+            message(STATUS "Built yaml-cpp from source")
+        else()
+            message(STATUS "yaml-cpp not found locally, downloading...")
+            
+            # Download yaml-cpp using FetchContent
+            include(FetchContent)
+            FetchContent_Declare(
+                yaml-cpp
+                GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+                GIT_TAG 0.8.0
+            )
+            
+            # Configure yaml-cpp options
+            set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
+            set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
+            set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
+            set(YAML_CPP_INSTALL OFF CACHE BOOL "Disable yaml-cpp install" FORCE)
+            
+            FetchContent_MakeAvailable(yaml-cpp)
+            message(STATUS "Downloaded and built yaml-cpp")
+        endif()
+    else()
+        message(STATUS "Found system yaml-cpp")
+    endif()
+    
+    # Link yaml-cpp to the main target
+    target_link_libraries(kolosal_server PRIVATE yaml-cpp::yaml-cpp)
+    target_compile_definitions(kolosal_server PRIVATE KOLOSAL_AGENTS_ENABLED)
+endif()
+
 # Define inference-related compile definitions
 target_compile_definitions(kolosal_server PUBLIC
   $<$<BOOL:${USE_CUDA}>:USE_CUDA>
   $<$<BOOL:${USE_VULKAN}>:USE_VULKAN>
   $<$<BOOL:${USE_MPI}>:USE_MPI>
   $<$<BOOL:${DEBUG}>:DEBUG>
+  $<$<BOOL:${ENABLE_AGENTS}>:KOLOSAL_AGENTS_ENABLED>
 )
 
 # Add llama.cpp subdirectory
