@@ -73,12 +73,11 @@ namespace kolosal
             // Check if the model path is a URL
             bool isUrl = is_valid_url(modelPathStr);
             std::string actualModelPath = modelPathStr;
-            
-            if (isUrl) {
+              if (isUrl) {
                 ServerLogger::logInfo("[Thread %u] Model path is URL, starting download: %s", std::this_thread::get_id(), modelPathStr.c_str());
                 
-                // Generate download path
-                std::string downloadPath = generate_download_path(modelPathStr, "./downloads");
+                // Generate download path - use ./models to match startup behavior
+                std::string downloadPath = generate_download_path(modelPathStr, "./models");
                 
                 // Check if file already exists
                 if (std::filesystem::exists(downloadPath)) {
@@ -203,9 +202,7 @@ namespace kolosal
             {
                 ServerLogger::logWarning("[Thread %u] Large batch size (n_batch=%d) may cause high memory usage for engine '%s'",
                                          std::this_thread::get_id(), loadParams.n_batch, engineId.c_str());
-            }
-
-            // Get the NodeManager and attempt to add the engine
+            }            // Get the NodeManager and attempt to add the engine
             auto &nodeManager = ServerAPI::instance().getNodeManager();            bool success = false;
             if (loadImmediately)
             {
@@ -213,11 +210,10 @@ namespace kolosal
             }
             else
             {
-                // For now, we'll still create the engine but we could extend NodeManager
-                // to support deferred loading in the future
-                success = nodeManager.addEngine(engineId, actualModelPath.c_str(), loadParams, mainGpuId);
-                ServerLogger::logInfo("Engine '%s' added with load_immediately=false (currently loading anyway)", engineId.c_str());
-            }            if (success)
+                // Register the engine for lazy loading - model will be loaded on first access
+                success = nodeManager.registerEngine(engineId, actualModelPath.c_str(), loadParams, mainGpuId);
+                ServerLogger::logInfo("Engine '%s' registered with load_immediately=false (will load on first access)", engineId.c_str());
+            }if (success)
             {
                 json response = {
                     {"engine_id", engineId},

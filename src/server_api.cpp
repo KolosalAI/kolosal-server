@@ -9,6 +9,7 @@
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/auth_config_route.hpp"
 #include "kolosal/routes/system_metrics_route.hpp"
+#include "kolosal/routes/completion_metrics_route.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
 #include <memory>
@@ -55,13 +56,16 @@ namespace kolosal
                 return false;
             }            // Register routes
             ServerLogger::logInfo("Registering routes");            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
-            pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
-            pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
+            pImpl->server->addRoute(std::make_unique<CompletionsRoute>());            pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());
             pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());
             pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
+            
+            // Always enable completion metrics for monitoring
+            ServerLogger::logInfo("Enabling completion metrics monitoring");
+            pImpl->server->addRoute(std::make_unique<CompletionMetricsRoute>());
 
             // Start server in a background thread
             std::thread([this]()
@@ -85,9 +89,7 @@ namespace kolosal
             // Implement server shutdown mechanism
             pImpl->server.reset();
         }
-    }
-
-    void ServerAPI::enableMetrics()
+    }    void ServerAPI::enableMetrics()
     {
         if (!pImpl->server) {
             throw std::runtime_error("Server not initialized - call init() first");
@@ -95,6 +97,9 @@ namespace kolosal
         
         ServerLogger::logInfo("Enabling system metrics monitoring");
         pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());
+        
+        ServerLogger::logInfo("Enabling completion metrics monitoring");
+        pImpl->server->addRoute(std::make_unique<CompletionMetricsRoute>());
     }
 
     NodeManager &ServerAPI::getNodeManager()

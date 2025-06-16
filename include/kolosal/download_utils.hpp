@@ -47,17 +47,15 @@ namespace kolosal {
         const std::string& url,
         const std::string& local_path,
         DownloadProgressCallback progress_callback = nullptr
-    );
-
-    /**
+    );    /**
      * Generate a temporary download path for a URL
      * @param url The URL to generate a path for
-     * @param base_dir Base directory for downloads (default: "./downloads")
+     * @param base_dir Base directory for downloads (default: "./models")
      * @return Generated local path for the download
      */
     KOLOSAL_SERVER_API std::string generate_download_path(
         const std::string& url,
-        const std::string& base_dir = "./downloads"
+        const std::string& base_dir = "./models"
     );
 
     /**

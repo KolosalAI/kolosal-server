@@ -30,6 +30,7 @@ set(SOURCES
     src/logger.cpp
     src/download_utils.cpp
     src/system_monitor.cpp
+    src/completion_monitor.cpp
     src/enhanced_gpu_monitor.cpp
     src/routes/chat_completion_route.cpp
     src/routes/completion_route.cpp
@@ -40,6 +41,7 @@ set(SOURCES
     src/routes/health_status_route.cpp
     src/routes/auth_config_route.cpp
     src/routes/system_metrics_route.cpp
+    src/routes/completion_metrics_route.cpp
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
     src/auth/auth_middleware.cpp
