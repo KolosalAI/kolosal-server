@@ -8,6 +8,7 @@
 #include "kolosal/routes/engine_status_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/auth_config_route.hpp"
+#include "kolosal/routes/system_metrics_route.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
 #include <memory>
@@ -53,8 +54,7 @@ namespace kolosal
                 ServerLogger::logError("Failed to initialize server");
                 return false;
             }            // Register routes
-            ServerLogger::logInfo("Registering routes");
-            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
+            ServerLogger::logInfo("Registering routes");            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());
@@ -77,9 +77,7 @@ namespace kolosal
             ServerLogger::logError("Failed to initialize server: %s", ex.what());
             return false;
         }
-    }
-
-    void ServerAPI::shutdown()
+    }    void ServerAPI::shutdown()
     {
         if (pImpl->server)
         {
@@ -87,6 +85,16 @@ namespace kolosal
             // Implement server shutdown mechanism
             pImpl->server.reset();
         }
+    }
+
+    void ServerAPI::enableMetrics()
+    {
+        if (!pImpl->server) {
+            throw std::runtime_error("Server not initialized - call init() first");
+        }
+        
+        ServerLogger::logInfo("Enabling system metrics monitoring");
+        pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());
     }
 
     NodeManager &ServerAPI::getNodeManager()

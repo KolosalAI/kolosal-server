@@ -56,8 +56,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Failed to initialize server on port " << config.port << std::endl;
         return 1;
     }
-    
-    // Configure authentication if enabled
+      // Configure authentication if enabled
     if (config.auth.enableAuth) {
         try {
             auto& authMiddleware = server.getAuthMiddleware();
@@ -73,6 +72,17 @@ int main(int argc, char* argv[]) {
                                  config.auth.cors.enabled ? "enabled" : "disabled");
         } catch (const std::exception& e) {
             std::cerr << "Failed to configure authentication: " << e.what() << std::endl;
+            return 1;
+        }
+    }
+    
+    // Enable metrics if configured
+    if (config.enableMetrics) {
+        try {
+            server.enableMetrics();
+            ServerLogger::logInfo("System metrics monitoring enabled");
+        } catch (const std::exception& e) {
+            std::cerr << "Failed to enable metrics: " << e.what() << std::endl;
             return 1;
         }
     }
@@ -146,17 +156,13 @@ int main(int argc, char* argv[]) {
         std::cout << "  GET  /v1/auth/config         - Get authentication configuration" << std::endl;
         std::cout << "  PUT  /v1/auth/config         - Update authentication configuration" << std::endl;
         std::cout << "  GET  /v1/auth/stats          - Get authentication statistics" << std::endl;
-        std::cout << "  POST /v1/auth/clear          - Clear rate limit data" << std::endl;
-    }
+        std::cout << "  POST /v1/auth/clear          - Clear rate limit data" << std::endl;    }
     
     if (config.enableMetrics) {
         std::cout << "\nMetrics endpoints:" << std::endl;
-        std::cout << "  GET  /metrics                - Prometheus metrics" << std::endl;
-    }
-    
-    if (config.enableSwagger) {
-        std::cout << "\nDocumentation:" << std::endl;
-        std::cout << "  GET  /swagger                - API documentation" << std::endl;
+        std::cout << "  GET  /metrics                - System monitoring metrics" << std::endl;
+        std::cout << "  GET  /v1/metrics             - System monitoring metrics" << std::endl;
+        std::cout << "  GET  /system/metrics         - System monitoring metrics" << std::endl;
     }
     
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;

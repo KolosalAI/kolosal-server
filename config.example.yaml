@@ -71,4 +71,3 @@ models:
 features:
   health_check: true
   metrics: false
-  swagger: false

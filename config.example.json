@@ -79,10 +79,8 @@
                 "cont_batching": true
             }
         }
-    ],
-    "features": {
+    ],    "features": {
         "health_check": true,
-        "metrics": false,
-        "swagger": false
+        "metrics": false
     }
 }

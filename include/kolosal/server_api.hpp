@@ -25,9 +25,14 @@ namespace kolosal
         ServerAPI(const ServerAPI &) = delete;
         ServerAPI &operator=(const ServerAPI &) = delete;
         ServerAPI(ServerAPI &&) = delete;
-        ServerAPI &operator=(ServerAPI &&) = delete; // Initialize and start server
+        ServerAPI &operator=(ServerAPI &&) = delete;        // Initialize and start server
         bool init(const std::string &port);
-        void shutdown(); // NodeManager access
+        void shutdown();
+        
+        // Feature management
+        void enableMetrics();
+
+        // NodeManager access
         NodeManager &getNodeManager();
         const NodeManager &getNodeManager() const;
 

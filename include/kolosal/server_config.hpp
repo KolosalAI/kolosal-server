@@ -70,11 +70,9 @@ struct KOLOSAL_SERVER_API ServerConfig {
     
     // Authentication configuration
     AuthConfig auth;
-    
-    // Feature flags
+      // Feature flags
     bool enableHealthCheck = true;
     bool enableMetrics = false;
-    bool enableSwagger = false;       // Auto-generate API documentation
     
     ServerConfig() = default;
     

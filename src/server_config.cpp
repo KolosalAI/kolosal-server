@@ -123,13 +123,9 @@ bool ServerConfig::loadFromArgs(int argc, char* argv[]) {
         else if ((arg == "--max-request-size") && i + 1 < argc) {
             maxRequestSize = std::stoul(argv[++i]);
         }
-        
-        // Feature flags
+          // Feature flags
         else if (arg == "--enable-metrics") {
             enableMetrics = true;
-        }
-        else if (arg == "--enable-swagger") {
-            enableSwagger = true;
         }
         else if (arg == "--disable-health-check") {
             enableHealthCheck = false;
@@ -250,10 +246,8 @@ bool ServerConfig::loadFromFile(const std::string& configFile) {
         
         // Load feature flags
         if (config["features"]) {
-            auto features = config["features"];
-            if (features["health_check"]) enableHealthCheck = features["health_check"].as<bool>();
+            auto features = config["features"];            if (features["health_check"]) enableHealthCheck = features["health_check"].as<bool>();
             if (features["metrics"]) enableMetrics = features["metrics"].as<bool>();
-            if (features["swagger"]) enableSwagger = features["swagger"].as<bool>();
         }
         
         return validate();
@@ -313,11 +307,9 @@ bool ServerConfig::saveToFile(const std::string& configFile) const {
             modelNode["load_params"]["cont_batching"] = model.loadParams.cont_batching;
             config["models"].push_back(modelNode);
         }
-        
-        // Feature flags
+          // Feature flags
         config["features"]["health_check"] = enableHealthCheck;
         config["features"]["metrics"] = enableMetrics;
-        config["features"]["swagger"] = enableSwagger;
         
         std::ofstream file(configFile);
         if (!file.is_open()) {
@@ -425,11 +417,9 @@ void ServerConfig::printSummary() const {
             std::cout << "    GPU ID: " << model.mainGpuId << std::endl;
         }
     }
-    
-    std::cout << "\nFeatures:" << std::endl;
+      std::cout << "\nFeatures:" << std::endl;
     std::cout << "  Health Check: " << (enableHealthCheck ? "Enabled" : "Disabled") << std::endl;
     std::cout << "  Metrics: " << (enableMetrics ? "Enabled" : "Disabled") << std::endl;
-    std::cout << "  Swagger: " << (enableSwagger ? "Enabled" : "Disabled") << std::endl;
     std::cout << "====================================" << std::endl;
 }
 
@@ -475,10 +465,8 @@ void ServerConfig::printHelp() {
     std::cout << "    --model-lazy ID PATH      Register model but don't load until first use\n";
     std::cout << "    --model-gpu ID            Set GPU ID for the last added model\n";
     std::cout << "    --model-ctx-size SIZE     Set context size for the last added model\n\n";
-    
-    std::cout << "  Features:\n";
+      std::cout << "  Features:\n";
     std::cout << "    --enable-metrics          Enable metrics collection\n";
-    std::cout << "    --enable-swagger          Enable Swagger API documentation\n";
     std::cout << "    --disable-health-check    Disable health check endpoint\n\n";
     
     std::cout << "  Help:\n";
@@ -496,9 +484,8 @@ void ServerConfig::printHelp() {
     std::cout << "  kolosal-server --require-api-key --api-key secret123 --rate-limit 50\n\n";
       std::cout << "  # Load from configuration file\n";
     std::cout << "  kolosal-server --config /path/to/config.yaml\n\n";
-    
-    std::cout << "  # Development mode with debug logging\n";
-    std::cout << "  kolosal-server --log-level DEBUG --enable-access-log --enable-swagger\n\n";
+      std::cout << "  # Development mode with debug logging and metrics\n";
+    std::cout << "  kolosal-server --log-level DEBUG --enable-access-log --enable-metrics\n\n";
 }
 
 void ServerConfig::printVersion() {
