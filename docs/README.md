@@ -18,6 +18,8 @@ Welcome to the Kolosal Server documentation. This directory contains comprehensi
 
 | Document | Description | Audience |
 |----------|-------------|----------|
+| [**Configuration Guide**](CONFIGURATION.md) | Complete server configuration in JSON and YAML formats | Operators, system administrators |
+| [**System Monitoring**](SYSTEM_MONITORING.md) | System metrics and completion monitoring API reference | DevOps, monitoring teams |
 | [**Production Deployment**](PRODUCTION_DEPLOYMENT.md) | Complete production deployment and operations guide | DevOps, system administrators |
 
 ### For Users
@@ -25,17 +27,31 @@ Welcome to the Kolosal Server documentation. This directory contains comprehensi
 | Document | Description | Audience |
 |----------|-------------|----------|
 | [**Main README**](../README.md) | Quick start, features, and basic usage | End users, evaluators |
+| [**Configuration Guide**](CONFIGURATION.md) | Server configuration options and examples | System administrators, power users |
 | [**API Specification**](API_SPECIFICATION.md) | Complete API reference with examples | API consumers |
 
 ## 🚀 Quick Start for Developers
 
 1. **First Time Setup**: Start with [Developer Guide](DEVELOPER_GUIDE.md)
-2. **Understanding the System**: Read [Architecture Overview](ARCHITECTURE.md)
-3. **Adding Features**: Follow [Adding New Routes](ADDING_ROUTES.md) or [Adding New Models](ADDING_MODELS.md)
-4. **API Integration**: Reference [API Specification](API_SPECIFICATION.md)
-5. **Production Deployment**: Follow [Production Deployment](PRODUCTION_DEPLOYMENT.md)
+2. **Server Configuration**: Configure your server with [Configuration Guide](CONFIGURATION.md)
+3. **Understanding the System**: Read [Architecture Overview](ARCHITECTURE.md)
+4. **Adding Features**: Follow [Adding New Routes](ADDING_ROUTES.md) or [Adding New Models](ADDING_MODELS.md)
+5. **API Integration**: Reference [API Specification](API_SPECIFICATION.md)
+6. **Production Deployment**: Follow [Production Deployment](PRODUCTION_DEPLOYMENT.md)
 
 ## 📖 Document Summaries
+
+### Configuration Guide
+Complete server configuration reference:
+- JSON and YAML configuration formats
+- Server parameters (ports, threads, timeouts)
+- Authentication and API key setup
+- Model loading and GPU configuration
+- Logging and monitoring options
+- CORS and security settings
+- Production vs development examples
+- Environment variable overrides
+- Configuration validation and troubleshooting
 
 ### Developer Guide
 Comprehensive guide covering:

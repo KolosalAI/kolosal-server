@@ -1,16 +1,26 @@
-# System Monitoring API
+# System and Completion Monitoring API
 
-The Kolosal Server includes comprehensive system monitoring capabilities that provide real-time information about CPU usage, RAM usage, and GPU/VRAM usage.
+The Kolosal Server includes comprehensive monitoring capabilities that provide real-time information about both system resources and completion performance.
 
 ## Overview
 
-The system monitoring feature provides:
+The monitoring features provide:
+
+### System Monitoring
 - **CPU Usage**: Real-time CPU utilization percentage
 - **RAM Usage**: Memory usage statistics including total, used, free, and utilization percentage
 - **GPU Usage**: GPU utilization and VRAM usage for each GPU (when available)
 - **VRAM Usage**: Video memory statistics for each GPU (when available)
 
+### Completion Monitoring
+- **Request Tracking**: Monitor completion requests across all models/engines
+- **Performance Metrics**: Track TPS (tokens per second), TTFT (time to first token), and RPS (requests per second)
+- **Success Rates**: Monitor completion success and failure rates
+- **Token Statistics**: Track input/output token counts and processing times
+
 ## API Endpoints
+
+### System Metrics
 
 The system metrics are available through multiple endpoint paths:
 
@@ -18,9 +28,19 @@ The system metrics are available through multiple endpoint paths:
 - `GET /v1/metrics` 
 - `GET /system/metrics`
 
-All endpoints return the same JSON response format.
+### Completion Metrics
 
-## Response Format
+The completion metrics are available through multiple endpoint paths:
+
+- `GET /completion-metrics`
+- `GET /v1/completion-metrics`
+- `GET /completion/metrics`
+
+All endpoints return the same JSON response format for their respective metric types.
+
+## Response Formats
+
+### System Metrics Response
 
 ```json
 {
@@ -78,7 +98,64 @@ All endpoints return the same JSON response format.
 }
 ```
 
+### Completion Metrics Response
+
+```json
+{
+  "completion_metrics": {
+    "summary": {
+      "total_requests": 150,
+      "completed_requests": 147,
+      "failed_requests": 3,
+      "success_rate_percent": 98.0,
+      "total_input_tokens": 1250,
+      "total_output_tokens": 3500,
+      "avg_turnaround_time_ms": 1450.5,
+      "avg_tps": 15.2,
+      "avg_output_tps": 9.8,
+      "avg_ttft_ms": 325.7,
+      "avg_rps": 0.92
+    },
+    "per_engine": [
+      {
+        "model_name": "my-model-7b",
+        "engine_id": "default",
+        "total_requests": 100,
+        "completed_requests": 98,
+        "failed_requests": 2,
+        "total_input_tokens": 800,
+        "total_output_tokens": 2400,
+        "tps": 16.5,
+        "output_tps": 10.2,
+        "avg_ttft": 280.3,
+        "rps": 1.05,
+        "last_updated": "2025-06-16T17:04:12.123Z"
+      },
+      {
+        "model_name": "my-model-13b",
+        "engine_id": "default", 
+        "total_requests": 50,
+        "completed_requests": 49,
+        "failed_requests": 1,
+        "total_input_tokens": 450,
+        "total_output_tokens": 1100,
+        "tps": 12.8,
+        "output_tps": 8.9,
+        "avg_ttft": 420.1,
+        "rps": 0.75,
+        "last_updated": "2025-06-16T17:04:10.890Z"
+      }
+    ],
+    "timestamp": "2025-06-16T17:04:12.123Z"
+  }
+}
+```
+
 ## Field Descriptions
+
+### System Metrics
+
+#### CPU Metrics
 
 ### CPU Metrics
 - `cpu.usage_percent`: Current CPU utilization as a percentage (0-100)
@@ -114,7 +191,45 @@ All endpoints return the same JSON response format.
 - `metadata.server`: Server name
 - `timestamp`: ISO 8601 timestamp of when metrics were collected
 
-## GPU Support
+### Completion Metrics
+
+#### Summary Statistics
+- `summary.total_requests`: Total number of completion requests received
+- `summary.completed_requests`: Number of successfully completed requests
+- `summary.failed_requests`: Number of requests that failed with errors
+- `summary.success_rate_percent`: Success rate as a percentage (0-100)
+- `summary.total_input_tokens`: Total input tokens processed across all requests
+- `summary.total_output_tokens`: Total output tokens generated across all requests
+- `summary.avg_turnaround_time_ms`: Average time from request start to completion (milliseconds)
+- `summary.avg_tps`: Average tokens per second (input + output tokens / turnaround time)
+- `summary.avg_output_tps`: Average output tokens per second (output tokens / generation time)
+- `summary.avg_ttft_ms`: Average time to first token in milliseconds
+- `summary.avg_rps`: Average requests per second (completed requests / total time)
+
+#### Per-Engine Metrics
+- `per_engine[].model_name`: Name/path of the model being used
+- `per_engine[].engine_id`: Identifier of the engine instance
+- `per_engine[].total_requests`: Total requests for this specific engine
+- `per_engine[].completed_requests`: Completed requests for this engine
+- `per_engine[].failed_requests`: Failed requests for this engine
+- `per_engine[].total_input_tokens`: Input tokens processed by this engine
+- `per_engine[].total_output_tokens`: Output tokens generated by this engine
+- `per_engine[].tps`: Tokens per second for this engine
+- `per_engine[].output_tps`: Output tokens per second for this engine
+- `per_engine[].avg_ttft`: Average time to first token for this engine (milliseconds)
+- `per_engine[].rps`: Requests per second for this engine
+- `per_engine[].last_updated`: ISO 8601 timestamp of last activity for this engine
+
+#### Timing and Performance
+- All timing metrics are in milliseconds
+- TPS (Tokens Per Second) includes both input and output tokens
+- Output TPS measures only the token generation speed
+- TTFT (Time To First Token) measures inference startup latency
+- RPS (Requests Per Second) measures overall throughput
+
+## Monitoring Features
+
+### System Monitoring
 
 The server supports GPU monitoring through NVIDIA Management Library (NVML) for NVIDIA GPUs. When NVML is available:
 
@@ -130,7 +245,28 @@ When GPU monitoring is not available (no NVIDIA drivers or NVML not compiled):
 - `gpus` array will be empty
 - GPU-related summary fields will be `null`
 
+### Completion Monitoring
+
+The completion monitoring system tracks all inference requests in real-time:
+
+**Automatic Tracking**: All completion requests (both `/v1/completions` and `/v1/chat/completions`) are automatically monitored
+
+**Singleton Architecture**: Uses a shared singleton monitor instance to ensure consistent metrics across all routes
+
+**Performance Metrics**:
+- Request lifecycle tracking from start to completion
+- Token counting for both input and output
+- Timing measurements including TTFT (Time to First Token)
+- Success/failure rate monitoring
+- Per-engine performance breakdown
+
+**Real-time Updates**: Metrics are updated in real-time as requests are processed
+
+**Thread-Safe**: All monitoring operations are thread-safe for concurrent request handling
+
 ## Error Handling
+
+### System Monitoring Errors
 
 If system monitoring fails, the API returns an error response:
 
@@ -142,6 +278,20 @@ If system monitoring fails, the API returns an error response:
     "details": "Error details..."
   },
   "timestamp": "2025-06-16T06:22:02.238Z"
+}
+```
+
+### Completion Monitoring Errors
+
+If completion metrics retrieval fails, the API returns an error response:
+
+```json
+{
+  "error": {
+    "message": "Internal server error",
+    "details": "Failed to aggregate completion metrics"
+  }
+}
 }
 ```
 

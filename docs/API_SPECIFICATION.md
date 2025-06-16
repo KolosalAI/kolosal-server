@@ -11,7 +11,7 @@ This document provides comprehensive API specifications for the Kolosal Server, 
 
 ## API Overview
 
-The Kolosal Server provides both OpenAI-compatible and custom endpoints:
+The Kolosal Server provides OpenAI-compatible endpoints, custom engine management, and comprehensive monitoring:
 
 ```mermaid
 graph TD
@@ -27,27 +27,35 @@ graph TD
         F["/engines/{id}/status<br/>GET - Engine status"]
     end
     
-    subgraph "System"
+    subgraph "Monitoring & System"
         G["/v1/health<br/>GET - Health check"]
+        M1["/metrics<br/>GET - System metrics"]
+        M2["/v1/metrics<br/>GET - System metrics"]
+        M3["/completion-metrics<br/>GET - Completion metrics"]
+        M4["/v1/completion-metrics<br/>GET - Completion metrics"]
     end
     
     subgraph "Features"
         H["Streaming Support<br/>Server-Sent Events"]
         I["GPU Acceleration<br/>CUDA/Vulkan"]
-        J["Model Loading<br/>Dynamic GGUF"]
+        J["Model Loading<br/>Dynamic GGUF + Lazy Loading"]
         K["Error Handling<br/>OpenAI Format"]
+        L["Real-time Monitoring<br/>TPS, TTFT, RPS"]
     end
     
     A --> H
     B --> H
     A --> I
     B --> I
+    A --> L
+    B --> L
     C --> J
     D --> J
     E --> J
     F --> J
     
     A --> K
+```
     B --> K
     C --> K
     D --> K
@@ -659,10 +667,170 @@ Invoke-RestMethod -Uri "http://localhost:8080/engines" `
 
 ### Health Check
 
+**Endpoint**: `GET /v1/health`
+
+**Description**: Returns server health status and loaded engines.
+
+**Response**:
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-06-16T14:30:00Z",
+  "engines": {
+    "loaded": 2,
+    "total": 3
+  }
+}
+```
+
+**PowerShell Example**:
 ```powershell
 $health = Invoke-RestMethod -Uri "http://localhost:8080/v1/health" -Method GET
 Write-Output "Server Status: $($health.status)"
 Write-Output "Loaded Engines: $($health.engines.loaded)"
+```
+
+### System Metrics
+
+**Endpoints**: 
+- `GET /metrics`
+- `GET /v1/metrics`
+- `GET /system/metrics`
+
+**Description**: Returns real-time system resource metrics including CPU, memory, and GPU utilization.
+
+**Response**:
+```json
+{
+  "timestamp": "2025-06-16T06:22:02.238Z",
+  "cpu": {
+    "usage_percent": 12.26
+  },
+  "memory": {
+    "total_bytes": 8295342080,
+    "used_bytes": 7390986240,
+    "free_bytes": 904355840,
+    "utilization_percent": 89.1,
+    "total_formatted": "7.73 GB",
+    "used_formatted": "6.88 GB",
+    "free_formatted": "862.46 MB"
+  },
+  "gpus": [
+    {
+      "id": 0,
+      "name": "NVIDIA GeForce RTX 4090",
+      "utilization": {
+        "gpu_percent": 85.5,
+        "memory_percent": 67.8
+      },
+      "memory": {
+        "total_bytes": 25769803776,
+        "used_bytes": 17476714496,
+        "free_bytes": 8293089280,
+        "total_formatted": "24.00 GB",
+        "used_formatted": "16.28 GB",
+        "free_formatted": "7.72 GB"
+      },
+      "temperature_celsius": 72.0,
+      "power_usage_watts": 350.5,
+      "driver_version": "555.99"
+    }
+  ],
+  "summary": {
+    "cpu_usage_percent": 12.26,
+    "ram_utilization_percent": 89.1,
+    "gpu_count": 1,
+    "average_gpu_utilization_percent": 85.5,
+    "average_vram_utilization_percent": 67.8
+  },
+  "gpu_monitoring_available": true,
+  "metadata": {
+    "version": "1.0",
+    "server": "kolosal-server",
+    "monitoring_capabilities": {
+      "cpu": true,
+      "memory": true,
+      "gpu": true
+    }
+  }
+}
+```
+
+**PowerShell Example**:
+```powershell
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/metrics" -Method GET
+Write-Output "CPU Usage: $($metrics.summary.cpu_usage_percent)%"
+Write-Output "RAM Usage: $($metrics.summary.ram_utilization_percent)%"
+Write-Output "GPU Count: $($metrics.summary.gpu_count)"
+```
+
+### Completion Metrics
+
+**Endpoints**:
+- `GET /completion-metrics`
+- `GET /v1/completion-metrics`
+- `GET /completion/metrics`
+
+**Description**: Returns real-time completion performance metrics including TPS, TTFT, RPS, and success rates.
+
+**Response**:
+```json
+{
+  "completion_metrics": {
+    "summary": {
+      "total_requests": 150,
+      "completed_requests": 147,
+      "failed_requests": 3,
+      "success_rate_percent": 98.0,
+      "total_input_tokens": 1250,
+      "total_output_tokens": 3500,
+      "avg_turnaround_time_ms": 1450.5,
+      "avg_tps": 15.2,
+      "avg_output_tps": 9.8,
+      "avg_ttft_ms": 325.7,
+      "avg_rps": 0.92
+    },
+    "per_engine": [
+      {
+        "model_name": "my-model-7b",
+        "engine_id": "default",
+        "total_requests": 100,
+        "completed_requests": 98,
+        "failed_requests": 2,
+        "total_input_tokens": 800,
+        "total_output_tokens": 2400,
+        "tps": 16.5,
+        "output_tps": 10.2,
+        "avg_ttft": 280.3,
+        "rps": 1.05,
+        "last_updated": "2025-06-16T17:04:12.123Z"
+      }
+    ],
+    "timestamp": "2025-06-16T17:04:12.123Z"
+  }
+}
+```
+
+**Field Descriptions**:
+- `total_requests`: Total completion requests received
+- `completed_requests`: Successfully completed requests
+- `failed_requests`: Requests that failed with errors
+- `success_rate_percent`: Success rate (0-100%)
+- `total_input_tokens`: Total input tokens processed
+- `total_output_tokens`: Total output tokens generated
+- `avg_turnaround_time_ms`: Average request completion time
+- `avg_tps`: Average tokens per second (input + output)
+- `avg_output_tps`: Average output tokens per second
+- `avg_ttft_ms`: Average time to first token
+- `avg_rps`: Average requests per second
+
+**PowerShell Example**:
+```powershell
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/completion-metrics" -Method GET
+$summary = $metrics.completion_metrics.summary
+Write-Output "Success Rate: $($summary.success_rate_percent)%"
+Write-Output "Avg TPS: $($summary.avg_tps)"
+Write-Output "Avg TTFT: $($summary.avg_ttft_ms)ms"
 ```
 
 ## Rate Limiting and Quotas
