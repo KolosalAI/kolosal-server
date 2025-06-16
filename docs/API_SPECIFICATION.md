@@ -26,13 +26,13 @@ graph TD
         E["/engines/{id}<br/>DELETE - Remove engine"]
         F["/engines/{id}/status<br/>GET - Engine status"]
     end
-    
-    subgraph "Monitoring & System"
+      subgraph "Monitoring & System"
         G["/v1/health<br/>GET - Health check"]
-        M1["/metrics<br/>GET - System metrics"]
-        M2["/v1/metrics<br/>GET - System metrics"]
-        M3["/completion-metrics<br/>GET - Completion metrics"]
-        M4["/v1/completion-metrics<br/>GET - Completion metrics"]
+        M1["/metrics<br/>GET - Combined metrics"]
+        M2["/v1/metrics<br/>GET - Combined metrics"]
+        M3["/metrics/system<br/>GET - System metrics only"]
+        M4["/v1/metrics/system<br/>GET - System metrics only"]        M5["/metrics/completion<br/>GET - Completion metrics"]
+        M6["/v1/metrics/completion<br/>GET - Completion metrics"]
     end
     
     subgraph "Features"
@@ -690,12 +690,106 @@ Write-Output "Server Status: $($health.status)"
 Write-Output "Loaded Engines: $($health.engines.loaded)"
 ```
 
-### System Metrics
+### Combined Metrics (System + Completion)
 
 **Endpoints**: 
 - `GET /metrics`
 - `GET /v1/metrics`
-- `GET /system/metrics`
+
+**Requirements**: These endpoints are available when both `features.metrics: true` and completion monitoring is enabled.
+
+**Description**: Returns real-time system resource metrics combined with completion performance metrics in a single response.
+
+**Response**:
+```json
+{
+  "timestamp": "2025-06-17T06:22:02.238Z",
+  "system": {
+    "cpu": {
+      "usage_percent": 12.26
+    },
+    "memory": {
+      "total_bytes": 8295342080,
+      "used_bytes": 7390986240,
+      "free_bytes": 904355840,
+      "utilization_percent": 89.1,
+      "total_formatted": "7.73 GB",
+      "used_formatted": "6.88 GB",
+      "free_formatted": "862.46 MB"
+    },
+    "gpus": [
+      {
+        "id": 0,
+        "name": "NVIDIA GeForce RTX 4090",
+        "vendor": "NVIDIA",
+        "utilization_percent": 45.2,
+        "memory_utilization_percent": 67.8,
+        "memory_total_bytes": 24563540992,
+        "memory_used_bytes": 16653664256,
+        "memory_free_bytes": 7909876736,
+        "memory_total_formatted": "22.88 GB",
+        "memory_used_formatted": "15.51 GB",
+        "memory_free_formatted": "7.37 GB",
+        "temperature_celsius": 72.0,
+        "power_usage_watts": 425.0,
+        "power_limit_watts": 450.0
+      }
+    ],
+    "summary": {
+      "cpu_usage_percent": 12.26,
+      "ram_utilization_percent": 89.1,
+      "gpu_count": 1,
+      "total_vram_gb": 22.88,
+      "used_vram_gb": 15.51,
+      "vram_utilization_percent": 67.8
+    }
+  },
+  "completion": {
+    "total_requests": 1847,
+    "successful_requests": 1823,
+    "failed_requests": 24,
+    "success_rate_percent": 98.7,
+    "total_tokens_processed": 245689,
+    "average_tokens_per_second": 42.3,
+    "average_time_to_first_token_ms": 156.7,
+    "requests_per_second": 2.8,
+    "active_requests": 3,
+    "engines": [
+      {
+        "engine_id": "llama3-8b",
+        "requests": 892,
+        "success_rate_percent": 99.1,
+        "tokens_processed": 127834,
+        "average_tps": 45.2,
+        "average_ttft_ms": 142.1
+      }
+    ]
+  }
+}
+```
+
+**cURL Examples**:
+```bash
+# Get combined metrics
+curl -X GET "http://localhost:8080/metrics"
+curl -X GET "http://localhost:8080/v1/metrics"
+```
+
+**PowerShell Example**:
+```powershell
+$combined = Invoke-RestMethod -Uri "http://localhost:8080/metrics" -Method GET
+Write-Output "CPU Usage: $($combined.system.summary.cpu_usage_percent)%"
+Write-Output "RAM Usage: $($combined.system.summary.ram_utilization_percent)%"
+Write-Output "GPU Count: $($combined.system.summary.gpu_count)"
+Write-Output "Total Requests: $($combined.completion.total_requests)"
+Write-Output "Success Rate: $($combined.completion.success_rate_percent)%"
+```
+
+### System Metrics Only
+
+**Endpoints**: 
+- `GET /metrics/system`
+- `GET /v1/metrics/system`
 
 **Requirements**: These endpoints are only available when `features.metrics: true` is set in the configuration file.
 
@@ -758,9 +852,16 @@ Write-Output "Loaded Engines: $($health.engines.loaded)"
 }
 ```
 
+**cURL Examples**:
+```bash
+# Get system-only metrics
+curl -X GET "http://localhost:8080/metrics/system"
+curl -X GET "http://localhost:8080/v1/metrics/system"
+```
+
 **PowerShell Example**:
 ```powershell
-$metrics = Invoke-RestMethod -Uri "http://localhost:8080/metrics" -Method GET
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/metrics/system" -Method GET
 Write-Output "CPU Usage: $($metrics.summary.cpu_usage_percent)%"
 Write-Output "RAM Usage: $($metrics.summary.ram_utilization_percent)%"
 Write-Output "GPU Count: $($metrics.summary.gpu_count)"
@@ -769,9 +870,9 @@ Write-Output "GPU Count: $($metrics.summary.gpu_count)"
 ### Completion Metrics
 
 **Endpoints**:
-- `GET /completion-metrics`
-- `GET /v1/completion-metrics`
-- `GET /completion/metrics`
+- `GET /metrics/completion`
+- `GET /v1/metrics/completion`
+- `GET /metrics/completion/{engine_id}` (for engine-specific metrics)
 
 **Requirements**: These endpoints are only available when `features.metrics: true` is set in the configuration file.
 
@@ -828,9 +929,20 @@ Write-Output "GPU Count: $($metrics.summary.gpu_count)"
 - `avg_ttft_ms`: Average time to first token
 - `avg_rps`: Average requests per second
 
+**cURL Examples**:
+```bash
+# Get all completion metrics
+curl -X GET "http://localhost:8080/metrics/completion"
+curl -X GET "http://localhost:8080/v1/metrics/completion"
+
+# Get engine-specific completion metrics
+curl -X GET "http://localhost:8080/metrics/completion/llama3-8b"
+curl -X GET "http://localhost:8080/v1/metrics/completion/my-engine"
+```
+
 **PowerShell Example**:
 ```powershell
-$metrics = Invoke-RestMethod -Uri "http://localhost:8080/completion-metrics" -Method GET
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/metrics/completion" -Method GET
 $summary = $metrics.completion_metrics.summary
 Write-Output "Success Rate: $($summary.success_rate_percent)%"
 Write-Output "Avg TPS: $($summary.avg_tps)"

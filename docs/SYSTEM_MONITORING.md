@@ -20,27 +20,106 @@ The monitoring features provide:
 
 ## API Endpoints
 
-### System Metrics
+### Combined Metrics (System + Completion)
 
-The system metrics are available through multiple endpoint paths:
+The combined metrics endpoints provide both system and completion metrics in a single response:
 
 - `GET /metrics`
-- `GET /v1/metrics` 
-- `GET /system/metrics`
+- `GET /v1/metrics`
+
+### System Metrics Only
+
+The system-only metrics are available through:
+
+- `GET /metrics/system`
+- `GET /v1/metrics/system`
 
 ### Completion Metrics
 
-The completion metrics are available through multiple endpoint paths:
+The completion metrics are available through:
 
-- `GET /completion-metrics`
-- `GET /v1/completion-metrics`
-- `GET /completion/metrics`
+- `GET /metrics/completion`
+- `GET /v1/metrics/completion`
+- `GET /metrics/completion/{engine_id}` (for engine-specific metrics)
 
 All endpoints return the same JSON response format for their respective metric types.
 
 ## Response Formats
 
+### Combined Metrics Response
+
+The combined metrics endpoints (`/metrics`, `/v1/metrics`) return both system and completion metrics:
+
+```json
+{
+  "timestamp": "2025-06-17T06:22:02.238Z",
+  "system": {
+    "cpu": {
+      "usage_percent": 12.26
+    },
+    "memory": {
+      "total_bytes": 8295342080,
+      "used_bytes": 7390986240,
+      "free_bytes": 904355840,
+      "utilization_percent": 89.1,
+      "total_formatted": "7.73 GB",
+      "used_formatted": "6.88 GB",
+      "free_formatted": "862.46 MB"
+    },
+    "gpus": [
+      {
+        "id": 0,
+        "name": "NVIDIA GeForce RTX 4090",
+        "vendor": "NVIDIA",
+        "utilization_percent": 45.2,
+        "memory_utilization_percent": 67.8,
+        "memory_total_bytes": 24563540992,
+        "memory_used_bytes": 16653664256,
+        "memory_free_bytes": 7909876736,
+        "memory_total_formatted": "22.88 GB",
+        "memory_used_formatted": "15.51 GB",
+        "memory_free_formatted": "7.37 GB",
+        "temperature_celsius": 72.0,
+        "power_usage_watts": 425.0,
+        "power_limit_watts": 450.0
+      }
+    ],
+    "summary": {
+      "cpu_usage_percent": 12.26,
+      "ram_utilization_percent": 89.1,
+      "gpu_count": 1,
+      "total_vram_gb": 22.88,
+      "used_vram_gb": 15.51,
+      "vram_utilization_percent": 67.8
+    }
+  },
+  "completion": {
+    "total_requests": 1847,
+    "successful_requests": 1823,
+    "failed_requests": 24,
+    "success_rate_percent": 98.7,
+    "total_tokens_processed": 245689,
+    "average_tokens_per_second": 42.3,
+    "average_time_to_first_token_ms": 156.7,
+    "requests_per_second": 2.8,
+    "active_requests": 3,
+    "engines": [
+      {
+        "engine_id": "llama3-8b",
+        "requests": 892,
+        "success_rate_percent": 99.1,
+        "tokens_processed": 127834,
+        "average_tps": 45.2,
+        "average_ttft_ms": 142.1
+      }
+    ]
+  }
+}
+```
+
 ### System Metrics Response
+
+The system-only metrics endpoints (`/metrics/system`, `/v1/metrics/system`) return:
 
 ```json
 {

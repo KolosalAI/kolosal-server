@@ -10,6 +10,7 @@
 #include "kolosal/routes/auth_config_route.hpp"
 #include "kolosal/routes/system_metrics_route.hpp"
 #include "kolosal/routes/completion_metrics_route.hpp"
+#include "kolosal/routes/combined_metrics_route.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
 #include <memory>
@@ -58,10 +59,13 @@ namespace kolosal
             ServerLogger::logInfo("Registering routes");            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());            pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());
-            pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());
-            pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
+            pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());            pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
+            
+            // Register metrics routes
+            pImpl->server->addRoute(std::make_unique<CombinedMetricsRoute>());  // Handles /metrics and /v1/metrics
+            pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());    // Handles /system/metrics
 
             // Start server in a background thread
             std::thread([this]()

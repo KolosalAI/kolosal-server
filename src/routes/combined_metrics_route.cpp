@@ -1,5 +1,5 @@
-#include "kolosal/routes/system_metrics_route.hpp"
-#include "kolosal/models/system_metrics_response_model.hpp"
+#include "kolosal/routes/combined_metrics_route.hpp"
+#include "kolosal/models/combined_metrics_response_model.hpp"
 #include "kolosal/metrics_converter.hpp"
 #include "kolosal/utils.hpp"
 #include "kolosal/logger.hpp"
@@ -12,28 +12,36 @@ using json = nlohmann::json;
 
 namespace kolosal
 {
-    SystemMetricsRoute::SystemMetricsRoute() : monitor_(std::make_unique<SystemMonitor>())
+
+    CombinedMetricsRoute::CombinedMetricsRoute()
+        : system_monitor_(std::make_unique<SystemMonitor>()),
+          completion_monitor_(&CompletionMonitor::getInstance())
     {
-        ServerLogger::logInfo("SystemMetricsRoute initialized");
+        ServerLogger::logInfo("CombinedMetricsRoute initialized");
     }
 
-    SystemMetricsRoute::~SystemMetricsRoute() = default;
-    bool SystemMetricsRoute::match(const std::string &method, const std::string &path)
+    CombinedMetricsRoute::~CombinedMetricsRoute() = default;
+
+    bool CombinedMetricsRoute::match(const std::string &method, const std::string &path)
     {
-        return (method == "GET" && (path == "/metrics/system" || path == "/v1/metrics/system"));
+        return (method == "GET" && (path == "/metrics" || path == "/v1/metrics"));
     }
-    
-    void SystemMetricsRoute::handle(SocketType sock, const std::string &body)
+
+    void CombinedMetricsRoute::handle(SocketType sock, const std::string &body)
     {
         try
         {
-            ServerLogger::logInfo("[Thread %u] Received system metrics request", std::this_thread::get_id());
+            ServerLogger::logInfo("[Thread %u] Received combined metrics request", std::this_thread::get_id());
 
             // Get system metrics
-            SystemMetrics metrics = monitor_->getSystemMetrics();
-            // Convert to DTO model
-            SystemMetricsResponseModel responseModel = utils::convertToSystemMetricsResponse(
-                metrics, monitor_->isGPUMonitoringAvailable());
+            SystemMetrics systemMetrics = system_monitor_->getSystemMetrics();
+
+            // Get completion metrics
+            AggregatedCompletionMetrics completionMetrics = completion_monitor_->getCompletionMetrics();
+
+            // Convert to combined DTO model
+            CombinedMetricsResponseModel responseModel = utils::convertToCombinedMetricsResponse(
+                systemMetrics, system_monitor_->isGPUMonitoringAvailable(), completionMetrics);
 
             // Create JSON response
             nlohmann::json response = responseModel.to_json();
@@ -51,16 +59,16 @@ namespace kolosal
 
             send(sock, httpResponse.c_str(), static_cast<int>(httpResponse.length()), 0);
 
-            ServerLogger::logInfo("[Thread %u] System metrics response sent successfully", std::this_thread::get_id());
+            ServerLogger::logInfo("[Thread %u] Combined metrics response sent successfully", std::this_thread::get_id());
         }
         catch (const std::exception &e)
         {
-            ServerLogger::logError("[Thread %u] Error processing system metrics request: %s",
+            ServerLogger::logError("[Thread %u] Error processing combined metrics request: %s",
                                    std::this_thread::get_id(), e.what());
 
             // Send error response
             json errorResponse = {
-                {"error", {{"code", "internal_error"}, {"message", "Failed to retrieve system metrics"}, {"details", e.what()}}},
+                {"error", {{"code", "internal_error"}, {"message", "Failed to retrieve combined metrics"}, {"details", e.what()}}},
                 {"timestamp", SystemMonitor::getCurrentTimestamp()}};
 
             std::string responseStr = errorResponse.dump(2);

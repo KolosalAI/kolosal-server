@@ -11,7 +11,8 @@
 using json = nlohmann::json;
 
 namespace kolosal
-{    CompletionMetricsRoute::CompletionMetricsRoute()
+{
+    CompletionMetricsRoute::CompletionMetricsRoute()
         : monitor_(&CompletionMonitor::getInstance())
     {
         ServerLogger::logInfo("Completion Metrics Route initialized");
@@ -21,12 +22,13 @@ namespace kolosal
 
     bool CompletionMetricsRoute::match(const std::string &method, const std::string &path)
     {
-        return method == "GET" && (path == "/completion-metrics" ||
-                                   path == "/v1/completion-metrics" ||
-                                   path == "/completion/metrics" ||
-                                   path.find("/completion-metrics/") == 0 // For engine-specific metrics
-                                  );
-    }    void CompletionMetricsRoute::handle(SocketType sock, const std::string &body)
+        return method == "GET" && (path == "/metrics/completion" ||
+                                   path == "/v1/metrics/completion" ||
+                                   path.find("/metrics/completion/") == 0 // For engine-specific metrics
+                                   );
+    }
+
+    void CompletionMetricsRoute::handle(SocketType sock, const std::string &body)
     {
         try
         {
@@ -34,19 +36,20 @@ namespace kolosal
 
             // Get completion metrics
             AggregatedCompletionMetrics metrics = monitor_->getCompletionMetrics();
-            
+
             // Convert to DTO model
             CompletionMetricsResponseModel responseModel = utils::convertToCompletionMetricsResponse(metrics);
-            
+
             // Create JSON response
             nlohmann::json response = responseModel.to_json();
             std::string responseStr = response.dump(2);
-            
+
             send_response(sock, 200, responseStr);
         }
         catch (const std::exception &e)
         {
-            ServerLogger::logError("Error in completion metrics route: %s", e.what());            std::string errorResponse = R"({"error": "Internal server error", "message": ")" + std::string(e.what()) + R"("})";
+            ServerLogger::logError("Error in completion metrics route: %s", e.what());
+            std::string errorResponse = R"({"error": "Internal server error", "message": ")" + std::string(e.what()) + R"("})";
             send_response(sock, 500, errorResponse);
         }
     }

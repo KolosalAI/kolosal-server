@@ -7,6 +7,10 @@
 
 namespace kolosal {
 
+    /**
+     * @brief Route for system-only metrics endpoint
+     * Handles /system/metrics endpoint for system resources monitoring only
+     */
     class SystemMetricsRoute : public IRoute {
     public:
         SystemMetricsRoute();
