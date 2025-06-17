@@ -15,13 +15,19 @@ AuthMiddleware::AuthMiddleware(const RateLimiter::Config& rateLimiterConfig,
 
 AuthMiddleware::AuthResult AuthMiddleware::processRequest(const RequestInfo& requestInfo) {
     AuthResult result;
+      ServerLogger::logInfo("Auth middleware processing request: %s %s from %s", 
+                          requestInfo.method.c_str(), requestInfo.path.c_str(), requestInfo.clientIP.c_str());
     
     // Process CORS first
     std::string origin = getHeaderValue(requestInfo.headers, "Origin");
     std::string requestHeaders = getHeaderValue(requestInfo.headers, "Access-Control-Request-Headers");
     std::string requestMethod = getHeaderValue(requestInfo.headers, "Access-Control-Request-Method");
-    
-    auto corsResult = corsHandler_->processCors(requestInfo.method, origin, requestHeaders, requestMethod);
+      ServerLogger::logInfo("CORS headers - Origin: %s, Request-Headers: %s, Request-Method: %s", 
+                          origin.c_str(), requestHeaders.c_str(), requestMethod.c_str());
+      auto corsResult = corsHandler_->processCors(requestInfo.method, origin, requestHeaders, requestMethod);
+      ServerLogger::logInfo("CORS result - IsValid: %s, IsPreflight: %s", 
+                          corsResult.isValid ? "true" : "false", 
+                          corsResult.isPreflight ? "true" : "false");
     
     if (!corsResult.isValid) {
         result.allowed = false;
@@ -42,9 +48,11 @@ AuthMiddleware::AuthResult AuthMiddleware::processRequest(const RequestInfo& req
         ServerLogger::logDebug("CORS preflight request approved for %s", requestInfo.clientIP.c_str());
         return result;
     }
-    
-    // Process rate limiting
+      // Process rate limiting
     auto rateLimitResult = rateLimiter_->checkRateLimit(requestInfo.clientIP);
+      ServerLogger::logInfo("Rate limit result - Allowed: %s, Used: %zu, Remaining: %zu", 
+                          rateLimitResult.allowed ? "true" : "false", 
+                          rateLimitResult.requestsUsed, rateLimitResult.requestsRemaining);
     
     if (!rateLimitResult.allowed) {
         result.allowed = false;
@@ -71,12 +79,13 @@ AuthMiddleware::AuthResult AuthMiddleware::processRequest(const RequestInfo& req
     result.rateLimitUsed = rateLimitResult.requestsUsed;
     result.rateLimitRemaining = rateLimitResult.requestsRemaining;
     result.rateLimitReset = rateLimitResult.resetTime;
-    
-    ServerLogger::logDebug("Request approved for client %s - Rate limit: %zu/%zu, CORS origin: %s",
+      ServerLogger::logDebug("Request approved for client %s - Rate limit: %zu/%zu, CORS origin: %s",
                           requestInfo.clientIP.c_str(), 
                           rateLimitResult.requestsUsed,
                           rateLimiter_->getConfig().maxRequests,
                           origin.empty() ? "none" : origin.c_str());
+    
+    ServerLogger::logInfo("Auth middleware completed - Request allowed: %s", result.allowed ? "true" : "false");
     
     return result;
 }

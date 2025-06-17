@@ -355,13 +355,20 @@ namespace kolosal {
 				auto headers = parseHeaders(request);
 
 				ServerLogger::logInfo("[Thread %d] Processing %s request for %s from %s",
+					std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);				// Process authentication middleware
+				ServerLogger::logInfo("[Thread %d] Calling auth middleware for %s %s from %s",
 					std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
-
-				// Process authentication middleware
+				
 				auth::AuthMiddleware::RequestInfo authRequest(method, path, clientIP);
 				authRequest.headers = headers;
 				
 				auto authResult = authMiddleware_->processRequest(authRequest);
+				
+				ServerLogger::logInfo("[Thread %d] Auth middleware result - Allowed: %s, Status: %d, Reason: %s",
+					std::this_thread::get_id(), 
+					authResult.allowed ? "true" : "false", 
+					authResult.statusCode,
+					authResult.reason.c_str());
 				
 				// Add authentication response headers
 				std::map<std::string, std::string> responseHeaders = {{"Content-Type", "application/json"}};
