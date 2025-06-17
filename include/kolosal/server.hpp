@@ -19,7 +19,7 @@ using SocketType = int;
 namespace kolosal {
 
     class KOLOSAL_SERVER_API Server {    public:
-        explicit Server(const std::string& port);
+        explicit Server(const std::string& port, const std::string& host = "0.0.0.0");
         ~Server();
 
         bool init();
@@ -33,6 +33,7 @@ namespace kolosal {
 
     private:
         std::string port;
+        std::string host;
         SocketType listen_sock;
         std::vector<std::unique_ptr<IRoute>> routes;
         std::atomic<bool> running; // Control flag for server loop

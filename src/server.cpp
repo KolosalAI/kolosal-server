@@ -142,8 +142,7 @@ namespace kolosal {
 #endif
 		ServerLogger::logInfo("[Thread %u] Completed request for %s",
 			std::this_thread::get_id(), path.c_str());
-	}
-	Server::Server(const std::string& port) : port(port), running(false) {
+	}	Server::Server(const std::string& port, const std::string& host) : port(port), host(host), running(false) {
 #ifdef _WIN32
 		listen_sock = INVALID_SOCKET;
 #else
@@ -179,9 +178,10 @@ namespace kolosal {
 		hints.ai_family = AF_INET;
 		hints.ai_socktype = SOCK_STREAM;
 		hints.ai_flags = AI_PASSIVE;
-
 		int rv;
-		if ((rv = getaddrinfo(NULL, port.c_str(), &hints, &servinfo)) != 0) {
+		// Use the specified host instead of NULL to bind to specific interface
+		const char* bind_host = (host == "0.0.0.0") ? NULL : host.c_str();
+		if ((rv = getaddrinfo(bind_host, port.c_str(), &hints, &servinfo)) != 0) {
 #ifdef _WIN32
 			ServerLogger::logError("getaddrinfo: %s", gai_strerrorA(rv));
 #else
@@ -239,7 +239,8 @@ namespace kolosal {
 			return false;
 		}
 
-		ServerLogger::logInfo("Server initialized and listening on port %s", port.c_str());
+		ServerLogger::logInfo("Server initialized and listening on %s:%s", 
+		                     host.c_str(), port.c_str());
 		return true;
 	}
 

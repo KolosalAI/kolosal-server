@@ -6,6 +6,7 @@ server:
   request_timeout: 30
   max_request_size: 16777216
   idle_timeout: 300
+  allow_public_access: false  # Set to true to allow access from other devices on your network
 
 logging:
   level: "INFO"

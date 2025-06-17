@@ -26,7 +26,7 @@ namespace kolosal
         ServerAPI &operator=(const ServerAPI &) = delete;
         ServerAPI(ServerAPI &&) = delete;
         ServerAPI &operator=(ServerAPI &&) = delete;        // Initialize and start server
-        bool init(const std::string &port);
+        bool init(const std::string &port, const std::string &host = "0.0.0.0");
         void shutdown();
         
         // Feature management

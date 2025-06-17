@@ -42,20 +42,18 @@ namespace kolosal
     {
         static ServerAPI instance;
         return instance;
-    }
-
-    bool ServerAPI::init(const std::string &port)
+    }    bool ServerAPI::init(const std::string &port, const std::string &host)
     {
         try
         {
-            ServerLogger::logInfo("Initializing server on port %s", port.c_str());
+            ServerLogger::logInfo("Initializing server on %s:%s", host.c_str(), port.c_str());
 
-            pImpl->server = std::make_unique<Server>(port);
+            pImpl->server = std::make_unique<Server>(port, host);
             if (!pImpl->server->init())
             {
                 ServerLogger::logError("Failed to initialize server");
                 return false;
-            }            // Register routes
+            }// Register routes
             ServerLogger::logInfo("Registering routes");            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());            pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());

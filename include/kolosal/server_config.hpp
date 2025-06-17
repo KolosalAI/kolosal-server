@@ -54,6 +54,7 @@ struct KOLOSAL_SERVER_API ServerConfig {
     std::string host = "0.0.0.0";
     int maxConnections = 100;
     std::chrono::seconds requestTimeout{30};
+    bool allowPublicAccess = false;    // Enable/disable external network access
     
     // Logging configuration
     std::string logLevel = "INFO";    // DEBUG, INFO, WARN, ERROR

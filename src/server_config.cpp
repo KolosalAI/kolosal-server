@@ -156,8 +156,7 @@ namespace kolosal
             else if ((arg == "--max-request-size") && i + 1 < argc)
             {
                 maxRequestSize = std::stoul(argv[++i]);
-            }
-            // Feature flags
+            }            // Feature flags
             else if (arg == "--enable-metrics")
             {
                 enableMetrics = true;
@@ -165,6 +164,14 @@ namespace kolosal
             else if (arg == "--disable-health-check")
             {
                 enableHealthCheck = false;
+            }
+            else if (arg == "--public" || arg == "--allow-public-access")
+            {
+                allowPublicAccess = true;
+            }
+            else if (arg == "--no-public" || arg == "--disable-public-access")
+            {
+                allowPublicAccess = false;
             }
             // Help and version
             else if (arg == "-h" || arg == "--help")
@@ -191,9 +198,7 @@ namespace kolosal
     {
         try
         {
-            YAML::Node config = YAML::LoadFile(configFile);
-
-            // Load basic server settings
+            YAML::Node config = YAML::LoadFile(configFile);            // Load basic server settings
             if (config["server"])
             {
                 auto server = config["server"];
@@ -211,6 +216,8 @@ namespace kolosal
                     maxRequestSize = server["max_request_size"].as<size_t>();
                 if (server["idle_timeout"])
                     idleTimeout = std::chrono::seconds(server["idle_timeout"].as<int>());
+                if (server["allow_public_access"])
+                    allowPublicAccess = server["allow_public_access"].as<bool>();
             }
 
             // Load logging settings
@@ -354,9 +361,7 @@ namespace kolosal
     {
         try
         {
-            YAML::Node config;
-
-            // Server settings
+            YAML::Node config;            // Server settings
             config["server"]["port"] = port;
             config["server"]["host"] = host;
             config["server"]["max_connections"] = maxConnections;
@@ -364,6 +369,7 @@ namespace kolosal
             config["server"]["request_timeout"] = static_cast<int>(requestTimeout.count());
             config["server"]["max_request_size"] = maxRequestSize;
             config["server"]["idle_timeout"] = static_cast<int>(idleTimeout.count());
+            config["server"]["allow_public_access"] = allowPublicAccess;
 
             // Logging settings
             config["logging"]["level"] = logLevel;
@@ -489,10 +495,10 @@ namespace kolosal
 
     void ServerConfig::printSummary() const
     {
-        std::cout << "=== Kolosal Server Configuration ===" << std::endl;
-        std::cout << "Server:" << std::endl;
+        std::cout << "=== Kolosal Server Configuration ===" << std::endl;        std::cout << "Server:" << std::endl;
         std::cout << "  Port: " << port << std::endl;
         std::cout << "  Host: " << host << std::endl;
+        std::cout << "  Public Access: " << (allowPublicAccess ? "Enabled" : "Disabled") << std::endl;
         std::cout << "  Max Connections: " << maxConnections << std::endl;
         std::cout << "  Worker Threads: " << (workerThreads == 0 ? "Auto" : std::to_string(workerThreads)) << std::endl;
         std::cout << "  Request Timeout: " << requestTimeout.count() << "s" << std::endl;
@@ -581,10 +587,13 @@ namespace kolosal
         std::cout << "    -m, --model ID PATH       Load model at startup (ID and file path)\n";
         std::cout << "    --model-lazy ID PATH      Register model but don't load until first use\n";
         std::cout << "    --model-gpu ID            Set GPU ID for the last added model\n";
-        std::cout << "    --model-ctx-size SIZE     Set context size for the last added model\n\n";
-        std::cout << "  Features:\n";
+        std::cout << "    --model-ctx-size SIZE     Set context size for the last added model\n\n";        std::cout << "  Features:\n";
         std::cout << "    --enable-metrics          Enable metrics collection\n";
-        std::cout << "    --disable-health-check    Disable health check endpoint\n\n";
+        std::cout << "    --disable-health-check    Disable health check endpoint\n";
+        std::cout << "    --public                  Allow external network access\n";
+        std::cout << "    --allow-public-access     Allow external network access (same as --public)\n";
+        std::cout << "    --no-public               Disable external network access (localhost only)\n";
+        std::cout << "    --disable-public-access   Disable external network access (same as --no-public)\n\n";
 
         std::cout << "  Help:\n";
         std::cout << "    -h, --help                Show this help message\n";

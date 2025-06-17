@@ -1,12 +1,12 @@
-{
-    "server": {
+{    "server": {
         "port": "8080",
         "host": "0.0.0.0",
         "max_connections": 100,
         "worker_threads": 0,
         "request_timeout": 30,
         "max_request_size": 16777216,
-        "idle_timeout": 300
+        "idle_timeout": 300,
+        "allow_public_access": false
     },
     "logging": {
         "level": "INFO",

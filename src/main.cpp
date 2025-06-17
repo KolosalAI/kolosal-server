@@ -48,14 +48,26 @@ int main(int argc, char* argv[]) {
     // Print startup banner
     std::cout << "Starting Kolosal Server v1.0.0..." << std::endl;
     config.printSummary();
-    
-    // Initialize the server
+      // Initialize the server
     ServerAPI& server = ServerAPI::instance();
     
-    if (!server.init(config.port)) {
-        std::cerr << "Failed to initialize server on port " << config.port << std::endl;
+    // Determine the actual host to bind to based on public access setting
+    std::string bindHost = config.host;
+    if (!config.allowPublicAccess && config.host == "0.0.0.0") {
+        // If public access is disabled and host is set to bind all interfaces,
+        // change it to localhost only for security
+        bindHost = "127.0.0.1";
+        std::cout << "Public access disabled - binding to localhost only (127.0.0.1)" << std::endl;
+    } else if (config.allowPublicAccess && config.host == "127.0.0.1") {
+        // If public access is enabled but host is localhost, warn user
+        std::cout << "Warning: Public access enabled but host is set to 127.0.0.1 (localhost only)" << std::endl;
+        std::cout << "Server will only be accessible from this machine" << std::endl;
+    }
+    
+    if (!server.init(config.port, bindHost)) {
+        std::cerr << "Failed to initialize server on " << bindHost << ":" << config.port << std::endl;
         return 1;
-    }    // Configure authentication if enabled
+    }// Configure authentication if enabled
     if (config.auth.enableAuth) {
         try {
             auto& authMiddleware = server.getAuthMiddleware();
@@ -152,9 +164,30 @@ int main(int argc, char* argv[]) {
                                    failedModels, (int)config.models.size());
         }
     }
+      std::cout << "\nServer started successfully!" << std::endl;
     
-    std::cout << "\nServer started successfully!" << std::endl;
-    std::cout << "Server URL: http://" << config.host << ":" << config.port << std::endl;
+    // Display appropriate server URLs based on configuration
+    if (config.allowPublicAccess && (bindHost == "0.0.0.0" || bindHost == "::")) {
+        std::cout << "Server is accessible from:" << std::endl;
+        std::cout << "  Local:    http://127.0.0.1:" << config.port << std::endl;
+        std::cout << "  Network:  http://<your-ip>:" << config.port << std::endl;
+        std::cout << "  Note: Replace <your-ip> with your actual IP address" << std::endl;
+    } else if (bindHost == "127.0.0.1" || bindHost == "localhost") {
+        std::cout << "Server URL (localhost only): http://127.0.0.1:" << config.port << std::endl;
+        if (config.allowPublicAccess) {
+            std::cout << "Warning: Public access is enabled but server is bound to localhost only" << std::endl;
+        }
+    } else {
+        std::cout << "Server URL: http://" << bindHost << ":" << config.port << std::endl;
+    }
+    
+    if (config.allowPublicAccess) {
+        std::cout << "\n🌐 Public access is ENABLED - server accessible from other devices" << std::endl;
+        std::cout << "   Make sure your firewall allows connections on port " << config.port << std::endl;
+    } else {
+        std::cout << "\n🔒 Public access is DISABLED - server only accessible from this machine" << std::endl;
+        std::cout << "   Use --public flag or set allow_public_access: true in config to enable external access" << std::endl;
+    }
     std::cout << "\nAvailable endpoints:" << std::endl;
     std::cout << "  GET  /health                 - Health status" << std::endl;
     std::cout << "  GET  /models                 - List available models" << std::endl;
