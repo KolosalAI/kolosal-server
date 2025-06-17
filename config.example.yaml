@@ -7,6 +7,7 @@ server:
   max_request_size: 16777216
   idle_timeout: 300
   allow_public_access: false  # Set to true to allow access from other devices on your network
+  allow_internet_access: false  # Set to true to enable internet access (requires port forwarding)
 
 logging:
   level: "INFO"

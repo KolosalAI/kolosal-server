@@ -1,29 +1,55 @@
-# Public Network Access Configuration
+# Public and Internet Access Configuration
 
-This guide explains how to configure Kolosal Server to be accessible from other devices on your local network.
+This guide explains how to configure Kolosal Server to be accessible from other devices on your local network and from the internet.
 
 ## Overview
 
-By default, Kolosal Server is configured for security and only accepts connections from the local machine (localhost). To allow access from other devices on your network, you need to enable public access.
+By default, Kolosal Server is configured for security and only accepts connections from the local machine (localhost). You can enable two types of external access:
+
+1. **Public Access**: Allows access from other devices on your local network
+2. **Internet Access**: Allows access from anywhere on the internet (requires router configuration)
 
 ## Quick Start
 
-### Option 1: Command Line Flag
+### Local Network Access
+
+#### Option 1: Command Line Flag
 ```bash
-# Enable public access
+# Enable public access (local network only)
 ./kolosal-server --public
 
 # Or use the longer form
 ./kolosal-server --allow-public-access
 ```
 
-### Option 2: Configuration File
+#### Option 2: Configuration File
 Add to your config.yaml:
 ```yaml
 server:
   host: "0.0.0.0"                    # Bind to all network interfaces
   port: "8080"                       # Your desired port
   allow_public_access: true          # Enable public access
+```
+
+### Internet Access
+
+#### Option 1: Command Line Flag
+```bash
+# Enable internet access (automatically enables public access too)
+./kolosal-server --internet
+
+# Or use the longer form
+./kolosal-server --allow-internet-access
+```
+
+#### Option 2: Configuration File
+Add to your config.yaml:
+```yaml
+server:
+  host: "0.0.0.0"                    # Bind to all network interfaces
+  port: "8080"                       # Your desired port
+  allow_public_access: true          # Enable public access
+  allow_internet_access: true        # Enable internet access
 ```
 
 ## Security Considerations

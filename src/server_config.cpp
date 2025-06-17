@@ -164,14 +164,22 @@ namespace kolosal
             else if (arg == "--disable-health-check")
             {
                 enableHealthCheck = false;
-            }
-            else if (arg == "--public" || arg == "--allow-public-access")
+            }            else if (arg == "--public" || arg == "--allow-public-access")
             {
                 allowPublicAccess = true;
             }
             else if (arg == "--no-public" || arg == "--disable-public-access")
             {
                 allowPublicAccess = false;
+            }
+            else if (arg == "--internet" || arg == "--allow-internet-access")
+            {
+                allowInternetAccess = true;
+                allowPublicAccess = true;  // Internet access implies public access
+            }
+            else if (arg == "--no-internet" || arg == "--disable-internet-access")
+            {
+                allowInternetAccess = false;
             }
             // Help and version
             else if (arg == "-h" || arg == "--help")
@@ -213,11 +221,16 @@ namespace kolosal
                 if (server["request_timeout"])
                     requestTimeout = std::chrono::seconds(server["request_timeout"].as<int>());
                 if (server["max_request_size"])
-                    maxRequestSize = server["max_request_size"].as<size_t>();
-                if (server["idle_timeout"])
+                    maxRequestSize = server["max_request_size"].as<size_t>();                if (server["idle_timeout"])
                     idleTimeout = std::chrono::seconds(server["idle_timeout"].as<int>());
                 if (server["allow_public_access"])
                     allowPublicAccess = server["allow_public_access"].as<bool>();
+                if (server["allow_internet_access"]) {
+                    allowInternetAccess = server["allow_internet_access"].as<bool>();
+                    if (allowInternetAccess) {
+                        allowPublicAccess = true;  // Internet access implies public access
+                    }
+                }
             }
 
             // Load logging settings
@@ -367,9 +380,9 @@ namespace kolosal
             config["server"]["max_connections"] = maxConnections;
             config["server"]["worker_threads"] = workerThreads;
             config["server"]["request_timeout"] = static_cast<int>(requestTimeout.count());
-            config["server"]["max_request_size"] = maxRequestSize;
-            config["server"]["idle_timeout"] = static_cast<int>(idleTimeout.count());
+            config["server"]["max_request_size"] = maxRequestSize;            config["server"]["idle_timeout"] = static_cast<int>(idleTimeout.count());
             config["server"]["allow_public_access"] = allowPublicAccess;
+            config["server"]["allow_internet_access"] = allowInternetAccess;
 
             // Logging settings
             config["logging"]["level"] = logLevel;
@@ -499,6 +512,7 @@ namespace kolosal
         std::cout << "  Port: " << port << std::endl;
         std::cout << "  Host: " << host << std::endl;
         std::cout << "  Public Access: " << (allowPublicAccess ? "Enabled" : "Disabled") << std::endl;
+        std::cout << "  Internet Access: " << (allowInternetAccess ? "Enabled" : "Disabled") << std::endl;
         std::cout << "  Max Connections: " << maxConnections << std::endl;
         std::cout << "  Worker Threads: " << (workerThreads == 0 ? "Auto" : std::to_string(workerThreads)) << std::endl;
         std::cout << "  Request Timeout: " << requestTimeout.count() << "s" << std::endl;
@@ -593,7 +607,11 @@ namespace kolosal
         std::cout << "    --public                  Allow external network access\n";
         std::cout << "    --allow-public-access     Allow external network access (same as --public)\n";
         std::cout << "    --no-public               Disable external network access (localhost only)\n";
-        std::cout << "    --disable-public-access   Disable external network access (same as --no-public)\n\n";
+        std::cout << "    --disable-public-access   Disable external network access (same as --no-public)\n";
+        std::cout << "    --internet                Allow internet access (enables UPnP + public IP detection)\n";
+        std::cout << "    --allow-internet-access   Allow internet access (same as --internet)\n";
+        std::cout << "    --no-internet             Disable internet access\n";
+        std::cout << "    --disable-internet-access Disable internet access (same as --no-internet)\n\n";
 
         std::cout << "  Help:\n";
         std::cout << "    -h, --help                Show this help message\n";

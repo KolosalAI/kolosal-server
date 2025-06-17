@@ -6,7 +6,8 @@
         "request_timeout": 30,
         "max_request_size": 16777216,
         "idle_timeout": 300,
-        "allow_public_access": false
+        "allow_public_access": false,
+        "allow_internet_access": false
     },
     "logging": {
         "level": "INFO",
