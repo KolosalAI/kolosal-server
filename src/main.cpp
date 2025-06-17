@@ -4,6 +4,20 @@
 #include <thread>
 #include <csignal>
 #include <atomic>
+#include <vector>
+#ifdef _WIN32
+    #include <winsock2.h>
+    #include <ws2tcpip.h>
+    #include <iphlpapi.h>
+    #pragma comment(lib, "ws2_32.lib")
+    #pragma comment(lib, "iphlpapi.lib")
+#else
+    #include <sys/socket.h>
+    #include <ifaddrs.h>
+    #include <netinet/in.h>
+    #include <arpa/inet.h>
+    #include <unistd.h>
+#endif
 #include "kolosal_server.hpp"
 #include "kolosal/server_config.hpp"
 #include "kolosal/logger.hpp"
@@ -14,6 +28,75 @@ using namespace kolosal;
 
 // Global flag for graceful shutdown
 std::atomic<bool> keep_running{true};
+
+// Function to get local IP addresses
+std::vector<std::string> getLocalIPAddresses() {
+    std::vector<std::string> addresses;
+    
+#ifdef _WIN32
+    // Windows implementation
+    WSADATA wsaData;
+    if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
+        return addresses;
+    }
+    
+    ULONG bufferSize = 0;
+    GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, nullptr, &bufferSize);
+    
+    if (bufferSize > 0) {
+        auto buffer = std::make_unique<char[]>(bufferSize);
+        PIP_ADAPTER_ADDRESSES adapters = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buffer.get());
+        
+        if (GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, adapters, &bufferSize) == NO_ERROR) {
+            for (PIP_ADAPTER_ADDRESSES adapter = adapters; adapter != nullptr; adapter = adapter->Next) {
+                if (adapter->OperStatus == IfOperStatusUp) {
+                    for (PIP_ADAPTER_UNICAST_ADDRESS unicast = adapter->FirstUnicastAddress; 
+                         unicast != nullptr; unicast = unicast->Next) {
+                        
+                        char ipStr[INET6_ADDRSTRLEN];
+                        DWORD ipStrLen = INET6_ADDRSTRLEN;
+                        
+                        if (WSAAddressToStringA(unicast->Address.lpSockaddr, 
+                                              unicast->Address.iSockaddrLength, 
+                                              nullptr, ipStr, &ipStrLen) == 0) {
+                            std::string ip(ipStr);
+                            // Filter out loopback, link-local, and IPv6 addresses for simplicity
+                            if (ip != "127.0.0.1" && ip.find("169.254.") != 0 && ip.find(":") == std::string::npos) {
+                                addresses.push_back(ip);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
+    WSACleanup();
+#else
+    // Unix/Linux implementation
+    struct ifaddrs* ifaddr;
+    if (getifaddrs(&ifaddr) == 0) {
+        for (struct ifaddrs* ifa = ifaddr; ifa != nullptr; ifa = ifa->ifa_next) {
+            if (ifa->ifa_addr == nullptr) continue;
+            
+            if (ifa->ifa_addr->sa_family == AF_INET) {
+                struct sockaddr_in* sa = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
+                char ip[INET_ADDRSTRLEN];
+                inet_ntop(AF_INET, &sa->sin_addr, ip, INET_ADDRSTRLEN);
+                
+                std::string ipStr(ip);
+                // Filter out loopback and link-local addresses
+                if (ipStr != "127.0.0.1" && ipStr.find("169.254.") != 0) {
+                    addresses.push_back(ipStr);
+                }
+            }
+        }
+        freeifaddrs(ifaddr);
+    }
+#endif
+    
+    return addresses;
+}
 
 // Signal handler for graceful shutdown
 void signal_handler(int signal) {
@@ -180,10 +263,24 @@ int main(int argc, char* argv[]) {
     } else {
         std::cout << "Server URL: http://" << bindHost << ":" << config.port << std::endl;
     }
-    
-    if (config.allowPublicAccess) {
+      if (config.allowPublicAccess) {
         std::cout << "\n🌐 Public access is ENABLED - server accessible from other devices" << std::endl;
         std::cout << "   Make sure your firewall allows connections on port " << config.port << std::endl;
+        
+        // Get and display local IP addresses
+        auto ipAddresses = getLocalIPAddresses();
+        if (!ipAddresses.empty()) {
+            std::cout << "\n📍 Server accessible at the following addresses:" << std::endl;
+            std::cout << "   • http://localhost:" << config.port << " (local machine only)" << std::endl;
+            for (const auto& ip : ipAddresses) {
+                std::cout << "   • http://" << ip << ":" << config.port << " (network access)" << std::endl;
+            }
+        } else {
+            std::cout << "\n📍 Server accessible at:" << std::endl;
+            std::cout << "   • http://localhost:" << config.port << " (local machine)" << std::endl;
+            std::cout << "   • http://<your-ip-address>:" << config.port << " (network access)" << std::endl;
+            std::cout << "   Note: Could not automatically detect IP address. Use 'ipconfig' (Windows) or 'ifconfig' (Linux/Mac) to find your IP." << std::endl;
+        }
     } else {
         std::cout << "\n🔒 Public access is DISABLED - server only accessible from this machine" << std::endl;
         std::cout << "   Use --public flag or set allow_public_access: true in config to enable external access" << std::endl;
