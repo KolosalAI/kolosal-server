@@ -14,9 +14,11 @@ logging:
 
 auth:
   enabled: true
-  require_api_key: false
+  require_api_key: true
   api_key_header: "X-API-Key"
-  api_keys: []
+  api_keys: 
+    - "your_api_key_here"
+    - "sk-1234567890abcdef"
   rate_limit:
     enabled: true
     max_requests: 100

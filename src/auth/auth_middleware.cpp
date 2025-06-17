@@ -6,11 +6,14 @@ namespace kolosal {
 namespace auth {
 
 AuthMiddleware::AuthMiddleware(const RateLimiter::Config& rateLimiterConfig,
-                              const CorsHandler::Config& corsConfig)
+                              const CorsHandler::Config& corsConfig,
+                              const ApiKeyConfig& apiKeyConfig)
     : rateLimiter_(std::make_unique<RateLimiter>(rateLimiterConfig)),
-      corsHandler_(std::make_unique<CorsHandler>(corsConfig)) {
+      corsHandler_(std::make_unique<CorsHandler>(corsConfig)),
+      apiKeyConfig_(apiKeyConfig) {
     
-    ServerLogger::logInfo("Authentication middleware initialized");
+    ServerLogger::logInfo("Authentication middleware initialized with API key auth: %s", 
+                         apiKeyConfig_.enabled ? "enabled" : "disabled");
 }
 
 AuthMiddleware::AuthResult AuthMiddleware::processRequest(const RequestInfo& requestInfo) {
@@ -41,11 +44,20 @@ AuthMiddleware::AuthResult AuthMiddleware::processRequest(const RequestInfo& req
     // Add CORS headers to response
     result.headers.insert(corsResult.headers.begin(), corsResult.headers.end());
     result.isPreflight = corsResult.isPreflight;
-    
-    // If this is a preflight request, we don't need to check rate limits
+      // If this is a preflight request, we don't need to check rate limits or API keys
     if (corsResult.isPreflight) {
         result.statusCode = 204; // No Content for successful preflight
         ServerLogger::logDebug("CORS preflight request approved for %s", requestInfo.clientIP.c_str());
+        return result;
+    }
+
+    // Check API key authentication if enabled
+    if (apiKeyConfig_.enabled && !validateApiKeyAuth(requestInfo)) {
+        result.allowed = false;
+        result.statusCode = 401; // Unauthorized
+        result.reason = "Invalid or missing API key";
+        ServerLogger::logWarning("API key authentication failed for request from %s to %s %s",
+                                requestInfo.clientIP.c_str(), requestInfo.method.c_str(), requestInfo.path.c_str());
         return result;
     }
       // Process rate limiting
@@ -98,12 +110,24 @@ void AuthMiddleware::updateCorsConfig(const CorsHandler::Config& config) {
     corsHandler_->updateConfig(config);
 }
 
+void AuthMiddleware::updateApiKeyConfig(const ApiKeyConfig& config) {
+    apiKeyConfig_ = config;
+    ServerLogger::logInfo("API key configuration updated - Enabled: %s, Required: %s, Keys count: %zu",
+                         config.enabled ? "true" : "false",
+                         config.required ? "true" : "false", 
+                         config.validKeys.size());
+}
+
 RateLimiter::Config AuthMiddleware::getRateLimiterConfig() const {
     return rateLimiter_->getConfig();
 }
 
 CorsHandler::Config AuthMiddleware::getCorsConfig() const {
     return corsHandler_->getConfig();
+}
+
+AuthMiddleware::ApiKeyConfig AuthMiddleware::getApiKeyConfig() const {
+    return apiKeyConfig_;
 }
 
 std::unordered_map<std::string, size_t> AuthMiddleware::getRateLimitStatistics() const {
@@ -146,6 +170,30 @@ const CorsHandler& AuthMiddleware::getCorsHandler() const {
     return *corsHandler_;
 }
 
+bool AuthMiddleware::validateApiKey(const std::string& apiKey) const {
+    return !apiKey.empty() && apiKeyConfig_.validKeys.find(apiKey) != apiKeyConfig_.validKeys.end();
+}
+
+void AuthMiddleware::addApiKey(const std::string& apiKey) {
+    if (!apiKey.empty()) {
+        apiKeyConfig_.validKeys.insert(apiKey);
+        ServerLogger::logInfo("API key added (total: %zu keys)", apiKeyConfig_.validKeys.size());
+    }
+}
+
+void AuthMiddleware::removeApiKey(const std::string& apiKey) {
+    auto it = apiKeyConfig_.validKeys.find(apiKey);
+    if (it != apiKeyConfig_.validKeys.end()) {
+        apiKeyConfig_.validKeys.erase(it);
+        ServerLogger::logInfo("API key removed (total: %zu keys)", apiKeyConfig_.validKeys.size());
+    }
+}
+
+void AuthMiddleware::clearApiKeys() {
+    apiKeyConfig_.validKeys.clear();
+    ServerLogger::logInfo("All API keys cleared");
+}
+
 std::string AuthMiddleware::getHeaderValue(const std::map<std::string, std::string>& headers,
                                           const std::string& name) const {
     std::string lowerName = toLowercase(name);
@@ -163,6 +211,37 @@ std::string AuthMiddleware::toLowercase(const std::string& name) const {
     std::string result = name;
     std::transform(result.begin(), result.end(), result.begin(), ::tolower);
     return result;
+}
+
+bool AuthMiddleware::validateApiKeyAuth(const RequestInfo& requestInfo) const {
+    // If API key authentication is not required, always pass
+    if (!apiKeyConfig_.required) {
+        return true;
+    }
+
+    // Get the API key from the configured header
+    std::string apiKey = getHeaderValue(requestInfo.headers, apiKeyConfig_.headerName);
+    
+    // Handle Bearer token format if using Authorization header
+    if (toLowercase(apiKeyConfig_.headerName) == "authorization" && !apiKey.empty()) {
+        if (apiKey.substr(0, 7) == "Bearer ") {
+            apiKey = apiKey.substr(7);
+        }
+    }
+
+    // Validate the API key
+    bool isValid = validateApiKey(apiKey);
+    
+    if (isValid) {
+        ServerLogger::logDebug("API key authentication successful for %s %s from %s",
+                              requestInfo.method.c_str(), requestInfo.path.c_str(), requestInfo.clientIP.c_str());
+    } else {
+        ServerLogger::logWarning("API key authentication failed for %s %s from %s - Key: %s",
+                                requestInfo.method.c_str(), requestInfo.path.c_str(), requestInfo.clientIP.c_str(),
+                                apiKey.empty() ? "(missing)" : "(invalid)");
+    }
+    
+    return isValid;
 }
 
 } // namespace auth

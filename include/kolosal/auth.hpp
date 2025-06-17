@@ -33,7 +33,12 @@ inline std::unique_ptr<AuthMiddleware> createDefaultAuthMiddleware() {
     corsConfig.maxAge = 86400;                   // 24 hours
     corsConfig.enabled = true;
     
-    return std::make_unique<AuthMiddleware>(rateLimitConfig, corsConfig);
+    AuthMiddleware::ApiKeyConfig apiKeyConfig;
+    apiKeyConfig.enabled = false;                // Disabled by default
+    apiKeyConfig.required = false;
+    apiKeyConfig.headerName = "X-API-Key";
+    
+    return std::make_unique<AuthMiddleware>(rateLimitConfig, corsConfig, apiKeyConfig);
 }
 
 /**
@@ -54,7 +59,12 @@ inline std::unique_ptr<AuthMiddleware> createProductionAuthMiddleware() {
     corsConfig.maxAge = 3600;                    // 1 hour
     corsConfig.enabled = true;
     
-    return std::make_unique<AuthMiddleware>(rateLimitConfig, corsConfig);
+    AuthMiddleware::ApiKeyConfig apiKeyConfig;
+    apiKeyConfig.enabled = true;                 // Enabled for production
+    apiKeyConfig.required = true;                // Required for production
+    apiKeyConfig.headerName = "Authorization";   // Use Authorization header in production
+    
+    return std::make_unique<AuthMiddleware>(rateLimitConfig, corsConfig, apiKeyConfig);
 }
 
 /**
@@ -75,7 +85,12 @@ inline std::unique_ptr<AuthMiddleware> createDevelopmentAuthMiddleware() {
     corsConfig.maxAge = 86400;
     corsConfig.enabled = true;
     
-    return std::make_unique<AuthMiddleware>(rateLimitConfig, corsConfig);
+    AuthMiddleware::ApiKeyConfig apiKeyConfig;
+    apiKeyConfig.enabled = false;                // Disabled for development
+    apiKeyConfig.required = false;
+    apiKeyConfig.headerName = "X-API-Key";
+    
+    return std::make_unique<AuthMiddleware>(rateLimitConfig, corsConfig, apiKeyConfig);
 }
 
 } // namespace auth

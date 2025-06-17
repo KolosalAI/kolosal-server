@@ -55,8 +55,7 @@ int main(int argc, char* argv[]) {
     if (!server.init(config.port)) {
         std::cerr << "Failed to initialize server on port " << config.port << std::endl;
         return 1;
-    }
-      // Configure authentication if enabled
+    }    // Configure authentication if enabled
     if (config.auth.enableAuth) {
         try {
             auto& authMiddleware = server.getAuthMiddleware();
@@ -67,9 +66,24 @@ int main(int argc, char* argv[]) {
             // Update CORS configuration
             authMiddleware.updateCorsConfig(config.auth.cors);
             
-            ServerLogger::logInfo("Authentication configured - Rate Limit: %s, CORS: %s",
+            // Configure API key authentication
+            auth::AuthMiddleware::ApiKeyConfig apiKeyConfig;
+            apiKeyConfig.enabled = config.auth.enableAuth;
+            apiKeyConfig.required = config.auth.requireApiKey;
+            apiKeyConfig.headerName = config.auth.apiKeyHeader;
+            
+            // Add all configured API keys
+            for (const auto& key : config.auth.allowedApiKeys) {
+                apiKeyConfig.validKeys.insert(key);
+            }
+            
+            authMiddleware.updateApiKeyConfig(apiKeyConfig);
+            
+            ServerLogger::logInfo("Authentication configured - Rate Limit: %s, CORS: %s, API Keys: %s (%zu keys)",
                                  config.auth.rateLimiter.enabled ? "enabled" : "disabled",
-                                 config.auth.cors.enabled ? "enabled" : "disabled");
+                                 config.auth.cors.enabled ? "enabled" : "disabled",
+                                 config.auth.requireApiKey ? "required" : "optional",
+                                 config.auth.allowedApiKeys.size());
         } catch (const std::exception& e) {
             std::cerr << "Failed to configure authentication: " << e.what() << std::endl;
             return 1;

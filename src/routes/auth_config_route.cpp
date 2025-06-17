@@ -88,6 +88,7 @@ void AuthConfigRoute::handleGetConfig(SocketType sock) {
         
         auto rateLimiterConfig = rateLimiter.getConfig();
         auto corsConfig = corsHandler.getConfig();
+        auto apiKeyConfig = authMiddleware.getApiKeyConfig();
           json response = {
             {"rate_limiter", {
                 {"enabled", rateLimiterConfig.enabled},
@@ -101,6 +102,12 @@ void AuthConfigRoute::handleGetConfig(SocketType sock) {
                 {"allowed_headers", corsConfig.allowedHeaders},
                 {"allow_credentials", corsConfig.allowCredentials},
                 {"max_age", corsConfig.maxAge}
+            }},
+            {"api_key", {
+                {"enabled", apiKeyConfig.enabled},
+                {"required", apiKeyConfig.required},
+                {"header_name", apiKeyConfig.headerName},
+                {"keys_count", apiKeyConfig.validKeys.size()}
             }}
         };
         
@@ -206,8 +213,41 @@ void AuthConfigRoute::handleUpdateConfig(SocketType sock, const std::string& bod
             }
             if (cors.contains("allow_credentials")) config.allowCredentials = cors["allow_credentials"];
             if (cors.contains("max_age")) config.maxAge = cors["max_age"];
+              corsHandler.updateConfig(config);
+        }
+        
+        // Validate and update API key config
+        if (j.contains("api_key")) {
+            auto& apiKey = j["api_key"];
             
-            corsHandler.updateConfig(config);
+            if (apiKey.contains("api_keys") && !apiKey["api_keys"].is_array()) {
+                json error = {
+                    {"error", {
+                        {"message", "api_keys must be an array"},
+                        {"type", "invalid_request_error"}
+                    }}
+                };
+                send_response(sock, 400, error.dump());
+                return;
+            }
+            
+            // Update API key configuration
+            auto config = authMiddleware.getApiKeyConfig();
+            
+            if (apiKey.contains("enabled")) config.enabled = apiKey["enabled"];
+            if (apiKey.contains("required")) config.required = apiKey["required"];
+            if (apiKey.contains("header_name")) config.headerName = apiKey["header_name"];
+            
+            if (apiKey.contains("api_keys")) {
+                config.validKeys.clear();
+                for (const auto& key : apiKey["api_keys"]) {
+                    if (key.is_string() && !key.empty()) {
+                        config.validKeys.insert(key);
+                    }
+                }
+            }
+            
+            authMiddleware.updateApiKeyConfig(config);
         }
         
         json response = {
