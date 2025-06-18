@@ -46,8 +46,7 @@ bool NodeManager::addEngine(const std::string& engineId, const char* modelPath, 
     }
 
     std::string actualModelPath = modelPath;
-    
-    // Check if the model path is a URL and download if necessary
+      // Check if the model path is a URL and download if necessary
     if (is_valid_url(modelPath)) {
         ServerLogger::logInfo("Model path for engine \'%s\' is a URL. Starting download: %s", engineId.c_str(), modelPath);
         
@@ -57,8 +56,34 @@ bool NodeManager::addEngine(const std::string& engineId, const char* modelPath, 
         
         // Check if the file already exists locally
         if (std::filesystem::exists(localPath)) {
-            ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
-            actualModelPath = localPath;
+            // Check if we can resume this download (file might be incomplete)
+            if (can_resume_download(modelPath, localPath)) {
+                ServerLogger::logInfo("Found incomplete download for engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
+                
+                // Download the model with progress callback (will resume automatically)
+                auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage) {
+                    if (total > 0) {
+                        ServerLogger::logInfo("Resuming download for engine '%s': %.1f%% (%zu/%zu bytes)", 
+                                             engineId.c_str(), percentage, downloaded, total);
+                    }
+                };
+                
+                DownloadResult result = download_file(modelPath, localPath, progressCallback);
+                
+                if (!result.success) {
+                    ServerLogger::logError("Failed to resume download for engine '%s' from URL '%s': %s", 
+                                         engineId.c_str(), modelPath, result.error_message.c_str());
+                    return false;
+                }
+                
+                ServerLogger::logInfo("Successfully completed download for engine '%s' to: %s (%.2f MB)", 
+                                     engineId.c_str(), localPath.c_str(), 
+                                     static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+                actualModelPath = localPath;
+            } else {
+                ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
+                actualModelPath = localPath;
+            }
         } else {
             // Download the model with progress callback
             auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage) {
@@ -264,8 +289,7 @@ bool NodeManager::registerEngine(const std::string& engineId, const char* modelP
     }
 
     std::string actualModelPath = modelPath;
-    
-    // Check if the model path is a URL and pre-download if necessary
+      // Check if the model path is a URL and pre-download if necessary
     if (is_valid_url(modelPath)) {
         ServerLogger::logInfo("Model path for engine \'%s\' is a URL. Pre-downloading: %s", engineId.c_str(), modelPath);
         
@@ -275,8 +299,34 @@ bool NodeManager::registerEngine(const std::string& engineId, const char* modelP
         
         // Check if the file already exists locally
         if (std::filesystem::exists(localPath)) {
-            ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
-            actualModelPath = localPath;
+            // Check if we can resume this download (file might be incomplete)
+            if (can_resume_download(modelPath, localPath)) {
+                ServerLogger::logInfo("Found incomplete download for engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
+                
+                // Download the model with progress callback (will resume automatically)
+                auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage) {
+                    if (total > 0) {
+                        ServerLogger::logInfo("Resuming pre-download for engine '%s': %.1f%% (%zu/%zu bytes)", 
+                                             engineId.c_str(), percentage, downloaded, total);
+                    }
+                };
+                
+                DownloadResult result = download_file(modelPath, localPath, progressCallback);
+                
+                if (!result.success) {
+                    ServerLogger::logError("Failed to resume pre-download for engine '%s' from URL '%s': %s", 
+                                         engineId.c_str(), modelPath, result.error_message.c_str());
+                    return false;
+                }
+                
+                ServerLogger::logInfo("Successfully completed pre-download for engine '%s' to: %s (%.2f MB)", 
+                                     engineId.c_str(), localPath.c_str(), 
+                                     static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+                actualModelPath = localPath;
+            } else {
+                ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
+                actualModelPath = localPath;
+            }
         } else {
             // Download the model with progress callback
             auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage) {

@@ -311,8 +311,7 @@ namespace kolosal {
             progress->status = "engine_creation_failed";
             progress->error_message = std::string("Exception during engine creation: ") + ex.what();
             progress->end_time = std::chrono::system_clock::now();
-            
-            ServerLogger::logError("Exception during engine creation for model %s: %s", progress->model_id.c_str(), ex.what());
+              ServerLogger::logError("Exception during engine creation for model %s: %s", progress->model_id.c_str(), ex.what());
         }
     }
 
@@ -324,16 +323,33 @@ namespace kolosal {
             // Generate download path
             std::string download_path = generate_download_path(model_path, "./models");
             
-            // Check if file already exists
+            // Check if file already exists and is complete
             if (std::filesystem::exists(download_path)) {
-                ServerLogger::logInfo("Model file already exists locally for startup model '%s': %s", model_id.c_str(), download_path.c_str());
-                
-                // Load directly using NodeManager
-                auto& node_manager = ServerAPI::instance().getNodeManager();
-                if (load_immediately) {
-                    return node_manager.addEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                // Check if we can resume this download (file might be incomplete)
+                if (can_resume_download(model_path, download_path)) {
+                    ServerLogger::logInfo("Found incomplete download for startup model '%s', will resume: %s", 
+                                         model_id.c_str(), download_path.c_str());
+                    
+                    // Create engine creation parameters for resume
+                    EngineCreationParams engine_params;
+                    engine_params.engine_id = model_id;
+                    engine_params.load_immediately = load_immediately;
+                    engine_params.main_gpu_id = main_gpu_id;
+                    engine_params.loading_params = load_params;
+                    
+                    // Start download with engine creation (will resume automatically)
+                    return startDownloadWithEngine(model_id, model_path, download_path, engine_params);
                 } else {
-                    return node_manager.registerEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                    ServerLogger::logInfo("Model file already exists locally for startup model '%s': %s", 
+                                         model_id.c_str(), download_path.c_str());
+                    
+                    // Load directly using NodeManager
+                    auto& node_manager = ServerAPI::instance().getNodeManager();
+                    if (load_immediately) {
+                        return node_manager.addEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                    } else {
+                        return node_manager.registerEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                    }
                 }
             } else {
                 ServerLogger::logInfo("Starting startup download for model '%s' from URL: %s", model_id.c_str(), model_path.c_str());
