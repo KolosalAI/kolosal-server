@@ -1,0 +1,13 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run Kolosal Server",
+			"type": "shell",
+			"command": "${workspaceFolder}/build/Debug/kolosal-server.exe",
+			"group": "build",
+			"isBackground": true,
+			"problemMatcher": []
+		}
+	]
+}

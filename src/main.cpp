@@ -5,6 +5,7 @@
 #include <csignal>
 #include <atomic>
 #include <vector>
+#include <filesystem>
 #ifdef _WIN32
     #include <winsock2.h>
     #include <ws2tcpip.h>
@@ -25,6 +26,8 @@
 #include "kolosal/logger.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/auth/auth_middleware.hpp"
+#include "kolosal/download_manager.hpp"
+#include "kolosal/download_utils.hpp"
 
 using namespace kolosal;
 
@@ -280,55 +283,62 @@ int main(int argc, char* argv[]) {
             std::cerr << "Failed to enable metrics: " << e.what() << std::endl;
             return 1;
         }
-    }
-      // Load models if specified
+    }    // Load models if specified
     if (!config.models.empty()) {
-        auto& nodeManager = server.getNodeManager();
+        auto& downloadManager = DownloadManager::getInstance();
         
         int successfulModels = 0;
-        int failedModels = 0;        for (const auto& modelConfig : config.models) {
-            std::cout << "Configuring model '" << modelConfig.id << "'..." << std::endl;if (modelConfig.loadAtStartup) {
-                std::cout << "Loading model '" << modelConfig.id << "' from " << modelConfig.path << std::endl;
-                bool success = nodeManager.addEngine(modelConfig.id, 
-                                                   modelConfig.path.c_str(), 
-                                                   modelConfig.loadParams, 
-                                                   modelConfig.mainGpuId);
-                if (success) {
+        int failedModels = 0;
+        int asyncDownloads = 0;
+        
+        for (const auto& modelConfig : config.models) {
+            std::cout << "Configuring model '" << modelConfig.id << "'..." << std::endl;
+            
+            // Use DownloadManager to handle both URLs and local files consistently
+            bool success = downloadManager.loadModelAtStartup(modelConfig.id, 
+                                                             modelConfig.path, 
+                                                             modelConfig.loadParams, 
+                                                             modelConfig.mainGpuId,
+                                                             modelConfig.loadAtStartup);
+            
+            if (success) {
+                // Check if this was a URL that started an async download
+                if (is_valid_url(modelConfig.path) && !std::filesystem::exists(generate_download_path(modelConfig.path, "./models"))) {
+                    std::cout << "✓ Model '" << modelConfig.id << "' download started (async)" << std::endl;
+                    ServerLogger::logInfo("Model '%s' download started from URL: %s", modelConfig.id.c_str(), modelConfig.path.c_str());
+                    asyncDownloads++;
+                } else if (modelConfig.loadAtStartup) {
                     std::cout << "✓ Model '" << modelConfig.id << "' loaded successfully" << std::endl;
                     ServerLogger::logInfo("Model '%s' loaded successfully", modelConfig.id.c_str());
-                    successfulModels++;
                 } else {
-                    std::cerr << "✗ Failed to load model '" << modelConfig.id << "' - skipping" << std::endl;
-                    ServerLogger::logWarning("Failed to load model '%s' from %s - continuing with other models", 
-                                           modelConfig.id.c_str(), modelConfig.path.c_str());
-                    failedModels++;
-                }
-            } else {
-                // Register the model for lazy loading (it will be loaded on first access)
-                std::cout << "Registering model '" << modelConfig.id << "' for lazy loading from " << modelConfig.path << std::endl;
-                bool success = nodeManager.registerEngine(modelConfig.id, 
-                                                        modelConfig.path.c_str(), 
-                                                        modelConfig.loadParams, 
-                                                        modelConfig.mainGpuId);
-                if (success) {
                     std::cout << "✓ Model '" << modelConfig.id << "' registered for lazy loading" << std::endl;
                     ServerLogger::logInfo("Model '%s' registered for lazy loading", modelConfig.id.c_str());
-                    successfulModels++;
-                } else {
-                    std::cerr << "✗ Failed to register model '" << modelConfig.id << "' for lazy loading - skipping" << std::endl;
-                    ServerLogger::logWarning("Failed to register model '%s' from %s - continuing with other models", 
-                                           modelConfig.id.c_str(), modelConfig.path.c_str());
-                    failedModels++;
                 }
+                successfulModels++;
+            } else {
+                std::cerr << "✗ Failed to configure model '" << modelConfig.id << "' - skipping" << std::endl;                ServerLogger::logWarning("Failed to configure model '%s' from %s - continuing with other models", 
+                                       modelConfig.id.c_str(), modelConfig.path.c_str());
+                failedModels++;
             }
         }
         
         // Log summary of model loading
         if (successfulModels > 0) {
-            std::cout << "\n✓ Successfully loaded " << successfulModels << " model(s)" << std::endl;
+            std::cout << "\n✓ Successfully configured " << successfulModels << " model(s)";
+            if (asyncDownloads > 0) {
+                std::cout << " (" << asyncDownloads << " downloading asynchronously)";
+            }
+            std::cout << std::endl;
         }
         if (failedModels > 0) {
-            std::cout << "⚠ " << failedModels << " model(s) failed to load" << std::endl;
+            std::cout << "⚠ " << failedModels << " model(s) failed to configure" << std::endl;
+        }
+        if (asyncDownloads > 0) {
+            std::cout << "\n📊 Monitor download progress using: GET /download-progress/{model-id}" << std::endl;
+            std::cout << "📊 View all downloads using: GET /downloads" << std::endl;
+        }
+        
+        if (failedModels > 0) {
             ServerLogger::logWarning("Server started with %d failed model(s) out of %d total", 
                                    failedModels, (int)config.models.size());
         }

@@ -29,6 +29,7 @@ set(SOURCES
     src/server_config.cpp
     src/logger.cpp
     src/download_utils.cpp
+    src/download_manager.cpp
     src/system_monitor.cpp
     src/completion_monitor.cpp
     src/enhanced_gpu_monitor.cpp
@@ -41,8 +42,9 @@ set(SOURCES
     src/routes/health_status_route.cpp    
     src/routes/auth_config_route.cpp    
     src/routes/system_metrics_route.cpp    
-    src/routes/completion_metrics_route.cpp
-    src/routes/combined_metrics_route.cpp
+    src/routes/completion_metrics_route.cpp    src/routes/combined_metrics_route.cpp
+    src/routes/download_progress_route.cpp
+    src/routes/downloads_status_route.cpp
     src/metrics_converter.cpp
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp

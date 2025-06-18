@@ -5,6 +5,7 @@
 #include "kolosal/logger.hpp"
 #include "kolosal/models/add_engine_request_model.hpp"
 #include "kolosal/download_utils.hpp"
+#include "kolosal/download_manager.hpp"
 #include "inference_interface.h"
 #include <json.hpp>
 #include <iostream>
@@ -72,9 +73,8 @@ namespace kolosal
             
             // Check if the model path is a URL
             bool isUrl = is_valid_url(modelPathStr);
-            std::string actualModelPath = modelPathStr;
-              if (isUrl) {
-                ServerLogger::logInfo("[Thread %u] Model path is URL, starting download: %s", std::this_thread::get_id(), modelPathStr.c_str());
+            std::string actualModelPath = modelPathStr;              if (isUrl) {
+                ServerLogger::logInfo("[Thread %u] Model path is URL, starting async download: %s", std::this_thread::get_id(), modelPathStr.c_str());
                 
                 // Generate download path - use ./models to match startup behavior
                 std::string downloadPath = generate_download_path(modelPathStr, "./models");
@@ -82,30 +82,59 @@ namespace kolosal
                 // Check if file already exists
                 if (std::filesystem::exists(downloadPath)) {
                     ServerLogger::logInfo("[Thread %u] Model file already exists at: %s", std::this_thread::get_id(), downloadPath.c_str());
-                    actualModelPath = downloadPath;
-                } else {
-                    // Download the file with progress callback
-                    auto progressCallback = [&](size_t downloaded, size_t total, double percentage) {
-                        ServerLogger::logInfo("[Thread %u] Download progress: %.1f%% (%zu/%zu bytes)", 
-                                             std::this_thread::get_id(), percentage, downloaded, total);
-                    };
+                    actualModelPath = downloadPath;                } else {
+                    // Start async download using DownloadManager with engine creation
+                    auto& download_manager = DownloadManager::getInstance();
                     
-                    DownloadResult result = download_file(modelPathStr, downloadPath, progressCallback);
+                    // Prepare engine creation parameters
+                    EngineCreationParams engine_params;
+                    engine_params.engine_id = engineId;
+                    engine_params.load_immediately = loadImmediately;
+                    engine_params.main_gpu_id = mainGpuId;
+                    engine_params.loading_params = loadParams;
                     
-                    if (!result.success) {
-                        errorMessage = "Failed to download model from URL '" + modelPathStr + "': " + result.error_message;
-                        errorType = "model_download_error";
-                        errorCode = 422;
-                        
-                        json jError = {{"error", {{"message", errorMessage}, {"type", errorType}, {"param", "model_path"}, {"code", "model_download_failed"}}}};
-                        send_response(sock, errorCode, jError.dump());
-                        ServerLogger::logError("[Thread %u] %s", std::this_thread::get_id(), errorMessage.c_str());
-                        return;
+                    bool download_started = download_manager.startDownloadWithEngine(engineId, modelPathStr, downloadPath, engine_params);
+                    
+                    if (!download_started) {
+                        // Check if download is already in progress
+                        if (download_manager.isDownloadInProgress(engineId)) {
+                            json jResponse = {
+                                {"message", "Model download already in progress. Use /download-progress/" + engineId + " to check status."},
+                                {"engine_id", engineId},
+                                {"download_status", "in_progress"},
+                                {"download_url", modelPathStr},
+                                {"progress_endpoint", "/download-progress/" + engineId}
+                            };
+                            
+                            send_response(sock, 202, jResponse.dump());
+                            ServerLogger::logInfo("[Thread %u] Download already in progress for engine: %s", std::this_thread::get_id(), engineId.c_str());
+                            return;
+                        } else {
+                            errorMessage = "Failed to start download for model from URL '" + modelPathStr + "'";
+                            errorType = "model_download_error";
+                            errorCode = 422;
+                            
+                            json jError = {{"error", {{"message", errorMessage}, {"type", errorType}, {"param", "model_path"}, {"code", "download_start_failed"}}}};
+                            send_response(sock, errorCode, jError.dump());
+                            ServerLogger::logError("[Thread %u] %s", std::this_thread::get_id(), errorMessage.c_str());
+                            return;
+                        }
                     }
                     
-                    actualModelPath = result.local_path;
-                    ServerLogger::logInfo("[Thread %u] Successfully downloaded model to: %s (%zu bytes)", 
-                                         std::this_thread::get_id(), actualModelPath.c_str(), result.total_bytes);
+                    // Return response indicating download has started
+                    json jResponse = {
+                        {"message", "Model download started successfully. Engine will be created once download completes."},
+                        {"engine_id", engineId},
+                        {"download_status", "started"},
+                        {"download_url", modelPathStr},
+                        {"local_path", downloadPath},
+                        {"progress_endpoint", "/download-progress/" + engineId},
+                        {"note", "Check download progress using the progress_endpoint. Engine creation will be deferred until download completes."}
+                    };
+                    
+                    send_response(sock, 202, jResponse.dump());
+                    ServerLogger::logInfo("[Thread %u] Started async download for engine %s from URL: %s", std::this_thread::get_id(), engineId.c_str(), modelPathStr.c_str());
+                    return;
                 }
             }
 
