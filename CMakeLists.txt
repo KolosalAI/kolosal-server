@@ -32,8 +32,10 @@ set(SOURCES
     src/routes/remove_engine_route.cpp
     src/routes/engine_status_route.cpp
     src/routes/health_status_route.cpp
+    src/routes/parse_pdf_route.cpp
     src/node_manager.cpp
     src/inference.cpp
+    src/retrieval/parse_pdf.cpp
 )
 
 # Create shared library instead of static library.
@@ -44,6 +46,8 @@ target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE
 add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
+
+
 
 # Find and setup llama.cpp
 set(LLAMA_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
@@ -139,6 +143,29 @@ target_link_libraries(kolosal_server PRIVATE llama common ggml toolcall)
 # Link CURL libraries and include directories
 target_include_directories(kolosal_server PRIVATE ${CURL_INCLUDE_DIR})
 target_link_libraries(kolosal_server PRIVATE ${CURL_LIBRARIES})
+
+# Configure MuPDF for the main server
+set(MUPDF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf")
+target_include_directories(kolosal_server PRIVATE 
+    ${MUPDF_PATH}/include
+)
+
+# Link MuPDF libraries to main server
+if(WIN32)
+    # For Windows, we'll need to build MuPDF or use prebuilt libraries
+    # Point to the correct x64/Release directory where the libraries are built
+    target_link_directories(kolosal_server PRIVATE 
+        ${MUPDF_PATH}/platform/win32/x64/Release
+    )
+    target_link_libraries(kolosal_server PRIVATE 
+        libmupdf libthirdparty
+    )
+else()
+    # For Unix systems, link standard MuPDF libraries
+    target_link_libraries(kolosal_server PRIVATE 
+        mupdf mupdf-third
+    )
+endif()
 
 # Include llama.cpp directories
 target_include_directories(kolosal_server PUBLIC

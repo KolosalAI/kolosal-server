@@ -1,4 +1,4 @@
-#include "kolosal/retrieval/parse_documents.hpp"
+#include "kolosal/retrieval/parse_pdf.hpp"
 #include <mupdf/fitz.h>
 #include <stdexcept>
 #include <sstream>
@@ -48,11 +48,9 @@ namespace retrieval
             other.ctx_ = nullptr;
         }
         return *this;
-    }
-
-    // RAII MuPDF Document Management
+    }    // RAII MuPDF Document Management
     MuPDFDocument::MuPDFDocument(fz_context *ctx, const std::string &filepath)
-        : ctx_(ctx), doc_(nullptr)
+        : ctx_(ctx), doc_(nullptr), stream_(nullptr)
     {
         if (!ctx_)
         {
@@ -69,20 +67,51 @@ namespace retrieval
         }
     }
 
-    MuPDFDocument::~MuPDFDocument()
+    MuPDFDocument::MuPDFDocument(fz_context *ctx, const unsigned char *data, size_t size)
+        : ctx_(ctx), doc_(nullptr), stream_(nullptr)
+    {
+        if (!ctx_)
+        {
+            throw std::invalid_argument("Invalid MuPDF context");
+        }
+
+        if (!data || size == 0)
+        {
+            throw std::invalid_argument("Invalid PDF data");
+        }
+
+        fz_try(ctx_)
+        {
+            stream_ = fz_open_memory(ctx_, data, size);
+            doc_ = fz_open_document_with_stream(ctx_, "pdf", stream_);
+        }
+        fz_catch(ctx_)
+        {
+            if (stream_)
+            {
+                fz_drop_stream(ctx_, stream_);
+                stream_ = nullptr;
+            }
+            throw std::runtime_error("Failed to open PDF from memory");
+        }
+    }    MuPDFDocument::~MuPDFDocument()
     {
         if (doc_ && ctx_)
         {
             fz_drop_document(ctx_, doc_);
             doc_ = nullptr;
         }
-    }
-
-    MuPDFDocument::MuPDFDocument(MuPDFDocument &&other) noexcept
-        : ctx_(other.ctx_), doc_(other.doc_)
+        if (stream_ && ctx_)
+        {
+            fz_drop_stream(ctx_, stream_);
+            stream_ = nullptr;
+        }
+    }    MuPDFDocument::MuPDFDocument(MuPDFDocument &&other) noexcept
+        : ctx_(other.ctx_), doc_(other.doc_), stream_(other.stream_)
     {
         other.ctx_ = nullptr;
         other.doc_ = nullptr;
+        other.stream_ = nullptr;
     }
 
     MuPDFDocument &MuPDFDocument::operator=(MuPDFDocument &&other) noexcept
@@ -93,10 +122,16 @@ namespace retrieval
             {
                 fz_drop_document(ctx_, doc_);
             }
+            if (stream_ && ctx_)
+            {
+                fz_drop_stream(ctx_, stream_);
+            }
             ctx_ = other.ctx_;
             doc_ = other.doc_;
+            stream_ = other.stream_;
             other.ctx_ = nullptr;
             other.doc_ = nullptr;
+            other.stream_ = nullptr;
         }
         return *this;
     }
@@ -141,6 +176,46 @@ namespace retrieval
                 return parse_pdf_ocr(file_path, language, progress_cb);
             case PDFParseMethod::Visual:
                 return parse_pdf_visual(file_path, progress_cb);
+            default:
+                ParseResult result;
+                result.success = false;
+                result.error_message = "Unsupported PDF parse method";
+                return result;
+            }
+        }
+        catch (const std::exception &e)
+        {            ParseResult result;
+            result.success = false;
+            result.error_message = e.what();
+            return result;
+        }
+    }
+
+    ParseResult DocumentParser::parse_pdf_from_bytes(const unsigned char *data, size_t size,
+                                                     PDFParseMethod method,
+                                                     const std::string &language,
+                                                     ProgressCallback progress_cb)
+    {
+        try
+        {
+            // Validate input
+            if (!data || size == 0)
+            {
+                ParseResult result;
+                result.success = false;
+                result.error_message = "Invalid PDF data";
+                return result;
+            }
+
+            // Dispatch to appropriate parsing method
+            switch (method)
+            {
+            case PDFParseMethod::Fast:
+                return parse_pdf_fast_from_bytes(data, size, progress_cb);
+            case PDFParseMethod::OCR:
+                return parse_pdf_ocr_from_bytes(data, size, language, progress_cb);
+            case PDFParseMethod::Visual:
+                return parse_pdf_visual_from_bytes(data, size, progress_cb);
             default:
                 ParseResult result;
                 result.success = false;
@@ -331,8 +406,7 @@ namespace retrieval
         return result;
     }
 
-    ParseResult DocumentParser::parse_pdf_visual(const std::string &file_path,
-                                                 ProgressCallback progress_cb)
+    ParseResult DocumentParser::parse_pdf_visual(const std::string &file_path,                                                 ProgressCallback progress_cb)
     {
         // TODO: Implement visual parsing using ML models
         // This would involve:
@@ -343,6 +417,100 @@ namespace retrieval
         ParseResult result;
         result.success = false;
         result.error_message = "Visual parsing not yet implemented. Please use Fast method or implement vision model integration.";
+        return result;
+    }
+
+    // Memory-based parsing methods
+    ParseResult DocumentParser::parse_pdf_fast_from_bytes(const unsigned char *data, size_t size,
+                                                         ProgressCallback progress_cb)
+    {
+        try
+        {
+            // Get thread-local context for thread safety
+            if (!tls_context)
+            {
+                tls_context = std::make_unique<MuPDFContext>();
+            }
+
+            if (!tls_context->is_valid())
+            {
+                ParseResult result;
+                result.success = false;
+                result.error_message = "Failed to create MuPDF context";
+                return result;
+            }
+
+            MuPDFDocument doc(tls_context->get(), data, size);
+
+            const int page_count = doc.page_count();
+            if (page_count <= 0)
+            {
+                ParseResult result;
+                result.success = false;
+                result.error_message = "PDF has no pages";
+                return result;
+            }
+
+            std::ostringstream output;
+            output.str().reserve(page_count * 1024); // Pre-allocate reasonable space
+
+            for (int i = 0; i < page_count; ++i)
+            {
+                try
+                {
+                    std::string page_text = extract_text_from_page(tls_context->get(), doc.get(), i);
+                    if (!page_text.empty())
+                    {
+                        output << page_text;
+                        if (i < page_count - 1)
+                        {
+                            output << "\n\n"; // Page separator
+                        }
+                    }
+
+                    // Progress callback
+                    if (progress_cb)
+                    {
+                        progress_cb(i + 1, page_count);
+                    }
+                }
+                catch (const std::exception &e)
+                {
+                    // Log page error but continue processing
+                    output << "[Error processing page " << (i + 1) << ": " << e.what() << "]\n\n";
+                }
+            }
+
+            ParseResult result(output.str(), true, page_count);
+            return result;
+        }
+        catch (const std::exception &e)
+        {
+            ParseResult result;
+            result.success = false;
+            result.error_message = e.what();
+            return result;
+        }
+    }
+
+    ParseResult DocumentParser::parse_pdf_ocr_from_bytes(const unsigned char *data, size_t size,
+                                                        const std::string &language,
+                                                        ProgressCallback progress_cb)
+    {
+        // TODO: Implement OCR using Tesseract for memory data
+        ParseResult result;
+        result.success = false;
+        result.error_message = "OCR parsing from bytes not yet implemented. Please use Fast method or implement Tesseract integration.";
+        return result;
+    }
+
+    ParseResult DocumentParser::parse_pdf_visual_from_bytes(const unsigned char *data, size_t size,
+                                                           ProgressCallback progress_cb)
+    {
+        // TODO: Implement visual parsing using ML models for memory data
+        ParseResult result;
+        result.success = false;
+        result.error_message = "Visual parsing from bytes not yet implemented. Please use Fast method or implement vision model integration.";
         return result;
     }
 

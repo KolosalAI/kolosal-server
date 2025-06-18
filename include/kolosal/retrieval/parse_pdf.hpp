@@ -50,11 +50,11 @@ namespace retrieval
     private:
         fz_context *ctx_;
     };
-
     class MuPDFDocument
     {
     public:
         MuPDFDocument(fz_context *ctx, const std::string &filepath);
+        MuPDFDocument(fz_context *ctx, const unsigned char *data, size_t size);
         ~MuPDFDocument();
 
         // Non-copyable, movable
@@ -70,6 +70,7 @@ namespace retrieval
     private:
         fz_context *ctx_;
         fz_document *doc_;
+        fz_stream *stream_; // Added for memory stream support
     };
 
     class DocumentParser
@@ -80,6 +81,12 @@ namespace retrieval
                                      PDFParseMethod method = PDFParseMethod::Fast,
                                      const std::string &language = "eng",
                                      ProgressCallback progress_cb = nullptr);
+
+        // Parse from memory buffer
+        static ParseResult parse_pdf_from_bytes(const unsigned char *data, size_t size,
+                                                PDFParseMethod method = PDFParseMethod::Fast,
+                                                const std::string &language = "eng",
+                                                ProgressCallback progress_cb = nullptr);
 
         // Asynchronous parsing
         static std::future<ParseResult> parse_pdf_async(const std::string &file_path,
@@ -109,6 +116,17 @@ namespace retrieval
 
         static ParseResult parse_pdf_visual(const std::string &file_path,
                                             ProgressCallback progress_cb = nullptr);
+
+        // Memory-based parsing methods
+        static ParseResult parse_pdf_fast_from_bytes(const unsigned char *data, size_t size,
+                                                     ProgressCallback progress_cb = nullptr);
+
+        static ParseResult parse_pdf_ocr_from_bytes(const unsigned char *data, size_t size,
+                                                    const std::string &language,
+                                                    ProgressCallback progress_cb = nullptr);
+
+        static ParseResult parse_pdf_visual_from_bytes(const unsigned char *data, size_t size,
+                                                       ProgressCallback progress_cb = nullptr);
 
         // Utility functions
         static std::string extract_text_from_page(fz_context *ctx, fz_document *doc, int page_num);

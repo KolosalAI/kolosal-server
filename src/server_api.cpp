@@ -7,6 +7,7 @@
 #include "kolosal/routes/remove_engine_route.hpp"
 #include "kolosal/routes/engine_status_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
+#include "kolosal/routes/parse_pdf_route.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
 #include <memory>
@@ -60,6 +61,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());
             pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
+            pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
 
             // Start server in a background thread
             std::thread([this]()

@@ -97,6 +97,7 @@ int main(int argc, char* argv[]) {
     std::cout << "  POST /engines                - Add new engine" << std::endl;
     std::cout << "  GET  /engines/{id}/status    - Engine status" << std::endl;
     std::cout << "  DELETE /engines/{id}         - Remove engine" << std::endl;
+    std::cout << "  POST /parse_pdf              - Parse PDF document" << std::endl;
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
     
     // Main server loop
