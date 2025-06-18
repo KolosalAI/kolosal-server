@@ -47,7 +47,24 @@ namespace kolosal {
         const std::string& url,
         const std::string& local_path,
         DownloadProgressCallback progress_callback = nullptr
-    );    /**
+    );
+
+    /**
+     * Download a file from a URL to a local path with cancellation support
+     * @param url The URL to download from
+     * @param local_path The local path to save the file to
+     * @param progress_callback Optional callback for progress updates
+     * @param cancelled Pointer to cancellation flag
+     * @return DownloadResult containing success status and details
+     */
+    KOLOSAL_SERVER_API DownloadResult download_file_with_cancellation(
+        const std::string& url,
+        const std::string& local_path,
+        DownloadProgressCallback progress_callback,
+        volatile bool* cancelled
+    );
+
+    /**
      * Generate a temporary download path for a URL
      * @param url The URL to generate a path for
      * @param base_dir Base directory for downloads (default: "./models")

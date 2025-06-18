@@ -16,7 +16,7 @@ logging:
 
 auth:
   enabled: true
-  require_api_key: true
+  require_api_key: false
   api_key_header: "X-API-Key"
   api_keys: 
     - "your_api_key_here"

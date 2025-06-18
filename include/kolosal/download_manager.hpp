@@ -37,13 +37,16 @@ namespace kolosal {
         
         // Engine creation parameters (if this download is for engine creation)
         std::unique_ptr<EngineCreationParams> engine_params;
+        
+        // Cancellation flag for download control
+        volatile bool cancelled;
 
-        DownloadProgress() : total_bytes(0), downloaded_bytes(0), percentage(0.0), status("downloading") {}
+        DownloadProgress() : total_bytes(0), downloaded_bytes(0), percentage(0.0), status("downloading"), cancelled(false) {}
         
         DownloadProgress(const std::string& id, const std::string& download_url, const std::string& path)
             : model_id(id), url(download_url), local_path(path), total_bytes(0), 
               downloaded_bytes(0), percentage(0.0), status("downloading"),
-              start_time(std::chrono::system_clock::now()) {}
+              start_time(std::chrono::system_clock::now()), cancelled(false) {}
     };    // Download manager class to handle concurrent downloads and track progress
     class KOLOSAL_SERVER_API DownloadManager {
     public:
@@ -64,6 +67,12 @@ namespace kolosal {
 
         // Cancel a download
         bool cancelDownload(const std::string& model_id);
+
+        // Cancel all active downloads
+        int cancelAllDownloads();
+
+        // Wait for all download threads to complete (used during shutdown)
+        void waitForAllDownloads();
 
         // Get all active downloads
         std::map<std::string, std::shared_ptr<DownloadProgress>> getAllActiveDownloads();

@@ -41,11 +41,10 @@ namespace kolosal {
                 if (progress->status == "downloading" && progress->percentage > 0 && download_speed > 0) {
                     size_t remaining_bytes = progress->total_bytes - progress->downloaded_bytes;
                     estimated_remaining_seconds = static_cast<int>(remaining_bytes / download_speed);
-                }
-
-                json download_info = {
+                }                json download_info = {
                     {"model_id", progress->model_id},
                     {"status", progress->status},
+                    {"download_type", progress->engine_params ? "startup" : "regular"},
                     {"url", progress->url},
                     {"local_path", progress->local_path},
                     {"progress", {
@@ -58,7 +57,7 @@ namespace kolosal {
                         {"start_time", std::chrono::duration_cast<std::chrono::milliseconds>(progress->start_time.time_since_epoch()).count()},
                         {"elapsed_seconds", elapsed_seconds}
                     }}
-                };                // Add end time and error message if applicable
+                };// Add end time and error message if applicable
                 if (progress->status != "downloading" && progress->status != "creating_engine") {
                     download_info["timing"]["end_time"] = std::chrono::duration_cast<std::chrono::milliseconds>(progress->end_time.time_since_epoch()).count();
                 }
@@ -78,21 +77,34 @@ namespace kolosal {
                         {"load_immediately", progress->engine_params->load_immediately},
                         {"main_gpu_id", progress->engine_params->main_gpu_id}
                     };
-                }
+                }                downloads_array.push_back(download_info);
+            }
 
-                downloads_array.push_back(download_info);
+            // Count startup vs regular downloads
+            int startup_count = 0;
+            int regular_count = 0;
+            for (const auto& pair : active_downloads) {
+                if (pair.second->engine_params) {
+                    startup_count++;
+                } else {
+                    regular_count++;
+                }
             }
 
             json response = {
                 {"active_downloads", downloads_array},
-                {"total_active", active_downloads.size()},
+                {"summary", {
+                    {"total_active", active_downloads.size()},
+                    {"startup_downloads", startup_count},
+                    {"regular_downloads", regular_count}
+                }},
                 {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
                     std::chrono::system_clock::now().time_since_epoch()).count()}
             };
 
             send_response(sock, 200, response.dump());
-            ServerLogger::logInfo("[Thread %u] Successfully provided downloads status - %zu active downloads", 
-                                std::this_thread::get_id(), active_downloads.size());
+            ServerLogger::logInfo("[Thread %u] Successfully provided downloads status - %zu active downloads (%d startup, %d regular)", 
+                                std::this_thread::get_id(), active_downloads.size(), startup_count, regular_count);
 
         } catch (const std::exception& ex) {
             ServerLogger::logError("[Thread %u] Error handling downloads status request: %s", std::this_thread::get_id(), ex.what());
