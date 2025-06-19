@@ -21,7 +21,7 @@ namespace kolosal
         std::regex statusPattern(R"(^/(v1/)?engines/([^/]+)/status$)");
         return (method == "GET" && std::regex_match(path, statusPattern));
     }
-    
+
     void EngineStatusRoute::handle(SocketType sock, const std::string &body)
     {
         try

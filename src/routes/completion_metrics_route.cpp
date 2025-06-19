@@ -25,7 +25,7 @@ namespace kolosal
         return method == "GET" && (path == "/metrics/completion" ||
                                    path == "/v1/metrics/completion" ||
                                    path.find("/metrics/completion/") == 0 // For engine-specific metrics
-                                   );
+                                  );
     }
 
     void CompletionMetricsRoute::handle(SocketType sock, const std::string &body)

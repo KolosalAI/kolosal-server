@@ -47,7 +47,8 @@ namespace kolosal
     {
         static ServerAPI instance;
         return instance;
-    }    bool ServerAPI::init(const std::string &port, const std::string &host)
+    }
+    bool ServerAPI::init(const std::string &port, const std::string &host)
     {
         try
         {
@@ -58,20 +59,24 @@ namespace kolosal
             {
                 ServerLogger::logError("Failed to initialize server");
                 return false;
-            }            // Register routes
-            ServerLogger::logInfo("Registering routes");            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
-            pImpl->server->addRoute(std::make_unique<CompletionsRoute>());            pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
+            } // Register routes
+            ServerLogger::logInfo("Registering routes");
+            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
+            pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
+            pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());
-            pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());            pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());            pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
+            pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());
+            pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
+            pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
             pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());
             pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
             pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());
             pImpl->server->addRoute(std::make_unique<CancelAllDownloadsRoute>());
-            
+
             // Register metrics routes
-            pImpl->server->addRoute(std::make_unique<CombinedMetricsRoute>());  // Handles /metrics and /v1/metrics
-            pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());    // Handles /system/metrics
+            pImpl->server->addRoute(std::make_unique<CombinedMetricsRoute>()); // Handles /metrics and /v1/metrics
+            pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());   // Handles /system/metrics
 
             // Start server in a background thread
             std::thread([this]()
@@ -87,35 +92,41 @@ namespace kolosal
             ServerLogger::logError("Failed to initialize server: %s", ex.what());
             return false;
         }
-    }    void ServerAPI::shutdown()
+    }
+    void ServerAPI::shutdown()
     {
         if (pImpl->server)
         {
             ServerLogger::logInfo("Shutting down server");
-            
+
             // Wait for all download threads to complete (this will cancel them first)
-            try {
-                auto& download_manager = DownloadManager::getInstance();
+            try
+            {
+                auto &download_manager = DownloadManager::getInstance();
                 ServerLogger::logInfo("Stopping all downloads and waiting for threads to finish...");
                 download_manager.waitForAllDownloads();
-            } catch (const std::exception& ex) {
+            }
+            catch (const std::exception &ex)
+            {
                 ServerLogger::logError("Error during download shutdown: %s", ex.what());
             }
-            
+
             // Shutdown the server
             ServerLogger::logInfo("Shutting down HTTP server");
             pImpl->server.reset();
             ServerLogger::logInfo("Server shutdown complete");
         }
-    }void ServerAPI::enableMetrics()
+    }
+    void ServerAPI::enableMetrics()
     {
-        if (!pImpl->server) {
+        if (!pImpl->server)
+        {
             throw std::runtime_error("Server not initialized - call init() first");
         }
-        
+
         ServerLogger::logInfo("Enabling system metrics monitoring");
         pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());
-        
+
         ServerLogger::logInfo("Enabling completion metrics monitoring");
         pImpl->server->addRoute(std::make_unique<CompletionMetricsRoute>());
     }
@@ -123,22 +134,25 @@ namespace kolosal
     NodeManager &ServerAPI::getNodeManager()
     {
         return *pImpl->nodeManager;
-    }    const NodeManager &ServerAPI::getNodeManager() const
+    }
+    const NodeManager &ServerAPI::getNodeManager() const
     {
         return *pImpl->nodeManager;
     }
 
-    auth::AuthMiddleware& ServerAPI::getAuthMiddleware()
+    auth::AuthMiddleware &ServerAPI::getAuthMiddleware()
     {
-        if (!pImpl->server) {
+        if (!pImpl->server)
+        {
             throw std::runtime_error("Server not initialized");
         }
         return pImpl->server->getAuthMiddleware();
     }
 
-    const auth::AuthMiddleware& ServerAPI::getAuthMiddleware() const
+    const auth::AuthMiddleware &ServerAPI::getAuthMiddleware() const
     {
-        if (!pImpl->server) {
+        if (!pImpl->server)
+        {
             throw std::runtime_error("Server not initialized");
         }
         return pImpl->server->getAuthMiddleware();

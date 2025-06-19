@@ -156,7 +156,7 @@ namespace kolosal
             else if ((arg == "--max-request-size") && i + 1 < argc)
             {
                 maxRequestSize = std::stoul(argv[++i]);
-            }            // Feature flags
+            } // Feature flags
             else if (arg == "--enable-metrics")
             {
                 enableMetrics = true;
@@ -164,7 +164,8 @@ namespace kolosal
             else if (arg == "--disable-health-check")
             {
                 enableHealthCheck = false;
-            }            else if (arg == "--public" || arg == "--allow-public-access")
+            }
+            else if (arg == "--public" || arg == "--allow-public-access")
             {
                 allowPublicAccess = true;
             }
@@ -175,7 +176,7 @@ namespace kolosal
             else if (arg == "--internet" || arg == "--allow-internet-access")
             {
                 allowInternetAccess = true;
-                allowPublicAccess = true;  // Internet access implies public access
+                allowPublicAccess = true; // Internet access implies public access
             }
             else if (arg == "--no-internet" || arg == "--disable-internet-access")
             {
@@ -206,7 +207,7 @@ namespace kolosal
     {
         try
         {
-            YAML::Node config = YAML::LoadFile(configFile);            // Load basic server settings
+            YAML::Node config = YAML::LoadFile(configFile); // Load basic server settings
             if (config["server"])
             {
                 auto server = config["server"];
@@ -221,14 +222,17 @@ namespace kolosal
                 if (server["request_timeout"])
                     requestTimeout = std::chrono::seconds(server["request_timeout"].as<int>());
                 if (server["max_request_size"])
-                    maxRequestSize = server["max_request_size"].as<size_t>();                if (server["idle_timeout"])
+                    maxRequestSize = server["max_request_size"].as<size_t>();
+                if (server["idle_timeout"])
                     idleTimeout = std::chrono::seconds(server["idle_timeout"].as<int>());
                 if (server["allow_public_access"])
                     allowPublicAccess = server["allow_public_access"].as<bool>();
-                if (server["allow_internet_access"]) {
+                if (server["allow_internet_access"])
+                {
                     allowInternetAccess = server["allow_internet_access"].as<bool>();
-                    if (allowInternetAccess) {
-                        allowPublicAccess = true;  // Internet access implies public access
+                    if (allowInternetAccess)
+                    {
+                        allowPublicAccess = true; // Internet access implies public access
                     }
                 }
             }
@@ -374,13 +378,14 @@ namespace kolosal
     {
         try
         {
-            YAML::Node config;            // Server settings
+            YAML::Node config; // Server settings
             config["server"]["port"] = port;
             config["server"]["host"] = host;
             config["server"]["max_connections"] = maxConnections;
             config["server"]["worker_threads"] = workerThreads;
             config["server"]["request_timeout"] = static_cast<int>(requestTimeout.count());
-            config["server"]["max_request_size"] = maxRequestSize;            config["server"]["idle_timeout"] = static_cast<int>(idleTimeout.count());
+            config["server"]["max_request_size"] = maxRequestSize;
+            config["server"]["idle_timeout"] = static_cast<int>(idleTimeout.count());
             config["server"]["allow_public_access"] = allowPublicAccess;
             config["server"]["allow_internet_access"] = allowInternetAccess;
 
@@ -508,7 +513,8 @@ namespace kolosal
 
     void ServerConfig::printSummary() const
     {
-        std::cout << "=== Kolosal Server Configuration ===" << std::endl;        std::cout << "Server:" << std::endl;
+        std::cout << "=== Kolosal Server Configuration ===" << std::endl;
+        std::cout << "Server:" << std::endl;
         std::cout << "  Port: " << port << std::endl;
         std::cout << "  Host: " << host << std::endl;
         std::cout << "  Public Access: " << (allowPublicAccess ? "Enabled" : "Disabled") << std::endl;
@@ -601,7 +607,8 @@ namespace kolosal
         std::cout << "    -m, --model ID PATH       Load model at startup (ID and file path)\n";
         std::cout << "    --model-lazy ID PATH      Register model but don't load until first use\n";
         std::cout << "    --model-gpu ID            Set GPU ID for the last added model\n";
-        std::cout << "    --model-ctx-size SIZE     Set context size for the last added model\n\n";        std::cout << "  Features:\n";
+        std::cout << "    --model-ctx-size SIZE     Set context size for the last added model\n\n";
+        std::cout << "  Features:\n";
         std::cout << "    --enable-metrics          Enable metrics collection\n";
         std::cout << "    --disable-health-check    Disable health check endpoint\n";
         std::cout << "    --public                  Allow external network access\n";

@@ -22,7 +22,7 @@ namespace kolosal
     {
         return (method == "GET" && (path == "/metrics/system" || path == "/v1/metrics/system"));
     }
-    
+
     void SystemMetricsRoute::handle(SocketType sock, const std::string &body)
     {
         try

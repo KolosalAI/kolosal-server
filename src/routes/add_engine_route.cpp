@@ -63,64 +63,74 @@ namespace kolosal
             loadParams.warmup = request.loading_parameters.warmup;
             loadParams.n_parallel = request.loading_parameters.n_parallel;
             loadParams.n_gpu_layers = request.loading_parameters.n_gpu_layers;
-            loadParams.n_batch = request.loading_parameters.n_batch;            loadParams.n_ubatch = request.loading_parameters.n_ubatch; 
-            
+            loadParams.n_batch = request.loading_parameters.n_batch;
+            loadParams.n_ubatch = request.loading_parameters.n_ubatch;
+
             // Validate model path before attempting to load
             std::string modelPathStr = modelPath;
             std::string errorMessage;
             std::string errorType = "server_error";
             int errorCode = 500;
-            
+
             // Check if the model path is a URL
             bool isUrl = is_valid_url(modelPathStr);
-            std::string actualModelPath = modelPathStr;              if (isUrl) {
+            std::string actualModelPath = modelPathStr;
+            if (isUrl)
+            {
                 ServerLogger::logInfo("[Thread %u] Model path is URL, starting async download: %s", std::this_thread::get_id(), modelPathStr.c_str());
-                
+
                 // Generate download path - use ./models to match startup behavior
                 std::string downloadPath = generate_download_path(modelPathStr, "./models");
-                
+
                 // Check if file already exists
-                if (std::filesystem::exists(downloadPath)) {
+                if (std::filesystem::exists(downloadPath))
+                {
                     ServerLogger::logInfo("[Thread %u] Model file already exists at: %s", std::this_thread::get_id(), downloadPath.c_str());
-                    actualModelPath = downloadPath;                } else {
+                    actualModelPath = downloadPath;
+                }
+                else
+                {
                     // Start async download using DownloadManager with engine creation
-                    auto& download_manager = DownloadManager::getInstance();
-                    
+                    auto &download_manager = DownloadManager::getInstance();
+
                     // Prepare engine creation parameters
                     EngineCreationParams engine_params;
                     engine_params.engine_id = engineId;
                     engine_params.load_immediately = loadImmediately;
                     engine_params.main_gpu_id = mainGpuId;
                     engine_params.loading_params = loadParams;
-                    
+
                     bool download_started = download_manager.startDownloadWithEngine(engineId, modelPathStr, downloadPath, engine_params);
-                    
-                    if (!download_started) {
+
+                    if (!download_started)
+                    {
                         // Check if download is already in progress
-                        if (download_manager.isDownloadInProgress(engineId)) {
+                        if (download_manager.isDownloadInProgress(engineId))
+                        {
                             json jResponse = {
                                 {"message", "Model download already in progress. Use /download-progress/" + engineId + " to check status."},
                                 {"engine_id", engineId},
                                 {"download_status", "in_progress"},
                                 {"download_url", modelPathStr},
-                                {"progress_endpoint", "/download-progress/" + engineId}
-                            };
-                            
+                                {"progress_endpoint", "/download-progress/" + engineId}};
+
                             send_response(sock, 202, jResponse.dump());
                             ServerLogger::logInfo("[Thread %u] Download already in progress for engine: %s", std::this_thread::get_id(), engineId.c_str());
                             return;
-                        } else {
+                        }
+                        else
+                        {
                             errorMessage = "Failed to start download for model from URL '" + modelPathStr + "'";
                             errorType = "model_download_error";
                             errorCode = 422;
-                            
+
                             json jError = {{"error", {{"message", errorMessage}, {"type", errorType}, {"param", "model_path"}, {"code", "download_start_failed"}}}};
                             send_response(sock, errorCode, jError.dump());
                             ServerLogger::logError("[Thread %u] %s", std::this_thread::get_id(), errorMessage.c_str());
                             return;
                         }
                     }
-                    
+
                     // Return response indicating download has started
                     json jResponse = {
                         {"message", "Model download started successfully. Engine will be created once download completes."},
@@ -129,9 +139,8 @@ namespace kolosal
                         {"download_url", modelPathStr},
                         {"local_path", downloadPath},
                         {"progress_endpoint", "/download-progress/" + engineId},
-                        {"note", "Check download progress using the progress_endpoint. Engine creation will be deferred until download completes."}
-                    };
-                    
+                        {"note", "Check download progress using the progress_endpoint. Engine creation will be deferred until download completes."}};
+
                     send_response(sock, 202, jResponse.dump());
                     ServerLogger::logInfo("[Thread %u] Started async download for engine %s from URL: %s", std::this_thread::get_id(), engineId.c_str(), modelPathStr.c_str());
                     return;
@@ -139,7 +148,8 @@ namespace kolosal
             }
 
             // Validate the actual model path exists and is accessible
-            if (!std::filesystem::exists(actualModelPath)) {
+            if (!std::filesystem::exists(actualModelPath))
+            {
                 errorMessage = "Model path '" + actualModelPath + "' does not exist. Please verify the path is correct.";
                 errorType = "invalid_request_error";
                 errorCode = 400;
@@ -148,7 +158,7 @@ namespace kolosal
                 send_response(sock, errorCode, jError.dump());
                 ServerLogger::logError("[Thread %u] Model path '%s' does not exist", std::this_thread::get_id(), actualModelPath.c_str());
                 return;
-            }            // Check if path is a directory and contains model files
+            } // Check if path is a directory and contains model files
             if (std::filesystem::is_directory(actualModelPath))
             {
                 bool hasModelFile = false;
@@ -231,8 +241,9 @@ namespace kolosal
             {
                 ServerLogger::logWarning("[Thread %u] Large batch size (n_batch=%d) may cause high memory usage for engine '%s'",
                                          std::this_thread::get_id(), loadParams.n_batch, engineId.c_str());
-            }            // Get the NodeManager and attempt to add the engine
-            auto &nodeManager = ServerAPI::instance().getNodeManager();            bool success = false;
+            } // Get the NodeManager and attempt to add the engine
+            auto &nodeManager = ServerAPI::instance().getNodeManager();
+            bool success = false;
             if (loadImmediately)
             {
                 success = nodeManager.addEngine(engineId, actualModelPath.c_str(), loadParams, mainGpuId);
@@ -242,7 +253,8 @@ namespace kolosal
                 // Register the engine for lazy loading - model will be loaded on first access
                 success = nodeManager.registerEngine(engineId, actualModelPath.c_str(), loadParams, mainGpuId);
                 ServerLogger::logInfo("Engine '%s' registered with load_immediately=false (will load on first access)", engineId.c_str());
-            }if (success)
+            }
+            if (success)
             {
                 json response = {
                     {"engine_id", engineId},
@@ -254,12 +266,12 @@ namespace kolosal
                     {"message", "Engine added successfully"}};
 
                 // Add additional info if model was downloaded from URL
-                if (isUrl) {
+                if (isUrl)
+                {
                     response["download_info"] = {
                         {"source_url", modelPath},
                         {"local_path", actualModelPath},
-                        {"was_downloaded", !std::filesystem::exists(actualModelPath) || modelPath != actualModelPath}
-                    };
+                        {"was_downloaded", !std::filesystem::exists(actualModelPath) || modelPath != actualModelPath}};
                 }
 
                 send_response(sock, 201, response.dump());
@@ -288,7 +300,8 @@ namespace kolosal
                     json jError = {{"error", {{"message", errorMessage}, {"type", errorType}, {"param", "engine_id"}, {"code", "engine_id_exists"}}}};
                     send_response(sock, errorCode, jError.dump());
                     ServerLogger::logError("[Thread %u] Engine ID '%s' already exists", std::this_thread::get_id(), engineId.c_str());
-                }                else
+                }
+                else
                 {
                     // Model loading failed - provide detailed error information
                     errorMessage = "Failed to load model from '" + actualModelPath + "'. ";
@@ -310,15 +323,15 @@ namespace kolosal
                     }
 
                     json errorDetails = {
-                        {"engine_id", engineId}, 
-                        {"model_path", actualModelPath}, 
-                        {"n_ctx", loadParams.n_ctx}, 
-                        {"n_gpu_layers", loadParams.n_gpu_layers}, 
-                        {"main_gpu_id", mainGpuId}
-                    };
-                    
+                        {"engine_id", engineId},
+                        {"model_path", actualModelPath},
+                        {"n_ctx", loadParams.n_ctx},
+                        {"n_gpu_layers", loadParams.n_gpu_layers},
+                        {"main_gpu_id", mainGpuId}};
+
                     // Add download info if applicable
-                    if (isUrl) {
+                    if (isUrl)
+                    {
                         errorDetails["source_url"] = modelPath;
                         errorDetails["local_path"] = actualModelPath;
                     }

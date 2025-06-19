@@ -282,7 +282,9 @@ public:
      * @param job_id The ID of the job to check.
      * @return True if the job has an error, false otherwise.
      */
-    bool hasJobError(int job_id);    /**
+    bool hasJobError(int job_id);    
+    
+    /**
      * @brief Gets the error message for a job.
      * @param job_id The ID of the job to get the error message for.
      * @return The error message for the job.
