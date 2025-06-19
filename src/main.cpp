@@ -65,7 +65,7 @@ int main(int argc, char* argv[]) {
             return 1;
         }
     } catch (const std::exception& e) {
-        std::cerr << "Error: Invalid port number: " << port << std::endl;
+        std::cerr << "Error: Invalid port number: " << port << " (" << e.what() << ")" << std::endl;
         return 1;
     }
     

@@ -1,6 +1,6 @@
 // File: src/agents/job_manager.cpp
 #include "kolosal/agents/job_manager.hpp"
-#include "kolosal/logger.hpp"
+#include "kolosal/agents/server_logger_adapter.hpp"
 
 namespace kolosal::agents {
 

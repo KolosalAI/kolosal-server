@@ -45,7 +45,6 @@ set(SOURCES
 if(ENABLE_AGENTS)
     list(APPEND SOURCES
         # Agent system core
-        src/agents/logger.cpp
         src/agents/agent_data.cpp
         src/agents/agent_interfaces.cpp
         src/agents/yaml_config.cpp

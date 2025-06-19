@@ -1,11 +1,10 @@
-
-
 // File: include/kolosal/agents/builtin_functions.hpp
 #pragma once
 
 #include "../export.hpp"
 #include "agent_interfaces.hpp"
 #include "agent_data.hpp"
+#include "yaml_config.hpp"
 #include <memory>
 
 namespace kolosal::agents {

@@ -1,11 +1,16 @@
-# 3.5 is actually available almost everywhere, but this a good minimum
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.14...3.27)
+cmake_policy(SET CMP0048 NEW)
+
+
+
+
+
+# Note: Previous minimum was 3.5
 
 # enable MSVC_RUNTIME_LIBRARY target property
 # see https://cmake.org/cmake/help/latest/policy/CMP0091.html
 if(POLICY CMP0091)
-  cmake_policy(SET CMP0091 NEW)
-endif()
+  endif()
 
 project(YAML_CPP VERSION 0.8.0 LANGUAGES CXX)
 

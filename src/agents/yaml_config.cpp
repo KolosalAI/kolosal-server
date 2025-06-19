@@ -9,30 +9,58 @@ namespace kolosal::agents {
 LLMConfig LLMConfig::from_yaml(const YAML::Node& node) {
     LLMConfig config;
     
-    if (node["model_name"]) {
-        config.model_name = node["model_name"].as<std::string>();
+    // Validate required fields
+    if (!node["model_name"]) {
+        throw std::runtime_error("LLM config missing required 'model_name' field");
     }
-    if (node["api_endpoint"]) {
-        config.api_endpoint = node["api_endpoint"].as<std::string>();
+    if (!node["api_endpoint"]) {
+        throw std::runtime_error("LLM config missing required 'api_endpoint' field");
     }
+    
+    config.model_name = node["model_name"].as<std::string>();
+    config.api_endpoint = node["api_endpoint"].as<std::string>();
+    
     if (node["api_key"]) {
         config.api_key = node["api_key"].as<std::string>();
     }
+    
     if (node["temperature"]) {
-        config.temperature = node["temperature"].as<double>();
+        double temp = node["temperature"].as<double>();
+        if (temp < 0.0 || temp > 1.0) {
+            throw std::runtime_error("LLM temperature must be between 0.0 and 1.0");
+        }
+        config.temperature = temp;
     }
+    
     if (node["max_tokens"]) {
-        config.max_tokens = node["max_tokens"].as<int>();
+        int tokens = node["max_tokens"].as<int>();
+        if (tokens <= 0) {
+            throw std::runtime_error("LLM max_tokens must be greater than 0");
+        }
+        config.max_tokens = tokens;
     }
+    
     if (node["timeout_seconds"]) {
-        config.timeout_seconds = node["timeout_seconds"].as<int>();
+        int timeout = node["timeout_seconds"].as<int>();
+        if (timeout <= 0) {
+            throw std::runtime_error("LLM timeout_seconds must be greater than 0");
+        }
+        config.timeout_seconds = timeout;
     }
+    
     if (node["max_retries"]) {
-        config.max_retries = node["max_retries"].as<int>();
+        int retries = node["max_retries"].as<int>();
+        if (retries < 0) {
+            throw std::runtime_error("LLM max_retries cannot be negative");
+        }
+        config.max_retries = retries;
     }
     
     if (node["stop_sequences"] && node["stop_sequences"].IsSequence()) {
         for (const auto& seq : node["stop_sequences"]) {
+            if (!seq.IsScalar()) {
+                throw std::runtime_error("Stop sequence must be a string");
+            }
             config.stop_sequences.push_back(seq.as<std::string>());
         }
     }
@@ -131,35 +159,70 @@ AgentConfig AgentConfig::from_yaml(const YAML::Node& node) {
 }
 
 SystemConfig SystemConfig::from_yaml(const YAML::Node& root) {
+    if (!root.IsMap()) {
+        throw std::runtime_error("Root YAML node must be a map");
+    }
+
     SystemConfig config;
     
     if (root["system"]) {
         const auto& system = root["system"];
+        if (!system.IsMap()) {
+            throw std::runtime_error("System configuration must be a map");
+        }
+        
         if (system["worker_threads"]) {
-            config.worker_threads = system["worker_threads"].as<int>();
+            int threads = system["worker_threads"].as<int>();
+            if (threads <= 0) {
+                throw std::runtime_error("worker_threads must be greater than 0");
+            }
+            config.worker_threads = threads;
         }
+        
         if (system["health_check_interval_seconds"]) {
-            config.health_check_interval_seconds = system["health_check_interval_seconds"].as<int>();
+            int interval = system["health_check_interval_seconds"].as<int>();
+            if (interval <= 0) {
+                throw std::runtime_error("health_check_interval_seconds must be greater than 0");
+            }
+            config.health_check_interval_seconds = interval;
         }
+        
         if (system["log_level"]) {
-            config.log_level = system["log_level"].as<std::string>();
+            std::string level = system["log_level"].as<std::string>();
+            // Validate log level
+            if (level != "debug" && level != "info" && level != "warn" && level != "error") {
+                throw std::runtime_error("Invalid log_level. Must be one of: debug, info, warn, error");
+            }
+            config.log_level = level;
         }
     }
     
-    if (root["agents"] && root["agents"].IsSequence()) {
+    if (root["agents"]) {
+        if (!root["agents"].IsSequence()) {
+            throw std::runtime_error("Agents configuration must be a sequence");
+        }
         for (const auto& agent : root["agents"]) {
             config.agents.push_back(AgentConfig::from_yaml(agent));
         }
     }
     
-    if (root["functions"] && root["functions"].IsSequence()) {
+    if (root["functions"]) {
+        if (!root["functions"].IsSequence()) {
+            throw std::runtime_error("Functions configuration must be a sequence");
+        }
         for (const auto& func : root["functions"]) {
             config.functions.push_back(FunctionConfig::from_yaml(func));
         }
     }
     
-    if (root["global_settings"] && root["global_settings"].IsMap()) {
+    if (root["global_settings"]) {
+        if (!root["global_settings"].IsMap()) {
+            throw std::runtime_error("Global settings must be a map");
+        }
         for (const auto& setting : root["global_settings"]) {
+            if (!setting.first.IsScalar() || !setting.second.IsScalar()) {
+                throw std::runtime_error("Global settings must be scalar key-value pairs");
+            }
             config.global_settings[setting.first.as<std::string>()] = setting.second.as<std::string>();
         }
     }

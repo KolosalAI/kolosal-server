@@ -1,12 +1,22 @@
 // File: src/agents/multi_agent_system.cpp
 #include "kolosal/agents/multi_agent_system.hpp"
 #include "kolosal/agents/builtin_functions.hpp"
-#include "kolosal/agents/logger.hpp"
+#include "kolosal/agents/server_logger_adapter.hpp"
+#include "kolosal/agents/agent_core.hpp"
+#include "kolosal/agents/message_router.hpp"
+#include "kolosal/agents/yaml_config.hpp"
+#include <mutex>
+#include <chrono>
+#include <thread>
+#include <sstream>
+#include <algorithm>
 
 namespace kolosal::agents {
 
 // ConfigurableAgentFactory implementation
-ConfigurableAgentFactory::ConfigurableAgentFactory(std::shared_ptr<Logger> log) : logger(log) {}
+ConfigurableAgentFactory::ConfigurableAgentFactory(std::shared_ptr<Logger> log) 
+    : logger(log) {
+}
 
 void ConfigurableAgentFactory::register_function_config(const FunctionConfig& config) {
     function_configs[config.name] = config;
@@ -67,7 +77,8 @@ std::unique_ptr<AgentFunction> ConfigurableAgentFactory::create_builtin_function
 
 // YAMLConfigurableAgentManager implementation
 YAMLConfigurableAgentManager::YAMLConfigurableAgentManager() {
-    logger = std::make_shared<Logger>();
+    // Use the adapter to bridge ServerLogger singleton with agents::Logger interface
+    logger = std::make_shared<ServerLoggerAdapter>();
     message_router = std::make_shared<MessageRouter>(logger);
     agent_factory = std::make_shared<ConfigurableAgentFactory>(logger);
 }
@@ -105,11 +116,14 @@ void YAMLConfigurableAgentManager::start() {
     running.store(true);
     message_router->start();
     
-    // Create and start agents from configuration
-    for (const auto& agent_config : system_config.agents) {
-        std::string agent_id = create_agent_from_config(agent_config);
-        if (!agent_id.empty() && agent_config.auto_start) {
-            start_agent(agent_id);
+    {
+        std::lock_guard<std::mutex> lock(agents_mutex);
+        // Create and start agents from configuration
+        for (const auto& agent_config : system_config.agents) {
+            std::string agent_id = create_agent_from_config(agent_config);
+            if (!agent_id.empty() && agent_config.auto_start) {
+                start_agent(agent_id);
+            }
         }
     }
     
@@ -124,10 +138,17 @@ void YAMLConfigurableAgentManager::stop() {
     logger->info("Stopping YAML-configurable agent manager");
     running.store(false);
 
-    // Stop all agents
-    for (const auto& pair : active_agents) {
-        if (pair.second && pair.second->is_running()) {
-            pair.second->stop();
+    {
+        std::lock_guard<std::mutex> lock(agents_mutex);
+        // Stop all agents
+        for (const auto& pair : active_agents) {
+            try {
+                if (pair.second && pair.second->is_running()) {
+                    pair.second->stop();
+                }
+            } catch (const std::exception& e) {
+                logger->error("Error stopping agent " + pair.first + ": " + e.what());
+            }
         }
     }
 
@@ -136,6 +157,11 @@ void YAMLConfigurableAgentManager::stop() {
 }
 
 std::string YAMLConfigurableAgentManager::create_agent_from_config(const AgentConfig& config) {
+    if (config.name.empty() || config.type.empty()) {
+        logger->error("Invalid agent configuration: name and type are required");
+        return "";
+    }
+
     try {
         auto agent = std::make_shared<AgentCore>(config.name, config.type);
         
@@ -157,23 +183,39 @@ std::string YAMLConfigurableAgentManager::create_agent_from_config(const AgentCo
         // Set up message handling
         agent->set_message_router(message_router);
         
-        // Store the agent
+        // Get agent ID before locking to minimize lock time
         std::string agent_id = agent->get_agent_id();
-        active_agents[agent_id] = agent;
+        
+        // Store the agent thread-safely
+        {
+            std::lock_guard<std::mutex> lock(agents_mutex);
+            active_agents[agent_id] = agent;
+        }
         
         logger->info("Created agent from config: " + config.name + " (ID: " + agent_id.substr(0, 8) + "...)");
         return agent_id;
         
     } catch (const std::exception& e) {
-        logger->error("Failed to create agent from config: " + std::string(e.what()));
+        logger->error("Failed to create agent from config: " + config.name + ": " + std::string(e.what()));
         return "";
     }
 }
 
 bool YAMLConfigurableAgentManager::start_agent(const std::string& agent_id) {
+    if (agent_id.empty()) {
+        logger->error("Invalid agent ID provided");
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(agents_mutex);
     auto it = active_agents.find(agent_id);
     if (it == active_agents.end()) {
         logger->error("Agent not found: " + agent_id);
+        return false;
+    }
+
+    if (!it->second) {
+        logger->error("Agent instance is null: " + agent_id);
         return false;
     }
 
@@ -182,15 +224,31 @@ bool YAMLConfigurableAgentManager::start_agent(const std::string& agent_id) {
         return true;
     }
 
-    it->second->start();
-    logger->info("Agent started: " + agent_id.substr(0, 8) + "...");
-    return true;
+    try {
+        it->second->start();
+        logger->info("Agent started: " + agent_id.substr(0, 8) + "...");
+        return true;
+    } catch (const std::exception& e) {
+        logger->error("Failed to start agent " + agent_id + ": " + e.what());
+        return false;
+    }
 }
 
 bool YAMLConfigurableAgentManager::stop_agent(const std::string& agent_id) {
+    if (agent_id.empty()) {
+        logger->error("Invalid agent ID provided");
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(agents_mutex);
     auto it = active_agents.find(agent_id);
     if (it == active_agents.end()) {
         logger->error("Agent not found: " + agent_id);
+        return false;
+    }
+
+    if (!it->second) {
+        logger->error("Agent instance is null: " + agent_id);
         return false;
     }
 
@@ -199,18 +257,29 @@ bool YAMLConfigurableAgentManager::stop_agent(const std::string& agent_id) {
         return true;
     }
 
-    it->second->stop();
-    logger->info("Agent stopped: " + agent_id.substr(0, 8) + "...");
-    return true;
+    try {
+        it->second->stop();
+        logger->info("Agent stopped: " + agent_id.substr(0, 8) + "...");
+        return true;
+    } catch (const std::exception& e) {
+        logger->error("Failed to stop agent " + agent_id + ": " + e.what());
+        return false;
+    }
 }
 
 bool YAMLConfigurableAgentManager::reload_configuration(const std::string& yaml_file) {
     logger->info("Reloading configuration from: " + yaml_file);
     
+    std::lock_guard<std::mutex> lock(agents_mutex);
+    
     // Stop all current agents
     for (const auto& pair : active_agents) {
-        if (pair.second && pair.second->is_running()) {
-            pair.second->stop();
+        try {
+            if (pair.second && pair.second->is_running()) {
+                pair.second->stop();
+            }
+        } catch (const std::exception& e) {
+            logger->error("Error stopping agent " + pair.first + ": " + e.what());
         }
     }
     active_agents.clear();
@@ -235,6 +304,8 @@ bool YAMLConfigurableAgentManager::reload_configuration(const std::string& yaml_
 
 std::vector<std::string> YAMLConfigurableAgentManager::list_agents() const {
     std::vector<std::string> agent_ids;
+    std::lock_guard<std::mutex> lock(agents_mutex);
+    
     for (const auto& pair : active_agents) {
         agent_ids.push_back(pair.first);
     }
@@ -242,11 +313,19 @@ std::vector<std::string> YAMLConfigurableAgentManager::list_agents() const {
 }
 
 std::shared_ptr<AgentCore> YAMLConfigurableAgentManager::get_agent(const std::string& agent_id) {
+    if (agent_id.empty()) {
+        logger->error("Invalid agent ID provided");
+        return nullptr;
+    }
+
+    std::lock_guard<std::mutex> lock(agents_mutex);
     auto it = active_agents.find(agent_id);
     return (it != active_agents.end()) ? it->second : nullptr;
 }
 
 std::string YAMLConfigurableAgentManager::get_system_status() const {
+    std::lock_guard<std::mutex> lock(agents_mutex);
+    
     std::ostringstream status;
     status << "=== YAML-Configurable Agent Manager Status ===\n";
     status << "Total Agents: " << active_agents.size() << "\n";
@@ -273,10 +352,11 @@ void YAMLConfigurableAgentManager::demonstrate_system() {
     // Show system status
     logger->info(get_system_status());
     
-    // List all agents
+    // List all agents - Note: This already includes mutex locking
     auto agent_ids = list_agents();
     logger->info("Active Agents: " + std::to_string(agent_ids.size()));
     
+    // No need for additional lock since we're using get_agent which has its own locking
     for (const auto& agent_id : agent_ids) {
         auto agent = get_agent(agent_id);
         if (agent) {

@@ -37,8 +37,16 @@ namespace kolosal {    // Forward declarations
         ServerAPI();
         ~ServerAPI();
 
-        class Impl;
+        class KOLOSAL_SERVER_API Impl;
+        // Suppress C4251 warning for pImpl unique_ptr
+#if defined(_MSC_VER)
+#pragma warning(push)
+#pragma warning(disable: 4251)
+#endif
         std::unique_ptr<Impl> pImpl;
+#if defined(_MSC_VER)
+#pragma warning(pop)
+#endif
     };
 
 } // namespace kolosal

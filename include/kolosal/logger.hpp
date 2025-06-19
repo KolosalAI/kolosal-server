@@ -1,13 +1,9 @@
 #pragma once
 
 #include "export.hpp"
-
 #include <string>
-#include <vector>
-#include <fstream>
-#include <mutex>
 #include <memory>
-#include <iostream>
+#include <vector>
 
 enum class LogLevel {
 	SERVER_ERROR,
@@ -59,7 +55,7 @@ public:
 	static void logDebug(const char* format, ...);
 
 	// Get stored logs
-	const std::vector<LogEntry>& getLogs() const;
+	std::vector<LogEntry> getLogs() const;
 
 private:
 	// Private constructor for singleton
@@ -67,18 +63,9 @@ private:
 	~ServerLogger();
 
 	void log(LogLevel level, const std::string& message);
-
 	std::string formatString(const char* format, va_list args);
 
-	// Get string representation of log level
-	std::string levelToString(LogLevel level);
-
-	// Get current timestamp
-	std::string getCurrentTimestamp();
-
-	LogLevel minLevel;
-	std::vector<LogEntry> logs;
-	std::ofstream logFile;
-	std::string logFilePath;
-	std::mutex logMutex;
+	// PIMPL idiom - hide all STL containers from DLL interface
+	class Impl;
+	Impl* pImpl;
 };

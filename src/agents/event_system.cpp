@@ -1,6 +1,6 @@
 // File: src/agents/event_system.cpp
 #include "kolosal/agents/event_system.hpp"
-#include "kolosal/agents/logger.hpp"
+#include "kolosal/agents/server_logger_adapter.hpp"
 #include <algorithm>
 
 namespace kolosal::agents {

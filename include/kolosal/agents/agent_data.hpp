@@ -9,6 +9,8 @@
 
 namespace kolosal::agents {
 
+class AgentData;
+
 /**
  * @brief Flexible data container for agent parameters and results
  */
@@ -24,11 +26,12 @@ struct KOLOSAL_SERVER_API AgentDataValue {
     std::unique_ptr<std::map<std::string, AgentDataValue>> obj_val;
 
     AgentDataValue() = default;
-    AgentDataValue(const std::string& val) : type(STRING), s_val(val) {}
-    AgentDataValue(int val) : type(INT), i_val(val) {}
-    AgentDataValue(double val) : type(DOUBLE), d_val(val) {}
-    AgentDataValue(bool val) : type(BOOL), b_val(val) {}
-    AgentDataValue(const std::vector<std::string>& val) : type(ARRAY_STRING), arr_s_val(val) {}
+    AgentDataValue(const std::string& val);
+    AgentDataValue(int val);
+    AgentDataValue(double val);
+    AgentDataValue(bool val);
+    AgentDataValue(const std::vector<std::string>& val);
+    AgentDataValue(const AgentData& val);
 
     // Copy constructor and assignment operator
     AgentDataValue(const AgentDataValue& other);
@@ -59,6 +62,7 @@ public:
     bool has_key(const std::string& key) const;
     void clear();
     std::vector<std::string> get_all_keys() const;
+    const std::map<std::string, AgentDataValue>& get_data() const { return data; }
 };
 
 /**

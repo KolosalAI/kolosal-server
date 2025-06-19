@@ -25,6 +25,10 @@ AgentDataValue::AgentDataValue(const AgentDataValue& other) : type(other.type) {
     }
 }
 
+AgentDataValue::AgentDataValue(const AgentData& val) : type(OBJECT_DATA) {
+    obj_val = std::make_unique<std::map<std::string, AgentDataValue>>(val.get_data());
+}
+
 AgentDataValue& AgentDataValue::operator=(const AgentDataValue& other) {
     if (this != &other) {
         type = other.type;
@@ -48,6 +52,13 @@ AgentDataValue& AgentDataValue::operator=(const AgentDataValue& other) {
     }
     return *this;
 }
+
+// AgentDataValue missing constructors
+AgentDataValue::AgentDataValue(const std::string& val) : type(STRING), s_val(val) {}
+AgentDataValue::AgentDataValue(int val) : type(INT), i_val(val) {}
+AgentDataValue::AgentDataValue(double val) : type(DOUBLE), d_val(val) {}
+AgentDataValue::AgentDataValue(bool val) : type(BOOL), b_val(val) {}
+AgentDataValue::AgentDataValue(const std::vector<std::string>& val) : type(ARRAY_STRING), arr_s_val(val) {}
 
 // AgentData implementation
 std::string AgentData::get_string(const std::string& key, const std::string& default_val) const {
