@@ -42,11 +42,13 @@ set(SOURCES
     src/routes/health_status_route.cpp    
     src/routes/auth_config_route.cpp    
     src/routes/system_metrics_route.cpp    
-    src/routes/completion_metrics_route.cpp    src/routes/combined_metrics_route.cpp
+    src/routes/completion_metrics_route.cpp    
+    src/routes/combined_metrics_route.cpp
     src/routes/download_progress_route.cpp
     src/routes/downloads_status_route.cpp
     src/routes/cancel_download_route.cpp
     src/routes/cancel_all_downloads_route.cpp
+    src/routes/parse_pdf_route.cpp
     src/metrics_converter.cpp
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
