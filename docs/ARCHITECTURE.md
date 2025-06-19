@@ -1,6 +1,6 @@
 # Architecture Overview
 
-This document provides a detailed overview of the Kolosal Server architecture, including component relationships, data flow, and design patterns.
+This document provides a detailed overview of the Kolosal Server architecture, including component relationships, data flow, design patterns, and the new monitoring and configuration systems.
 
 ## High-Level Architecture
 
@@ -15,6 +15,15 @@ graph TB
         C[HTTP Server]
         D[Route Handlers]
         E[JSON Processing]
+        M[Completion Monitor]
+        S[System Monitor]
+        CF[Configuration Manager]
+    end
+    
+    subgraph "Model Management"
+        N[Node Manager]
+        R[Model Registry]
+        L[Lazy Loading]
     end
     
     subgraph "Inference Layer"
@@ -22,20 +31,47 @@ graph TB
         G["Model Files<br/>(.gguf)"]
     end
     
+    subgraph "Monitoring & Config"
+        H[Health Checks]
+        MT[Metrics API]
+        CM[Completion Metrics]
+        SM[System Metrics]
+    end
+    
     A <--> C
     B --> C
     C <--> D
     D <--> E
-    D <--> F
+    D <--> M
+    D <--> S
+    C <--> CF
+    D <--> N
+    N <--> R
+    N <--> L
+    N <--> F
     F <--> G
+    D <--> H
+    D <--> MT
+    M --> CM
+    S --> SM
     
     style A fill:#e1f5fe
     style B fill:#e1f5fe
     style C fill:#f3e5f5
     style D fill:#f3e5f5
     style E fill:#f3e5f5
+    style M fill:#fff3e0
+    style S fill:#fff3e0
+    style CF fill:#fff3e0
+    style N fill:#e8f5e8
+    style R fill:#e8f5e8
+    style L fill:#e8f5e8
     style F fill:#e8f5e8
     style G fill:#e8f5e8
+    style H fill:#f1f8e9
+    style MT fill:#f1f8e9
+    style CM fill:#f1f8e9
+    style SM fill:#f1f8e9
 ```
 
 ## Component Architecture
@@ -209,6 +245,114 @@ class InferenceEngine {
 };
 ```
 
+### Layer 6: Completion Monitoring (`CompletionMonitor`)
+
+**Purpose**: Real-time tracking and metrics for completion requests
+
+**Key Components**:
+- Request lifecycle tracking
+- Performance metrics calculation (TPS, TTFT, RPS)
+- Per-engine statistics
+- Thread-safe metrics aggregation
+
+**File Locations**:
+- `src/completion_monitor.cpp`
+- `include/kolosal/completion_monitor.hpp`
+
+**Architecture**:
+```cpp
+class CompletionMonitor {
+    // Singleton pattern
+    static CompletionMonitor& getInstance();
+    
+    // Request tracking
+    void startRequest(const std::string& engine_id,
+                     const std::string& model_name,
+                     int input_tokens);
+    void endRequest(const std::string& engine_id,
+                   bool success,
+                   int output_tokens,
+                   double ttft_ms);
+    
+    // Metrics retrieval
+    CompletionMetrics getMetrics() const;
+    CompletionMetrics getEngineMetrics(const std::string& engine_id) const;
+    
+private:
+    std::unordered_map<std::string, EngineMetrics> engine_metrics;
+    std::mutex metrics_mutex;
+    std::chrono::steady_clock::time_point start_time;
+};
+```
+
+### Layer 7: System Monitoring (`SystemMonitor`)
+
+**Purpose**: System resource monitoring and health checks
+
+**Key Components**:
+- CPU and memory usage tracking
+- GPU utilization monitoring (NVML)
+- Cross-platform resource detection
+- Real-time metrics collection
+
+**File Locations**:
+- `src/system_monitor.cpp`
+- `src/enhanced_gpu_monitor.cpp`
+- Multiple platform-specific implementations
+
+**Architecture**:
+```cpp
+class SystemMonitor {
+    // Resource monitoring
+    SystemMetrics getCurrentMetrics();
+    bool isGpuMonitoringAvailable();
+    
+    // Component metrics
+    double getCpuUsage();
+    MemoryInfo getMemoryInfo();
+    std::vector<GpuInfo> getGpuInfo();
+    
+    // Health status
+    HealthStatus getHealthStatus();
+};
+```
+
+### Layer 8: Configuration Management (`ServerConfig`)
+
+**Purpose**: Configuration loading and validation
+
+**Key Components**:
+- JSON/YAML configuration parsing
+- Environment variable overrides
+- Configuration validation
+- Default value management
+
+**File Locations**:
+- `src/server_config.cpp`
+- `config.example.json`
+- `config.example.yaml`
+
+**Architecture**:
+```cpp
+class ServerConfig {
+    // Configuration loading
+    bool loadFromFile(const std::string& configPath);
+    bool loadFromEnvironment();
+    void setDefaults();
+    
+    // Configuration sections
+    ServerSettings getServerSettings() const;
+    LoggingSettings getLoggingSettings() const;
+    AuthSettings getAuthSettings() const;
+    std::vector<ModelConfig> getModelConfigs() const;
+    FeatureSettings getFeatureSettings() const;
+    
+    // Validation
+    bool validate() const;
+    std::vector<std::string> getValidationErrors() const;
+};
+```
+
 ## Data Flow Architecture
 
 ### Request Processing Flow
@@ -219,11 +363,16 @@ flowchart TD
     B --> C["Parse HTTP Request<br/>Extract method, path, headers, body"]
     C --> D["Route Matching Loop<br/>Find appropriate route handler"]
     D --> E["IRoute::handle<br/>Execute business logic"]
-    E --> F["Model Validation<br/>Parse and validate JSON"]
-    F --> G["NodeManager::getEngine<br/>Get inference engine"]
-    G --> H["InferenceEngine::submit*Job<br/>Submit inference job"]
+    E --> CM1["CompletionMonitor::startRequest<br/>Begin metrics tracking"]
+    CM1 --> F["Model Validation<br/>Parse and validate JSON"]
+    F --> G["NodeManager::getEngine<br/>Get or lazy-load inference engine"]
+    G --> LL{"Engine Loaded?"}
+    LL -->|No| LL1["Lazy Loading<br/>Download and load model"]
+    LL1 --> H["InferenceEngine::submit*Job<br/>Submit inference job"]
+    LL -->|Yes| H
     H --> I["Job Processing<br/>llama.cpp - Generate text/chat response"]
-    I --> J["Response Generation<br/>Format JSON response"]
+    I --> CM2["CompletionMonitor::endRequest<br/>Record metrics and timing"]
+    CM2 --> J["Response Generation<br/>Format JSON response"]
     J --> K["HTTP Response Transmission<br/>Send back to client"]
     
     style A fill:#e3f2fd
@@ -231,9 +380,94 @@ flowchart TD
     style C fill:#f3e5f5
     style D fill:#f3e5f5
     style E fill:#fff3e0
+    style CM1 fill:#fff8e1
     style F fill:#fff3e0
     style G fill:#e8f5e8
+    style LL fill:#ffebee
+    style LL1 fill:#e1f5fe
     style H fill:#e8f5e8
+    style I fill:#e8f5e8
+    style CM2 fill:#fff8e1
+    style J fill:#fff3e0
+    style K fill:#e3f2fd
+```
+
+### Monitoring Data Flow
+
+```mermaid
+flowchart TD
+    A[Completion Request] --> B["CompletionMonitor::startRequest"]
+    B --> C[Store Request Metadata]
+    C --> D[Inference Processing]
+    D --> E["CompletionMonitor::endRequest"]
+    E --> F[Calculate Metrics]
+    F --> G[Update Engine Statistics]
+    G --> H[Update Global Statistics]
+    
+    I[Metrics API Request] --> J["CompletionMonitor::getMetrics"]
+    J --> K[Aggregate Statistics]
+    K --> L[Return JSON Response]
+    
+    M[System Metrics Request] --> N["SystemMonitor::getCurrentMetrics"]
+    N --> O[Collect CPU/RAM Data]
+    O --> P[Collect GPU Data]
+    P --> Q[Format Response]
+    Q --> R[Return JSON Response]
+    
+    style A fill:#e3f2fd
+    style B fill:#fff8e1
+    style C fill:#fff8e1
+    style D fill:#e8f5e8
+    style E fill:#fff8e1
+    style F fill:#fff8e1
+    style G fill:#fff8e1
+    style H fill:#fff8e1
+    style I fill:#f3e5f5
+    style J fill:#fff8e1
+    style K fill:#fff8e1
+    style L fill:#e3f2fd
+    style M fill:#f3e5f5
+    style N fill:#e8f5e8
+    style O fill:#e8f5e8
+    style P fill:#e8f5e8
+    style Q fill:#fff3e0
+    style R fill:#e3f2fd
+```
+
+### Lazy Loading Flow
+
+```mermaid
+flowchart TD
+    A[Model Request] --> B["NodeManager::getEngine"]
+    B --> C{"Engine Registered?"}
+    C -->|No| D[Return Null Engine]
+    C -->|Yes| E{"Engine Loaded?"}
+    E -->|Yes| F[Return Loaded Engine]
+    E -->|No| G[Start Lazy Loading]
+    G --> H{"Model Path URL?"}
+    H -->|Yes| I["Download Model<br/>to ./models/"]
+    H -->|No| J[Use Local Path]
+    I --> K[Load Model into Memory]
+    J --> K
+    K --> L[Initialize Engine]
+    L --> M[Cache in NodeManager]
+    M --> N[Return Loaded Engine]
+    
+    style A fill:#e3f2fd
+    style B fill:#e8f5e8
+    style C fill:#ffebee
+    style D fill:#ffcdd2
+    style E fill:#ffebee
+    style F fill:#c8e6c9
+    style G fill:#e1f5fe
+    style H fill:#ffebee
+    style I fill:#e1f5fe
+    style J fill:#e8f5e8
+    style K fill:#e8f5e8
+    style L fill:#e8f5e8
+    style M fill:#e8f5e8
+    style N fill:#c8e6c9
+```
     style I fill:#e8f5e8
     style J fill:#fff3e0
     style K fill:#e3f2fd
@@ -270,23 +504,33 @@ flowchart TD
    - HTTP server listener
    - Request routing
    - Route handler execution
+   - Configuration loading
 
 2. **Inference Threads**
    - One per loaded model
    - Job queue processing
    - Model inference execution
+   - Lazy loading operations
 
 3. **Background Threads**
    - Model loading/unloading
    - Idle engine cleanup
    - Resource monitoring
 
+4. **Monitoring Threads**
+   - Completion metrics aggregation
+   - System resource monitoring
+   - GPU utilization tracking
+   - Health status updates
+
 ### Thread Safety
 
 **Shared Resources**:
 - `NodeManager::engines` (protected by mutex)
+- `CompletionMonitor::engine_metrics` (protected by mutex)
 - Inference job queues (thread-safe implementation)
 - Logging system (thread-safe)
+- Configuration data (read-only after loading)
 
 **Thread-Safe Operations**:
 ```cpp
@@ -294,8 +538,16 @@ flowchart TD
 std::lock_guard<std::mutex> lock(enginesMutex);
 auto it = engines.find(engineId);
 
+// Completion monitoring (singleton with mutex)
+CompletionMonitor& monitor = CompletionMonitor::getInstance();
+monitor.startRequest(engine_id, model_name, input_tokens);
+
 // Job submission (internally synchronized)
 int jobId = engine->submitChatCompletionsJob(params);
+
+// Metrics access (thread-safe)
+std::lock_guard<std::mutex> metrics_lock(metrics_mutex);
+auto metrics = engine_metrics[engine_id];
 
 // Logging (thread-safe implementation)
 ServerLogger::logInfo("Thread %u processing request", 

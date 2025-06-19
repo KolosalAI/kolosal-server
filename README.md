@@ -8,7 +8,9 @@ A high-performance inference server for large language models with OpenAI-compat
 - 🔗 **OpenAI Compatible**: Drop-in replacement for OpenAI API endpoints
 - 📡 **Streaming Support**: Real-time streaming responses for chat completions
 - 🎛️ **Multi-Model Management**: Load and manage multiple models simultaneously
-- 🔧 **Configurable**: Flexible model loading parameters and inference settings
+- � **Real-time Metrics**: Monitor completion performance with TPS, TTFT, and success rates
+- ⚙️ **Lazy Loading**: Defer model loading until first request with `load_immediately=false`
+- �🔧 **Configurable**: Flexible model loading parameters and inference settings
 
 ## Quick Start
 
@@ -37,6 +39,53 @@ cmake --build . --config Debug
 
 The server will start on `http://localhost:8080` by default.
 
+## Configuration
+
+Kolosal Server supports configuration through JSON and YAML files for advanced setup including authentication, logging, model preloading, and server parameters.
+
+### Quick Configuration Examples
+
+#### Minimal Configuration (`config.yaml`)
+
+```yaml
+server:
+  port: "8080"
+
+models:
+  - id: "my-model"
+    path: "./models/model.gguf"
+    load_at_startup: true
+```
+
+#### Production Configuration
+
+```yaml
+server:
+  port: "8080"
+  max_connections: 500
+  worker_threads: 8
+
+auth:
+  enabled: true
+  require_api_key: true
+  api_keys:
+    - "sk-your-api-key-here"
+
+models:
+  - id: "gpt-3.5-turbo"
+    path: "./models/gpt-3.5-turbo.gguf"
+    load_at_startup: true
+    main_gpu_id: 0
+    load_params:
+      n_ctx: 4096
+      n_gpu_layers: 50
+
+features:
+  metrics: true  # Enable /metrics and /completion-metrics
+```
+
+For complete configuration documentation including all parameters, authentication setup, CORS configuration, and more examples, see the **[Configuration Guide](docs/CONFIGURATION.md)**.
+
 ## API Usage
 
 ### 1. Add a Model Engine
@@ -49,8 +98,26 @@ curl -X POST http://localhost:8080/engines \
   -d '{
     "engine_id": "my-model",
     "model_path": "path/to/your/model.gguf",
+    "load_immediately": true,
     "n_ctx": 2048,
     "n_gpu_layers": 0,
+    "main_gpu_id": 0
+  }'
+```
+
+#### Lazy Loading
+
+For faster startup times, you can defer model loading until first use:
+
+```bash
+curl -X POST http://localhost:8080/engines \
+  -H "Content-Type: application/json" \
+  -d '{
+    "engine_id": "my-model",
+    "model_path": "https://huggingface.co/model-repo/model.gguf",
+    "load_immediately": false,
+    "n_ctx": 4096,
+    "n_gpu_layers": 30,
     "main_gpu_id": 0
   }'
 ```
@@ -298,6 +365,14 @@ curl -X POST http://localhost:8080/v1/completions \
 curl -X GET http://localhost:8080/v1/engines
 ```
 
+### 4. Engine Management
+
+#### List Available Engines
+
+```bash
+curl -X GET http://localhost:8080/v1/engines
+```
+
 #### Get Engine Status
 
 ```bash
@@ -310,7 +385,89 @@ curl -X GET http://localhost:8080/engines/my-model/status
 curl -X DELETE http://localhost:8080/engines/my-model
 ```
 
-### 4. Health Check
+### 5. Completion Metrics and Monitoring
+
+The server provides real-time completion metrics for monitoring performance and usage:
+
+#### Get Completion Metrics
+
+```bash
+curl -X GET http://localhost:8080/completion-metrics
+```
+
+**Response:**
+```json
+{
+  "completion_metrics": {
+    "summary": {
+      "total_requests": 15,
+      "completed_requests": 14,
+      "failed_requests": 1,
+      "success_rate_percent": 93.33,
+      "total_input_tokens": 120,
+      "total_output_tokens": 350,
+      "avg_turnaround_time_ms": 1250.5,
+      "avg_tps": 12.8,
+      "avg_output_tps": 8.4,
+      "avg_ttft_ms": 245.2,
+      "avg_rps": 0.85
+    },
+    "per_engine": [
+      {
+        "model_name": "my-model",
+        "engine_id": "default",
+        "total_requests": 15,
+        "completed_requests": 14,
+        "failed_requests": 1,
+        "total_input_tokens": 120,
+        "total_output_tokens": 350,
+        "tps": 12.8,
+        "output_tps": 8.4,
+        "avg_ttft": 245.2,
+        "rps": 0.85,
+        "last_updated": "2025-06-16T17:04:12.123Z"
+      }
+    ],
+    "timestamp": "2025-06-16T17:04:12.123Z"
+  }
+}
+```
+
+**Alternative endpoints:**
+```bash
+# OpenAI-style endpoint
+curl -X GET http://localhost:8080/v1/completion-metrics
+
+# Alternative path
+curl -X GET http://localhost:8080/completion/metrics
+```
+
+#### Metrics Explained
+
+| Metric | Description |
+|--------|-------------|
+| `total_requests` | Total number of completion requests received |
+| `completed_requests` | Number of successfully completed requests |
+| `failed_requests` | Number of requests that failed |
+| `success_rate_percent` | Success rate as a percentage |
+| `total_input_tokens` | Total input tokens processed |
+| `total_output_tokens` | Total output tokens generated |
+| `avg_turnaround_time_ms` | Average time from request to completion (ms) |
+| `avg_tps` | Average tokens per second (input + output) |
+| `avg_output_tps` | Average output tokens per second |
+| `avg_ttft_ms` | Average time to first token (ms) |
+| `avg_rps` | Average requests per second |
+
+#### PowerShell Example
+
+```powershell
+# Get completion metrics
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/completion-metrics" -Method GET
+Write-Output "Success Rate: $($metrics.completion_metrics.summary.success_rate_percent)%"
+Write-Output "Average TPS: $($metrics.completion_metrics.summary.avg_tps)"
+```
+
+### 6. Health Check
 
 ```bash
 curl -X GET http://localhost:8080/v1/health
@@ -358,7 +515,8 @@ curl -X GET http://localhost:8080/v1/health
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
 | `engine_id` | string | required | Unique identifier for the engine |
-| `model_path` | string | required | Path to the GGUF model file |
+| `model_path` | string | required | Path to the GGUF model file or URL |
+| `load_immediately` | boolean | true | Whether to load the model immediately or defer until first use |
 | `n_ctx` | integer | 4096 | Context window size |
 | `n_gpu_layers` | integer | 100 | Number of layers to offload to GPU |
 | `main_gpu_id` | integer | 0 | Primary GPU device ID |
@@ -392,6 +550,7 @@ For Windows users, here are PowerShell equivalents:
 $body = @{
     engine_id = "my-model"
     model_path = "C:\path\to\model.gguf"
+    load_immediately = $true
     n_ctx = 2048
     n_gpu_layers = 0
 } | ConvertTo-Json
@@ -436,6 +595,7 @@ For developers looking to contribute to or extend Kolosal Server, comprehensive 
 
 ### 🚀 Getting Started
 - **[Developer Guide](docs/DEVELOPER_GUIDE.md)** - Complete setup, architecture, and development workflows
+- **[Configuration Guide](docs/CONFIGURATION.md)** - Complete server configuration in JSON and YAML formats
 - **[Architecture Overview](docs/ARCHITECTURE.md)** - Detailed system design and component relationships
 
 ### 🔧 Implementation Guides

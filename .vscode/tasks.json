@@ -2,20 +2,12 @@
 	"version": "2.0.0",
 	"tasks": [
 		{
-			"label": "Build Retrieval Test",
+			"label": "Run Kolosal Server",
 			"type": "shell",
-			"command": "powershell.exe",
-			"args": [
-				"-ExecutionPolicy",
-				"Bypass",
-				"-File",
-				".\\build_retrieval_test.ps1"
-			],
+			"command": "${workspaceFolder}/build/Debug/kolosal-server.exe",
 			"group": "build",
-			"isBackground": false,
-			"problemMatcher": [
-				"$msCompile"
-			]
+			"isBackground": true,
+			"problemMatcher": []
 		}
 	]
 }

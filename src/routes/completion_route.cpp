@@ -8,6 +8,7 @@
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/node_manager.h"
+#include "kolosal/completion_monitor.hpp"
 #include "inference_interface.h"
 #include <json.hpp>
 #include <iostream>
@@ -104,13 +105,21 @@ namespace kolosal
         }
     }
 
+    CompletionsRoute::CompletionsRoute() : monitor_(&CompletionMonitor::getInstance())
+    {
+        ServerLogger::logInfo("CompletionsRoute initialized with completion monitoring");
+    }
+
+    CompletionsRoute::~CompletionsRoute() = default;
+
     bool CompletionsRoute::match(const std::string &method, const std::string &path)
     {
         return (method == "POST" && (path == "/v1/completions" || path == "/completions"));
     }
-    
     void CompletionsRoute::handle(SocketType sock, const std::string &body)
     {
+        std::string requestId; // Declare here so it's accessible in catch blocks
+
         try
         {
             // Check for empty body
@@ -146,6 +155,10 @@ namespace kolosal
             // Estimate prompt tokens for usage tracking
             int estimatedPromptTokens = estimatePromptTokens(inferenceParams.prompt);
 
+            // Start completion monitoring
+            requestId = monitor_->startRequest(request.model, "default");
+            monitor_->recordInputTokens(requestId, estimatedPromptTokens);
+
             if (request.stream)
             {
                 // Handle streaming response
@@ -161,12 +174,11 @@ namespace kolosal
                 }
 
                 // Create a persistent ID for this completion
-                std::string completionId = "cmpl-" + std::to_string(std::time(nullptr)) + "-" + std::to_string(jobId);
-
-                // Start the streaming response with proper SSE headers
+                std::string completionId = "cmpl-" + std::to_string(std::time(nullptr)) + "-" + std::to_string(jobId); // Start the streaming response with proper SSE headers
                 begin_streaming_response(sock, 200, {{"Content-Type", "text/event-stream"}, {"Cache-Control", "no-cache"}});
 
                 std::string previousText = "";
+                bool firstTokenRecorded = false;
 
                 // Poll for results until job is finished
                 while (!engine->isJobFinished(jobId))
@@ -194,12 +206,24 @@ namespace kolosal
                     }
 
                     // Get current result
-                    CompletionResult result = engine->getJobResult(jobId);
-
-                    // Check if we have new content to stream
+                    CompletionResult result = engine->getJobResult(jobId); // Check if we have new content to stream
                     if (result.text.length() > previousText.length())
                     {
+                        // Record first token if this is the first output
+                        if (!firstTokenRecorded && result.text.length() > 0)
+                        {
+                            monitor_->recordFirstToken(requestId);
+                            firstTokenRecorded = true;
+                        }
+
                         std::string newContent = result.text.substr(previousText.length());
+
+                        // Record output tokens (approximate by character count)
+                        int newTokens = static_cast<int>(newContent.length() / 4); // Rough approximation
+                        for (int i = 0; i < newTokens; ++i)
+                        {
+                            monitor_->recordOutputToken(requestId);
+                        }
 
                         CompletionChunk chunk;
                         chunk.id = completionId;
@@ -239,13 +263,21 @@ namespace kolosal
 
                     std::string sseData = "data: " + finalChunk.to_json().dump() + "\n\n";
                     send_stream_chunk(sock, StreamChunk(sseData, false));
-                }
-
-                // Send the final [DONE] marker required by OpenAI client
+                } // Send the final [DONE] marker required by OpenAI client
                 send_stream_chunk(sock, StreamChunk("data: [DONE]\n\n", false));
 
                 // Then terminate the stream
                 send_stream_chunk(sock, StreamChunk("", true));
+
+                // Complete the monitoring for streaming request
+                if (engine->hasJobError(jobId))
+                {
+                    monitor_->failRequest(requestId);
+                }
+                else
+                {
+                    monitor_->completeRequest(requestId);
+                }
 
                 ServerLogger::logInfo("[Thread %u] Completed streaming response for job %d",
                                       std::this_thread::get_id(), jobId);
@@ -262,20 +294,32 @@ namespace kolosal
                 if (jobId < 0)
                 {
                     throw std::runtime_error("Failed to submit completion job to inference engine");
-                }
-
-                // Wait for job completion
+                } // Wait for job completion
                 engine->waitForJob(jobId);
 
                 // Check for errors
                 if (engine->hasJobError(jobId))
                 {
+                    monitor_->failRequest(requestId);
                     std::string error = engine->getJobError(jobId);
                     throw std::runtime_error("Inference error: " + error);
                 }
 
                 // Get the final result
                 CompletionResult result = engine->getJobResult(jobId);
+
+                // Record first token and output tokens for non-streaming
+                if (result.text.length() > 0)
+                {
+                    monitor_->recordFirstToken(requestId);
+
+                    // Record output tokens (approximate by result tokens size)
+                    int outputTokens = static_cast<int>(result.tokens.size());
+                    for (int i = 0; i < outputTokens; ++i)
+                    {
+                        monitor_->recordOutputToken(requestId);
+                    }
+                }
 
                 // Build response
                 CompletionResponse response;
@@ -291,6 +335,9 @@ namespace kolosal
                 // Update usage statistics
                 updateUsageStats(response, result, estimatedPromptTokens);
 
+                // Complete the monitoring
+                monitor_->completeRequest(requestId);
+
                 // Send the response
                 send_response(sock, 200, response.to_json().dump());
 
@@ -300,6 +347,12 @@ namespace kolosal
         }
         catch (const json::exception &ex)
         {
+            // Mark request as failed if monitoring was started
+            if (!requestId.empty())
+            {
+                monitor_->failRequest(requestId);
+            }
+
             // Specifically handle JSON parsing errors
             ServerLogger::logError("[Thread %u] JSON parsing error: %s",
                                    std::this_thread::get_id(), ex.what());
@@ -310,6 +363,12 @@ namespace kolosal
         }
         catch (const std::exception &ex)
         {
+            // Mark request as failed if monitoring was started
+            if (!requestId.empty())
+            {
+                monitor_->failRequest(requestId);
+            }
+
             ServerLogger::logError("[Thread %u] Error handling completion: %s",
                                    std::this_thread::get_id(), ex.what());
 

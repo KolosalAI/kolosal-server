@@ -50,14 +50,76 @@ namespace kolosal {
     );
 
     /**
+     * Download a file from a URL to a local path with cancellation support
+     * @param url The URL to download from
+     * @param local_path The local path to save the file to
+     * @param progress_callback Optional callback for progress updates
+     * @param cancelled Pointer to cancellation flag
+     * @return DownloadResult containing success status and details
+     */
+    KOLOSAL_SERVER_API DownloadResult download_file_with_cancellation(
+        const std::string& url,
+        const std::string& local_path,
+        DownloadProgressCallback progress_callback,
+        volatile bool* cancelled
+    );
+
+    /**
      * Generate a temporary download path for a URL
      * @param url The URL to generate a path for
-     * @param base_dir Base directory for downloads (default: "./downloads")
+     * @param base_dir Base directory for downloads (default: "./models")
      * @return Generated local path for the download
      */
     KOLOSAL_SERVER_API std::string generate_download_path(
         const std::string& url,
-        const std::string& base_dir = "./downloads"
+        const std::string& base_dir = "./models"
+    );
+
+    /**
+     * Get file information from a URL without downloading (HEAD request)
+     * @param url The URL to check
+     * @return DownloadResult with file size and accessibility information
+     */
+    KOLOSAL_SERVER_API DownloadResult get_url_file_info(const std::string& url);
+
+    /**
+     * Check if a partial download exists and can be resumed
+     * @param url The URL to check
+     * @param local_path The local path where the file should be downloaded
+     * @return true if the file can be resumed, false otherwise
+     */
+    KOLOSAL_SERVER_API bool can_resume_download(const std::string& url, const std::string& local_path);
+
+    /**
+     * Download a file from a URL to a local path with resume support
+     * @param url The URL to download from
+     * @param local_path The local path to save the file to
+     * @param progress_callback Optional callback for progress updates
+     * @param resume Whether to attempt to resume if partial file exists
+     * @return DownloadResult containing success status and details
+     */
+    KOLOSAL_SERVER_API DownloadResult download_file_with_resume(
+        const std::string& url,
+        const std::string& local_path,
+        DownloadProgressCallback progress_callback = nullptr,
+        bool resume = true
+    );
+
+    /**
+     * Download a file from a URL to a local path with cancellation and resume support
+     * @param url The URL to download from
+     * @param local_path The local path to save the file to
+     * @param progress_callback Optional callback for progress updates
+     * @param cancelled Pointer to cancellation flag
+     * @param resume Whether to attempt to resume if partial file exists
+     * @return DownloadResult containing success status and details
+     */
+    KOLOSAL_SERVER_API DownloadResult download_file_with_cancellation_and_resume(
+        const std::string& url,
+        const std::string& local_path,
+        DownloadProgressCallback progress_callback,
+        volatile bool* cancelled,
+        bool resume = true
     );
 
 } // namespace kolosal

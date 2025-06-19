@@ -1,6 +1,7 @@
 #ifndef KOLOSAL_NODE_MANAGER_H
 #define KOLOSAL_NODE_MANAGER_H
 
+#include "export.hpp"
 #include "inference.h" // Assuming InferenceEngine is defined here
 #include <vector>
 #include <memory>
@@ -21,7 +22,7 @@ namespace kolosal {
  * to multiple inference engines. This allows for managing different models
  * or configurations simultaneously.
  */
-class NodeManager {
+class KOLOSAL_SERVER_API NodeManager {
 public:
     NodeManager(std::chrono::seconds idleTimeout = std::chrono::seconds(300)); // Added idleTimeout parameter
     ~NodeManager();
@@ -41,6 +42,18 @@ public:
      * @return True if the engine was loaded successfully, false otherwise.
      */
     bool addEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
+
+    /**
+     * @brief Registers a model for lazy loading without immediately loading it.
+     * The model will be validated but not loaded until first access.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the model was validated and registered successfully, false otherwise.
+     */
+    bool registerEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
 
     /**
      * @brief Retrieves a pointer to an inference engine by its ID.
@@ -66,6 +79,14 @@ public:
      * @return A vector of strings containing the engine IDs.
      */
     std::vector<std::string> listEngineIds() const;
+
+    /**
+     * @brief Validates if a model file exists without loading it.
+     * 
+     * @param modelPath Path to the model file (local or URL).
+     * @return True if the model file exists and is accessible, false otherwise.
+     */
+    bool validateModelPath(const std::string& modelPath);
 
 private:
     struct EngineRecord {
@@ -93,6 +114,14 @@ private:
      * Periodically checks for idle engines and unloads them.
      */
     void autoscalingLoop();
+
+    /**
+     * @brief Validates if a model file exists (either local path or URL).
+     * 
+     * @param modelPath Path to the model file (local or URL).
+     * @return True if the model file exists and is accessible, false otherwise.
+     */
+    bool validateModelFile(const std::string& modelPath);
 };
 
 } // namespace kolosal

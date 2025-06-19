@@ -366,138 +366,336 @@ server {
 
 ## Monitoring
 
-### Monitoring Flow
+Kolosal Server includes comprehensive monitoring capabilities for production environments.
 
-The monitoring system collects metrics from multiple sources:
+### Built-in Monitoring System
 
-```mermaid
-flowchart LR
-    subgraph "Application"
-        A[Kolosal Server]
-        B[Request Metrics]
-        C[Inference Metrics]
-        D[Error Tracking]
-    end
-    
-    subgraph "System"
-        E[CPU Metrics]
-        F[Memory Usage]
-        G[GPU Utilization]
-        H[Network I/O]
-    end
-    
-    subgraph "Storage"
-        I[Log Files]
-        J[Performance Logs]
-        K[Error Logs]
-    end
-    
-    subgraph "Monitoring Tools"
-        L[Metrics Collector]
-        M[Health Dashboard]
-        N[Alert System]
-        O[Log Aggregator]
-    end
-    
-    A --> B
-    A --> C
-    A --> D
-    A --> I
-    A --> J
-    A --> K
-    
-    B --> L
-    C --> L
-    D --> L
-    E --> L
-    F --> L
-    G --> L
-    H --> L
-    
-    L --> M
-    L --> N
-    I --> O
-    J --> O
-    K --> O
-    
-    style A fill:#e8f5e8
-    style L fill:#fff3e0
-    style M fill:#e3f2fd
-    style N fill:#ffebee
-    style O fill:#f3e5f5
+#### System Metrics API
+
+**Endpoint**: `GET /metrics` or `GET /v1/metrics`
+
+Monitor system resources in real-time:
+```bash
+# Check system metrics
+curl http://localhost:8080/metrics
+
+# Monitor with PowerShell
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/metrics"
+Write-Host "CPU: $($metrics.summary.cpu_usage_percent)%"
+Write-Host "RAM: $($metrics.summary.ram_utilization_percent)%"
+Write-Host "GPU: $($metrics.summary.average_gpu_utilization_percent)%"
 ```
 
-### Application Metrics
+#### Completion Metrics API
 
-**File**: `include\kolosal\metrics\metrics_collector.hpp`
+**Endpoint**: `GET /completion-metrics` or `GET /v1/completion-metrics`
 
+Track completion performance:
+```bash
+# Get completion metrics
+curl http://localhost:8080/completion-metrics
+
+# Monitor performance
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/completion-metrics"
+$summary = $metrics.completion_metrics.summary
+Write-Host "Success Rate: $($summary.success_rate_percent)%"
+Write-Host "Avg TPS: $($summary.avg_tps)"
+Write-Host "Avg TTFT: $($summary.avg_ttft_ms)ms"
+```
+
+### Production Configuration
+
+**config.yaml**:
+```yaml
+server:
+  port: "8080"
+  host: "0.0.0.0"
+  max_connections: 1000
+  worker_threads: 16
+  request_timeout: 120
+
+logging:
+  level: "INFO"
+  file: "./logs/kolosal-server.log"
+  access_log: true
+
+features:
+  health_check: true
+  metrics: true  # Enable monitoring endpoints
+
+auth:
+  enabled: true
+  require_api_key: true
+  rate_limit:
+    enabled: true
+    max_requests: 10000
+    window_size: 3600
+
+models:
+  - id: "production-model"
+    path: "./models/production-model.gguf"
+    load_at_startup: true
+    main_gpu_id: 0
+    load_params:
+      n_ctx: 8192
+      n_gpu_layers: 50
+      use_mlock: true
+```
+
+### External Monitoring Integration
+
+#### Prometheus Integration
+
+**prometheus-config.yml**:
+```yaml
+scrape_configs:
+  - job_name: 'kolosal-server'
+    static_configs:
+      - targets: ['localhost:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+```
+
+**Custom Prometheus Exporter** (if needed):
 ```cpp
-class MetricsCollector {
+class PrometheusExporter {
 public:
-    void recordRequest(const std::string& endpoint, int statusCode, double duration);
-    void recordInference(const std::string& model, int tokens, double tps);
-    void recordError(const std::string& errorType);
+    void exportSystemMetrics() {
+        auto metrics = getSystemMetrics();
+        
+        // CPU metrics
+        prometheus_gauge_set(cpu_usage_gauge, metrics.cpu.usage_percent);
+        
+        // Memory metrics
+        prometheus_gauge_set(memory_usage_gauge, metrics.memory.utilization_percent);
+        
+        // GPU metrics
+        for (const auto& gpu : metrics.gpus) {
+            prometheus_gauge_set(gpu_utilization_gauge, gpu.utilization.gpu_percent, 
+                               {{"gpu_id", std::to_string(gpu.id)}});
+        }
+    }
     
-    json getMetrics() const;
-    
-private:
-    std::atomic<uint64_t> totalRequests{0};
-    std::atomic<uint64_t> totalErrors{0};
-    std::atomic<double> avgResponseTime{0.0};
+    void exportCompletionMetrics() {
+        auto metrics = CompletionMonitor::getInstance().getMetrics();
+        
+        prometheus_counter_set(total_requests_counter, metrics.summary.total_requests);
+        prometheus_histogram_observe(request_duration_histogram, 
+                                   metrics.summary.avg_turnaround_time_ms / 1000.0);
+        prometheus_gauge_set(tps_gauge, metrics.summary.avg_tps);
+    }
 };
 ```
 
-### Health Check Endpoint
+#### Grafana Dashboard
 
-Enhanced health check with detailed metrics:
-
-```cpp
-json getDetailedHealth() {
-    return json{
-        {"status", "healthy"},
-        {"timestamp", std::time(nullptr)},
-        {"uptime_seconds", getUptimeSeconds()},
-        {"memory_usage_mb", getMemoryUsageMB()},
-        {"gpu_memory_usage_mb", getGpuMemoryUsageMB()},
-        {"active_connections", getActiveConnections()},
-        {"models", {
-            {"loaded", getLoadedModelCount()},
-            {"total", getTotalModelCount()}
-        }},
-        {"performance", {
-            {"requests_per_second", getRequestsPerSecond()},
-            {"avg_inference_time_ms", getAvgInferenceTime()},
-            {"cache_hit_rate", getCacheHitRate()}
-        }}
-    };
+**dashboard.json**:
+```json
+{
+  "dashboard": {
+    "title": "Kolosal Server Monitoring",
+    "panels": [
+      {
+        "title": "System Overview",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "kolosal_cpu_usage_percent",
+            "legendFormat": "CPU %"
+          },
+          {
+            "expr": "kolosal_memory_utilization_percent", 
+            "legendFormat": "Memory %"
+          },
+          {
+            "expr": "kolosal_gpu_utilization_percent",
+            "legendFormat": "GPU %"
+          }
+        ]
+      },
+      {
+        "title": "Completion Performance",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kolosal_completion_tps",
+            "legendFormat": "Tokens/sec"
+          },
+          {
+            "expr": "kolosal_completion_ttft_ms",
+            "legendFormat": "TTFT (ms)"
+          }
+        ]
+      }
+    ]
+  }
 }
 ```
 
-### Logging Configuration
+### Health Checks
 
-**File**: `config\logging.json`
+#### Application Health
 
+```bash
+# Basic health check
+curl http://localhost:8080/v1/health
+
+# Detailed health monitoring script
+#!/bin/bash
+HEALTH=$(curl -s http://localhost:8080/v1/health)
+STATUS=$(echo $HEALTH | jq -r '.status')
+
+if [ "$STATUS" != "ok" ]; then
+    echo "ALERT: Kolosal Server unhealthy"
+    # Send alert to monitoring system
+    curl -X POST http://alertmanager:9093/api/v1/alerts \
+         -H "Content-Type: application/json" \
+         -d '[{
+           "labels": {
+             "alertname": "KolosalServerDown",
+             "service": "kolosal-server",
+             "severity": "critical"
+           }
+         }]'
+fi
+```
+
+#### Load Balancer Health Checks
+
+For load balancers, configure health checks:
+
+**nginx**: 
+```nginx
+upstream kolosal_backend {
+    server 127.0.0.1:8080 max_fails=3 fail_timeout=30s;
+    server 127.0.0.2:8080 max_fails=3 fail_timeout=30s;
+    
+    # Health check
+    check interval=3000 rise=2 fall=5 timeout=1000 type=http;
+    check_http_send "GET /v1/health HTTP/1.0\r\n\r\n";
+    check_http_expect_alive http_2xx http_3xx;
+}
+```
+
+### Log Management
+
+#### Structured Logging
+
+**Log Format**:
 ```json
 {
-  "loggers": {
-    "root": {
-      "level": "INFO",
-      "handlers": ["file", "console"]
-    },
-    "kolosal.inference": {
-      "level": "DEBUG",
-      "handlers": ["inference_file"]
-    },
-    "kolosal.security": {
-      "level": "WARN",
-      "handlers": ["security_file"]
-    }
-  },
-  "handlers": {
-    "file": {
-      "type": "rotating_file",
-      "filename": "logs/kolosal.log",
-      "max_size": "100MB",
+  "timestamp": "2025-06-16T14:30:00.123Z",
+  "level": "INFO",
+  "component": "completion_route",
+  "message": "Request processed successfully",
+  "request_id": "req_123456",
+  "model": "gpt-3.5-turbo",
+  "input_tokens": 50,
+  "output_tokens": 150,
+  "ttft_ms": 234.5,
+  "total_time_ms": 1456.7,
+  "success": true
+}
+```
+
+#### Log Aggregation
+
+**Fluentd Configuration**:
+```ruby
+<source>
+  @type tail
+  path /var/log/kolosal-server/*.log
+  pos_file /var/log/fluentd/kolosal.log.pos
+  tag kolosal.server
+  format json
+</source>
+
+<match kolosal.server>
+  @type elasticsearch
+  host elasticsearch.example.com
+  port 9200
+  index_name kolosal-logs
+  type_name server_log
+</match>
+```
+
+### Alerting Rules
+
+#### Performance Alerts
+
+```yaml
+groups:
+  - name: kolosal-server
+    rules:
+      - alert: HighCPUUsage
+        expr: kolosal_cpu_usage_percent > 80
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          
+      - alert: HighMemoryUsage
+        expr: kolosal_memory_utilization_percent > 90
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Memory usage critical"
+          
+      - alert: LowCompletionSuccessRate
+        expr: kolosal_completion_success_rate < 95
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Completion success rate below threshold"
+          
+      - alert: HighLatency
+        expr: kolosal_completion_ttft_ms > 1000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High time to first token latency"
+```
+
+### Monitoring Best Practices
+
+1. **Enable all monitoring endpoints** in production:
+   ```yaml
+   features:
+     health_check: true
+     metrics: true
+   ```
+
+2. **Set up automated monitoring** with external tools (Prometheus, Grafana)
+
+3. **Configure appropriate log levels**:
+   - Production: `INFO` or `WARN`
+   - Debugging: `DEBUG`
+
+4. **Monitor key metrics**:
+   - System: CPU, Memory, GPU utilization
+   - Performance: TPS, TTFT, success rate
+   - Business: Request volume, model usage
+
+5. **Set up alerting** for critical thresholds:
+   - CPU > 80%
+   - Memory > 90%
+   - Success rate < 95%
+   - TTFT > 1000ms
+
+6. **Regular metric collection** intervals:
+   - System metrics: 30 seconds
+   - Completion metrics: 1 minute
+   - Health checks: 10 seconds
+
+7. **Log retention policies**:
+   - Access logs: 30 days
+   - Error logs: 90 days
+   - Performance logs: 7 days
       "backup_count": 10
     },
     "console": {

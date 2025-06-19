@@ -1,0 +1,4 @@
+numpy
+plotly
+pandas
+pre-commit

@@ -11,7 +11,7 @@ This document provides comprehensive API specifications for the Kolosal Server, 
 
 ## API Overview
 
-The Kolosal Server provides both OpenAI-compatible and custom endpoints:
+The Kolosal Server provides OpenAI-compatible endpoints, custom engine management, and comprehensive monitoring:
 
 ```mermaid
 graph TD
@@ -26,28 +26,36 @@ graph TD
         E["/engines/{id}<br/>DELETE - Remove engine"]
         F["/engines/{id}/status<br/>GET - Engine status"]
     end
-    
-    subgraph "System"
+      subgraph "Monitoring & System"
         G["/v1/health<br/>GET - Health check"]
+        M1["/metrics<br/>GET - Combined metrics"]
+        M2["/v1/metrics<br/>GET - Combined metrics"]
+        M3["/metrics/system<br/>GET - System metrics only"]
+        M4["/v1/metrics/system<br/>GET - System metrics only"]        M5["/metrics/completion<br/>GET - Completion metrics"]
+        M6["/v1/metrics/completion<br/>GET - Completion metrics"]
     end
     
     subgraph "Features"
         H["Streaming Support<br/>Server-Sent Events"]
         I["GPU Acceleration<br/>CUDA/Vulkan"]
-        J["Model Loading<br/>Dynamic GGUF"]
+        J["Model Loading<br/>Dynamic GGUF + Lazy Loading"]
         K["Error Handling<br/>OpenAI Format"]
+        L["Real-time Monitoring<br/>TPS, TTFT, RPS"]
     end
     
     A --> H
     B --> H
     A --> I
     B --> I
+    A --> L
+    B --> L
     C --> J
     D --> J
     E --> J
     F --> J
     
     A --> K
+```
     B --> K
     C --> K
     D --> K
@@ -659,10 +667,286 @@ Invoke-RestMethod -Uri "http://localhost:8080/engines" `
 
 ### Health Check
 
+**Endpoint**: `GET /v1/health`
+
+**Description**: Returns server health status and loaded engines.
+
+**Response**:
+```json
+{
+  "status": "ok",
+  "timestamp": "2025-06-16T14:30:00Z",
+  "engines": {
+    "loaded": 2,
+    "total": 3
+  }
+}
+```
+
+**PowerShell Example**:
 ```powershell
 $health = Invoke-RestMethod -Uri "http://localhost:8080/v1/health" -Method GET
 Write-Output "Server Status: $($health.status)"
 Write-Output "Loaded Engines: $($health.engines.loaded)"
+```
+
+### Combined Metrics (System + Completion)
+
+**Endpoints**: 
+- `GET /metrics`
+- `GET /v1/metrics`
+
+**Requirements**: These endpoints are available when both `features.metrics: true` and completion monitoring is enabled.
+
+**Description**: Returns real-time system resource metrics combined with completion performance metrics in a single response.
+
+**Response**:
+```json
+{
+  "timestamp": "2025-06-17T06:22:02.238Z",
+  "system": {
+    "cpu": {
+      "usage_percent": 12.26
+    },
+    "memory": {
+      "total_bytes": 8295342080,
+      "used_bytes": 7390986240,
+      "free_bytes": 904355840,
+      "utilization_percent": 89.1,
+      "total_formatted": "7.73 GB",
+      "used_formatted": "6.88 GB",
+      "free_formatted": "862.46 MB"
+    },
+    "gpus": [
+      {
+        "id": 0,
+        "name": "NVIDIA GeForce RTX 4090",
+        "vendor": "NVIDIA",
+        "utilization_percent": 45.2,
+        "memory_utilization_percent": 67.8,
+        "memory_total_bytes": 24563540992,
+        "memory_used_bytes": 16653664256,
+        "memory_free_bytes": 7909876736,
+        "memory_total_formatted": "22.88 GB",
+        "memory_used_formatted": "15.51 GB",
+        "memory_free_formatted": "7.37 GB",
+        "temperature_celsius": 72.0,
+        "power_usage_watts": 425.0,
+        "power_limit_watts": 450.0
+      }
+    ],
+    "summary": {
+      "cpu_usage_percent": 12.26,
+      "ram_utilization_percent": 89.1,
+      "gpu_count": 1,
+      "total_vram_gb": 22.88,
+      "used_vram_gb": 15.51,
+      "vram_utilization_percent": 67.8
+    }
+  },
+  "completion": {
+    "total_requests": 1847,
+    "successful_requests": 1823,
+    "failed_requests": 24,
+    "success_rate_percent": 98.7,
+    "total_tokens_processed": 245689,
+    "average_tokens_per_second": 42.3,
+    "average_time_to_first_token_ms": 156.7,
+    "requests_per_second": 2.8,
+    "active_requests": 3,
+    "engines": [
+      {
+        "engine_id": "llama3-8b",
+        "requests": 892,
+        "success_rate_percent": 99.1,
+        "tokens_processed": 127834,
+        "average_tps": 45.2,
+        "average_ttft_ms": 142.1
+      }
+    ]
+  }
+}
+```
+
+**cURL Examples**:
+```bash
+# Get combined metrics
+curl -X GET "http://localhost:8080/metrics"
+curl -X GET "http://localhost:8080/v1/metrics"
+```
+
+**PowerShell Example**:
+```powershell
+$combined = Invoke-RestMethod -Uri "http://localhost:8080/metrics" -Method GET
+Write-Output "CPU Usage: $($combined.system.summary.cpu_usage_percent)%"
+Write-Output "RAM Usage: $($combined.system.summary.ram_utilization_percent)%"
+Write-Output "GPU Count: $($combined.system.summary.gpu_count)"
+Write-Output "Total Requests: $($combined.completion.total_requests)"
+Write-Output "Success Rate: $($combined.completion.success_rate_percent)%"
+```
+
+### System Metrics Only
+
+**Endpoints**: 
+- `GET /metrics/system`
+- `GET /v1/metrics/system`
+
+**Requirements**: These endpoints are only available when `features.metrics: true` is set in the configuration file.
+
+**Description**: Returns real-time system resource metrics including CPU, memory, and GPU utilization.
+
+**Response**:
+```json
+{
+  "timestamp": "2025-06-16T06:22:02.238Z",
+  "cpu": {
+    "usage_percent": 12.26
+  },
+  "memory": {
+    "total_bytes": 8295342080,
+    "used_bytes": 7390986240,
+    "free_bytes": 904355840,
+    "utilization_percent": 89.1,
+    "total_formatted": "7.73 GB",
+    "used_formatted": "6.88 GB",
+    "free_formatted": "862.46 MB"
+  },
+  "gpus": [
+    {
+      "id": 0,
+      "name": "NVIDIA GeForce RTX 4090",
+      "utilization": {
+        "gpu_percent": 85.5,
+        "memory_percent": 67.8
+      },
+      "memory": {
+        "total_bytes": 25769803776,
+        "used_bytes": 17476714496,
+        "free_bytes": 8293089280,
+        "total_formatted": "24.00 GB",
+        "used_formatted": "16.28 GB",
+        "free_formatted": "7.72 GB"
+      },
+      "temperature_celsius": 72.0,
+      "power_usage_watts": 350.5,
+      "driver_version": "555.99"
+    }
+  ],
+  "summary": {
+    "cpu_usage_percent": 12.26,
+    "ram_utilization_percent": 89.1,
+    "gpu_count": 1,
+    "average_gpu_utilization_percent": 85.5,
+    "average_vram_utilization_percent": 67.8
+  },
+  "gpu_monitoring_available": true,
+  "metadata": {
+    "version": "1.0",
+    "server": "kolosal-server",
+    "monitoring_capabilities": {
+      "cpu": true,
+      "memory": true,
+      "gpu": true
+    }
+  }
+}
+```
+
+**cURL Examples**:
+```bash
+# Get system-only metrics
+curl -X GET "http://localhost:8080/metrics/system"
+curl -X GET "http://localhost:8080/v1/metrics/system"
+```
+
+**PowerShell Example**:
+```powershell
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/metrics/system" -Method GET
+Write-Output "CPU Usage: $($metrics.summary.cpu_usage_percent)%"
+Write-Output "RAM Usage: $($metrics.summary.ram_utilization_percent)%"
+Write-Output "GPU Count: $($metrics.summary.gpu_count)"
+```
+
+### Completion Metrics
+
+**Endpoints**:
+- `GET /metrics/completion`
+- `GET /v1/metrics/completion`
+- `GET /metrics/completion/{engine_id}` (for engine-specific metrics)
+
+**Requirements**: These endpoints are only available when `features.metrics: true` is set in the configuration file.
+
+**Description**: Returns real-time completion performance metrics including TPS, TTFT, RPS, and success rates.
+
+**Response**:
+```json
+{
+  "completion_metrics": {
+    "summary": {
+      "total_requests": 150,
+      "completed_requests": 147,
+      "failed_requests": 3,
+      "success_rate_percent": 98.0,
+      "total_input_tokens": 1250,
+      "total_output_tokens": 3500,
+      "avg_turnaround_time_ms": 1450.5,
+      "avg_tps": 15.2,
+      "avg_output_tps": 9.8,
+      "avg_ttft_ms": 325.7,
+      "avg_rps": 0.92
+    },
+    "per_engine": [
+      {
+        "model_name": "my-model-7b",
+        "engine_id": "default",
+        "total_requests": 100,
+        "completed_requests": 98,
+        "failed_requests": 2,
+        "total_input_tokens": 800,
+        "total_output_tokens": 2400,
+        "tps": 16.5,
+        "output_tps": 10.2,
+        "avg_ttft": 280.3,
+        "rps": 1.05,
+        "last_updated": "2025-06-16T17:04:12.123Z"
+      }
+    ],
+    "timestamp": "2025-06-16T17:04:12.123Z"
+  }
+}
+```
+
+**Field Descriptions**:
+- `total_requests`: Total completion requests received
+- `completed_requests`: Successfully completed requests
+- `failed_requests`: Requests that failed with errors
+- `success_rate_percent`: Success rate (0-100%)
+- `total_input_tokens`: Total input tokens processed
+- `total_output_tokens`: Total output tokens generated
+- `avg_turnaround_time_ms`: Average request completion time
+- `avg_tps`: Average tokens per second (input + output)
+- `avg_output_tps`: Average output tokens per second
+- `avg_ttft_ms`: Average time to first token
+- `avg_rps`: Average requests per second
+
+**cURL Examples**:
+```bash
+# Get all completion metrics
+curl -X GET "http://localhost:8080/metrics/completion"
+curl -X GET "http://localhost:8080/v1/metrics/completion"
+
+# Get engine-specific completion metrics
+curl -X GET "http://localhost:8080/metrics/completion/llama3-8b"
+curl -X GET "http://localhost:8080/v1/metrics/completion/my-engine"
+```
+
+**PowerShell Example**:
+```powershell
+$metrics = Invoke-RestMethod -Uri "http://localhost:8080/metrics/completion" -Method GET
+$summary = $metrics.completion_metrics.summary
+Write-Output "Success Rate: $($summary.success_rate_percent)%"
+Write-Output "Avg TPS: $($summary.avg_tps)"
+Write-Output "Avg TTFT: $($summary.avg_ttft_ms)ms"
 ```
 
 ## Rate Limiting and Quotas

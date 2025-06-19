@@ -1,0 +1,41 @@
+PROJECT(uprof-sample DESCRIPTION "Sample using uprofile library")
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
+
+SET( CMAKE_USE_RELATIVE_PATHS ON)
+
+IF(CMAKE_COMPILER_IS_GNUCXX)
+	ADD_DEFINITIONS( -std=c++0x )
+ENDIF()
+
+IF(BUILD_SHARED_LIBS)
+    IF(CMAKE_VERSION VERSION_GREATER_EQUAL 3.12.0)
+        ADD_COMPILE_DEFINITIONS(UPROFILE_DLL)
+    ELSE()
+        ADD_DEFINITIONS(-DUPROFILE_DLL)
+	ENDIF()
+ENDIF()
+
+IF(WIN32)
+    add_compile_options(/W4)
+ELSE()
+    add_compile_options(-Wall -Werror)
+ENDIF()
+
+IF (GPU_MONITOR_NVIDIA)
+  ADD_DEFINITIONS(-DGPU_MONITOR_NVIDIA)
+ENDIF()
+
+SET(Sample_SRCS
+    main.cpp
+)
+
+ADD_EXECUTABLE(${PROJECT_NAME}
+    ${Sample_SRCS}
+)
+
+# Specify here the libraries this program depends on
+TARGET_LINK_LIBRARIES(${PROJECT_NAME}
+    cppuprofile
+)
+
+INSTALL(TARGETS ${PROJECT_NAME} DESTINATION bin)
