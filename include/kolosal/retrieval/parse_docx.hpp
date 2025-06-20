@@ -45,5 +45,5 @@ namespace retrieval
         // Utility functions
         static bool file_exists(const std::string &file_path);
         static bool has_docx_extension(const std::string &file_path);
-    }
-};
+    };
+} // namespace retrieval
