@@ -49,6 +49,7 @@ set(SOURCES
     src/routes/cancel_download_route.cpp
     src/routes/cancel_all_downloads_route.cpp
     src/routes/parse_pdf_route.cpp
+    src/routes/parse_docx_route.cpp
     src/metrics_converter.cpp
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
