@@ -18,38 +18,9 @@ namespace retrieval
     static std::mutex zip_mutex;
 
     // Forward declaration
-    static std::string extract_document_xml_from_file(const std::string &file_path);
-
-    // Extract document.xml from DOCX archive in memory
-    static std::string extract_document_xml_from_memory(const unsigned char *data, size_t size)
+    static std::string extract_document_xml_from_file(const std::string &file_path);    // Internal function to extract document.xml from file (without mutex locking)
+    static std::string extract_document_xml_from_file_internal(const std::string &file_path)
     {
-        std::lock_guard<std::mutex> lock(zip_mutex);        // Write data to temporary file for minizip
-        std::string temp_file = (std::filesystem::temp_directory_path() / "temp_docx.docx").string();
-        std::ofstream temp_out(temp_file, std::ios::binary);
-        if (!temp_out.is_open())
-        {
-            throw std::runtime_error("Failed to create temporary file");
-        }
-        temp_out.write(reinterpret_cast<const char*>(data), size);
-        temp_out.close();
-
-        try
-        {
-            std::string result = extract_document_xml_from_file(temp_file);
-            std::filesystem::remove(temp_file);
-            return result;
-        }
-        catch (...)
-        {
-            std::filesystem::remove(temp_file);
-            throw;
-        }
-    }
-
-    // Extract document.xml from file
-    static std::string extract_document_xml_from_file(const std::string &file_path)
-    {
-        std::lock_guard<std::mutex> lock(zip_mutex);
 
         unzFile archive = unzOpen(file_path.c_str());
         if (!archive)
@@ -89,6 +60,42 @@ namespace retrieval
         }
 
         return content;
+    }
+
+    // Extract document.xml from file (with mutex locking)
+    static std::string extract_document_xml_from_file(const std::string &file_path)
+    {
+        std::lock_guard<std::mutex> lock(zip_mutex);
+        return extract_document_xml_from_file_internal(file_path);
+    }
+
+    // Extract document.xml from DOCX archive in memory
+    static std::string extract_document_xml_from_memory(const unsigned char *data, size_t size)
+    {
+        std::lock_guard<std::mutex> lock(zip_mutex);
+        
+        // Write data to temporary file for minizip
+        std::string temp_file = (std::filesystem::temp_directory_path() / "temp_docx.docx").string();
+        std::ofstream temp_out(temp_file, std::ios::binary);
+        if (!temp_out.is_open())
+        {
+            throw std::runtime_error("Failed to create temporary file");
+        }
+        temp_out.write(reinterpret_cast<const char*>(data), size);
+        temp_out.close();
+
+        try
+        {
+            // Use the internal function to avoid double locking
+            std::string result = extract_document_xml_from_file_internal(temp_file);
+            std::filesystem::remove(temp_file);
+            return result;
+        }
+        catch (...)
+        {
+            std::filesystem::remove(temp_file);
+            throw;
+        }
     }
 
     // Process text run with formatting
@@ -283,18 +290,37 @@ namespace retrieval
         {
             return false;
         }
-    }
-
-    size_t DOCXParser::get_page_count(const std::string &file_path)
+    }    size_t DOCXParser::get_page_count(const std::string &file_path)
     {
-        if (!is_valid_docx(file_path))
+        if (!file_exists(file_path) || !has_docx_extension(file_path))
         {
             return 0;
         }
 
         try
         {
-            std::string xml_content = extract_document_xml_from_file(file_path);
+            std::lock_guard<std::mutex> lock(zip_mutex);
+            
+            // Check if it's a valid DOCX (inline check to avoid double locking)
+            unzFile archive = unzOpen(file_path.c_str());
+            if (!archive)
+            {
+                return 0;
+            }
+
+            // Check for required DOCX structure
+            bool has_document_xml = unzLocateFile(archive, "word/document.xml", 0) == UNZ_OK;
+            bool has_content_types = unzLocateFile(archive, "[Content_Types].xml", 0) == UNZ_OK;
+            bool has_rels = unzLocateFile(archive, "_rels/.rels", 0) == UNZ_OK;
+
+            if (!has_document_xml || !has_content_types || !has_rels)
+            {
+                unzClose(archive);
+                return 0;
+            }
+
+            // Extract document.xml content inline to avoid double locking
+            std::string xml_content = extract_document_xml_from_file_internal(file_path);
 
             pugi::xml_document doc;
             if (!doc.load_string(xml_content.c_str()))
