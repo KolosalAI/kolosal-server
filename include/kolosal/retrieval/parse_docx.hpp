@@ -10,7 +10,6 @@
 #include <regex>
 #include <stdexcept>
 #include <cstring>
-#include <zip.h>
 #include <pugixml.hpp>
 
 namespace retrieval

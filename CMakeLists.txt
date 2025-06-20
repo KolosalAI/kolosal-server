@@ -52,15 +52,26 @@ set(SOURCES
     src/metrics_converter.cpp
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
-    src/auth/auth_middleware.cpp
-    src/node_manager.cpp
-    src/inference.cpp
+    src/auth/auth_middleware.cpp    src/node_manager.cpp    src/inference.cpp
     src/retrieval/parse_pdf.cpp
+    src/retrieval/parse_docx.cpp
+    # Minizip sources for DOCX parsing
+    external/mupdf/thirdparty/zlib/contrib/minizip/unzip.c
+    external/mupdf/thirdparty/zlib/contrib/minizip/ioapi.c
+    external/mupdf/thirdparty/zlib/contrib/minizip/iowin32.c
 )
 
 # Create shared library instead of static library.
 add_library(kolosal_server SHARED ${SOURCES})
 target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE_EXPORTS)
+
+# Force Release build to match MuPDF (prebuilt Release library)
+if(WIN32 AND MSVC)
+    # MuPDF is only available as Release build, so force Release mode
+    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
+    set(CMAKE_CONFIGURATION_TYPES "Release" CACHE STRING "" FORCE)
+    message(STATUS "Forcing Release build to match MuPDF prebuilt library")
+endif()
 
 # Create executable
 add_executable(kolosal_server_exe src/main.cpp)
@@ -185,7 +196,7 @@ if(USE_CPPUPROFILE_GPU)
 endif()
 
 # Link libraries
-set(KOLOSAL_LINK_LIBRARIES llama common ggml toolcall yaml-cpp)
+set(KOLOSAL_LINK_LIBRARIES llama common ggml toolcall yaml-cpp pugixml)
 
 # Add cppuprofile if enabled
 if(USE_CPPUPROFILE_GPU)
@@ -202,7 +213,25 @@ target_link_libraries(kolosal_server PRIVATE ${CURL_LIBRARIES})
 set(MUPDF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf")
 target_include_directories(kolosal_server PRIVATE 
     ${MUPDF_PATH}/include
+    ${MUPDF_PATH}/thirdparty/zlib/contrib/minizip
+    ${MUPDF_PATH}/thirdparty/zlib
 )
+
+# Configure pugixml
+set(PUGIXML_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/pugixml")
+if(NOT EXISTS "${PUGIXML_PATH}/CMakeLists.txt")
+  message(FATAL_ERROR "pugixml not found at ${PUGIXML_PATH}. Please clone it or adjust PUGIXML_PATH.")
+endif()
+
+# Configure pugixml options
+set(PUGIXML_BUILD_TESTS OFF CACHE BOOL "Disable pugixml tests" FORCE)
+set(PUGIXML_INSTALL OFF CACHE BOOL "Disable pugixml installation" FORCE)
+
+# Add pugixml subdirectory
+add_subdirectory(${PUGIXML_PATH})
+
+# Include pugixml headers
+target_include_directories(kolosal_server PRIVATE ${PUGIXML_PATH}/src)
 
 # Link MuPDF libraries to main server
 if(WIN32)
