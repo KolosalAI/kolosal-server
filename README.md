@@ -636,14 +636,6 @@ curl -X POST http://localhost:8080/v1/completions \
 curl -X GET http://localhost:8080/v1/engines
 ```
 
-### 4. Engine Management
-
-#### List Available Engines
-
-```bash
-curl -X GET http://localhost:8080/v1/engines
-```
-
 #### Get Engine Status
 
 ```bash
@@ -879,9 +871,28 @@ For developers looking to contribute to or extend Kolosal Server, comprehensive 
 - [Project Structure](docs/DEVELOPER_GUIDE.md#project-structure) - Understanding the codebase
 - [Contributing Guidelines](docs/DEVELOPER_GUIDE.md#contributing) - How to contribute
 
+## Acknowledgments
+
+Kolosal Server is built on top of excellent open-source projects and we want to acknowledge their contributions:
+
+### llama.cpp
+This project is powered by [llama.cpp](https://github.com/ggml-org/llama.cpp), developed by [Georgi Gerganov](https://github.com/ggerganov) and the [ggml-org](https://github.com/ggml-org) community. llama.cpp provides the high-performance inference engine that makes Kolosal Server possible.
+
+- **Project**: [https://github.com/ggml-org/llama.cpp](https://github.com/ggml-org/llama.cpp)
+- **License**: MIT License
+- **Description**: Inference of Meta's LLaMA model (and others) in pure C/C++
+
+We extend our gratitude to the llama.cpp team for their incredible work on optimized LLM inference, which forms the foundation of our server's performance capabilities.
+
+### Other Dependencies
+- **[yaml-cpp](https://github.com/jbeder/yaml-cpp)**: YAML parsing and emitting library
+- **[nlohmann/json](https://github.com/nlohmann/json)**: JSON library for Modern C++
+- **[libcurl](https://curl.se/libcurl/)**: Client-side URL transfer library
+- **[prometheus-cpp](https://github.com/jupp0r/prometheus-cpp)**: Prometheus metrics library for C++
+
 ## License
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
 
 ## Contributing
 
