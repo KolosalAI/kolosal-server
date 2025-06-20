@@ -13,6 +13,8 @@
 #include <winsock2.h>
 using SocketType = SOCKET;
 #else
+#include <sys/socket.h>
+#include <unistd.h>
 using SocketType = int;
 #endif
 
@@ -81,14 +83,25 @@ namespace kolosal
                     : allowed(allow), reason(r) {}
             };        public:
             /**
-             * @brief Constructor
+             * @brief Default constructor with default configurations
+             */
+            AuthMiddleware();
+
+            /**
+             * @brief Constructor with rate limiter configuration
+             * @param rateLimiterConfig Rate limiter configuration
+             */
+            explicit AuthMiddleware(const RateLimiter::Config &rateLimiterConfig);
+
+            /**
+             * @brief Constructor with all configurations
              * @param rateLimiterConfig Rate limiter configuration
              * @param corsConfig CORS configuration
              * @param apiKeyConfig API key configuration
              */
-            explicit AuthMiddleware(const RateLimiter::Config &rateLimiterConfig = RateLimiter::Config{},
-                                    const CorsHandler::Config &corsConfig = CorsHandler::Config{},
-                                    const ApiKeyConfig &apiKeyConfig = ApiKeyConfig{});
+            AuthMiddleware(const RateLimiter::Config &rateLimiterConfig,
+                          const CorsHandler::Config &corsConfig,
+                          const ApiKeyConfig &apiKeyConfig);
 
             /**
              * @brief Process authentication for a request

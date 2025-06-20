@@ -4,9 +4,13 @@
 #include <sstream>
 
 namespace kolosal
-{
-    namespace auth
+{    namespace auth
     {
+
+        CorsHandler::CorsHandler() : config_()
+        {
+            updateConfig(config_);
+        }
 
         CorsHandler::CorsHandler(const Config &config) : config_(config)
         {

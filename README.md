@@ -1,6 +1,13 @@
 # Kolosal Server
 
-A high-performance inference server for large language models with OpenAI-compatible API endpoints.
+A high-performance inference server for large language models with OpenAI-compatible API endpoints. Now available for both **Windows** and **Linux** systems!
+
+## Platform Support
+
+- 🪟 **Windows**: Full support with Visual Studio and MSVC
+- 🐧 **Linux**: Native support with GCC/Clang
+- 🎮 **GPU Acceleration**: NVIDIA CUDA and Vulkan support
+- 📦 **Easy Installation**: Direct binary installation or build from source
 
 ## Features
 
@@ -8,21 +15,285 @@ A high-performance inference server for large language models with OpenAI-compat
 - 🔗 **OpenAI Compatible**: Drop-in replacement for OpenAI API endpoints
 - 📡 **Streaming Support**: Real-time streaming responses for chat completions
 - 🎛️ **Multi-Model Management**: Load and manage multiple models simultaneously
-- � **Real-time Metrics**: Monitor completion performance with TPS, TTFT, and success rates
+- 📊 **Real-time Metrics**: Monitor completion performance with TPS, TTFT, and success rates
 - ⚙️ **Lazy Loading**: Defer model loading until first request with `load_immediately=false`
-- �🔧 **Configurable**: Flexible model loading parameters and inference settings
+- 🔧 **Configurable**: Flexible model loading parameters and inference settings
+- 🔒 **Authentication**: API key and rate limiting support
+- 🌐 **Cross-Platform**: Windows and Linux native builds
 
 ## Quick Start
 
-### Prerequisites
+### Linux (Recommended)
 
+#### Prerequisites
+
+**System Requirements:**
+- Ubuntu 20.04+ or equivalent Linux distribution (CentOS 8+, Fedora 32+, Arch Linux)
+- GCC 9+ or Clang 10+
+- CMake 3.14+
+- Git with submodule support
+- At least 4GB RAM (8GB+ recommended for larger models)
+- CUDA Toolkit 11.0+ (optional, for NVIDIA GPU acceleration)
+- Vulkan SDK (optional, for alternative GPU acceleration)
+
+**Install Dependencies:**
+
+**Ubuntu/Debian:**
+```bash
+# Update package list
+sudo apt update
+
+# Install essential build tools
+sudo apt install -y build-essential cmake git pkg-config
+
+# Install required libraries
+sudo apt install -y libcurl4-openssl-dev libyaml-cpp-dev
+
+# Optional: Install CUDA for GPU support
+# Follow NVIDIA's official installation guide for your distribution
+```
+
+**CentOS/RHEL/Fedora:**
+```bash
+# For CentOS/RHEL 8+
+sudo dnf groupinstall "Development Tools"
+sudo dnf install cmake git curl-devel yaml-cpp-devel
+
+# For Fedora
+sudo dnf install gcc-c++ cmake git libcurl-devel yaml-cpp-devel
+```
+
+**Arch Linux:**
+```bash
+sudo pacman -S base-devel cmake git curl yaml-cpp
+```
+
+#### Building from Source
+
+**1. Clone the Repository:**
+```bash
+git clone https://github.com/kolosalai/kolosal-server.git
+cd kolosal-server
+```
+
+**2. Initialize Submodules:**
+```bash
+git submodule update --init --recursive
+```
+
+**3. Create Build Directory:**
+```bash
+mkdir build && cd build
+```
+
+**4. Configure Build:**
+
+**Standard Build (CPU-only):**
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release ..
+```
+
+**With CUDA Support:**
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release -DLLAMA_CUDA=ON ..
+```
+
+**With Vulkan Support:**
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release -DLLAMA_VULKAN=ON ..
+```
+
+**Debug Build:**
+```bash
+cmake -DCMAKE_BUILD_TYPE=Debug ..
+```
+
+**5. Build the Project:**
+```bash
+# Use all available CPU cores
+make -j$(nproc)
+
+# Or specify number of cores manually
+make -j4
+```
+
+**6. Verify Build:**
+```bash
+# Check if the executable was created
+ls -la kolosal-server
+
+# Test basic functionality
+./kolosal-server --help
+```
+
+#### Running the Server
+
+**Start the Server:**
+```bash
+# From build directory
+./kolosal-server
+
+# Or specify a config file
+./kolosal-server --config ../config.yaml
+```
+
+**Background Service:**
+```bash
+# Run in background
+nohup ./kolosal-server > server.log 2>&1 &
+
+# Check if running
+ps aux | grep kolosal-server
+```
+
+**Check Server Status:**
+```bash
+# Test if server is responding
+curl http://localhost:8080/v1/health
+```
+
+#### Alternative Installation Methods
+
+**Install to System Path:**
+```bash
+# Install binary to /usr/local/bin
+sudo cp build/kolosal-server /usr/local/bin/
+
+# Make it executable
+sudo chmod +x /usr/local/bin/kolosal-server
+
+# Now you can run from anywhere
+kolosal-server --help
+```
+
+**Install with Package Manager (Future):**
+```bash
+# Note: Package manager installation will be available in future releases
+# For now, use the build from source method above
+```
+
+#### Installation as System Service
+
+**Create Service File:**
+```bash
+sudo tee /etc/systemd/system/kolosal-server.service > /dev/null << EOF
+[Unit]
+Description=Kolosal Server - LLM Inference Server
+After=network.target
+
+[Service]
+Type=simple
+User=kolosal
+Group=kolosal
+WorkingDirectory=/opt/kolosal-server
+ExecStart=/opt/kolosal-server/kolosal-server --config /etc/kolosal-server/config.yaml
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+EOF
+```
+
+**Enable and Start Service:**
+```bash
+# Create user for service
+sudo useradd -r -s /bin/false kolosal
+
+# Install binary and config
+sudo mkdir -p /opt/kolosal-server /etc/kolosal-server
+sudo cp build/kolosal-server /opt/kolosal-server/
+sudo cp config.example.yaml /etc/kolosal-server/config.yaml
+sudo chown -R kolosal:kolosal /opt/kolosal-server
+
+# Enable and start service
+sudo systemctl daemon-reload
+sudo systemctl enable kolosal-server
+sudo systemctl start kolosal-server
+
+# Check status
+sudo systemctl status kolosal-server
+```
+
+#### Troubleshooting
+
+**Common Build Issues:**
+
+1. **Missing dependencies:**
+   ```bash
+   # Check for missing packages
+   ldd build/kolosal-server
+   
+   # Install missing development packages
+   sudo apt install -y libssl-dev libcurl4-openssl-dev
+   ```
+
+2. **CMake version too old:**
+   ```bash
+   # Install newer CMake from Kitware APT repository
+   wget -O - https://apt.kitware.com/keys/kitware-archive-latest.asc 2>/dev/null | gpg --dearmor - | sudo tee /etc/apt/trusted.gpg.d/kitware.gpg >/dev/null
+   sudo apt-add-repository 'deb https://apt.kitware.com/ubuntu/ focal main'
+   sudo apt update && sudo apt install cmake
+   ```
+
+3. **CUDA compilation errors:**
+   ```bash
+   # Verify CUDA installation
+   nvcc --version
+   nvidia-smi
+   
+   # Set CUDA environment variables if needed
+   export CUDA_HOME=/usr/local/cuda
+   export PATH=$CUDA_HOME/bin:$PATH
+   export LD_LIBRARY_PATH=$CUDA_HOME/lib64:$LD_LIBRARY_PATH
+   ```
+
+4. **Permission issues:**
+   ```bash
+   # Fix ownership
+   sudo chown -R $USER:$USER ./build
+   
+   # Make executable
+   chmod +x build/kolosal-server
+   ```
+
+**Performance Optimization:**
+
+1. **CPU Optimization:**
+   ```bash
+   # Build with native optimizations
+   cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_FLAGS="-march=native" ..
+   ```
+
+2. **Memory Settings:**
+   ```bash
+   # For systems with limited RAM, reduce parallel jobs
+   make -j2
+   
+   # Set memory limits in config
+   echo "server.max_memory_mb: 4096" >> config.yaml
+   ```
+
+3. **GPU Memory:**
+   ```bash
+   # Monitor GPU usage
+   watch nvidia-smi
+   
+   # Adjust GPU layers in model config
+   # Reduce n_gpu_layers if running out of VRAM
+   ```
+
+### Windows
+
+**Prerequisites:**
 - Windows 10/11
 - Visual Studio 2019 or later
 - CMake 3.20+
 - CUDA Toolkit (optional, for GPU acceleration)
 
-### Building
-
+**Building:**
 ```bash
 git clone https://github.com/kolosalai/kolosal-server.git
 cd kolosal-server

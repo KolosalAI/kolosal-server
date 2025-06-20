@@ -13,6 +13,8 @@
 #include <winsock2.h>
 using SocketType = SOCKET;
 #else
+#include <sys/socket.h>
+#include <unistd.h>
 using SocketType = int;
 #endif
 

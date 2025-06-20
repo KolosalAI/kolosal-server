@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
 project(KolosalServer VERSION 1.0.0 LANGUAGES CXX)
 
-# Use C++17 for this project
+# Use C++17 for this project (required for std::filesystem)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Enable position independent code for shared libraries
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
 if (MINGW)
     add_compile_definitions(_WIN32_WINNT=0x602)
@@ -217,8 +220,8 @@ if(WIN32)
       COMMENT "Copying libcurl.dll to bin directory"
     )
 else()
-    # For Linux, we might need additional libraries for system monitoring
-    target_link_libraries(kolosal_server PRIVATE)
+    # For Linux, link with required system libraries
+    target_link_libraries(kolosal_server PRIVATE dl rt)
 endif()
 
 # Try to find and link NVML for GPU monitoring
@@ -229,6 +232,9 @@ find_library(NVML_LIBRARY nvidia-ml
     "/usr/lib/x86_64-linux-gnu"
     "/usr/lib64"
     "/usr/local/cuda/lib64"
+    "/usr/lib/nvidia"
+    "/usr/lib/x86_64-linux-gnu/nvidia/current"
+    "/usr/local/cuda/lib"
     NO_DEFAULT_PATH
 )
 

@@ -60,14 +60,17 @@ namespace kolosal
                 std::chrono::steady_clock::time_point lastCleanup;
 
                 ClientData() : lastCleanup(std::chrono::steady_clock::now()) {}
-            };
+            };        public:
+            /**
+             * @brief Default constructor with default configuration
+             */
+            RateLimiter();
 
-        public:
             /**
              * @brief Constructor with configuration
              * @param config Rate limiting configuration
              */
-            explicit RateLimiter(const Config &config = Config{});
+            explicit RateLimiter(const Config &config);
 
             /**
              * @brief Check if a request from the given client IP is allowed

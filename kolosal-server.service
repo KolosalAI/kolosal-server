@@ -1,0 +1,74 @@
+# Systemd service file for Kolosal Server
+# Install to: /etc/systemd/system/kolosal-server.service
+# 
+# Installation commands:
+#   sudo cp kolosal-server.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable kolosal-server
+#   sudo systemctl start kolosal-server
+
+[Unit]
+Description=Kolosal AI Inference Server
+Documentation=https://github.com/kolosalai/kolosal-server
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=kolosal
+Group=kolosal
+
+# Working directory
+WorkingDirectory=/opt/kolosal-server
+
+# Main service command
+ExecStart=/usr/local/bin/kolosal-server -c /opt/kolosal-server/config.yaml
+
+# Restart configuration
+Restart=always
+RestartSec=10
+StartLimitBurst=3
+StartLimitInterval=60
+
+# Security settings
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/kolosal-server /var/log/kolosal-server /var/cache/kolosal-server
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectKernelLogs=true
+ProtectControlGroups=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RemoveIPC=true
+PrivateDevices=false  # Keep false if GPU access is needed
+
+# Memory and CPU limits
+MemoryMax=16G
+MemoryHigh=14G
+CPUQuota=800%  # Allow up to 8 CPU cores (800%)
+
+# File descriptor limits
+LimitNOFILE=65536
+
+# Environment variables
+Environment=HOME=/opt/kolosal-server
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=LD_LIBRARY_PATH=/usr/local/lib:/usr/lib
+Environment=CUDA_VISIBLE_DEVICES=all
+Environment=OMP_NUM_THREADS=8
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=kolosal-server
+
+# Signal handling
+KillMode=mixed
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

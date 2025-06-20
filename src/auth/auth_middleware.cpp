@@ -3,9 +3,24 @@
 #include <algorithm>
 
 namespace kolosal
-{
-    namespace auth
+{    namespace auth
     {
+
+        AuthMiddleware::AuthMiddleware()
+            : rateLimiter_(std::make_unique<RateLimiter>()),
+              corsHandler_(std::make_unique<CorsHandler>()),
+              apiKeyConfig_()
+        {
+            ServerLogger::logInfo("Authentication middleware initialized with default configuration");
+        }
+
+        AuthMiddleware::AuthMiddleware(const RateLimiter::Config &rateLimiterConfig)
+            : rateLimiter_(std::make_unique<RateLimiter>(rateLimiterConfig)),
+              corsHandler_(std::make_unique<CorsHandler>()),
+              apiKeyConfig_()
+        {
+            ServerLogger::logInfo("Authentication middleware initialized with custom rate limiter config");
+        }
 
         AuthMiddleware::AuthMiddleware(const RateLimiter::Config &rateLimiterConfig,
                                        const CorsHandler::Config &corsConfig,

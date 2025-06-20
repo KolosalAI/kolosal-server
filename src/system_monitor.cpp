@@ -7,6 +7,7 @@
 #include <sstream>
 #include <thread>
 #include <algorithm>
+#include <filesystem>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -470,8 +471,7 @@ namespace kolosal
                             dxgiGPU.freeMemory = wmiGPU.freeMemory;
                         }
                         break;
-                    }
-                }
+                    }                }
             }
         }
 #else
@@ -479,10 +479,99 @@ namespace kolosal
         {
             std::vector<GPUInfo> gpus;
 
-            // Linux implementation for AMD, Intel, and NVIDIA GPUs
-            // Check /sys/class/drm/ for GPU devices
-            // This is a simplified implementation - full Linux support would need more work
-            ServerLogger::logInfo("Linux GPU detection via sysfs - implementation needed");
+            try {
+                // Check /sys/class/drm/ for GPU devices
+                const std::string drm_path = "/sys/class/drm";
+                if (!std::filesystem::exists(drm_path)) {
+                    ServerLogger::logWarning("DRM subsystem not available - GPU detection limited");
+                    return gpus;
+                }
+
+                for (const auto& entry : std::filesystem::directory_iterator(drm_path)) {
+                    std::string device_name = entry.path().filename().string();
+                      // Look for card devices (not render nodes)
+                    if (device_name.find("card") == 0 && device_name.find("-") == std::string::npos) {
+                        GPUInfo gpu;
+                        gpu.id = std::stoi(device_name.substr(4)); // Extract card number
+                        
+                        // Read device information
+                        std::string device_path = entry.path().string() + "/device";
+                        std::string vendor_file = device_path + "/vendor";
+                        std::string device_file = device_path + "/device";
+                        std::string uevent_file = device_path + "/uevent";
+                        
+                        // Read vendor ID for vendor detection
+                        unsigned int vendorId = 0;
+                        std::ifstream vendor_stream(vendor_file);
+                        if (vendor_stream.is_open()) {
+                            std::string vendor_str;
+                            vendor_stream >> vendor_str;
+                            try {
+                                vendorId = std::stoul(vendor_str, nullptr, 16);
+                            } catch (...) {
+                                vendorId = 0;
+                            }
+                        }
+
+                        // Read device ID (for future use)
+                        unsigned int deviceId = 0;
+                        std::ifstream device_stream(device_file);
+                        if (device_stream.is_open()) {
+                            std::string device_str;
+                            device_stream >> device_str;
+                            try {
+                                deviceId = std::stoul(device_str, nullptr, 16);
+                            } catch (...) {
+                                deviceId = 0;
+                            }
+                        }
+
+                        // Try to get PCI bus info from uevent
+                        std::string pciBusId;
+                        std::ifstream uevent_stream(uevent_file);
+                        if (uevent_stream.is_open()) {
+                            std::string line;
+                            while (std::getline(uevent_stream, line)) {
+                                if (line.find("PCI_SLOT_NAME=") == 0) {
+                                    pciBusId = line.substr(14);
+                                }
+                            }
+                        }
+
+                        // Set vendor and basic name based on vendor ID
+                        gpu.vendor = detectGPUVendor("", vendorId);
+                        if (gpu.vendor == "NVIDIA") {
+                            gpu.name = "NVIDIA GPU (Card " + std::to_string(gpu.id) + ")";
+                        } else if (gpu.vendor == "AMD") {
+                            gpu.name = "AMD GPU (Card " + std::to_string(gpu.id) + ")";
+                        } else if (gpu.vendor == "Intel") {
+                            gpu.name = "Intel GPU (Card " + std::to_string(gpu.id) + ")";
+                        } else {
+                            gpu.name = "Unknown GPU (Card " + std::to_string(gpu.id) + ")";
+                        }
+
+                        // Initialize memory and performance metrics (limited on Linux without specific drivers)
+                        gpu.totalMemory = 0;
+                        gpu.freeMemory = 0;
+                        gpu.usedMemory = 0;
+                        gpu.utilization = 0.0;
+                        gpu.memoryUtilization = 0.0;
+                        gpu.temperature = -1.0; // -1 indicates unknown/unavailable
+                        gpu.powerUsage = -1.0;  // -1 indicates unknown/unavailable
+                        gpu.driverVersion = "Unknown";                        gpus.push_back(gpu);
+                        ServerLogger::logInfo("Detected GPU: %s (Vendor: %s, ID: %d)", 
+                                            gpu.name.c_str(), gpu.vendor.c_str(), gpu.id);
+                    }
+                }
+
+                if (gpus.empty()) {
+                    ServerLogger::logInfo("No GPUs detected via sysfs");
+                }
+
+            } catch (const std::exception& e) {
+                ServerLogger::logError("Error during Linux GPU detection: %s", e.what());
+            }
+
             return gpus;
         }
 #endif

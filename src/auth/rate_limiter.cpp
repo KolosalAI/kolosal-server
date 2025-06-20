@@ -3,9 +3,15 @@
 #include <algorithm>
 
 namespace kolosal
-{
-    namespace auth
+{    namespace auth
     {
+
+        RateLimiter::RateLimiter()
+            : config_(), lastGlobalCleanup_(std::chrono::steady_clock::now())
+        {
+            ServerLogger::logInfo("Rate limiter initialized with default config - Max requests: %zu, Window: %lld seconds, Enabled: %s",
+                                  config_.maxRequests, config_.windowSize.count(), config_.enabled ? "true" : "false");
+        }
 
         RateLimiter::RateLimiter(const Config &config)
             : config_(config), lastGlobalCleanup_(std::chrono::steady_clock::now())
