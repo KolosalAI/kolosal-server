@@ -1,4 +1,5 @@
 #include "kolosal/download_manager.hpp"
+#include "kolosal/download_utils.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/node_manager.h"
@@ -7,6 +8,7 @@
 #include <chrono>
 #include <thread>
 #include <filesystem>
+#include <cmath>
 
 namespace kolosal
 {
@@ -25,11 +27,12 @@ namespace kolosal
         {
             ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
             return false;
-        }
-
-        // Create new download progress entry
+        }        // Create new download progress entry
         auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
         downloads_[model_id] = progress;
+
+        // Report initial progress as 0%
+        ServerLogger::logInfo("Initialized download for model %s: 0.0%% (0/0 bytes)", model_id.c_str());
 
         // Start download in background thread
         download_futures_[model_id] = std::async(std::launch::async, [this, progress]()
@@ -49,12 +52,13 @@ namespace kolosal
         {
             ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
             return false;
-        }
-
-        // Create new download progress entry with engine parameters
+        }        // Create new download progress entry with engine parameters
         auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
         progress->engine_params = std::make_unique<EngineCreationParams>(engine_params);
         downloads_[model_id] = progress;
+
+        // Report initial progress as 0%
+        ServerLogger::logInfo("Initialized download for model %s: 0.0%% (0/0 bytes)", model_id.c_str());
 
         // Start download in background thread
         download_futures_[model_id] = std::async(std::launch::async, [this, progress]()
@@ -269,34 +273,103 @@ namespace kolosal
                 ++it;
             }
         }
-    }
-    void DownloadManager::performDownload(std::shared_ptr<DownloadProgress> progress)
+    }    void DownloadManager::performDownload(std::shared_ptr<DownloadProgress> progress)
     {
         try
         {
+            // Check if file is already complete before starting download
+            if (std::filesystem::exists(progress->local_path))
+            {
+                try 
+                {
+                    size_t local_size = std::filesystem::file_size(progress->local_path);
+                    if (local_size > 0)
+                    {
+                        // Get expected file size to check if file is complete
+                        DownloadResult url_info = get_url_file_info(progress->url);
+                        if (url_info.success && local_size == url_info.total_bytes)
+                        {
+                            std::lock_guard<std::mutex> lock(downloads_mutex_);
+                            progress->status = "already_complete";
+                            progress->total_bytes = local_size;
+                            progress->downloaded_bytes = local_size;
+                            progress->percentage = 100.0;
+                            progress->end_time = std::chrono::system_clock::now();
+                            
+                            ServerLogger::logInfo("File already fully downloaded for model %s: %zu bytes (skipping download)", 
+                                                   progress->model_id.c_str(), local_size);
+                                                   
+                            // If engine parameters are provided, create the engine
+                            if (progress->engine_params)
+                            {
+                                createEngineAfterDownload(progress);
+                            }
+                            return;
+                        }
+                    }
+                }
+                catch (const std::exception &ex)
+                {
+                    ServerLogger::logWarning("Error checking existing file for model %s: %s", 
+                                           progress->model_id.c_str(), ex.what());
+                }
+            }
+            
             // Progress callback to update download progress
-            auto progressCallback = [progress](size_t downloaded, size_t total, double percentage)
+            bool progress_was_reported = false;
+            auto progressCallback = [progress, &progress_was_reported](size_t downloaded, size_t total, double percentage)
             {
                 std::lock_guard<std::mutex> lock(const_cast<DownloadManager &>(getInstance()).downloads_mutex_);
+                
+                progress_was_reported = true;
+                
+                // Validate percentage value before storing
+                if (percentage < 0.0 || percentage > 100.0 || std::isnan(percentage) || std::isinf(percentage))
+                {
+                    ServerLogger::logWarning("Invalid percentage value %.2f for model %s, clamping to valid range", 
+                                           percentage, progress->model_id.c_str());
+                    percentage = std::max(0.0, std::min(100.0, percentage));
+                    if (std::isnan(percentage) || std::isinf(percentage))
+                    {
+                        percentage = 0.0;
+                    }
+                }
+                
                 progress->downloaded_bytes = downloaded;
                 progress->total_bytes = total;
                 progress->percentage = percentage;
 
                 ServerLogger::logInfo("Download progress for %s: %.1f%% (%zu/%zu bytes)",
-                                      progress->model_id.c_str(), percentage, downloaded, total);
-            }; // Perform the actual download with cancellation support
+                                      progress->model_id.c_str(), percentage, downloaded, total);            };
+            
+            // Perform the actual download with cancellation support
+            ServerLogger::logInfo("Starting download for model %s, initial progress: %.1f%% (%zu/%zu bytes)",
+                                  progress->model_id.c_str(), progress->percentage, progress->downloaded_bytes, progress->total_bytes);
             DownloadResult result = download_file_with_cancellation(progress->url, progress->local_path, progressCallback, &(progress->cancelled));
 
             {
                 std::lock_guard<std::mutex> lock(downloads_mutex_);
-
-                if (result.success && progress->status != "cancelled")
+                
+                ServerLogger::logInfo("Download result for model %s: success=%s, total_bytes=%zu, error='%s'",
+                                      progress->model_id.c_str(), result.success ? "true" : "false", 
+                                      result.total_bytes, result.error_message.c_str());                if (result.success && progress->status != "cancelled")
                 {
                     progress->status = "completed";
                     progress->total_bytes = result.total_bytes;
                     progress->downloaded_bytes = result.total_bytes;
                     progress->percentage = 100.0;
-                    ServerLogger::logInfo("Download completed successfully for model: %s", progress->model_id.c_str());
+                    
+                    // Check if this was a file that was already complete (no progress reported)
+                    if (!progress_was_reported && result.total_bytes > 0)
+                    {
+                        ServerLogger::logInfo("File was already complete for model: %s (no download needed)", progress->model_id.c_str());
+                        // Set status to indicate the file was already complete
+                        progress->status = "already_complete";
+                    }
+                    else
+                    {
+                        ServerLogger::logInfo("Download completed successfully for model: %s", progress->model_id.c_str());
+                    }
                 }
                 else if (progress->status != "cancelled")
                 {

@@ -6,6 +6,7 @@
 #include <regex>
 #include <thread>
 #include <chrono>
+#include <cmath>
 
 using json = nlohmann::json;
 
@@ -79,6 +80,13 @@ namespace kolosal
             {
                 size_t remaining_bytes = progress->total_bytes - progress->downloaded_bytes;
                 estimated_remaining_seconds = static_cast<int>(remaining_bytes / download_speed);
+            }            // Ensure percentage is valid before sending response
+            double safe_percentage = progress->percentage;
+            if (std::isnan(safe_percentage) || std::isinf(safe_percentage) || safe_percentage < 0.0 || safe_percentage > 100.0)
+            {
+                ServerLogger::logWarning("Invalid percentage value %.2f for model %s in API response, using 0.0", 
+                                       progress->percentage, model_id.c_str());
+                safe_percentage = 0.0;
             }
 
             // Build response JSON
@@ -87,8 +95,8 @@ namespace kolosal
                 {"status", progress->status},
                 {"url", progress->url},
                 {"local_path", progress->local_path},
-                {"progress", {{"downloaded_bytes", progress->downloaded_bytes}, {"total_bytes", progress->total_bytes}, {"percentage", progress->percentage}, {"download_speed_bps", download_speed}}},
-                {"timing", {{"start_time", std::chrono::duration_cast<std::chrono::milliseconds>(progress->start_time.time_since_epoch()).count()}, {"elapsed_seconds", elapsed_seconds}}}}; // Add end time and error message if applicable
+                {"progress", {{"downloaded_bytes", progress->downloaded_bytes}, {"total_bytes", progress->total_bytes}, {"percentage", safe_percentage}, {"download_speed_bps", download_speed}}},
+                {"timing", {{"start_time", std::chrono::duration_cast<std::chrono::milliseconds>(progress->start_time.time_since_epoch()).count()}, {"elapsed_seconds", elapsed_seconds}}}};// Add end time and error message if applicable
             if (progress->status != "downloading" && progress->status != "creating_engine")
             {
                 response["timing"]["end_time"] = std::chrono::duration_cast<std::chrono::milliseconds>(progress->end_time.time_since_epoch()).count();
