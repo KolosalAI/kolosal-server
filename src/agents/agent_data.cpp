@@ -117,6 +117,76 @@ std::vector<std::string> AgentData::get_all_keys() const {
     return keys;
 }
 
+// JSON conversion methods
+nlohmann::json AgentData::to_json() const {
+    nlohmann::json json_data;
+    
+    for (const auto& [key, value] : data) {
+        switch (value.type) {
+        case AgentDataValue::STRING:
+            json_data[key] = value.s_val;
+            break;
+        case AgentDataValue::INT:
+            json_data[key] = value.i_val;
+            break;
+        case AgentDataValue::DOUBLE:
+            json_data[key] = value.d_val;
+            break;
+        case AgentDataValue::BOOL:
+            json_data[key] = value.b_val;
+            break;
+        case AgentDataValue::ARRAY_STRING:
+            json_data[key] = value.arr_s_val;
+            break;
+        case AgentDataValue::OBJECT_DATA:
+            if (value.obj_val) {
+                nlohmann::json obj_json;
+                for (const auto& [obj_key, obj_value] : *value.obj_val) {
+                    // Recursively convert nested objects
+                    AgentData nested_data;
+                    nested_data.data[obj_key] = obj_value;
+                    obj_json[obj_key] = nested_data.to_json()[obj_key];
+                }
+                json_data[key] = obj_json;
+            }
+            break;
+        case AgentDataValue::NONE:
+            json_data[key] = nullptr;
+            break;
+        }
+    }
+    
+    return json_data;
+}
+
+void AgentData::from_json(const nlohmann::json& json_data) {
+    clear();
+    
+    for (auto it = json_data.begin(); it != json_data.end(); ++it) {
+        const std::string& key = it.key();
+        const auto& value = it.value();
+        
+        if (value.is_string()) {
+            set(key, value.get<std::string>());
+        } else if (value.is_number_integer()) {
+            set(key, value.get<int>());
+        } else if (value.is_number_float()) {
+            set(key, value.get<double>());
+        } else if (value.is_boolean()) {
+            set(key, value.get<bool>());
+        } else if (value.is_array() && !value.empty() && value[0].is_string()) {
+            set(key, value.get<std::vector<std::string>>());
+        } else if (value.is_object()) {
+            AgentData nested_data;
+            nested_data.from_json(value);
+            set(key, nested_data);
+        } else if (value.is_null()) {
+            // Handle null values - set as empty string for now
+            set(key, std::string(""));
+        }
+    }
+}
+
 // UUIDGenerator implementation - static members defined here
 namespace {
     std::mutex& get_uuid_mutex() {

@@ -46,8 +46,10 @@ struct KOLOSAL_SERVER_API FunctionConfig {
  * @brief Agent configuration
  */
 struct KOLOSAL_SERVER_API AgentConfig {
+    std::string id;
     std::string name;
     std::string type;
+    std::string description;
     std::string role;
     std::string system_prompt;
     std::vector<std::string> capabilities;

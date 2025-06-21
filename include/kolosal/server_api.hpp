@@ -9,7 +9,10 @@ namespace kolosal {    // Forward declarations
     class NodeManager;
     namespace auth {
         class AuthMiddleware;
-        class AuthManager;
+    }
+    namespace agents {
+        class YAMLConfigurableAgentManager;
+        class AgentOrchestrator;
     }
 
     class KOLOSAL_SERVER_API ServerAPI {
@@ -27,11 +30,18 @@ namespace kolosal {    // Forward declarations
         NodeManager& getNodeManager();
         const NodeManager& getNodeManager() const;        // AuthMiddleware access
         auth::AuthMiddleware& getAuthMiddleware();
-        const auth::AuthMiddleware& getAuthMiddleware() const;
+        const auth::AuthMiddleware& getAuthMiddleware() const;        
+        
+        // AuthManager access (returns AuthMiddleware for compatibility)
+        auth::AuthMiddleware& getAuthManager();
+        const auth::AuthMiddleware& getAuthManager() const;
 
-        // AuthManager access
-        auth::AuthManager& getAuthManager();
-        const auth::AuthManager& getAuthManager() const;
+        // Agent system access
+        agents::YAMLConfigurableAgentManager& getAgentManager();
+        const agents::YAMLConfigurableAgentManager& getAgentManager() const;
+        
+        agents::AgentOrchestrator& getAgentOrchestrator();
+        const agents::AgentOrchestrator& getAgentOrchestrator() const;
 
     private:
         ServerAPI();

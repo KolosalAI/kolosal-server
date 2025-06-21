@@ -86,8 +86,7 @@ int main(int argc, char* argv[]) {
         std::cerr << "Failed to initialize server on port " << port << std::endl;
         return 1;
     }
-    
-    std::cout << "Server started successfully!" << std::endl;
+      std::cout << "Server started successfully!" << std::endl;
     std::cout << "Available endpoints:" << std::endl;
     std::cout << "  GET  /health                 - Health status" << std::endl;
     std::cout << "  GET  /models                 - List available models" << std::endl;
@@ -97,6 +96,12 @@ int main(int argc, char* argv[]) {
     std::cout << "  POST /engines                - Add new engine" << std::endl;
     std::cout << "  GET  /engines/{id}/status    - Engine status" << std::endl;
     std::cout << "  DELETE /engines/{id}         - Remove engine" << std::endl;
+    std::cout << "  GET  /v1/agents              - List all agents" << std::endl;
+    std::cout << "  GET  /v1/agents/{id}         - Get agent details" << std::endl;
+    std::cout << "  POST /v1/agents              - Create new agent" << std::endl;
+    std::cout << "  POST /v1/agents/{id}/execute - Execute agent function" << std::endl;
+    std::cout << "  GET  /v1/agents/system/status - Agent system status" << std::endl;
+    std::cout << "  POST /v1/orchestration/workflows - Create workflow" << std::endl;
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
     
     // Main server loop

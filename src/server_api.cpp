@@ -8,22 +8,28 @@
 #include "kolosal/routes/engine_status_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/auth_config_route.hpp"
+#include "kolosal/routes/agents_route.hpp"
+#include "kolosal/routes/orchestration_route.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
+#include "kolosal/agents/multi_agent_system.hpp"
+#include "kolosal/agents/agent_orchestrator.hpp"
 #include <memory>
 #include <stdexcept>
 
 namespace kolosal
-{
-
-    class ServerAPI::Impl
+{    class ServerAPI::Impl
     {
     public:
         std::unique_ptr<Server> server;
         std::unique_ptr<NodeManager> nodeManager;
+        std::shared_ptr<agents::YAMLConfigurableAgentManager> agentManager;
+        std::shared_ptr<agents::AgentOrchestrator> agentOrchestrator;
 
         Impl()
-            : nodeManager(std::make_unique<NodeManager>())
+            : nodeManager(std::make_unique<NodeManager>()),
+              agentManager(std::make_shared<agents::YAMLConfigurableAgentManager>()),
+              agentOrchestrator(std::make_shared<agents::AgentOrchestrator>(agentManager))
         {
         }
     };
@@ -53,8 +59,7 @@ namespace kolosal
                 ServerLogger::logError("Failed to initialize server");
                 return false;
             }            // Register routes
-            ServerLogger::logInfo("Registering routes");
-            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
+            ServerLogger::logInfo("Registering routes");            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());
@@ -62,6 +67,18 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
+              // Register agent system routes
+            ServerLogger::logInfo("Registering agent system routes");
+            auto agentsRoute = std::make_unique<routes::AgentsRoute>(pImpl->agentManager);
+            agentsRoute->setup_routes(*pImpl->server);
+            
+            // Add orchestration route directly (it implements IRoute interface)
+            auto orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator);
+            pImpl->server->addRoute(std::move(orchestrationRoute));
+            
+            // Start agent systems
+            ServerLogger::logInfo("Starting agent systems");
+            pImpl->agentOrchestrator->start();
 
             // Start server in a background thread
             std::thread([this]()
@@ -77,10 +94,20 @@ namespace kolosal
             ServerLogger::logError("Failed to initialize server: %s", ex.what());
             return false;
         }
-    }
-
-    void ServerAPI::shutdown()
+    }    void ServerAPI::shutdown()
     {
+        if (pImpl->agentOrchestrator)
+        {
+            ServerLogger::logInfo("Shutting down agent orchestrator");
+            pImpl->agentOrchestrator->stop();
+        }
+        
+        if (pImpl->agentManager)
+        {
+            ServerLogger::logInfo("Shutting down agent manager");
+            pImpl->agentManager->stop();
+        }
+        
         if (pImpl->server)
         {
             ServerLogger::logInfo("Shutting down server");
@@ -111,6 +138,52 @@ namespace kolosal
             throw std::runtime_error("Server not initialized");
         }
         return pImpl->server->getAuthMiddleware();
+    }    auth::AuthMiddleware& ServerAPI::getAuthManager()
+    {
+        if (!pImpl->server) {
+            throw std::runtime_error("Server not initialized");
+        }
+        return pImpl->server->getAuthMiddleware();
+    }
+
+    const auth::AuthMiddleware& ServerAPI::getAuthManager() const
+    {
+        if (!pImpl->server) {
+            throw std::runtime_error("Server not initialized");
+        }
+        return pImpl->server->getAuthMiddleware();
+    }
+
+    agents::YAMLConfigurableAgentManager& ServerAPI::getAgentManager()
+    {
+        if (!pImpl->agentManager) {
+            throw std::runtime_error("Agent manager not initialized");
+        }
+        return *pImpl->agentManager;
+    }
+
+    const agents::YAMLConfigurableAgentManager& ServerAPI::getAgentManager() const
+    {
+        if (!pImpl->agentManager) {
+            throw std::runtime_error("Agent manager not initialized");
+        }
+        return *pImpl->agentManager;
+    }
+
+    agents::AgentOrchestrator& ServerAPI::getAgentOrchestrator()
+    {
+        if (!pImpl->agentOrchestrator) {
+            throw std::runtime_error("Agent orchestrator not initialized");
+        }
+        return *pImpl->agentOrchestrator;
+    }
+
+    const agents::AgentOrchestrator& ServerAPI::getAgentOrchestrator() const
+    {
+        if (!pImpl->agentOrchestrator) {
+            throw std::runtime_error("Agent orchestrator not initialized");
+        }
+        return *pImpl->agentOrchestrator;
     }
 
 } // namespace kolosal

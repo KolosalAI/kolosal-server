@@ -61,6 +61,11 @@ if(ENABLE_AGENTS)
         # Agent core and system
         src/agents/agent_core.cpp
         src/agents/multi_agent_system.cpp
+        src/agents/agent_orchestrator.cpp
+        
+        # Agent API routes
+        src/routes/agents_route.cpp
+        src/routes/orchestration_route.cpp
     )
     message(STATUS "Agent system enabled - adding agent sources")
 endif()

@@ -2,6 +2,7 @@
 #pragma once
 
 #include "../export.hpp"
+#include <json.hpp>
 #include <string>
 #include <vector>
 #include <map>
@@ -57,12 +58,14 @@ public:
     int get_int(const std::string& key, int default_val = 0) const;
     double get_double(const std::string& key, double default_val = 0.0) const;
     bool get_bool(const std::string& key, bool default_val = false) const;
-    std::vector<std::string> get_array_string(const std::string& key) const;
-
-    bool has_key(const std::string& key) const;
+    std::vector<std::string> get_array_string(const std::string& key) const;    bool has_key(const std::string& key) const;
     void clear();
     std::vector<std::string> get_all_keys() const;
     const std::map<std::string, AgentDataValue>& get_data() const { return data; }
+    
+    // JSON conversion methods
+    nlohmann::json to_json() const;
+    void from_json(const nlohmann::json& json_data);
 };
 
 /**
