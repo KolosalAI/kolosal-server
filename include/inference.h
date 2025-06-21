@@ -173,6 +173,7 @@ struct Job {
     // Generation results
     std::vector<int32_t>    generatedTokens;
     std::string             generatedText;
+    std::vector<float>      embedding;        // For embedding jobs
     
     // Job state
     bool                    isFinished      = false;
@@ -238,14 +239,19 @@ public:
      * @param params The parameters for the completion job.
      * @return The ID of the submitted job.
      */
-    int submitCompletionsJob(const CompletionParameters& params);
-
-    /**
+    int submitCompletionsJob(const CompletionParameters& params);    /**
      * @brief Submits a chat completion job and returns the job ID.
      * @param params The parameters for the chat completion job.
      * @return The ID of the submitted job.
      */
     int submitChatCompletionsJob(const ChatCompletionParameters& params);
+
+    /**
+     * @brief Submits an embedding job and returns the job ID.
+     * @param params The parameters for the embedding job.
+     * @return The ID of the submitted job.
+     */
+    int submitEmbeddingJob(const EmbeddingParameters& params);
 
     // Job control
     /**
@@ -266,15 +272,20 @@ public:
      * @param job_id The ID of the job to check.
      * @return True if the job is finished, false otherwise.
      */
-    bool isJobFinished(int job_id);
-
-    /**
+    bool isJobFinished(int job_id);    /**
      * @brief Gets the current result of a job.
      * @param job_id The ID of the job to get the result for.
      * @return The result of the job.
      * @note This function returns any results currently available, even if the job is not finished.
      */
     CompletionResult getJobResult(int job_id);
+
+    /**
+     * @brief Gets the result of an embedding job.
+     * @param job_id The ID of the embedding job to get the result for.
+     * @return The result of the embedding job.
+     */
+    EmbeddingResult getEmbeddingResult(int job_id);
 
     // Error handling
     /**

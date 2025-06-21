@@ -35,6 +35,7 @@ set(SOURCES
     src/enhanced_gpu_monitor.cpp
     src/routes/chat_completion_route.cpp
     src/routes/completion_route.cpp
+    src/routes/embedding_route.cpp
     src/routes/add_engine_route.cpp
     src/routes/list_engines_route.cpp
     src/routes/remove_engine_route.cpp
@@ -54,6 +55,8 @@ set(SOURCES
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
     src/auth/auth_middleware.cpp    src/node_manager.cpp    src/inference.cpp
+    src/models/embedding_request_model.cpp
+    src/models/embedding_response_model.cpp
     src/retrieval/parse_pdf.cpp
     src/retrieval/parse_docx.cpp
     # Minizip sources for DOCX parsing

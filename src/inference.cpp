@@ -243,6 +243,24 @@ bool ChatCompletionParameters::isValid() const
 	return true;
 }
 
+bool EmbeddingParameters::isValid() const
+{
+	if (input.empty())
+	{
+		std::cerr << "[INFERENCE] [ERROR] input is empty" << std::endl;
+		return false;
+	}
+
+	// Input should not be too long (reasonable limit)
+	if (input.length() > 100000) // 100KB limit
+	{
+		std::cerr << "[INFERENCE] [ERROR] input is too long: " << input.length() << " characters" << std::endl;
+		return false;
+	}
+
+	return true;
+}
+
 // Anonymous namespace to encapsulate internal classes
 namespace
 {
@@ -350,6 +368,7 @@ namespace
 		virtual void stop() = 0;
 		virtual void submitJob(const CompletionParameters &params, std::shared_ptr<Job> job) = 0;
 		virtual void complete(const CompletionParameters &params, std::shared_ptr<Job> job) = 0;
+		virtual void embed(const EmbeddingParameters &params, std::shared_ptr<Job> job) = 0;
 		virtual CompletionParameters formatChat(const ChatCompletionParameters &params) = 0;
 	};
 
@@ -643,6 +662,41 @@ namespace
 							 { return job->isFinished; });
 			}
 		}
+		void embed(const EmbeddingParameters &params, std::shared_ptr<Job> job) override
+		{
+#ifdef DEBUG
+			std::cout << "[INFERENCE] Submitting embedding job" << std::endl;
+#endif
+
+			if (!params.isValid())
+			{
+				std::lock_guard<std::mutex> jobLock(job->mtx);
+				job->hasError = true;
+				job->errorMessage = "Invalid embedding parameters";
+				job->cv.notify_all();
+				return;
+			}
+
+			try
+			{
+				// Generate embedding for the input text
+				std::vector<float> embedding = generateEmbedding(params.input);
+
+				{
+					std::lock_guard<std::mutex> jobLock(job->mtx);
+					job->embedding = embedding;
+					job->isFinished = true;
+					job->cv.notify_all();
+				}
+			}
+			catch (const std::exception& e)
+			{
+				std::lock_guard<std::mutex> jobLock(job->mtx);
+				job->hasError = true;
+				job->errorMessage = std::string("Embedding generation failed: ") + e.what();
+				job->cv.notify_all();
+			}
+		}
 
 		CompletionParameters formatChat(const ChatCompletionParameters &params) override
 		{
@@ -717,6 +771,107 @@ namespace
 		const int n_batch;
 		const int n_keep;
 		const int n_ctx;
+		/**
+		 * @brief Generates embeddings for the given input text
+		 * @param input The input text to generate embeddings for
+		 * @return Vector of floats representing the embedding
+		 */
+		std::vector<float> generateEmbedding(const std::string& input)
+		{
+			// Enable embedding mode
+			llama_set_embeddings(context, true);
+
+			try
+			{
+				// Tokenize input
+				std::vector<llama_token> tokens = common_tokenize(context, input, true, false);
+				
+				if (tokens.empty())
+				{
+					throw std::runtime_error("Input text resulted in empty tokens");
+				}
+
+				// Clear the KV cache
+				llama_kv_cache_clear(context);
+
+				// Create batch
+				llama_batch local_batch = llama_batch_init(tokens.size(), 0, 1);
+				
+				// Add tokens to batch
+				for (size_t i = 0; i < tokens.size(); ++i)
+				{
+					local_batch.token[i] = tokens[i];
+					local_batch.pos[i] = static_cast<llama_pos>(i);
+					local_batch.n_seq_id[i] = 1;
+					local_batch.seq_id[i][0] = 0;
+					local_batch.logits[i] = 0; // Don't compute logits for embedding
+				}
+				
+				local_batch.n_tokens = static_cast<int32_t>(tokens.size());
+
+				// Decode the batch
+				int ret = llama_decode(context, local_batch);
+				if (ret != 0)
+				{
+					llama_batch_free(local_batch);
+					throw std::runtime_error("Failed to decode input for embedding generation");
+				}
+
+				// Get the embeddings (for embedding models, use sequence 0)
+				float* embd = llama_get_embeddings_seq(context, 0);
+				if (!embd)
+				{
+					// Fallback: try getting embeddings from the context directly
+					embd = llama_get_embeddings(context);
+					if (!embd)
+					{
+						llama_batch_free(local_batch);
+						throw std::runtime_error("Failed to get embeddings from model");
+					}
+				}
+
+				// Get embedding dimension
+				int n_embd = llama_model_n_embd(llama_get_model(context));
+				if (n_embd <= 0)
+				{
+					llama_batch_free(local_batch);
+					throw std::runtime_error("Invalid embedding dimension");
+				}
+				
+				// Copy embeddings to vector
+				std::vector<float> embedding(embd, embd + n_embd);
+				
+				// Normalize embeddings (common practice for embedding models)
+				float norm = 0.0f;
+				for (float val : embedding)
+				{
+					norm += val * val;
+				}
+				norm = std::sqrt(norm);
+				
+				if (norm > 0.0f)
+				{
+					for (float& val : embedding)
+					{
+						val /= norm;
+					}
+				}
+
+				// Clean up
+				llama_batch_free(local_batch);
+
+				// Disable embedding mode
+				llama_set_embeddings(context, false);
+
+				return embedding;
+			}
+			catch (...)
+			{
+				// Disable embedding mode on error
+				llama_set_embeddings(context, false);
+				throw;
+			}
+		}
 
 #ifdef DEBUG
 		void printLogits(llama_context *ctx, size_t maxLogits = 10)
@@ -1205,9 +1360,11 @@ struct InferenceEngine::Impl
 
 	int submitCompletionsJob(const CompletionParameters &params);
 	int submitChatCompletionsJob(const ChatCompletionParameters &params);
+	int submitEmbeddingJob(const EmbeddingParameters &params);
 	void stopJob(int job_id);
 	bool isJobFinished(int job_id);
 	CompletionResult getJobResult(int job_id);
+	EmbeddingResult getEmbeddingResult(int job_id);
 	void waitForJob(int job_id);
 	bool hasJobError(int job_id);
 	std::string getJobError(int job_id);
@@ -1447,6 +1604,52 @@ int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParamete
 	return jobId;
 }
 
+int InferenceEngine::Impl::submitEmbeddingJob(const EmbeddingParameters &params)
+{
+	int jobId = nextJobId++;
+
+	auto job = std::make_shared<Job>();
+	job->jobId = jobId;
+	job->seqId = params.seqId;
+
+#ifdef DEBUG
+	std::cout << "[INFERENCE] Submitting embedding job to queue" << std::endl;
+#endif
+
+	// Asynchronously execute the job using thread pool
+	try
+	{
+		threadPool.enqueue([this, params, job]()
+						   {
+			try {
+#ifdef DEBUG
+				std::cout << "[INFERENCE] Processing embedding task to engine" << std::endl;
+#endif
+
+				this->inferenceService->embed(params, job);
+			}
+			catch (const std::exception& e) {
+				std::lock_guard<std::mutex> lock(job->mtx);
+				job->hasError = true;
+				job->errorMessage = e.what();
+
+				std::cerr << "[INFERENCE] [ERROR] [submitEmbeddingJob] " << e.what() << "\n" << std::endl;
+			} });
+	}
+	catch (const std::exception &e)
+	{
+		std::cerr << "[INFERENCE] [ERROR] [submitEmbeddingJob] " << e.what() << std::endl;
+		return -1;
+	}
+
+	{
+		std::lock_guard<std::mutex> lock(jobsMutex);
+		jobs.emplace(jobId, job);
+	}
+
+	return jobId;
+}
+
 void InferenceEngine::Impl::stopJob(int job_id)
 {
 	std::shared_ptr<Job> jobToStop;
@@ -1520,6 +1723,30 @@ CompletionResult InferenceEngine::Impl::getJobResult(int job_id)
 	result.tokens = job->generatedTokens;
 	result.text = job->generatedText;
 	result.tps = job->tps;
+	return result;
+}
+
+EmbeddingResult InferenceEngine::Impl::getEmbeddingResult(int job_id)
+{
+	std::shared_ptr<Job> job;
+
+	{
+		std::lock_guard<std::mutex> lock(jobsMutex);
+		auto it = jobs.find(job_id);
+		if (it == jobs.end())
+		{
+			std::cerr << "[INFERENCE] [ERROR] [getEmbeddingResult] Invalid job ID " << job_id << "\n"
+					  << std::endl;
+			EmbeddingResult result;
+			result.embedding = {};
+			return result;
+		}
+		job = it->second;
+	}
+
+	std::lock_guard<std::mutex> jobLock(job->mtx);
+	EmbeddingResult result;
+	result.embedding = job->embedding;
 	return result;
 }
 
@@ -1671,6 +1898,15 @@ INFERENCE_API int InferenceEngine::submitChatCompletionsJob(const ChatCompletion
 	return pimpl->submitChatCompletionsJob(params);
 }
 
+INFERENCE_API int InferenceEngine::submitEmbeddingJob(const EmbeddingParameters &params)
+{
+#ifdef DEBUG
+	std::cout << "[INFERENCE] Submitting embedding job" << std::endl;
+#endif
+
+	return pimpl->submitEmbeddingJob(params);
+}
+
 INFERENCE_API void InferenceEngine::stopJob(int job_id)
 {
 	pimpl->stopJob(job_id);
@@ -1684,6 +1920,11 @@ INFERENCE_API bool InferenceEngine::isJobFinished(int job_id)
 INFERENCE_API CompletionResult InferenceEngine::getJobResult(int job_id)
 {
 	return pimpl->getJobResult(job_id);
+}
+
+INFERENCE_API EmbeddingResult InferenceEngine::getEmbeddingResult(int job_id)
+{
+	return pimpl->getEmbeddingResult(job_id);
 }
 
 INFERENCE_API void InferenceEngine::waitForJob(int job_id)
