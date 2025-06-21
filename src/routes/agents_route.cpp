@@ -123,26 +123,57 @@ public:
                 send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
                 return;
             }
-            
-            // Validate required fields
-            if (!request_data.contains("id") || !request_data.is_object()) {
-                send_response(sock, 400, parent->format_error_response("Missing required field: id", 400));
-                return;
-            }
-            
+              // Validate required fields
             if (!parent->validate_agent_config(request_data)) {
                 send_response(sock, 400, parent->format_error_response("Invalid agent configuration", 400));
                 return;
             }
             
-            // Convert JSON to AgentConfig (simplified approach)
+            // Convert JSON to AgentConfig
             agents::AgentConfig config;
-            config.id = request_data["id"].get<std::string>();
+            
+            // Handle optional ID field, otherwise it will be auto-generated
+            if (request_data.contains("id") && !request_data["id"].get<std::string>().empty()) {
+                config.id = request_data["id"].get<std::string>();
+            }
+            
             config.name = request_data["name"].get<std::string>();
             config.type = request_data["type"].get<std::string>();
             
             if (request_data.contains("description")) {
                 config.description = request_data["description"].get<std::string>();
+            }
+            
+            if (request_data.contains("role")) {
+                config.role = request_data["role"].get<std::string>();
+            }
+            
+            if (request_data.contains("system_prompt")) {
+                config.system_prompt = request_data["system_prompt"].get<std::string>();
+            }
+            
+            if (request_data.contains("capabilities") && request_data["capabilities"].is_array()) {
+                for (const auto& cap : request_data["capabilities"]) {
+                    if (cap.is_string()) {
+                        config.capabilities.push_back(cap.get<std::string>());
+                    }
+                }
+            }
+            
+            if (request_data.contains("functions") && request_data["functions"].is_array()) {
+                for (const auto& func : request_data["functions"]) {
+                    if (func.is_string()) {
+                        config.functions.push_back(func.get<std::string>());
+                    }
+                }
+            }
+            
+            if (request_data.contains("auto_start")) {
+                config.auto_start = request_data["auto_start"].get<bool>();
+            }
+            
+            if (request_data.contains("max_concurrent_jobs")) {
+                config.max_concurrent_jobs = request_data["max_concurrent_jobs"].get<int>();
             }
             
             // Create the agent
@@ -190,8 +221,7 @@ public:
         }
         return false;
     }
-    
-    void handle(SocketType sock, const std::string& body) override {
+      void handle(SocketType sock, const std::string& body) override {
         try {
             auto agent = agent_manager->get_agent(matched_agent_id);
             
@@ -200,15 +230,19 @@ public:
                 return;
             }
             
-            // Stop the agent first
-            bool stopped = agent_manager->stop_agent(matched_agent_id);
+            // Delete the agent (this will stop it first)
+            bool deleted = agent_manager->delete_agent(matched_agent_id);
             
-            json response_data;
-            response_data["id"] = matched_agent_id;
-            response_data["status"] = "deleted";
-            response_data["message"] = "Agent deleted successfully";
-            
-            send_response(sock, 200, parent->format_success_response(response_data));
+            if (deleted) {
+                json response_data;
+                response_data["id"] = matched_agent_id;
+                response_data["status"] = "deleted";
+                response_data["message"] = "Agent deleted successfully";
+                
+                send_response(sock, 200, parent->format_success_response(response_data));
+            } else {
+                send_response(sock, 500, parent->format_error_response("Failed to delete agent"));
+            }
             
         } catch (const std::exception& e) {
             ServerLogger::logError("Error deleting agent: %s", e.what());
@@ -237,8 +271,7 @@ public:
         }
         return false;
     }
-    
-    void handle(SocketType sock, const std::string& body) override {
+      void handle(SocketType sock, const std::string& body) override {
         try {
             auto agent = agent_manager->get_agent(matched_agent_id);
             
@@ -256,15 +289,64 @@ public:
                 return;
             }
             
-            // For now, return a simple execution result
-            // This would need to be implemented based on the actual agent execution logic
-            json response_data;
-            response_data["agent_id"] = matched_agent_id;
-            response_data["execution_status"] = "completed";
-            response_data["result"] = "Function executed successfully";
-            response_data["message"] = "Agent function execution completed";
+            // Validate required fields
+            if (!request_data.contains("function") || !request_data["function"].is_string()) {
+                send_response(sock, 400, parent->format_error_response("Missing or invalid 'function' field", 400));
+                return;
+            }
             
-            send_response(sock, 200, parent->format_success_response(response_data));
+            std::string function_name = request_data["function"].get<std::string>();
+            
+            // Prepare function parameters
+            agents::AgentData params;
+            if (request_data.contains("parameters") && request_data["parameters"].is_object()) {
+                for (const auto& [key, value] : request_data["parameters"].items()) {
+                    if (value.is_string()) {
+                        params.set(key, value.get<std::string>());
+                    } else if (value.is_number_integer()) {
+                        params.set(key, std::to_string(value.get<int>()));
+                    } else if (value.is_number_float()) {
+                        params.set(key, std::to_string(value.get<double>()));
+                    } else if (value.is_boolean()) {
+                        params.set(key, value.get<bool>() ? "true" : "false");
+                    } else {
+                        params.set(key, value.dump());
+                    }
+                }
+            }
+            
+            // Execute the function
+            try {
+                auto result = agent->get_function_manager()->execute_function(function_name, params);
+                
+                json response_data;
+                response_data["agent_id"] = matched_agent_id;
+                response_data["function"] = function_name;
+                response_data["success"] = result.success;
+                response_data["execution_time_ms"] = result.execution_time_ms;
+                  // Convert result data to JSON
+                json result_json;
+                for (const auto& key : result.result_data.get_all_keys()) {
+                    result_json[key] = result.result_data.get_string(key);
+                }
+                response_data["result"] = result_json;
+                
+                if (!result.error_message.empty()) {
+                    response_data["error"] = result.error_message;
+                }
+                
+                int status_code = result.success ? 200 : 400;
+                send_response(sock, status_code, parent->format_success_response(response_data));
+                
+            } catch (const std::exception& e) {
+                json response_data;
+                response_data["agent_id"] = matched_agent_id;
+                response_data["function"] = function_name;
+                response_data["success"] = false;
+                response_data["error"] = e.what();
+                
+                send_response(sock, 400, parent->format_success_response(response_data));
+            }
             
         } catch (const std::exception& e) {
             ServerLogger::logError("Error executing agent function: %s", e.what());
@@ -349,10 +431,8 @@ std::string AgentsRoute::format_success_response(const nlohmann::json& data) {
 }
 
 bool AgentsRoute::validate_agent_config(const nlohmann::json& config) {
-    return config.contains("id") &&
-           config.contains("name") && 
+    return config.contains("name") && 
            config.contains("type") && 
-           !config["id"].get<std::string>().empty() &&
            !config["name"].get<std::string>().empty() &&
            !config["type"].get<std::string>().empty();
 }

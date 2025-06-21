@@ -267,6 +267,41 @@ bool YAMLConfigurableAgentManager::stop_agent(const std::string& agent_id) {
     }
 }
 
+bool YAMLConfigurableAgentManager::delete_agent(const std::string& agent_id) {
+    if (agent_id.empty()) {
+        logger->error("Invalid agent ID provided");
+        return false;
+    }
+
+    std::lock_guard<std::mutex> lock(agents_mutex);
+    auto it = active_agents.find(agent_id);
+    if (it == active_agents.end()) {
+        logger->error("Agent not found: " + agent_id);
+        return false;
+    }
+
+    if (!it->second) {
+        logger->error("Agent instance is null: " + agent_id);
+        return false;
+    }
+
+    try {
+        // Stop the agent first if it's running
+        if (it->second->is_running()) {
+            it->second->stop();
+        }
+        
+        // Remove from active agents map
+        active_agents.erase(it);
+        
+        logger->info("Agent deleted: " + agent_id.substr(0, 8) + "...");
+        return true;
+    } catch (const std::exception& e) {
+        logger->error("Failed to delete agent " + agent_id + ": " + e.what());
+        return false;
+    }
+}
+
 bool YAMLConfigurableAgentManager::reload_configuration(const std::string& yaml_file) {
     logger->info("Reloading configuration from: " + yaml_file);
     

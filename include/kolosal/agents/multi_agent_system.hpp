@@ -91,6 +91,13 @@ public:
     [[nodiscard]] bool stop_agent(const std::string& agent_id);
     
     /**
+     * @brief Delete an agent by ID
+     * @param agent_id Agent ID
+     * @return true on success
+     */
+    [[nodiscard]] bool delete_agent(const std::string& agent_id);
+    
+    /**
      * @brief List all agent IDs
      * @return Vector of agent IDs
      */
