@@ -24,6 +24,10 @@ LLMConfig LLMConfig::from_yaml(const YAML::Node& node) {
         config.api_key = node["api_key"].as<std::string>();
     }
     
+    if (node["instruction"]) {
+        config.instruction = node["instruction"].as<std::string>();
+    }
+    
     if (node["temperature"]) {
         double temp = node["temperature"].as<double>();
         if (temp < 0.0 || temp > 1.0) {
@@ -144,9 +148,8 @@ AgentConfig AgentConfig::from_yaml(const YAML::Node& node) {
             config.functions.push_back(func.as<std::string>());
         }
     }
-    
-    if (node["llm"]) {
-        config.llm_config = LLMConfig::from_yaml(node["llm"]);
+      if (node["llm_config"]) {
+        config.llm_config = LLMConfig::from_yaml(node["llm_config"]);
     }
     
     if (node["custom_settings"] && node["custom_settings"].IsMap()) {
@@ -238,6 +241,192 @@ SystemConfig SystemConfig::from_file(const std::string& yaml_file) {
         throw std::runtime_error("Failed to parse YAML file '" + yaml_file + "': " + e.what());
     } catch (const std::exception& e) {
         throw std::runtime_error("Failed to load YAML file '" + yaml_file + "': " + e.what());
+    }
+}
+
+YAML::Node LLMConfig::to_yaml() const {
+    YAML::Node node;
+    
+    node["model_name"] = model_name;
+    node["api_endpoint"] = api_endpoint;
+    
+    if (!api_key.empty()) {
+        node["api_key"] = api_key;
+    }
+    
+    if (!instruction.empty()) {
+        node["instruction"] = instruction;
+    }
+    
+    node["temperature"] = temperature;
+    node["max_tokens"] = max_tokens;
+    node["timeout_seconds"] = timeout_seconds;
+    node["max_retries"] = max_retries;
+    
+    if (!stop_sequences.empty()) {
+        YAML::Node seq_node;
+        for (const auto& seq : stop_sequences) {
+            seq_node.push_back(seq);
+        }
+        node["stop_sequences"] = seq_node;
+    }
+    
+    if (!custom_headers.empty()) {
+        for (const auto& [key, value] : custom_headers) {
+            node["custom_headers"][key] = value;
+        }
+    }
+    
+    return node;
+}
+
+YAML::Node FunctionConfig::to_yaml() const {
+    YAML::Node node;
+    
+    node["name"] = name;
+    node["type"] = type;
+    
+    if (!description.empty()) {
+        node["description"] = description;
+    }
+    
+    if (!parameters.empty()) {
+        YAML::Node params_node;
+        for (const auto& [key, value] : parameters) {
+            params_node[key] = value;
+        }
+        node["parameters"] = params_node;
+    }
+    
+    if (!implementation.empty()) {
+        node["implementation"] = implementation;
+    }
+    
+    if (!endpoint.empty()) {
+        node["endpoint"] = endpoint;
+    }
+    
+    node["async_capable"] = async_capable;
+    node["timeout_ms"] = timeout_ms;
+    
+    return node;
+}
+
+YAML::Node AgentConfig::to_yaml() const {
+    YAML::Node node;
+    
+    if (!id.empty()) {
+        node["id"] = id;
+    }
+    
+    node["name"] = name;
+    
+    if (!type.empty()) {
+        node["type"] = type;
+    }
+    
+    if (!description.empty()) {
+        node["description"] = description;
+    }
+    
+    if (!role.empty()) {
+        node["role"] = role;
+    }
+    
+    if (!system_prompt.empty()) {
+        node["system_prompt"] = system_prompt;
+    }
+    
+    if (!capabilities.empty()) {
+        YAML::Node caps_node;
+        for (const auto& cap : capabilities) {
+            caps_node.push_back(cap);
+        }
+        node["capabilities"] = caps_node;
+    }
+    
+    if (!functions.empty()) {
+        YAML::Node funcs_node;
+        for (const auto& func : functions) {
+            funcs_node.push_back(func);
+        }
+        node["functions"] = funcs_node;
+    }
+    
+    // Add LLM configuration
+    node["llm_config"] = llm_config.to_yaml();
+    
+    if (!custom_settings.empty()) {
+        YAML::Node settings_node;
+        for (const auto& [key, value] : custom_settings) {
+            settings_node[key] = value;
+        }
+        node["custom_settings"] = settings_node;
+    }
+    
+    node["auto_start"] = auto_start;
+    node["max_concurrent_jobs"] = max_concurrent_jobs;
+    node["heartbeat_interval_seconds"] = heartbeat_interval_seconds;
+    
+    return node;
+}
+
+YAML::Node SystemConfig::to_yaml() const {
+    YAML::Node root;
+    
+    // System configuration
+    YAML::Node system_node;
+    system_node["worker_threads"] = worker_threads;
+    system_node["health_check_interval_seconds"] = health_check_interval_seconds;
+    system_node["log_level"] = log_level;
+    
+    if (!global_settings.empty()) {
+        YAML::Node global_settings_node;
+        for (const auto& [key, value] : global_settings) {
+            global_settings_node[key] = value;
+        }
+        system_node["global_settings"] = global_settings_node;
+    }
+    
+    root["system"] = system_node;
+    
+    // Functions configuration
+    if (!functions.empty()) {
+        YAML::Node functions_node;
+        for (const auto& func : functions) {
+            functions_node.push_back(func.to_yaml());
+        }
+        root["functions"] = functions_node;
+    }
+    
+    // Agents configuration
+    if (!agents.empty()) {
+        YAML::Node agents_node;
+        for (const auto& agent : agents) {
+            agents_node.push_back(agent.to_yaml());
+        }
+        root["agents"] = agents_node;
+    }
+    
+    return root;
+}
+
+bool SystemConfig::save_to_file(const std::string& yaml_file) const {
+    try {
+        YAML::Node root = to_yaml();
+        
+        std::ofstream file(yaml_file);
+        if (!file.is_open()) {
+            return false;
+        }
+        
+        file << "# Agent System Configuration for Kolosal Server\n";
+        file << "# Generated configuration file\n\n";
+        file << root;
+        
+        return true;
+    } catch (const std::exception& e) {
+        return false;
     }
 }
 

@@ -16,6 +16,7 @@ struct KOLOSAL_SERVER_API LLMConfig {
     std::string model_name = "gpt-4";
     std::string api_endpoint = "";
     std::string api_key = "";
+    std::string instruction = "";  // Added instruction field
     double temperature = 0.7;
     int max_tokens = 2048;
     std::vector<std::string> stop_sequences;
@@ -24,6 +25,8 @@ struct KOLOSAL_SERVER_API LLMConfig {
     int max_retries = 3;
     
     static LLMConfig from_yaml(const YAML::Node& node);
+    // Add method to convert to YAML
+    YAML::Node to_yaml() const;
 };
 
 /**
@@ -40,6 +43,8 @@ struct KOLOSAL_SERVER_API FunctionConfig {
     int timeout_ms = 5000;
     
     static FunctionConfig from_yaml(const YAML::Node& node);
+    // Add method to convert to YAML
+    YAML::Node to_yaml() const;
 };
 
 /**
@@ -61,6 +66,8 @@ struct KOLOSAL_SERVER_API AgentConfig {
     int heartbeat_interval_seconds = 5;
     
     static AgentConfig from_yaml(const YAML::Node& node);
+    // Add method to convert to YAML
+    YAML::Node to_yaml() const;
 };
 
 /**
@@ -76,6 +83,9 @@ struct KOLOSAL_SERVER_API SystemConfig {
     
     static SystemConfig from_yaml(const YAML::Node& root);
     static SystemConfig from_file(const std::string& yaml_file);
+    // Add methods to save configuration
+    YAML::Node to_yaml() const;
+    bool save_to_file(const std::string& yaml_file) const;
 };
 
 } // namespace kolosal::agents

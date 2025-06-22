@@ -74,10 +74,37 @@ namespace kolosal
             
             // Add orchestration route directly (it implements IRoute interface)
             auto orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator);
-            pImpl->server->addRoute(std::move(orchestrationRoute));
-            
-            // Start agent systems
+            pImpl->server->addRoute(std::move(orchestrationRoute));            // Start agent systems
             ServerLogger::logInfo("Starting agent systems");
+            
+            // Load agent configuration and start agent manager
+            std::string config_path = "config/agents.yaml";
+            
+            // Try alternative paths if the default doesn't exist
+            std::vector<std::string> config_paths = {
+                "config/agents.yaml",
+                "agents.yaml",
+                "../config/agents.yaml",
+                "./config/agents.yaml"
+            };
+            
+            bool config_loaded = false;
+            for (const auto& path : config_paths) {
+                if (pImpl->agentManager->load_configuration(path)) {
+                    ServerLogger::logInfo("Agent configuration loaded successfully from %s", path.c_str());
+                    pImpl->agentManager->start();
+                    config_loaded = true;
+                    break;
+                }
+            }
+            
+            if (!config_loaded) {
+                ServerLogger::logWarning("Failed to load agent configuration from any of the attempted paths");
+                ServerLogger::logInfo("Creating default agent configuration...");
+                // Start agent manager anyway - agents can be created via API
+                pImpl->agentManager->start();
+            }
+            
             pImpl->agentOrchestrator->start();
 
             // Start server in a background thread

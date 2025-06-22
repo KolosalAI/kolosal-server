@@ -63,7 +63,7 @@ std::unique_ptr<AgentFunction> ConfigurableAgentFactory::create_builtin_function
         return std::make_unique<EchoFunction>();
     } else if (config.name == "delay") {
         return std::make_unique<DelayFunction>();
-    } else if (config.name == "text_analysis") {
+    } else if (config.name == "text_analysis" || config.name == "text_processing") {
         return std::make_unique<TextAnalysisFunction>();
     } else if (config.name == "data_transform") {
         return std::make_unique<DataTransformFunction>();
