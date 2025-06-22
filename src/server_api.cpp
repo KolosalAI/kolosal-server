@@ -14,6 +14,8 @@
 #include "kolosal/routes/download_progress_route.hpp"
 #include "kolosal/routes/downloads_status_route.hpp"
 #include "kolosal/routes/cancel_download_route.hpp"
+#include "kolosal/routes/pause_download_route.hpp"
+#include "kolosal/routes/resume_download_route.hpp"
 #include "kolosal/routes/cancel_all_downloads_route.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
@@ -69,9 +71,10 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
-            pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());
-            pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
+            pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());            pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
             pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());
+            pImpl->server->addRoute(std::make_unique<PauseDownloadRoute>());
+            pImpl->server->addRoute(std::make_unique<ResumeDownloadRoute>());
             pImpl->server->addRoute(std::make_unique<CancelAllDownloadsRoute>());
 
             // Register metrics routes

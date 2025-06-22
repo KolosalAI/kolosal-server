@@ -23,11 +23,25 @@ namespace kolosal
         std::lock_guard<std::mutex> lock(downloads_mutex_);
 
         // Check if download is already in progress
-        if (downloads_.find(model_id) != downloads_.end())
+        auto existing_it = downloads_.find(model_id);
+        if (existing_it != downloads_.end())
         {
-            ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
-            return false;
-        }        // Create new download progress entry
+            // If the existing download is cancelled, failed, or completed, we can restart it
+            auto &existing_progress = existing_it->second;
+            if (existing_progress->status == "downloading" || existing_progress->status == "paused")
+            {
+                ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
+                return false;
+            }
+            else
+            {
+                // Clean up the old entry to allow restart
+                ServerLogger::logInfo("Cleaning up previous download entry for model: %s (status: %s)",
+                                      model_id.c_str(), existing_progress->status.c_str());
+                download_futures_.erase(model_id);
+                downloads_.erase(existing_it);
+            }
+        } // Create new download progress entry
         auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
         downloads_[model_id] = progress;
 
@@ -48,11 +62,25 @@ namespace kolosal
         std::lock_guard<std::mutex> lock(downloads_mutex_);
 
         // Check if download is already in progress
-        if (downloads_.find(model_id) != downloads_.end())
+        auto existing_it = downloads_.find(model_id);
+        if (existing_it != downloads_.end())
         {
-            ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
-            return false;
-        }        // Create new download progress entry with engine parameters
+            // If the existing download is cancelled, failed, or completed, we can restart it
+            auto &existing_progress = existing_it->second;
+            if (existing_progress->status == "downloading" || existing_progress->status == "paused")
+            {
+                ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
+                return false;
+            }
+            else
+            {
+                // Clean up the old entry to allow restart
+                ServerLogger::logInfo("Cleaning up previous download entry for model: %s (status: %s)",
+                                      model_id.c_str(), existing_progress->status.c_str());
+                download_futures_.erase(model_id);
+                downloads_.erase(existing_it);
+            }
+        } // Create new download progress entry with engine parameters
         auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
         progress->engine_params = std::make_unique<EngineCreationParams>(engine_params);
         downloads_[model_id] = progress;
@@ -96,13 +124,13 @@ namespace kolosal
     bool DownloadManager::cancelDownload(const std::string &model_id)
     {
         std::lock_guard<std::mutex> lock(downloads_mutex_);
-
         auto it = downloads_.find(model_id);
-        if (it != downloads_.end() && (it->second->status == "downloading" || it->second->status == "creating_engine"))
+        if (it != downloads_.end() && (it->second->status == "downloading" || it->second->status == "creating_engine" || it->second->status == "paused"))
         {
             it->second->status = "cancelled";
             it->second->end_time = std::chrono::system_clock::now();
             it->second->cancelled = true; // Set the cancellation flag
+            it->second->paused = false;   // Clear pause flag when cancelling
 
             // Check if this is a startup download (has engine params)
             if (it->second->engine_params)
@@ -124,15 +152,15 @@ namespace kolosal
         int cancelled_count = 0;
         int startup_downloads = 0;
         int regular_downloads = 0;
-
         for (auto &pair : downloads_)
         {
             auto progress = pair.second;
-            if (progress && (progress->status == "downloading" || progress->status == "creating_engine"))
+            if (progress && (progress->status == "downloading" || progress->status == "creating_engine" || progress->status == "paused"))
             {
                 progress->status = "cancelled";
                 progress->end_time = std::chrono::system_clock::now();
                 progress->cancelled = true; // Set the cancellation flag
+                progress->paused = false;   // Clear pause flag when cancelling
                 cancelled_count++;
 
                 // Check if this is a startup download (has engine params)
@@ -232,10 +260,9 @@ namespace kolosal
         std::lock_guard<std::mutex> lock(downloads_mutex_);
 
         std::map<std::string, std::shared_ptr<DownloadProgress>> active_downloads;
-
         for (const auto &pair : downloads_)
         {
-            if (pair.second->status == "downloading")
+            if (pair.second->status == "downloading" || pair.second->status == "paused")
             {
                 active_downloads[pair.first] = pair.second;
             }
@@ -254,10 +281,9 @@ namespace kolosal
         auto it = downloads_.begin();
         while (it != downloads_.end())
         {
-            auto &progress = it->second;
-
-            // Only clean up completed, failed, or cancelled downloads
+            auto &progress = it->second; // Only clean up completed, failed, or cancelled downloads (not downloading or paused)
             if (progress->status != "downloading" &&
+                progress->status != "paused" &&
                 progress->end_time < cutoff_time)
             {
 
@@ -273,14 +299,15 @@ namespace kolosal
                 ++it;
             }
         }
-    }    void DownloadManager::performDownload(std::shared_ptr<DownloadProgress> progress)
+    }
+    void DownloadManager::performDownload(std::shared_ptr<DownloadProgress> progress)
     {
         try
         {
             // Check if file is already complete before starting download
             if (std::filesystem::exists(progress->local_path))
             {
-                try 
+                try
                 {
                     size_t local_size = std::filesystem::file_size(progress->local_path);
                     if (local_size > 0)
@@ -295,10 +322,10 @@ namespace kolosal
                             progress->downloaded_bytes = local_size;
                             progress->percentage = 100.0;
                             progress->end_time = std::chrono::system_clock::now();
-                            
-                            ServerLogger::logInfo("File already fully downloaded for model %s: %zu bytes (skipping download)", 
-                                                   progress->model_id.c_str(), local_size);
-                                                   
+
+                            ServerLogger::logInfo("File already fully downloaded for model %s: %zu bytes (skipping download)",
+                                                  progress->model_id.c_str(), local_size);
+
                             // If engine parameters are provided, create the engine
                             if (progress->engine_params)
                             {
@@ -310,16 +337,27 @@ namespace kolosal
                 }
                 catch (const std::exception &ex)
                 {
-                    ServerLogger::logWarning("Error checking existing file for model %s: %s", 
-                                           progress->model_id.c_str(), ex.what());
+                    ServerLogger::logWarning("Error checking existing file for model %s: %s",
+                                             progress->model_id.c_str(), ex.what());
                 }
             }
-            
             // Progress callback to update download progress
             bool progress_was_reported = false;
             auto progressCallback = [progress, &progress_was_reported](size_t downloaded, size_t total, double percentage)
             {
                 std::lock_guard<std::mutex> lock(const_cast<DownloadManager &>(getInstance()).downloads_mutex_);
+                
+                // Handle pause by checking the pause flag and waiting
+                while (progress->paused && progress->status == "paused" && !progress->cancelled)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+                
+                // If cancelled while paused, return early
+                if (progress->cancelled)
+                {
+                    return;
+                }
                 
                 progress_was_reported = true;
                 
@@ -340,25 +378,24 @@ namespace kolosal
                 progress->percentage = percentage;
 
                 ServerLogger::logInfo("Download progress for %s: %.1f%% (%zu/%zu bytes)",
-                                      progress->model_id.c_str(), percentage, downloaded, total);            };
-            
-            // Perform the actual download with cancellation support
+                                      progress->model_id.c_str(), percentage, downloaded, total); }; // Perform the actual download with cancellation support
             ServerLogger::logInfo("Starting download for model %s, initial progress: %.1f%% (%zu/%zu bytes)",
                                   progress->model_id.c_str(), progress->percentage, progress->downloaded_bytes, progress->total_bytes);
-            DownloadResult result = download_file_with_cancellation(progress->url, progress->local_path, progressCallback, &(progress->cancelled));
+            DownloadResult result = download_file_with_cancellation_and_resume(progress->url, progress->local_path, progressCallback, &(progress->cancelled), true);
 
             {
                 std::lock_guard<std::mutex> lock(downloads_mutex_);
-                
+
                 ServerLogger::logInfo("Download result for model %s: success=%s, total_bytes=%zu, error='%s'",
-                                      progress->model_id.c_str(), result.success ? "true" : "false", 
-                                      result.total_bytes, result.error_message.c_str());                if (result.success && progress->status != "cancelled")
+                                      progress->model_id.c_str(), result.success ? "true" : "false",
+                                      result.total_bytes, result.error_message.c_str());
+                if (result.success && progress->status != "cancelled")
                 {
                     progress->status = "completed";
                     progress->total_bytes = result.total_bytes;
                     progress->downloaded_bytes = result.total_bytes;
                     progress->percentage = 100.0;
-                    
+
                     // Check if this was a file that was already complete (no progress reported)
                     if (!progress_was_reported && result.total_bytes > 0)
                     {
@@ -523,6 +560,38 @@ namespace kolosal
                 return node_manager.registerEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
             }
         }
+    }
+
+    bool DownloadManager::pauseDownload(const std::string &model_id)
+    {
+        std::lock_guard<std::mutex> lock(downloads_mutex_);
+
+        auto it = downloads_.find(model_id);
+        if (it != downloads_.end() && it->second->status == "downloading")
+        {
+            it->second->paused = true;
+            it->second->status = "paused";
+            ServerLogger::logInfo("Paused download for model: %s", model_id.c_str());
+            return true;
+        }
+
+        return false;
+    }
+
+    bool DownloadManager::resumeDownload(const std::string &model_id)
+    {
+        std::lock_guard<std::mutex> lock(downloads_mutex_);
+
+        auto it = downloads_.find(model_id);
+        if (it != downloads_.end() && it->second->status == "paused")
+        {
+            it->second->paused = false;
+            it->second->status = "downloading";
+            ServerLogger::logInfo("Resumed download for model: %s", model_id.c_str());
+            return true;
+        }
+
+        return false;
     }
 
 } // namespace kolosal

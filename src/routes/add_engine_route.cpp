@@ -80,13 +80,74 @@ namespace kolosal
                 ServerLogger::logInfo("[Thread %u] Model path is URL, starting async download: %s", std::this_thread::get_id(), modelPathStr.c_str());
 
                 // Generate download path - use ./models to match startup behavior
-                std::string downloadPath = generate_download_path(modelPathStr, "./models");
-
-                // Check if file already exists
+                std::string downloadPath = generate_download_path(modelPathStr, "./models");                // Check if file already exists and is complete
                 if (std::filesystem::exists(downloadPath))
                 {
-                    ServerLogger::logInfo("[Thread %u] Model file already exists at: %s", std::this_thread::get_id(), downloadPath.c_str());
-                    actualModelPath = downloadPath;
+                    // Check if the file is complete or needs to be resumed
+                    if (can_resume_download(modelPathStr, downloadPath))
+                    {
+                        ServerLogger::logInfo("[Thread %u] Model file exists but is incomplete, will resume download at: %s", std::this_thread::get_id(), downloadPath.c_str());
+                        
+                        // Start async download using DownloadManager with engine creation to resume
+                        auto &download_manager = DownloadManager::getInstance();
+
+                        // Prepare engine creation parameters
+                        EngineCreationParams engine_params;
+                        engine_params.engine_id = engineId;
+                        engine_params.load_immediately = loadImmediately;
+                        engine_params.main_gpu_id = mainGpuId;
+                        engine_params.loading_params = loadParams;
+
+                        bool download_started = download_manager.startDownloadWithEngine(engineId, modelPathStr, downloadPath, engine_params);
+
+                        if (!download_started)
+                        {
+                            // Check if download is already in progress
+                            if (download_manager.isDownloadInProgress(engineId))
+                            {
+                                json jResponse = {
+                                    {"message", "Model download already in progress. Use /download-progress/" + engineId + " to check status."},
+                                    {"engine_id", engineId},
+                                    {"download_status", "in_progress"},
+                                    {"download_url", modelPathStr},
+                                    {"progress_endpoint", "/download-progress/" + engineId}};
+
+                                send_response(sock, 202, jResponse.dump());
+                                ServerLogger::logInfo("[Thread %u] Download already in progress for engine: %s", std::this_thread::get_id(), engineId.c_str());
+                                return;
+                            }
+                            else
+                            {
+                                errorMessage = "Failed to start download resume for model from URL '" + modelPathStr + "'";
+                                errorType = "model_download_error";
+                                errorCode = 422;
+
+                                json jError = {{"error", {{"message", errorMessage}, {"type", errorType}, {"param", "model_path"}, {"code", "download_resume_failed"}}}};
+                                send_response(sock, errorCode, jError.dump());
+                                ServerLogger::logError("[Thread %u] %s", std::this_thread::get_id(), errorMessage.c_str());
+                                return;
+                            }
+                        }
+
+                        // Return response indicating download resume has started
+                        json jResponse = {
+                            {"message", "Model download resume started successfully. Engine will be created once download completes."},
+                            {"engine_id", engineId},
+                            {"download_status", "resuming"},
+                            {"download_url", modelPathStr},
+                            {"local_path", downloadPath},
+                            {"progress_endpoint", "/download-progress/" + engineId},
+                            {"note", "Check download progress using the progress_endpoint. Engine creation will be deferred until download completes."}};
+
+                        send_response(sock, 202, jResponse.dump());
+                        ServerLogger::logInfo("[Thread %u] Started async download resume for engine %s from URL: %s", std::this_thread::get_id(), engineId.c_str(), modelPathStr.c_str());
+                        return;
+                    }
+                    else
+                    {
+                        ServerLogger::logInfo("[Thread %u] Model file already exists and is complete at: %s", std::this_thread::get_id(), downloadPath.c_str());
+                        actualModelPath = downloadPath;
+                    }
                 }
                 else
                 {
