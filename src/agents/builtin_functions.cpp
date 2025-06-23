@@ -370,8 +370,23 @@ FunctionResult InferenceFunction::execute(const AgentData& params) {
         auto& nodeManager = ServerAPI::instance().getNodeManager();
         auto engine = nodeManager.getEngine(engine_id);
         
+        // If the primary engine is not available, try common model names
         if (!engine) {
-            return FunctionResult(false, "Engine not available: " + engine_id);
+            std::vector<std::string> fallback_engines = {"test-qwen-0.6b", "default", "main"};
+            for (const auto& fallback : fallback_engines) {
+                if (fallback != engine_id) {
+                    engine = nodeManager.getEngine(fallback);
+                    if (engine) {
+                        ServerLogger::logInfo("InferenceFunction: Using fallback engine '%s' instead of '%s'", 
+                                             fallback.c_str(), engine_id.c_str());
+                        break;
+                    }
+                }
+            }
+        }
+        
+        if (!engine) {
+            return FunctionResult(false, "No available inference engine found (tried: " + engine_id + ", test-qwen-0.6b, default, main)");
         }
         
         // Extract parameters

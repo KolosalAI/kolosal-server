@@ -399,6 +399,194 @@ public:
         }    }
 };
 
+// Agent Chat Completion Route - handles /v1/agents/{agent_id}/chat/completions (OpenAI compatible)
+class AgentChatCompletionRoute : public IRoute {
+private:
+    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
+    AgentsRoute* parent;
+    std::string matched_agent_id;
+public:
+    AgentChatCompletionRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
+        : agent_manager(manager), parent(p) {}
+    
+    bool match(const std::string& method, const std::string& path) override {
+        if (method != "POST") return false;
+        
+        std::regex pattern(R"(^/v1/agents/([^/]+)/chat/completions$)");
+        std::smatch matches;
+        if (std::regex_match(path, matches, pattern)) {
+            matched_agent_id = matches[1].str();
+            return true;
+        }
+        return false;
+    }
+    
+    void handle(SocketType sock, const std::string& body) override {
+        try {
+            auto agent = agent_manager->get_agent(matched_agent_id);
+            
+            if (!agent) {
+                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
+                return;
+            }
+            
+            // Parse the JSON body (OpenAI chat completion format)
+            json request_data;
+            try {
+                request_data = json::parse(body);
+            } catch (const json::parse_error& e) {
+                send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
+                return;
+            }
+            
+            // Extract messages from OpenAI format
+            if (!request_data.contains("messages") || !request_data["messages"].is_array()) {
+                send_response(sock, 400, parent->format_error_response("Missing or invalid 'messages' field", 400));
+                return;
+            }
+            
+            // Convert messages to a single prompt
+            std::ostringstream prompt_builder;
+            for (const auto& message : request_data["messages"]) {
+                if (!message.contains("role") || !message.contains("content")) {
+                    continue;
+                }
+                std::string role = message["role"].get<std::string>();
+                std::string content = message["content"].get<std::string>();
+                
+                if (role == "system") {
+                    prompt_builder << "System: " << content << "\n";
+                } else if (role == "user") {
+                    prompt_builder << "User: " << content << "\n";
+                } else if (role == "assistant") {
+                    prompt_builder << "Assistant: " << content << "\n";
+                }
+            }
+            prompt_builder << "Assistant: ";
+            
+            // Prepare function parameters for LLM inference
+            agents::AgentData params;
+            params.set("prompt", prompt_builder.str());
+            
+            // Extract optional parameters
+            if (request_data.contains("max_tokens") && request_data["max_tokens"].is_number()) {
+                params.set("max_tokens", request_data["max_tokens"].get<int>());
+            } else {
+                params.set("max_tokens", 512);
+            }
+            
+            if (request_data.contains("temperature") && request_data["temperature"].is_number()) {
+                params.set("temperature", request_data["temperature"].get<double>());
+            } else {
+                params.set("temperature", 0.7);
+            }
+            
+            if (request_data.contains("top_p") && request_data["top_p"].is_number()) {
+                params.set("top_p", request_data["top_p"].get<double>());
+            } else {
+                params.set("top_p", 0.9);
+            }
+            
+            // Try to use inference function first, fallback to other functions
+            auto result = agents::FunctionResult(false);
+            std::string function_used = "";
+            
+            try {
+                // First try the inference function which directly uses the LLM
+                if (agent->get_function_manager()->has_function("inference")) {
+                    result = agent->get_function_manager()->execute_function("inference", params);
+                    function_used = "inference";
+                }
+                // If inference not available, try LLM functions
+                else if (agent->get_function_manager()->has_function("code_generation")) {
+                    params.set("requirements", prompt_builder.str());
+                    params.set("language", "text");
+                    params.set("style", "conversational");
+                    result = agent->get_function_manager()->execute_function("code_generation", params);
+                    function_used = "code_generation";
+                }
+                // Fallback to text processing
+                else {
+                    params.set("text", prompt_builder.str());
+                    params.set("operation", "process");
+                    result = agent->get_function_manager()->execute_function("text_processing", params);
+                    function_used = "text_processing";
+                }
+                
+                // Format response in OpenAI chat completion format
+                json openai_response;
+                
+                if (result.success) {
+                    // Extract the response text - check multiple possible result fields
+                    std::string response_text = result.result_data.get_string("text");
+                    if (response_text.empty()) {
+                        response_text = result.result_data.get_string("result");
+                    }
+                    if (response_text.empty()) {
+                        response_text = result.result_data.get_string("llm_output");
+                    }
+                    if (response_text.empty() && !result.llm_response.empty()) {
+                        response_text = result.llm_response;
+                    }
+                    if (response_text.empty()) {
+                        response_text = "I understand your request. How can I assist you further?";
+                    }
+                    
+                    // Create OpenAI-compatible response
+                    openai_response["id"] = "chatcmpl-agent-" + matched_agent_id.substr(0, 8);
+                    openai_response["object"] = "chat.completion";
+                    openai_response["created"] = std::time(nullptr);
+                    openai_response["model"] = "agent-" + matched_agent_id.substr(0, 8);
+                    openai_response["system_fingerprint"] = "agent_system";
+                    
+                    json choice;
+                    choice["index"] = 0;
+                    choice["message"]["role"] = "assistant";
+                    choice["message"]["content"] = response_text;
+                    choice["finish_reason"] = "stop";
+                    
+                    openai_response["choices"] = json::array({choice});
+                    
+                    // Add usage information if available
+                    json usage;
+                    usage["prompt_tokens"] = 50; // Estimate
+                    if (result.result_data.get_string("tokens_generated") != "") {
+                        usage["completion_tokens"] = std::stoi(result.result_data.get_string("tokens_generated"));
+                    } else {
+                        usage["completion_tokens"] = static_cast<int>(response_text.length() / 4); // Rough estimate
+                    }
+                    usage["total_tokens"] = usage["prompt_tokens"].get<int>() + usage["completion_tokens"].get<int>();
+                    openai_response["usage"] = usage;
+                    
+                    send_response(sock, 200, openai_response.dump());
+                } else {
+                    // Error response in OpenAI format
+                    json error_response;
+                    error_response["error"]["message"] = result.error_message.empty() ? "Failed to generate response" : result.error_message;
+                    error_response["error"]["type"] = "agent_error";
+                    error_response["error"]["code"] = "agent_function_failed";
+                    error_response["error"]["param"] = nullptr;
+                    
+                    send_response(sock, 400, error_response.dump());
+                }
+                
+            } catch (const std::exception& e) {
+                json error_response;
+                error_response["error"]["message"] = e.what();
+                error_response["error"]["type"] = "agent_error";
+                error_response["error"]["code"] = "agent_execution_failed";
+                error_response["error"]["param"] = nullptr;
+                
+                send_response(sock, 500, error_response.dump());
+            }
+            
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Error in agent chat completion: %s", e.what());
+            send_response(sock, 500, parent->format_error_response(e.what()));
+        }
+    }
+};
+
 // Agent Chat Route - handles /v1/agents/{agent_id}/chat
 class AgentChatRoute : public IRoute {
 private:
@@ -447,39 +635,79 @@ public:
                 send_response(sock, 400, parent->format_error_response("Missing or invalid 'message' field", 400));
                 return;
             }
-            
-            // Prepare function parameters for text processing
+              // Prepare function parameters for LLM inference
             agents::AgentData params;
-            params.set("text", message);
-            params.set("operation", "process");
+            params.set("prompt", message);
+            params.set("max_tokens", 512);
+            params.set("temperature", 0.7);
+            params.set("top_p", 0.9);
             
-            // Execute text processing function
+            // Try to use inference function first, fallback to text processing
+            auto result = agents::FunctionResult(false);
+            std::string function_used = "";
+            
             try {
-                auto result = agent->get_function_manager()->execute_function("text_processing", params);
-                
-                json response_data;
+                // First try the inference function which directly uses the LLM
+                if (agent->get_function_manager()->has_function("inference")) {
+                    result = agent->get_function_manager()->execute_function("inference", params);
+                    function_used = "inference";
+                }
+                // If inference not available, try LLM functions
+                else if (agent->get_function_manager()->has_function("code_generation")) {
+                    params.set("requirements", message);
+                    params.set("language", "text");
+                    params.set("style", "conversational");
+                    result = agent->get_function_manager()->execute_function("code_generation", params);
+                    function_used = "code_generation";
+                }
+                // Fallback to text processing
+                else {
+                    params.set("text", message);
+                    params.set("operation", "process");
+                    result = agent->get_function_manager()->execute_function("text_processing", params);
+                    function_used = "text_processing";
+                }
+                  json response_data;
                 response_data["agent_id"] = matched_agent_id;
                 response_data["success"] = result.success;
+                response_data["function_used"] = function_used;
                 
                 if (result.success) {
-                    // Extract the response text
-                    std::string response_text = result.result_data.get_string("result");
+                    // Extract the response text - check multiple possible result fields
+                    std::string response_text = result.result_data.get_string("text");
+                    if (response_text.empty()) {
+                        response_text = result.result_data.get_string("result");
+                    }
+                    if (response_text.empty()) {
+                        response_text = result.result_data.get_string("llm_output");
+                    }
+                    if (response_text.empty() && !result.llm_response.empty()) {
+                        response_text = result.llm_response;
+                    }
                     if (response_text.empty()) {
                         response_text = "I understand your message: " + message;
                     }
                     response_data["response"] = response_text;
+                    
+                    // Add additional metadata if available
+                    if (result.result_data.get_string("tokens_generated") != "") {
+                        response_data["tokens_generated"] = result.result_data.get_string("tokens_generated");
+                    }
+                    if (result.result_data.get_string("tokens_per_second") != "") {
+                        response_data["tokens_per_second"] = result.result_data.get_string("tokens_per_second");
+                    }
                 } else {
                     response_data["error"] = result.error_message.empty() ? "Failed to process message" : result.error_message;
                 }
                 
                 int status_code = result.success ? 200 : 400;
                 send_response(sock, status_code, parent->format_success_response(response_data));
-                
-            } catch (const std::exception& e) {
+                  } catch (const std::exception& e) {
                 json response_data;
                 response_data["agent_id"] = matched_agent_id;
                 response_data["success"] = false;
                 response_data["error"] = e.what();
+                response_data["function_used"] = function_used;
                 
                 send_response(sock, 400, parent->format_success_response(response_data));
             }
@@ -630,14 +858,38 @@ public:
                 send_response(sock, 400, parent->format_error_response("Missing or invalid 'message' field", 400));
                 return;
             }
-            
-            // Prepare function parameters for text processing
+              // Prepare function parameters for LLM inference
             agents::AgentData params;
-            params.set("text", message);
-            params.set("operation", "analyze");
+            params.set("prompt", message);
+            params.set("max_tokens", 512);
+            params.set("temperature", 0.7);
+            params.set("top_p", 0.9);
+            
+            // Try to use inference function first, fallback to other functions
+            auto result = agents::FunctionResult(false);
+            std::string function_used = "";
             
             try {
-                auto result = agent->get_function_manager()->execute_function("text_processing", params);
+                // First try the inference function which directly uses the LLM
+                if (agent->get_function_manager()->has_function("inference")) {
+                    result = agent->get_function_manager()->execute_function("inference", params);
+                    function_used = "inference";
+                }
+                // If inference not available, try LLM functions
+                else if (agent->get_function_manager()->has_function("code_generation")) {
+                    params.set("requirements", message);
+                    params.set("language", "text");
+                    params.set("style", "conversational");
+                    result = agent->get_function_manager()->execute_function("code_generation", params);
+                    function_used = "code_generation";
+                }
+                // Fallback to text processing
+                else {
+                    params.set("text", message);
+                    params.set("operation", "analyze");
+                    result = agent->get_function_manager()->execute_function("text_processing", params);
+                    function_used = "text_processing";
+                }
                 
                 json response_data;
                 response_data["agent_id"] = matched_agent_id;
@@ -799,8 +1051,8 @@ void AgentsRoute::setup_routes(Server& server) {
     server.addRoute(std::make_unique<AgentDeleteRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentExecuteRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentSystemStatusRoute>(agent_manager, this));
-    
-    // Register new chat/response endpoints
+      // Register new chat/response endpoints
+    server.addRoute(std::make_unique<AgentChatCompletionRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentChatRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentGenerateRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentRespondRoute>(agent_manager, this));

@@ -21,7 +21,8 @@ AgentCore::AgentCore(const std::string& name, const std::string& type)
     event_system = std::make_shared<EventSystem>(logger);
       // Register default functions
     function_manager->register_function(std::make_unique<AddFunction>());
-    function_manager->register_function(std::make_unique<EchoFunction>());    function_manager->register_function(std::make_unique<DelayFunction>());
+    function_manager->register_function(std::make_unique<EchoFunction>());    
+    function_manager->register_function(std::make_unique<DelayFunction>());
     function_manager->register_function(std::make_unique<TextAnalysisFunction>());
     function_manager->register_function(std::make_unique<TextProcessingFunction>());
     function_manager->register_function(std::make_unique<DataTransformFunction>());
