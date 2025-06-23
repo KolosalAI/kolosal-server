@@ -65,6 +65,8 @@ std::unique_ptr<AgentFunction> ConfigurableAgentFactory::create_builtin_function
         return std::make_unique<DelayFunction>();
     } else if (config.name == "text_analysis" || config.name == "text_processing") {
         return std::make_unique<TextAnalysisFunction>();
+    } else if (config.name == "data_analysis") {
+        return std::make_unique<DataAnalysisFunction>();
     } else if (config.name == "data_transform") {
         return std::make_unique<DataTransformFunction>();
     } else if (config.name == "inference") {
@@ -116,14 +118,11 @@ void YAMLConfigurableAgentManager::start() {
     running.store(true);
     message_router->start();
     
-    {
-        std::lock_guard<std::mutex> lock(agents_mutex);
-        // Create and start agents from configuration
-        for (const auto& agent_config : system_config.agents) {
-            std::string agent_id = create_agent_from_config(agent_config);
-            if (!agent_id.empty() && agent_config.auto_start) {
-                start_agent(agent_id);
-            }
+    // Create and start agents from configuration
+    for (const auto& agent_config : system_config.agents) {
+        std::string agent_id = create_agent_from_config(agent_config);
+        if (!agent_id.empty() && agent_config.auto_start) {
+            start_agent(agent_id);
         }
     }
     

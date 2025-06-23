@@ -40,12 +40,22 @@ public:
 };
 
 /**
- * @brief Text analysis function
+ * @brief Text analysis function (supports both text_analysis and text_processing names)
  */
 class KOLOSAL_SERVER_API TextAnalysisFunction : public AgentFunction {
 public:
     std::string get_name() const override { return "text_analysis"; }
     std::string get_description() const override { return "Analyze text for word count, character count, and sentiment"; }
+    FunctionResult execute(const AgentData& params) override;
+};
+
+/**
+ * @brief Text processing function (alias for TextAnalysisFunction to match YAML config)
+ */
+class KOLOSAL_SERVER_API TextProcessingFunction : public AgentFunction {
+public:
+    std::string get_name() const override { return "text_processing"; }
+    std::string get_description() const override { return "Process and analyze text content"; }
     FunctionResult execute(const AgentData& params) override;
 };
 
@@ -56,6 +66,16 @@ class KOLOSAL_SERVER_API DataTransformFunction : public AgentFunction {
 public:
     std::string get_name() const override { return "data_transform"; }
     std::string get_description() const override { return "Transform data arrays with various operations"; }
+    FunctionResult execute(const AgentData& params) override;
+};
+
+/**
+ * @brief Data analysis function
+ */
+class KOLOSAL_SERVER_API DataAnalysisFunction : public AgentFunction {
+public:
+    std::string get_name() const override { return "data_analysis"; }
+    std::string get_description() const override { return "Analyze structured data and extract insights"; }
     FunctionResult execute(const AgentData& params) override;
 };
 

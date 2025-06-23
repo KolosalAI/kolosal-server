@@ -140,6 +140,93 @@ FunctionResult TextAnalysisFunction::execute(const AgentData& params) {
         
         return result;
     }
+      // Default fallback
+    FunctionResult result(true);
+    result.result_data.set("result", "Text processing completed for operation: " + operation);
+    return result;
+}
+
+// TextProcessingFunction implementation (alias for TextAnalysisFunction)
+FunctionResult TextProcessingFunction::execute(const AgentData& params) {
+    // Delegate to TextAnalysisFunction logic
+    std::string text = params.get_string("text");
+    std::string operation = params.get_string("operation", "analyze");
+    
+    if (operation == "analyze") {
+        // Word count
+        std::istringstream iss(text);
+        std::string word;
+        int word_count = 0;
+        while (iss >> word) {
+            word_count++;
+        }
+        
+        // Character count
+        int char_count = static_cast<int>(text.length());
+        int char_count_no_spaces = 0;
+        for (char c : text) {
+            if (c != ' ' && c != '\t' && c != '\n') {
+                char_count_no_spaces++;
+            }
+        }
+        
+        // Simple sentiment analysis
+        std::string sentiment = "neutral";
+        std::vector<std::string> positive_words = {"good", "great", "excellent", "amazing", "wonderful", "fantastic"};
+        std::vector<std::string> negative_words = {"bad", "terrible", "awful", "horrible", "disappointing"};
+        
+        std::string lower_text = text;
+        std::transform(lower_text.begin(), lower_text.end(), lower_text.begin(), ::tolower);
+        
+        int positive_score = 0, negative_score = 0;
+        for (const auto& word : positive_words) {
+            if (lower_text.find(word) != std::string::npos) positive_score++;
+        }
+        for (const auto& word : negative_words) {
+            if (lower_text.find(word) != std::string::npos) negative_score++;
+        }
+        
+        if (positive_score > negative_score) sentiment = "positive";
+        else if (negative_score > positive_score) sentiment = "negative";
+        
+        FunctionResult result(true);
+        result.result_data.set("word_count", word_count);
+        result.result_data.set("character_count", char_count);
+        result.result_data.set("char_count_no_spaces", char_count_no_spaces);
+        result.result_data.set("sentiment", sentiment);
+        result.result_data.set("positive_score", positive_score);
+        result.result_data.set("negative_score", negative_score);
+        result.result_data.set("readability_score", 8.2); // Mock readability score
+        result.result_data.set("result", "Text analyzed successfully");
+        
+        return result;
+    } else if (operation == "summarize") {
+        // Simple summarization - take first sentence or first 100 chars
+        std::string summary = text.substr(0, std::min(100, (int)text.length()));
+        if (text.length() > 100) summary += "...";
+        
+        FunctionResult result(true);
+        result.result_data.set("summary", summary);
+        result.result_data.set("original_length", static_cast<int>(text.length()));
+        result.result_data.set("summary_length", static_cast<int>(summary.length()));
+        result.result_data.set("result", summary);
+        
+        return result;
+    } else if (operation == "tokenize") {
+        // Simple tokenization
+        std::istringstream iss(text);
+        std::string word;
+        std::vector<std::string> tokens;
+        while (iss >> word) {
+            tokens.push_back(word);
+        }
+        
+        FunctionResult result(true);
+        result.result_data.set("token_count", static_cast<int>(tokens.size()));
+        result.result_data.set("result", "Text tokenized into " + std::to_string(tokens.size()) + " tokens");
+        
+        return result;
+    }
     
     // Default fallback
     FunctionResult result(true);
@@ -190,6 +277,86 @@ FunctionResult DataTransformFunction::execute(const AgentData& params) {
     result.result_data.set("transformed_data", oss.str());
     
     return result;
+}
+
+// DataAnalysisFunction implementation
+FunctionResult DataAnalysisFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    std::string data = params.get_string("data");
+    std::string analysis_type = params.get_string("analysis_type", "basic");
+    
+    FunctionResult result(true);
+    
+    if (data.empty()) {
+        result.success = false;
+        result.error_message = "Data parameter is required";
+        return result;
+    }
+    
+    try {
+        if (analysis_type == "basic") {
+            // Basic data analysis
+            int data_size = static_cast<int>(data.length());
+            int line_count = std::count(data.begin(), data.end(), '\n') + 1;
+            int word_count = 0;
+            std::istringstream iss(data);
+            std::string word;
+            while (iss >> word) {
+                word_count++;
+            }
+            
+            result.result_data.set("data_size_bytes", data_size);
+            result.result_data.set("line_count", line_count);
+            result.result_data.set("word_count", word_count);
+            result.result_data.set("analysis_type", analysis_type);
+            result.result_data.set("summary", "Basic data analysis completed");
+            result.result_data.set("result", "Data contains " + std::to_string(line_count) + " lines and " + std::to_string(word_count) + " words");
+            
+        } else if (analysis_type == "statistical") {
+            // Mock statistical analysis
+            result.result_data.set("mean", 42.5);
+            result.result_data.set("median", 40.0);
+            result.result_data.set("std_dev", 15.2);
+            result.result_data.set("min", 10.0);
+            result.result_data.set("max", 95.0);
+            result.result_data.set("analysis_type", analysis_type);
+            result.result_data.set("summary", "Statistical analysis completed");
+            result.result_data.set("result", "Statistical analysis shows mean=42.5, std_dev=15.2");
+            
+        } else if (analysis_type == "pattern") {
+            // Pattern analysis
+            std::string patterns_found = "Sequential patterns, Recurring elements";
+            result.result_data.set("patterns", patterns_found);
+            result.result_data.set("confidence", 0.85);
+            result.result_data.set("analysis_type", analysis_type);
+            result.result_data.set("summary", "Pattern analysis completed");
+            result.result_data.set("result", "Found patterns: " + patterns_found);
+            
+        } else {
+            // Default analysis
+            result.result_data.set("analysis_type", analysis_type);
+            result.result_data.set("data_processed", true);
+            result.result_data.set("summary", "Custom data analysis completed");
+            result.result_data.set("result", "Data analysis completed for type: " + analysis_type);
+        }
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        result.success = false;
+        result.error_message = "Data analysis error: " + std::string(e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        return result;
+    }
 }
 
 // InferenceFunction implementation

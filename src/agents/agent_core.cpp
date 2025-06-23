@@ -7,12 +7,7 @@
 
 namespace kolosal::agents {
 
-namespace {
-    std::mutex g_capabilities_mutex;  // Global mutex for thread-safe capabilities access
-    std::mutex g_message_mutex;       // Global mutex for thread-safe message handling
-}
-
-AgentCore::AgentCore(const std::string& name, const std::string& type) 
+AgentCore::AgentCore(const std::string& name, const std::string& type)
     : agent_id(UUIDGenerator::generate()), 
       agent_name(name.empty() ? "Agent-" + agent_id.substr(0, 8) : name), 
       agent_type(type) {
@@ -24,13 +19,13 @@ AgentCore::AgentCore(const std::string& name, const std::string& type)
     function_manager = std::make_shared<FunctionManager>(logger);
     job_manager = std::make_shared<JobManager>(function_manager, logger);
     event_system = std::make_shared<EventSystem>(logger);
-    
-    // Register default functions
+      // Register default functions
     function_manager->register_function(std::make_unique<AddFunction>());
-    function_manager->register_function(std::make_unique<EchoFunction>());
-    function_manager->register_function(std::make_unique<DelayFunction>());
+    function_manager->register_function(std::make_unique<EchoFunction>());    function_manager->register_function(std::make_unique<DelayFunction>());
     function_manager->register_function(std::make_unique<TextAnalysisFunction>());
+    function_manager->register_function(std::make_unique<TextProcessingFunction>());
     function_manager->register_function(std::make_unique<DataTransformFunction>());
+    function_manager->register_function(std::make_unique<DataAnalysisFunction>());
     function_manager->register_function(std::make_unique<InferenceFunction>());
     
     logger->info("Agent created: " + agent_name + " (ID: " + agent_id.substr(0, 8) + "...)");
@@ -84,7 +79,7 @@ void AgentCore::add_capability(const std::string& capability) {
     }
 
     {
-        std::lock_guard<std::mutex> lock(g_capabilities_mutex);
+        std::lock_guard<std::mutex> lock(capabilities_mutex);
         // Check for duplicate capability
         if (std::find(capabilities.begin(), capabilities.end(), capability) != capabilities.end()) {
             logger->debug("Capability already exists in " + agent_name + ": " + capability);
@@ -102,7 +97,7 @@ void AgentCore::handle_message(const AgentMessage& message) {
         return;
     }
 
-    std::lock_guard<std::mutex> lock(g_message_mutex);
+    std::lock_guard<std::mutex> lock(message_mutex);
 
     if (message.from_agent.empty()) {
         logger->warn("Received message with empty sender ID");

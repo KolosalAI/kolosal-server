@@ -4,7 +4,7 @@
 system:
   worker_threads: 8
   health_check_interval_seconds: 30
-  log_level: "INFO"
+  log_level: "debug"
   global_settings:
     default_timeout_ms: 30000
     max_retries: 3
@@ -52,7 +52,7 @@ agents:
   - name: "research_assistant"
     type: "research"
     role: "Information researcher and analyzer"
-    system_prompt: |
+    system_prompt: >
       You are a research assistant specialized in gathering, analyzing, and summarizing information.
       Your goal is to provide accurate, well-researched, and comprehensive answers to queries.
       Always cite sources when possible and indicate confidence levels in your findings.
@@ -64,10 +64,10 @@ agents:
     functions:
       - "web_search"
       - "text_processing"
-      - "data_analysis"    
+      - "data_analysis"
     llm_config:
-      model_name: "gpt-4"
-      api_endpoint: ""
+      model_name: "test-qwen-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a research assistant. Provide accurate, well-researched, and comprehensive answers."
       temperature: 0.3
       max_tokens: 2048
@@ -84,7 +84,7 @@ agents:
   - name: "code_assistant"
     type: "development"
     role: "Software development assistant"
-    system_prompt: |
+    system_prompt: >
       You are a senior software developer assistant. You help with code generation, review, 
       debugging, and optimization. You follow best practices and write clean, maintainable code.
       Always explain your code and suggest improvements when appropriate.
@@ -95,10 +95,10 @@ agents:
       - "optimization"
     functions:
       - "code_generation"
-      - "text_processing"    
+      - "text_processing"
     llm_config:
-      model_name: "gpt-4"
-      api_endpoint: ""
+      model_name: "test-qwen-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a software development assistant. Write clean, maintainable code and follow best practices."
       temperature: 0.2
       max_tokens: 4096
@@ -107,15 +107,12 @@ agents:
     auto_start: true
     max_concurrent_jobs: 2
     heartbeat_interval_seconds: 15
-    custom_settings:
-      preferred_languages: ["python", "javascript", "cpp", "java"]
-      code_style: "clean_code"
       
   # Data Analyst Agent
   - name: "data_analyst"
     type: "analytics"
     role: "Data analysis and visualization specialist"
-    system_prompt: |
+    system_prompt: >
       You are a data analyst who specializes in extracting insights from data.
       You can perform statistical analysis, create visualizations, and identify patterns.
       Always validate data quality and explain your analytical approach.
@@ -126,10 +123,10 @@ agents:
       - "pattern_recognition"
     functions:
       - "data_analysis"
-      - "text_processing"    
+      - "text_processing"
     llm_config:
-      model_name: "gpt-4"
-      api_endpoint: ""
+      model_name: "test-qwen-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a data analyst. Extract insights from data and explain your analytical approach."
       temperature: 0.1
       max_tokens: 3072
@@ -146,7 +143,7 @@ agents:
   - name: "content_creator"
     type: "creative"
     role: "Content creation and writing assistant"
-    system_prompt: |
+    system_prompt: >
       You are a creative content writer who can produce engaging, well-structured content
       for various purposes including articles, documentation, marketing copy, and creative writing.
       Adapt your tone and style to match the intended audience and purpose.
@@ -156,10 +153,10 @@ agents:
       - "technical_writing"
       - "creative_writing"
     functions:
-      - "text_processing"    
+      - "text_processing"
     llm_config:
-      model_name: "gpt-4"
-      api_endpoint: ""
+      model_name: "test-qwen-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a creative content writer. Adapt your tone and style to match the intended audience."
       temperature: 0.7
       max_tokens: 2048
@@ -168,15 +165,12 @@ agents:
     auto_start: true
     max_concurrent_jobs: 3
     heartbeat_interval_seconds: 8
-    custom_settings:
-      writing_style: "adaptive"
-      tone_options: ["professional", "casual", "technical", "creative"]
       
   # Project Manager Agent
   - name: "project_manager"
     type: "management"
     role: "Project coordination and management"
-    system_prompt: |
+    system_prompt: >
       You are a project manager who helps coordinate tasks, manage timelines, and ensure
       efficient collaboration between team members and agents. You focus on planning,
       organizing, and tracking progress towards goals.
@@ -187,10 +181,10 @@ agents:
       - "resource_management"
     functions:
       - "text_processing"
-      - "data_analysis"    
+      - "data_analysis"
     llm_config:
-      model_name: "gpt-4"
-      api_endpoint: ""
+      model_name: "test-qwen-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a project manager. Focus on planning, organizing, and tracking progress."
       temperature: 0.4
       max_tokens: 2048
@@ -207,7 +201,7 @@ agents:
   - name: "qa_specialist"
     type: "quality_assurance"
     role: "Quality assurance and testing specialist"
-    system_prompt: |
+    system_prompt: >
       You are a QA specialist focused on ensuring quality, identifying issues, and
       improving processes. You perform testing, validation, and provide feedback
       to maintain high standards across all deliverables.
@@ -218,16 +212,16 @@ agents:
       - "process_improvement"
     functions:
       - "text_processing"
-      - "data_analysis"    
+      - "data_analysis"
     llm_config:
-      model_name: "gpt-4"
-      api_endpoint: ""
+      model_name: "test-qwen-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a QA specialist. Focus on quality, testing, and process improvement."
       temperature: 0.2
       max_tokens: 2048
       timeout_seconds: 25
       max_retries: 3
-    auto_start: false  # Only start when needed
+    auto_start: false
     max_concurrent_jobs: 2
     heartbeat_interval_seconds: 15
     custom_settings:
@@ -235,10 +229,10 @@ agents:
       quality_standards: "high"
       
   # Response Test Agent
-  - name: "response-test-agent"
+  - name: "response_test_agent"
     type: "general"
     role: "General purpose test agent for response validation"
-    system_prompt: |
+    system_prompt: >
       You are a helpful AI assistant designed for testing purposes. You provide clear,
       accurate, and concise responses to various types of questions and requests.
       You can handle greetings, math problems, coding tasks, and explanations.
@@ -251,8 +245,8 @@ agents:
       - "text_processing"
       - "code_generation"
     llm_config:
-      model_name: ""
-      api_endpoint: ""
+      model_name: "test-qwen-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a helpful AI assistant. Provide clear, accurate, and concise responses."
       temperature: 0.5
       max_tokens: 1024

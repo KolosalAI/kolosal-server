@@ -16,7 +16,40 @@ import sys
 import time
 import yaml
 import os
+import logging
 from typing import Dict, Any, Optional, List
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler('agent_tests.log'),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+
+def log_request_response(action, url, request_data, response, logger):
+    """Helper function to log request-response pairs"""
+    try:
+        # Log request
+        logger.info(f"{action} Request - URL: {url}")
+        if request_data:
+            logger.info(f"{action} Request - Data: {json.dumps(request_data, indent=2)}")
+        
+        # Log response
+        logger.info(f"{action} Response - Status: {response.status_code}")
+        logger.info(f"{action} Response - Headers: {dict(response.headers)}")
+        
+        try:
+            json_response = response.json()
+            logger.info(f"{action} Response - JSON: {json.dumps(json_response, indent=2)}")
+        except json.JSONDecodeError:
+            logger.info(f"{action} Response - Text: {response.text}")
+    except Exception as e:
+        logger.error(f"Error logging {action} request-response: {e}")
 
 
 class AgentTester:
@@ -27,8 +60,7 @@ class AgentTester:
             'Content-Type': 'application/json',
             'User-Agent': 'AgentTester/1.0'
         })
-        self.created_agents = []  # Keep track of created agents for cleanup
-        self.test_yaml_file = "test_agents_config.yaml"  # Test YAML configuration file
+        self.created_agents = []  # Keep track of created agents for cleanup        self.test_yaml_file = "test_agents_config.yaml"  # Test YAML configuration file
         
     def make_request(self, method: str, endpoint: str, data: Optional[Dict[Any, Any]] = None, 
                     params: Optional[Dict[str, Any]] = None) -> tuple:
@@ -46,10 +78,15 @@ class AgentTester:
                 response = self.session.delete(url, params=params)
             else:
                 raise ValueError(f"Unsupported HTTP method: {method}")
+            
+            # Log the request-response
+            action = f"{method.upper()} {endpoint}"
+            log_request_response(action, url, data, response, logger)
                 
             return response, response.status_code
         except requests.exceptions.RequestException as e:
             print(f"❌ Request failed: {e}")
+            logger.error(f"Request failed for {method} {url}: {e}")
             return None, 0
 
     def test_agent_system_status(self):

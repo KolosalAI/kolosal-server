@@ -29,13 +29,13 @@ public:
         try {
             auto agent_ids = agent_manager->list_agents();
             json agents_json = json::array();
-            
-            for (const auto& agent_id : agent_ids) {
+              for (const auto& agent_id : agent_ids) {
                 auto agent = agent_manager->get_agent(agent_id);
                 if (agent) {
                     json agent_info;
-                    agent_info["id"] = agent->get_agent_id();
-                    agent_info["name"] = agent->get_agent_name();
+                    agent_info["uuid"] = agent->get_agent_id();        // Explicit UUID field
+                    agent_info["id"] = agent->get_agent_id();          // Keep existing id field for compatibility
+                    agent_info["name"] = agent->get_agent_name();      // Human-readable name
                     agent_info["type"] = agent->get_agent_type();
                     agent_info["capabilities"] = agent->get_capabilities();
                     agent_info["running"] = agent->is_running();
@@ -85,10 +85,10 @@ public:
                 send_response(sock, 404, parent->format_error_response("Agent not found", 404));
                 return;
             }
-            
-            json agent_info;
-            agent_info["id"] = agent->get_agent_id();
-            agent_info["name"] = agent->get_agent_name();
+              json agent_info;
+            agent_info["uuid"] = agent->get_agent_id();        // Explicit UUID field
+            agent_info["id"] = agent->get_agent_id();          // Keep existing id field for compatibility
+            agent_info["name"] = agent->get_agent_name();      // Human-readable name
             agent_info["type"] = agent->get_agent_type();
             agent_info["capabilities"] = agent->get_capabilities();
             agent_info["running"] = agent->is_running();

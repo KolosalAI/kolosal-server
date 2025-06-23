@@ -12,6 +12,7 @@
 #include <memory>
 #include <atomic>
 #include <vector>
+#include <mutex>
 
 namespace kolosal::agents {
 
@@ -27,13 +28,15 @@ private:
     std::shared_ptr<FunctionManager> function_manager;
     std::shared_ptr<JobManager> job_manager;
     std::shared_ptr<EventSystem> event_system;
-    std::shared_ptr<MessageRouter> message_router;
-
-    std::atomic<bool> running{false};
+    std::shared_ptr<MessageRouter> message_router;    std::atomic<bool> running{false};
     std::string agent_id;
     std::string agent_name;
     std::string agent_type;
     std::vector<std::string> capabilities;
+    
+    // Instance mutexes to prevent deadlocks
+    mutable std::mutex capabilities_mutex;
+    mutable std::mutex message_mutex;
 
 public:
     AgentCore(const std::string& name = "", const std::string& type = "generic");
