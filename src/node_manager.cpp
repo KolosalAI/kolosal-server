@@ -135,6 +135,119 @@ namespace kolosal
         {
             ServerLogger::logError("Failed to load model for engine ID \'%s\' from path \'%s\'.", engineId.c_str(), actualModelPath.c_str());
             return false;
+        }        EngineRecord record;
+        record.engine = engine;
+        record.modelPath = actualModelPath; // Store the actual local path
+        record.loadParams = loadParams;
+        record.mainGpuId = mainGpuId;
+        record.modelType = ModelType::LLM;  // Standard LLM model
+        record.isLoaded = true;
+        record.lastActivityTime = std::chrono::steady_clock::now();
+
+        engines_[engineId] = record;
+        ServerLogger::logInfo("Successfully added and loaded engine with ID \'%s\'. Model: %s", engineId.c_str(), actualModelPath.c_str());
+        autoscalingCv_.notify_one(); // Notify autoscaling thread about new engine
+        return true;
+    }
+
+    bool NodeManager::addEmbeddingEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (engines_.count(engineId))
+        {
+            ServerLogger::logWarning("Embedding engine with ID \'%s\' already exists.", engineId.c_str());
+            return false;
+        }
+
+        // First, validate if the model file exists
+        ServerLogger::logInfo("Validating embedding model file for engine \'%s\': %s", engineId.c_str(), modelPath);
+        if (!validateModelFile(modelPath))
+        {
+            ServerLogger::logError("Embedding model validation failed for engine \'%s\'. Skipping engine creation.", engineId.c_str());
+            return false;
+        }
+
+        std::string actualModelPath = modelPath;
+        // Check if the model path is a URL and download if necessary
+        if (is_valid_url(modelPath))
+        {
+            ServerLogger::logInfo("Embedding model path for engine \'%s\' is a URL. Starting download: %s", engineId.c_str(), modelPath);
+
+            // Generate local path for the downloaded model
+            std::string downloadsDir = "./models";
+            std::string localPath = generate_download_path(modelPath, downloadsDir);
+
+            // Check if the file already exists locally
+            if (std::filesystem::exists(localPath))
+            {
+                // Check if we can resume this download (file might be incomplete)
+                if (can_resume_download(modelPath, localPath))
+                {
+                    ServerLogger::logInfo("Found incomplete download for embedding engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
+
+                    // Download the model with progress callback (will resume automatically)
+                    auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
+                    {
+                        if (total > 0)
+                        {
+                            ServerLogger::logInfo("Resuming embedding model download for engine '%s': %.1f%% (%zu/%zu bytes)",
+                                                  engineId.c_str(), percentage, downloaded, total);
+                        }
+                    };
+
+                    DownloadResult result = download_file(modelPath, localPath, progressCallback);
+
+                    if (!result.success)
+                    {
+                        ServerLogger::logError("Failed to resume embedding model download for engine '%s' from URL '%s': %s",
+                                               engineId.c_str(), modelPath, result.error_message.c_str());
+                        return false;
+                    }
+
+                    ServerLogger::logInfo("Successfully completed embedding model download for engine '%s' to: %s (%.2f MB)",
+                                          engineId.c_str(), localPath.c_str(),
+                                          static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+                    actualModelPath = localPath;
+                }
+                else
+                {
+                    ServerLogger::logInfo("Embedding model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
+                    actualModelPath = localPath;
+                }
+            }
+            else
+            {
+                // Download the model with progress callback
+                auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
+                {
+                    if (total > 0)
+                    {
+                        ServerLogger::logInfo("Downloading embedding model for engine \'%s\': %.1f%% (%zu/%zu bytes)",
+                                              engineId.c_str(), percentage, downloaded, total);
+                    }
+                };
+
+                DownloadResult result = download_file(modelPath, localPath, progressCallback);
+
+                if (!result.success)
+                {
+                    ServerLogger::logError("Failed to download embedding model for engine \'%s\' from URL \'%s\': %s",
+                                           engineId.c_str(), modelPath, result.error_message.c_str());
+                    return false;
+                }
+
+                ServerLogger::logInfo("Successfully downloaded embedding model for engine \'%s\' to: %s (%.2f MB)",
+                                      engineId.c_str(), localPath.c_str(),
+                                      static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+                actualModelPath = localPath;
+            }
+        }
+
+        auto engine = std::make_shared<InferenceEngine>();
+        if (!engine->loadEmbeddingModel(actualModelPath.c_str(), loadParams, mainGpuId))
+        {
+            ServerLogger::logError("Failed to load embedding model for engine ID \'%s\' from path \'%s\'.", engineId.c_str(), actualModelPath.c_str());
+            return false;
         }
 
         EngineRecord record;
@@ -142,11 +255,12 @@ namespace kolosal
         record.modelPath = actualModelPath; // Store the actual local path
         record.loadParams = loadParams;
         record.mainGpuId = mainGpuId;
+        record.modelType = ModelType::EMBEDDING;
         record.isLoaded = true;
         record.lastActivityTime = std::chrono::steady_clock::now();
 
         engines_[engineId] = record;
-        ServerLogger::logInfo("Successfully added and loaded engine with ID \'%s\'. Model: %s", engineId.c_str(), actualModelPath.c_str());
+        ServerLogger::logInfo("Successfully added and loaded embedding engine with ID \'%s\'. Model: %s", engineId.c_str(), actualModelPath.c_str());
         autoscalingCv_.notify_one(); // Notify autoscaling thread about new engine
         return true;
     }
@@ -159,9 +273,7 @@ namespace kolosal
         {
             ServerLogger::logWarning("Engine with ID \'%s\' not found.", engineId.c_str());
             return nullptr;
-        }
-
-        EngineRecord &record = it->second;
+        }        EngineRecord &record = it->second;
         if (!record.isLoaded)
         {
             ServerLogger::logInfo("Engine ID \'%s\' was unloaded due to inactivity. Attempting to reload.", engineId.c_str());
@@ -169,14 +281,28 @@ namespace kolosal
 
             // Note: During reload, we use the stored model path which should already be local
             // because the download would have happened during the initial addEngine call
-            if (!record.engine->loadModel(record.modelPath.c_str(), record.loadParams, record.mainGpuId))
+            bool loadSuccess = false;
+            if (record.modelType == ModelType::EMBEDDING)
             {
-                ServerLogger::logError("Failed to reload model for engine ID \'%s\' from path \'%s\'.", engineId.c_str(), record.modelPath.c_str());
+                loadSuccess = record.engine->loadEmbeddingModel(record.modelPath.c_str(), record.loadParams, record.mainGpuId);
+            }
+            else
+            {
+                loadSuccess = record.engine->loadModel(record.modelPath.c_str(), record.loadParams, record.mainGpuId);
+            }
+
+            if (!loadSuccess)
+            {
+                ServerLogger::logError("Failed to reload %s model for engine ID \'%s\' from path \'%s\'.", 
+                                       (record.modelType == ModelType::EMBEDDING) ? "embedding" : "LLM",
+                                       engineId.c_str(), record.modelPath.c_str());
                 record.engine = nullptr; // Ensure engine is null if reload fails
                 return nullptr;
             }
             record.isLoaded = true;
-            ServerLogger::logInfo("Successfully reloaded engine ID \'%s\'.", engineId.c_str());
+            ServerLogger::logInfo("Successfully reloaded %s engine ID \'%s\'.", 
+                                  (record.modelType == ModelType::EMBEDDING) ? "embedding" : "LLM",
+                                  engineId.c_str());
         }
 
         record.lastActivityTime = std::chrono::steady_clock::now();
@@ -418,6 +544,112 @@ namespace kolosal
                                       static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
                 actualModelPath = localPath;
             }
+        }        // Create a record for lazy loading (engine is not loaded yet)
+        EngineRecord record;
+        record.engine = nullptr;            // No engine instance yet
+        record.modelPath = actualModelPath; // Store the actual local path
+        record.loadParams = loadParams;
+        record.mainGpuId = mainGpuId;
+        record.modelType = ModelType::LLM;  // Standard LLM model
+        record.isLoaded = false; // Mark as not loaded for lazy loading
+        record.lastActivityTime = std::chrono::steady_clock::now();
+
+        engines_[engineId] = record;
+        ServerLogger::logInfo("Successfully registered engine with ID \'%s\' for lazy loading. Model: %s", engineId.c_str(), actualModelPath.c_str());
+        return true;
+    }
+
+    bool NodeManager::registerEmbeddingEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId)
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        if (engines_.count(engineId))
+        {
+            ServerLogger::logWarning("Embedding engine with ID \'%s\' already exists.", engineId.c_str());
+            return false;
+        }
+
+        // First, validate if the model file exists
+        ServerLogger::logInfo("Validating embedding model file for engine registration \'%s\': %s", engineId.c_str(), modelPath);
+        if (!validateModelFile(modelPath))
+        {
+            ServerLogger::logError("Embedding model validation failed for engine \'%s\'. Skipping engine registration.", engineId.c_str());
+            return false;
+        }
+
+        std::string actualModelPath = modelPath;
+        // Check if the model path is a URL and pre-download if necessary
+        if (is_valid_url(modelPath))
+        {
+            ServerLogger::logInfo("Embedding model path for engine \'%s\' is a URL. Pre-downloading: %s", engineId.c_str(), modelPath);
+
+            // Generate local path for the downloaded model
+            std::string downloadsDir = "./models";
+            std::string localPath = generate_download_path(modelPath, downloadsDir);
+
+            // Check if the file already exists locally
+            if (std::filesystem::exists(localPath))
+            {
+                // Check if we can resume this download (file might be incomplete)
+                if (can_resume_download(modelPath, localPath))
+                {
+                    ServerLogger::logInfo("Found incomplete download for embedding engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
+
+                    // Download the model with progress callback (will resume automatically)
+                    auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
+                    {
+                        if (total > 0)
+                        {
+                            ServerLogger::logInfo("Resuming embedding model pre-download for engine '%s': %.1f%% (%zu/%zu bytes)",
+                                                  engineId.c_str(), percentage, downloaded, total);
+                        }
+                    };
+
+                    DownloadResult result = download_file(modelPath, localPath, progressCallback);
+
+                    if (!result.success)
+                    {
+                        ServerLogger::logError("Failed to resume embedding model pre-download for engine '%s' from URL '%s': %s",
+                                               engineId.c_str(), modelPath, result.error_message.c_str());
+                        return false;
+                    }
+
+                    ServerLogger::logInfo("Successfully completed embedding model pre-download for engine '%s' to: %s (%.2f MB)",
+                                          engineId.c_str(), localPath.c_str(),
+                                          static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+                    actualModelPath = localPath;
+                }
+                else
+                {
+                    ServerLogger::logInfo("Embedding model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
+                    actualModelPath = localPath;
+                }
+            }
+            else
+            {
+                // Download the model with progress callback
+                auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
+                {
+                    if (total > 0)
+                    {
+                        ServerLogger::logInfo("Pre-downloading embedding model for engine \'%s\': %.1f%% (%zu/%zu bytes)",
+                                              engineId.c_str(), percentage, downloaded, total);
+                    }
+                };
+
+                DownloadResult result = download_file(modelPath, localPath, progressCallback);
+
+                if (!result.success)
+                {
+                    ServerLogger::logError("Failed to pre-download embedding model for engine \'%s\' from URL \'%s\': %s",
+                                           engineId.c_str(), modelPath, result.error_message.c_str());
+                    return false;
+                }
+
+                ServerLogger::logInfo("Successfully pre-downloaded embedding model for engine \'%s\' to: %s (%.2f MB)",
+                                      engineId.c_str(), localPath.c_str(),
+                                      static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+                actualModelPath = localPath;
+            }
         }
 
         // Create a record for lazy loading (engine is not loaded yet)
@@ -426,11 +658,12 @@ namespace kolosal
         record.modelPath = actualModelPath; // Store the actual local path
         record.loadParams = loadParams;
         record.mainGpuId = mainGpuId;
+        record.modelType = ModelType::EMBEDDING;
         record.isLoaded = false; // Mark as not loaded for lazy loading
         record.lastActivityTime = std::chrono::steady_clock::now();
 
         engines_[engineId] = record;
-        ServerLogger::logInfo("Successfully registered engine with ID \'%s\' for lazy loading. Model: %s", engineId.c_str(), actualModelPath.c_str());
+        ServerLogger::logInfo("Successfully registered embedding engine with ID \'%s\' for lazy loading. Model: %s", engineId.c_str(), actualModelPath.c_str());
         return true;
     }
 

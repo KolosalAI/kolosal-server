@@ -320,14 +320,15 @@ namespace kolosal
             // Load models
             if (config["models"])
             {
-                models.clear();
-                for (const auto &modelConfig : config["models"])
+                models.clear();                for (const auto &modelConfig : config["models"])
                 {
                     ModelConfig model;
                     if (modelConfig["id"])
                         model.id = modelConfig["id"].as<std::string>();
                     if (modelConfig["path"])
                         model.path = modelConfig["path"].as<std::string>();
+                    if (modelConfig["type"])
+                        model.type = modelConfig["type"].as<std::string>();
                     if (modelConfig["load_at_startup"])
                         model.loadAtStartup = modelConfig["load_at_startup"].as<bool>();
                     if (modelConfig["main_gpu_id"])
@@ -349,6 +350,10 @@ namespace kolosal
                             model.loadParams.n_parallel = params["n_parallel"].as<int>();
                         if (params["cont_batching"])
                             model.loadParams.cont_batching = params["cont_batching"].as<bool>();
+                        if (params["n_batch"])
+                            model.loadParams.n_batch = params["n_batch"].as<int>();
+                        if (params["n_ubatch"])
+                            model.loadParams.n_ubatch = params["n_ubatch"].as<int>();
                     }
 
                     models.push_back(model);
@@ -407,14 +412,13 @@ namespace kolosal
             config["auth"]["cors"]["max_age"] = auth.cors.maxAge;
             config["auth"]["cors"]["allowed_origins"] = auth.cors.allowedOrigins;
             config["auth"]["cors"]["allowed_methods"] = auth.cors.allowedMethods;
-            config["auth"]["cors"]["allowed_headers"] = auth.cors.allowedHeaders;
-
-            // Models
+            config["auth"]["cors"]["allowed_headers"] = auth.cors.allowedHeaders;            // Models
             for (const auto &model : models)
             {
                 YAML::Node modelNode;
                 modelNode["id"] = model.id;
                 modelNode["path"] = model.path;
+                modelNode["type"] = model.type;
                 modelNode["load_at_startup"] = model.loadAtStartup;
                 modelNode["main_gpu_id"] = model.mainGpuId;
                 modelNode["preload_context"] = model.preloadContext;
@@ -424,6 +428,8 @@ namespace kolosal
                 modelNode["load_params"]["use_mlock"] = model.loadParams.use_mlock;
                 modelNode["load_params"]["n_parallel"] = model.loadParams.n_parallel;
                 modelNode["load_params"]["cont_batching"] = model.loadParams.cont_batching;
+                modelNode["load_params"]["n_batch"] = model.loadParams.n_batch;
+                modelNode["load_params"]["n_ubatch"] = model.loadParams.n_ubatch;
                 config["models"].push_back(modelNode);
             }
             // Feature flags

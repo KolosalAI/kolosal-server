@@ -337,18 +337,29 @@ namespace kolosal
                 std::lock_guard<std::mutex> lock(downloads_mutex_);
                 progress->status = "creating_engine";
                 ServerLogger::logInfo("Starting engine creation for model: %s", progress->model_id.c_str());
-            }
-
-            // Get the NodeManager and create the engine
+            }            // Get the NodeManager and create the engine
             auto &nodeManager = ServerAPI::instance().getNodeManager();
 
             // Use the downloaded file path as the model path
             std::string actualModelPath = progress->local_path;
-            bool success = nodeManager.addEngine(
-                progress->engine_params->engine_id,
-                actualModelPath.c_str(),
-                progress->engine_params->loading_params,
-                progress->engine_params->main_gpu_id);
+            bool success = false;
+            
+            if (progress->engine_params->model_type == "embedding")
+            {
+                success = nodeManager.addEmbeddingEngine(
+                    progress->engine_params->engine_id,
+                    actualModelPath.c_str(),
+                    progress->engine_params->loading_params,
+                    progress->engine_params->main_gpu_id);
+            }
+            else
+            {
+                success = nodeManager.addEngine(
+                    progress->engine_params->engine_id,
+                    actualModelPath.c_str(),
+                    progress->engine_params->loading_params,
+                    progress->engine_params->main_gpu_id);
+            }
 
             std::lock_guard<std::mutex> lock(downloads_mutex_);
 
@@ -374,11 +385,10 @@ namespace kolosal
             progress->end_time = std::chrono::system_clock::now();
             ServerLogger::logError("Exception during engine creation for model %s: %s", progress->model_id.c_str(), ex.what());
         }
-    }
-
-    // Add a helper method for startup model loading
+    }    // Add a helper method for startup model loading
     bool DownloadManager::loadModelAtStartup(const std::string &model_id, const std::string &model_path,
-                                             const LoadingParameters &load_params, int main_gpu_id, bool load_immediately)
+                                             const std::string &model_type, const LoadingParameters &load_params, 
+                                             int main_gpu_id, bool load_immediately)
     {
         // Check if the model path is a URL
         if (is_valid_url(model_path))
@@ -393,11 +403,10 @@ namespace kolosal
                 if (can_resume_download(model_path, download_path))
                 {
                     ServerLogger::logInfo("Found incomplete download for startup model '%s', will resume: %s",
-                                          model_id.c_str(), download_path.c_str());
-
-                    // Create engine creation parameters for resume
+                                          model_id.c_str(), download_path.c_str());                    // Create engine creation parameters for resume
                     EngineCreationParams engine_params;
                     engine_params.engine_id = model_id;
+                    engine_params.model_type = model_type;
                     engine_params.load_immediately = load_immediately;
                     engine_params.main_gpu_id = main_gpu_id;
                     engine_params.loading_params = load_params;
@@ -408,27 +417,38 @@ namespace kolosal
                 else
                 {
                     ServerLogger::logInfo("Model file already exists locally for startup model '%s': %s",
-                                          model_id.c_str(), download_path.c_str());
-
-                    // Load directly using NodeManager
+                                          model_id.c_str(), download_path.c_str());                    // Load directly using NodeManager
                     auto &node_manager = ServerAPI::instance().getNodeManager();
                     if (load_immediately)
                     {
-                        return node_manager.addEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                        if (model_type == "embedding")
+                        {
+                            return node_manager.addEmbeddingEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                        }
+                        else
+                        {
+                            return node_manager.addEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                        }
                     }
                     else
                     {
-                        return node_manager.registerEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                        if (model_type == "embedding")
+                        {
+                            return node_manager.registerEmbeddingEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                        }
+                        else
+                        {
+                            return node_manager.registerEngine(model_id, download_path.c_str(), load_params, main_gpu_id);
+                        }
                     }
                 }
             }
             else
             {
-                ServerLogger::logInfo("Starting startup download for model '%s' from URL: %s", model_id.c_str(), model_path.c_str());
-
-                // Create engine creation parameters
+                ServerLogger::logInfo("Starting startup download for model '%s' from URL: %s", model_id.c_str(), model_path.c_str());                // Create engine creation parameters
                 EngineCreationParams engine_params;
                 engine_params.engine_id = model_id;
+                engine_params.model_type = model_type;
                 engine_params.load_immediately = load_immediately;
                 engine_params.main_gpu_id = main_gpu_id;
                 engine_params.loading_params = load_params;
@@ -438,16 +458,28 @@ namespace kolosal
             }
         }
         else
-        {
-            // Not a URL, use regular NodeManager methods
+        {            // Not a URL, use regular NodeManager methods
             auto &node_manager = ServerAPI::instance().getNodeManager();
             if (load_immediately)
             {
-                return node_manager.addEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
+                if (model_type == "embedding")
+                {
+                    return node_manager.addEmbeddingEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
+                }
+                else
+                {
+                    return node_manager.addEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
+                }
             }
             else
             {
-                return node_manager.registerEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
+                if (model_type == "embedding")
+                {
+                    return node_manager.registerEmbeddingEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
+                }                else
+                {
+                    return node_manager.registerEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
+                }
             }
         }
     }

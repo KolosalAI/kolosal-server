@@ -371,7 +371,6 @@ namespace
 		virtual void embed(const EmbeddingParameters &params, std::shared_ptr<Job> job) = 0;
 		virtual CompletionParameters formatChat(const ChatCompletionParameters &params) = 0;
 	};
-
 	// LlamaInferenceService (CPU Implementation)
 	class LlamaInferenceService : public InferenceService
 	{
@@ -661,8 +660,7 @@ namespace
 				job->cv.wait(lock, [&job]
 							 { return job->isFinished; });
 			}
-		}
-		void embed(const EmbeddingParameters &params, std::shared_ptr<Job> job) override
+		}		void embed(const EmbeddingParameters &params, std::shared_ptr<Job> job) override
 		{
 #ifdef DEBUG
 			std::cout << "[INFERENCE] Submitting embedding job" << std::endl;
@@ -680,7 +678,7 @@ namespace
 			try
 			{
 				// Generate embedding for the input text
-				std::vector<float> embedding = generateEmbedding(params.input);
+				std::vector<float> embedding = generateEmbedding(params.input, params.normalize);
 
 				{
 					std::lock_guard<std::mutex> jobLock(job->mtx);
@@ -775,39 +773,55 @@ namespace
 		 * @brief Generates embeddings for the given input text
 		 * @param input The input text to generate embeddings for
 		 * @return Vector of floats representing the embedding
-		 */
-		std::vector<float> generateEmbedding(const std::string& input)
+		 */		std::vector<float> generateEmbedding(const std::string& input, bool normalize = true)
 		{
 			// Enable embedding mode
 			llama_set_embeddings(context, true);
 
 			try
 			{
-				// Tokenize input
-				std::vector<llama_token> tokens = common_tokenize(context, input, true, false);
+				// Tokenize input with proper parameters for embedding models
+				std::vector<llama_token> tokens = common_tokenize(context, input, 
+					llama_add_bos_token(llama_model_get_vocab(model)), false);
 				
 				if (tokens.empty())
 				{
 					throw std::runtime_error("Input text resulted in empty tokens");
 				}
 
-				// Clear the KV cache
+				// Check for token limit (embedding models usually have smaller context)
+				const int max_tokens = std::min(n_ctx - 4, 8192); // Reserve some space
+				if (static_cast<int>(tokens.size()) > max_tokens)
+				{
+					tokens.resize(max_tokens);
+#ifdef DEBUG
+					std::cout << "[INFERENCE] [EMBEDDING] Truncated input to " << max_tokens << " tokens" << std::endl;
+#endif
+				}
+
+				// Clear the KV cache for clean embedding generation
 				llama_kv_cache_clear(context);
 
-				// Create batch
+				// Create batch for embedding generation
 				llama_batch local_batch = llama_batch_init(tokens.size(), 0, 1);
 				
-				// Add tokens to batch
+				// Add tokens to batch with proper sequence setup
 				for (size_t i = 0; i < tokens.size(); ++i)
 				{
 					local_batch.token[i] = tokens[i];
 					local_batch.pos[i] = static_cast<llama_pos>(i);
 					local_batch.n_seq_id[i] = 1;
 					local_batch.seq_id[i][0] = 0;
-					local_batch.logits[i] = 0; // Don't compute logits for embedding
+					// For embedding models, we typically want embeddings from the last token
+					// or use pooling. Set logits for the last token.
+					local_batch.logits[i] = (i == tokens.size() - 1) ? true : false;
 				}
 				
 				local_batch.n_tokens = static_cast<int32_t>(tokens.size());
+
+#ifdef DEBUG
+				std::cout << "[INFERENCE] [EMBEDDING] Processing " << tokens.size() << " tokens" << std::endl;
+#endif
 
 				// Decode the batch
 				int ret = llama_decode(context, local_batch);
@@ -817,19 +831,6 @@ namespace
 					throw std::runtime_error("Failed to decode input for embedding generation");
 				}
 
-				// Get the embeddings (for embedding models, use sequence 0)
-				float* embd = llama_get_embeddings_seq(context, 0);
-				if (!embd)
-				{
-					// Fallback: try getting embeddings from the context directly
-					embd = llama_get_embeddings(context);
-					if (!embd)
-					{
-						llama_batch_free(local_batch);
-						throw std::runtime_error("Failed to get embeddings from model");
-					}
-				}
-
 				// Get embedding dimension
 				int n_embd = llama_model_n_embd(llama_get_model(context));
 				if (n_embd <= 0)
@@ -837,25 +838,63 @@ namespace
 					llama_batch_free(local_batch);
 					throw std::runtime_error("Invalid embedding dimension");
 				}
+
+				// Get the embeddings using the appropriate method
+				float* embd = nullptr;
+				const enum llama_pooling_type pooling_type = llama_pooling_type(context);
+				
+				if (pooling_type == LLAMA_POOLING_TYPE_NONE)
+				{
+					// For token-level embeddings, get the last token's embedding
+					embd = llama_get_embeddings_ith(context, local_batch.n_tokens - 1);
+					if (!embd)
+					{
+						llama_batch_free(local_batch);
+						throw std::runtime_error("Failed to get token embeddings from model");
+					}
+				}
+				else
+				{
+					// For sequence-level embeddings (pooled), use sequence embeddings
+					embd = llama_get_embeddings_seq(context, 0);
+					if (!embd)
+					{
+						// Fallback: try getting embeddings from the context directly
+						embd = llama_get_embeddings(context);
+						if (!embd)
+						{
+							llama_batch_free(local_batch);
+							throw std::runtime_error("Failed to get sequence embeddings from model");
+						}
+					}
+				}
 				
 				// Copy embeddings to vector
 				std::vector<float> embedding(embd, embd + n_embd);
 				
-				// Normalize embeddings (common practice for embedding models)
-				float norm = 0.0f;
-				for (float val : embedding)
+				// Normalize embeddings if requested (common practice for embedding models)
+				if (normalize)
 				{
-					norm += val * val;
-				}
-				norm = std::sqrt(norm);
-				
-				if (norm > 0.0f)
-				{
-					for (float& val : embedding)
+					float norm = 0.0f;
+					for (float val : embedding)
 					{
-						val /= norm;
+						norm += val * val;
+					}
+					norm = std::sqrt(norm);
+					
+					if (norm > 1e-8f) // Avoid division by zero
+					{
+						for (float& val : embedding)
+						{
+							val /= norm;
+						}
 					}
 				}
+
+#ifdef DEBUG
+				std::cout << "[INFERENCE] [EMBEDDING] Generated " << n_embd << "-dimensional embedding" 
+						  << (normalize ? " (normalized)" : "") << std::endl;
+#endif
 
 				// Clean up
 				llama_batch_free(local_batch);
@@ -1342,6 +1381,375 @@ namespace
 			}
 		}
 	};
+	// EmbeddingInferenceService (Optimized for Embedding Models)
+	class EmbeddingInferenceService : public InferenceService
+	{
+	public:
+		EmbeddingInferenceService(std::shared_ptr<Tokenizer> tokenizer, llama_model *model, llama_context *context,
+								 common_params params, ggml_threadpool *threadpool)
+			: tokenizer(std::move(tokenizer)), model(model), context(context), g_params(params), threadpool(threadpool),
+			  n_batch(params.n_batch), n_ctx(llama_n_ctx(context)), embeddings_enabled(true)
+		{
+#ifdef DEBUG
+			std::cout << "[INFERENCE] [EMBEDDING] Initializing EmbeddingInferenceService with batch size: " << g_params.n_batch << std::endl;
+#endif
+
+			// Always enable embeddings for this service
+			llama_set_embeddings(context, true);
+
+			batch = llama_batch_init(params.n_ctx, 0, params.n_parallel);
+
+			std::thread inferenceThread(&EmbeddingInferenceService::start, this);
+			inferenceThread.detach();
+		}
+
+		~EmbeddingInferenceService()
+		{
+			stop();
+
+			// Wait for any remaining jobs to complete
+			auto timeout = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+			while (std::chrono::steady_clock::now() < timeout)
+			{
+				{
+					std::lock_guard<std::mutex> lock(mtx);
+					if (jobs.empty())
+						break;
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
+
+			// Clean up in proper order
+			llama_detach_threadpool(context);
+			llama_batch_free(batch);
+			llama_free(context);
+			llama_free_model(model);
+			ggml_threadpool_free(threadpool);
+		}
+
+		void stop() override
+		{
+			should_terminate = true;
+			cv.notify_all();
+		}
+
+		void start() override
+		{
+			while (!should_terminate)
+			{
+				std::vector<std::shared_ptr<Job>> current_jobs;
+				{
+					std::unique_lock<std::mutex> lock(mtx);
+					if (jobs.empty())
+					{
+						cv.wait(lock, [this] { return !jobs.empty() || should_terminate; });
+					}
+					if (should_terminate)
+						break;
+					current_jobs = jobs;
+				}
+
+				// Process embedding jobs in batches for efficiency
+				processBatchEmbeddings(current_jobs);
+			}
+		}
+
+		void submitJob(const CompletionParameters &params, std::shared_ptr<Job> job) override
+		{
+			// Not supported for embedding service
+			std::lock_guard<std::mutex> jobLock(job->mtx);
+			job->hasError = true;
+			job->errorMessage = "Text completion not supported by embedding service";
+			job->cv.notify_all();
+		}
+
+		void complete(const CompletionParameters &params, std::shared_ptr<Job> job) override
+		{
+			// Not supported for embedding service
+			submitJob(params, job);
+		}
+
+		void embed(const EmbeddingParameters &params, std::shared_ptr<Job> job) override
+		{
+#ifdef DEBUG
+			std::cout << "[INFERENCE] [EMBEDDING] Submitting embedding job" << std::endl;
+#endif
+
+			if (!params.isValid())
+			{
+				std::lock_guard<std::mutex> jobLock(job->mtx);
+				job->hasError = true;
+				job->errorMessage = "Invalid embedding parameters";
+				job->cv.notify_all();
+				return;
+			}
+
+			job->params_embedding = params;
+
+			{
+				std::lock_guard<std::mutex> lock(mtx);
+				jobs.push_back(job);
+			}
+
+			cv.notify_one();
+		}
+
+		CompletionParameters formatChat(const ChatCompletionParameters &params) override
+		{
+			// Not supported for embedding service
+			throw std::runtime_error("Chat completion not supported by embedding service");
+		}
+
+	private:
+		std::shared_ptr<Tokenizer> tokenizer;
+		struct llama_model *model;
+		struct llama_context *context;
+		std::mutex mtx;
+		std::condition_variable cv;
+		common_params g_params;
+		ggml_threadpool *threadpool;
+		llama_batch batch;
+		std::vector<std::shared_ptr<Job>> jobs;
+		std::atomic<bool> should_terminate{false};
+		std::atomic<bool> embeddings_enabled{true};
+
+		const int n_batch;
+		const int n_ctx;
+
+		void processBatchEmbeddings(std::vector<std::shared_ptr<Job>>& current_jobs)
+		{
+			std::vector<std::shared_ptr<Job>> embedding_jobs;
+			
+			// Filter embedding jobs
+			for (auto& job : current_jobs)
+			{
+				std::lock_guard<std::mutex> jobLock(job->mtx);
+				if (!job->isFinished && !job->hasError)
+				{
+					embedding_jobs.push_back(job);
+				}
+			}
+
+			if (embedding_jobs.empty())
+			{
+				return;
+			}
+
+			try
+			{
+				// Process embeddings in batch for efficiency
+				processBatch(embedding_jobs);
+			}
+			catch (const std::exception& e)
+			{
+				// Mark all jobs as failed
+				for (auto& job : embedding_jobs)
+				{
+					std::lock_guard<std::mutex> jobLock(job->mtx);
+					job->hasError = true;
+					job->errorMessage = std::string("Batch embedding failed: ") + e.what();
+					job->isFinished = true;
+					job->cv.notify_all();
+				}
+			}
+
+			// Remove completed jobs
+			{
+				std::lock_guard<std::mutex> lock(mtx);
+				jobs.erase(std::remove_if(jobs.begin(), jobs.end(),
+					[](const std::shared_ptr<Job>& job) {
+						std::lock_guard<std::mutex> jobLock(job->mtx);
+						return job->isFinished || job->hasError;
+					}), jobs.end());
+			}
+		}
+
+		void processBatch(std::vector<std::shared_ptr<Job>>& embedding_jobs)
+		{
+			// Clear batch and KV cache
+			common_batch_clear(batch);
+			llama_kv_cache_clear(context);
+
+			std::vector<std::vector<llama_token>> all_tokens;
+			std::vector<int> job_indices;
+
+			// Tokenize all inputs
+			for (size_t i = 0; i < embedding_jobs.size(); ++i)
+			{
+				auto& job = embedding_jobs[i];
+				
+				try
+				{
+					std::string input;
+					bool normalize = true;
+					{
+						std::lock_guard<std::mutex> jobLock(job->mtx);
+						input = job->params_embedding.input;
+						normalize = job->params_embedding.normalize;
+					}
+
+					// Tokenize input
+					std::vector<llama_token> tokens = common_tokenize(context, input, 
+						llama_add_bos_token(llama_model_get_vocab(model)), false);
+					
+					if (tokens.empty())
+					{
+						std::lock_guard<std::mutex> jobLock(job->mtx);
+						job->hasError = true;
+						job->errorMessage = "Input text resulted in empty tokens";
+						job->isFinished = true;
+						job->cv.notify_all();
+						continue;
+					}
+
+					// Check token limit
+					const int max_tokens = std::min(n_ctx / static_cast<int>(embedding_jobs.size()) - 4, 512);
+					if (static_cast<int>(tokens.size()) > max_tokens)
+					{
+						tokens.resize(max_tokens);
+					}
+
+					all_tokens.push_back(tokens);
+					job_indices.push_back(i);
+
+				}
+				catch (const std::exception& e)
+				{
+					std::lock_guard<std::mutex> jobLock(job->mtx);
+					job->hasError = true;
+					job->errorMessage = std::string("Tokenization failed: ") + e.what();
+					job->isFinished = true;
+					job->cv.notify_all();
+				}
+			}
+
+			if (all_tokens.empty())
+			{
+				return;
+			}
+
+			// Add tokens to batch with different sequence IDs
+			for (size_t seq = 0; seq < all_tokens.size(); ++seq)
+			{
+				const auto& tokens = all_tokens[seq];
+				for (size_t i = 0; i < tokens.size(); ++i)
+				{
+					if (batch.n_tokens >= n_batch)
+					{
+						break; // Batch is full
+					}
+
+					batch.token[batch.n_tokens] = tokens[i];
+					batch.pos[batch.n_tokens] = static_cast<llama_pos>(i);
+					batch.n_seq_id[batch.n_tokens] = 1;
+					batch.seq_id[batch.n_tokens][0] = static_cast<llama_seq_id>(seq);
+					// Set logits for the last token of each sequence
+					batch.logits[batch.n_tokens] = (i == tokens.size() - 1) ? true : false;
+					batch.n_tokens++;
+				}
+			}
+
+			// Decode the batch
+			if (llama_decode(context, batch) != 0)
+			{
+				throw std::runtime_error("Failed to decode embedding batch");
+			}
+
+			// Extract embeddings for each sequence
+			const int n_embd = llama_model_n_embd(model);
+			const enum llama_pooling_type pooling_type = llama_pooling_type(context);
+
+			for (size_t seq = 0; seq < job_indices.size(); ++seq)
+			{
+				auto& job = embedding_jobs[job_indices[seq]];
+				
+				try
+				{
+					bool normalize;
+					{
+						std::lock_guard<std::mutex> jobLock(job->mtx);
+						normalize = job->params_embedding.normalize;
+					}
+
+					float* embd = nullptr;
+					
+					if (pooling_type == LLAMA_POOLING_TYPE_NONE)
+					{
+						// Find the last token position for this sequence
+						int last_token_pos = -1;
+						for (int i = 0; i < batch.n_tokens; ++i)
+						{
+							if (batch.seq_id[i][0] == static_cast<llama_seq_id>(seq) && batch.logits[i])
+							{
+								last_token_pos = i;
+								break;
+							}
+						}
+						
+						if (last_token_pos >= 0)
+						{
+							embd = llama_get_embeddings_ith(context, last_token_pos);
+						}
+					}
+					else
+					{
+						embd = llama_get_embeddings_seq(context, static_cast<llama_seq_id>(seq));
+					}
+
+					if (!embd)
+					{
+						std::lock_guard<std::mutex> jobLock(job->mtx);
+						job->hasError = true;
+						job->errorMessage = "Failed to get embeddings from model";
+						job->isFinished = true;
+						job->cv.notify_all();
+						continue;
+					}
+
+					// Copy and normalize embedding
+					std::vector<float> embedding(embd, embd + n_embd);
+					
+					if (normalize)
+					{
+						float norm = 0.0f;
+						for (float val : embedding)
+						{
+							norm += val * val;
+						}
+						norm = std::sqrt(norm);
+						
+						if (norm > 1e-8f)
+						{
+							for (float& val : embedding)
+							{
+								val /= norm;
+							}
+						}
+					}
+
+					{
+						std::lock_guard<std::mutex> jobLock(job->mtx);
+						job->embedding = embedding;
+						job->isFinished = true;
+						job->cv.notify_all();
+					}
+
+#ifdef DEBUG
+					std::cout << "[INFERENCE] [EMBEDDING] Generated " << n_embd << "-dimensional embedding for sequence " << seq << std::endl;
+#endif
+
+				}
+				catch (const std::exception& e)
+				{
+					std::lock_guard<std::mutex> jobLock(job->mtx);
+					job->hasError = true;
+					job->errorMessage = std::string("Embedding extraction failed: ") + e.what();
+					job->isFinished = true;
+					job->cv.notify_all();
+				}
+			}
+		}
+	};
 } // namespace
 
 struct InferenceEngine::Impl
@@ -1355,7 +1763,7 @@ struct InferenceEngine::Impl
 
 	ThreadPool threadPool;
 
-	Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId = 0);
+	Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId = 0, bool isEmbeddingModel = false);
 	~Impl();
 
 	int submitCompletionsJob(const CompletionParameters &params);
@@ -1371,7 +1779,7 @@ struct InferenceEngine::Impl
 	bool hasActiveJobs();
 };
 
-InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId)
+InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId, bool isEmbeddingModel)
 	: threadPool(lParams.n_parallel)
 {
 #ifndef DEBUG
@@ -1507,11 +1915,20 @@ InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lPara
 		llama_free_model(model);
 		throw std::runtime_error("[INFERENCE] [ERROR] Failed to create tokenizer.");
 	}
-
 	// Create the inference service
 	try
 	{
-		inferenceService = std::make_unique<LlamaInferenceService>(tokenizer, model, ctx, params, threadpool);
+		if (isEmbeddingModel)
+		{
+			// For embedding models, use the specialized embedding service
+			params.embedding = true;
+			inferenceService = std::make_unique<EmbeddingInferenceService>(tokenizer, model, ctx, params, threadpool);
+		}
+		else
+		{
+			// For LLM models, use the regular inference service
+			inferenceService = std::make_unique<LlamaInferenceService>(tokenizer, model, ctx, params, threadpool);
+		}
 	}
 	catch (const std::exception &e)
 	{
@@ -1850,17 +2267,37 @@ INFERENCE_API InferenceEngine::InferenceEngine()
 INFERENCE_API bool InferenceEngine::loadModel(const char *modelPath, const LoadingParameters lParams, const int mainGpuId)
 {
 #ifdef DEBUG
-	std::cout << "[INFERENCE] Loading model from " << modelPath << std::endl;
+	std::cout << "[INFERENCE] Loading LLM model from " << modelPath << std::endl;
 #endif
 	this->pimpl.reset();
 
 	try
 	{
-		this->pimpl = std::make_unique<Impl>(modelPath, lParams, mainGpuId);
+		this->pimpl = std::make_unique<Impl>(modelPath, lParams, mainGpuId, false);
 	}
 	catch (const std::exception &e)
 	{
 		std::cerr << "[INFERENCE] [ERROR] Could not load model from: " << modelPath << "\nError: " << e.what() << "\n"
+				  << std::endl;
+		return false;
+	}
+	return true;
+}
+
+INFERENCE_API bool InferenceEngine::loadEmbeddingModel(const char *modelPath, const LoadingParameters lParams, const int mainGpuId)
+{
+#ifdef DEBUG
+	std::cout << "[INFERENCE] Loading embedding model from " << modelPath << std::endl;
+#endif
+	this->pimpl.reset();
+
+	try
+	{
+		this->pimpl = std::make_unique<Impl>(modelPath, lParams, mainGpuId, true);
+	}
+	catch (const std::exception &e)
+	{
+		std::cerr << "[INFERENCE] [ERROR] Could not load embedding model from: " << modelPath << "\nError: " << e.what() << "\n"
 				  << std::endl;
 		return false;
 	}

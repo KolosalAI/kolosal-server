@@ -339,11 +339,10 @@ int main(int argc, char *argv[])
 
         for (const auto &modelConfig : config.models)
         {
-            std::cout << "Configuring model '" << modelConfig.id << "'..." << std::endl;
-
-            // Use DownloadManager to handle both URLs and local files consistently
+            std::cout << "Configuring model '" << modelConfig.id << "'..." << std::endl;            // Use DownloadManager to handle both URLs and local files consistently
             bool success = downloadManager.loadModelAtStartup(modelConfig.id,
                                                               modelConfig.path,
+                                                              modelConfig.type,
                                                               modelConfig.loadParams,
                                                               modelConfig.mainGpuId,
                                                               modelConfig.loadAtStartup);

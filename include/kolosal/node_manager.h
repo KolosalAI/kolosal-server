@@ -30,9 +30,7 @@ public:
     NodeManager(const NodeManager&) = delete;
     NodeManager& operator=(const NodeManager&) = delete;
     NodeManager(NodeManager&&) = delete;
-    NodeManager& operator=(NodeManager&&) = delete;
-
-    /**
+    NodeManager& operator=(NodeManager&&) = delete;    /**
      * @brief Loads a new inference engine with the given model and parameters.
      * 
      * @param engineId A unique identifier for this engine.
@@ -44,6 +42,15 @@ public:
     bool addEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
 
     /**
+     * @brief Loads a new embedding engine with the given model and parameters.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the embedding model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the engine was loaded successfully, false otherwise.
+     */
+    bool addEmbeddingEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);    /**
      * @brief Registers a model for lazy loading without immediately loading it.
      * The model will be validated but not loaded until first access.
      * 
@@ -54,6 +61,18 @@ public:
      * @return True if the model was validated and registered successfully, false otherwise.
      */
     bool registerEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
+
+    /**
+     * @brief Registers an embedding model for lazy loading without immediately loading it.
+     * The model will be validated but not loaded until first access.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the embedding model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the model was validated and registered successfully, false otherwise.
+     */
+    bool registerEmbeddingEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
 
     /**
      * @brief Retrieves a pointer to an inference engine by its ID.
@@ -89,15 +108,21 @@ public:
     bool validateModelPath(const std::string& modelPath);
 
 private:
+    enum class ModelType {
+        LLM,
+        EMBEDDING
+    };
+
     struct EngineRecord {
         std::shared_ptr<InferenceEngine> engine;
         std::string modelPath;                 // Metadata: Path to the model file
         LoadingParameters loadParams;          // Metadata: Parameters used to load the model
         int mainGpuId;                         // Metadata: Main GPU ID for the engine
+        ModelType modelType;                   // Metadata: Type of model (LLM or Embedding)
         std::chrono::steady_clock::time_point lastActivityTime; // For autoscaling
         bool isLoaded;                         // Tracks if the model is currently loaded
 
-        EngineRecord() : mainGpuId(0), lastActivityTime(std::chrono::steady_clock::now()), isLoaded(false) {}
+        EngineRecord() : mainGpuId(0), modelType(ModelType::LLM), lastActivityTime(std::chrono::steady_clock::now()), isLoaded(false) {}
     };
 
     std::unordered_map<std::string, EngineRecord> engines_;

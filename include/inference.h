@@ -187,9 +187,9 @@ struct Job {
     // Atomic flags for thread-safe operations
     std::atomic<bool>       cancelRequested{false};
     std::atomic<bool>       session_load_attempted{false};
-    
-    // Job parameters
+      // Job parameters
     CompletionParameters    params;
+    EmbeddingParameters     params_embedding;  // For embedding jobs
     
     // Processing state
     bool                    isDecodingPrompt            = true;
@@ -231,6 +231,7 @@ class INFERENCE_API InferenceEngine : public IInferenceEngine {
 public:
     explicit InferenceEngine();    // Model management
     bool loadModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = -1);
+    bool loadEmbeddingModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = -1);
     bool unloadModel();
 
     // Job submission

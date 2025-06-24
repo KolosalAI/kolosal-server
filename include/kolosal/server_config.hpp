@@ -16,6 +16,7 @@ namespace kolosal {
 struct ModelConfig {
     std::string id;                    // Unique identifier for the model
     std::string path;                  // Path to the model file
+    std::string type = "llm";          // Model type: "llm" or "embedding"
     LoadingParameters loadParams;      // Model loading parameters
     int mainGpuId = 0;                // GPU ID to use for this model
     bool loadAtStartup = true;        // Whether to load the model immediately

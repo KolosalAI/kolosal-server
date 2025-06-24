@@ -194,12 +194,13 @@ std::future<std::vector<float>> EmbeddingRoute::processEmbeddingAsync(
             if (!engine)
             {
                 throw std::runtime_error("Model '" + model + "' not found or could not be loaded");
-            }
-
-            // Create embedding parameters
+            }            // Create embedding parameters
             EmbeddingParameters params;
             params.input = input_text;
-            params.normalize = true; // Normalize embeddings by default
+            params.normalize = true; // Default normalization for OpenAI compatibility
+            
+            // Set sequence ID for potential caching
+            params.seqId = static_cast<int>(std::hash<std::string>{}(input_text + model) % 10000);
 
             if (!params.isValid())
             {
