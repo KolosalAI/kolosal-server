@@ -7,6 +7,8 @@
 #include <vector>
 #include <mutex>
 #include <json.hpp>
+#include <algorithm>
+#include <cctype>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -39,29 +41,49 @@ namespace kolosal
 #endif
 		return std::string(clientIP);
 	}
-
-	// Helper: parse HTTP headers from request
+	// Helper: parse HTTP headers from request with improved error handling
 	static std::map<std::string, std::string> parseHeaders(const std::string &request)
 	{
 		std::map<std::string, std::string> headers;
 
+		// Find the first \r\n (end of request line)
 		size_t start = request.find("\r\n");
 		if (start == std::string::npos)
-			return headers;
+		{
+			// Try with just \n in case of Unix line endings
+			start = request.find('\n');
+			if (start == std::string::npos)
+				return headers;
+			start += 1;
+		}
+		else
+		{
+			start += 2;
+		}
 
-		start += 2; // Skip the first \r\n
-		size_t end = request.find("\r\n\r\n");
+		// Find the end of headers
+		size_t end = request.find("\r\n\r\n", start);
 		if (end == std::string::npos)
-			return headers;
+		{
+			// Try with just \n\n
+			end = request.find("\n\n", start);
+			if (end == std::string::npos)
+				end = request.length(); // Use entire string if no clear end
+		}
 
 		std::string headerSection = request.substr(start, end - start);
+		
+		// Parse each header line
 		std::istringstream headerStream(headerSection);
 		std::string line;
 
 		while (std::getline(headerStream, line) && !line.empty())
 		{
-			if (line.back() == '\r')
-				line.pop_back(); // Remove \r
+			// Remove both \r and \n characters
+			line.erase(std::remove(line.begin(), line.end(), '\r'), line.end());
+			line.erase(std::remove(line.begin(), line.end(), '\n'), line.end());
+			
+			if (line.empty()) continue;
 
 			size_t colonPos = line.find(':');
 			if (colonPos != std::string::npos)
@@ -69,12 +91,14 @@ namespace kolosal
 				std::string name = line.substr(0, colonPos);
 				std::string value = line.substr(colonPos + 1);
 
-				// Trim whitespace
+				// Trim whitespace from name and value
 				name.erase(0, name.find_first_not_of(" \t"));
 				name.erase(name.find_last_not_of(" \t") + 1);
 				value.erase(0, value.find_first_not_of(" \t"));
 				value.erase(value.find_last_not_of(" \t") + 1);
 
+				// Convert header name to lowercase for case-insensitive lookup
+				std::transform(name.begin(), name.end(), name.begin(), ::tolower);
 				headers[name] = value;
 			}
 		}
@@ -342,16 +366,55 @@ namespace kolosal
 			std::thread([this, client_sock, clientIP]()
 						{
 							ServerLogger::logInfo("[Thread %d] Processing request from %s",
-												  std::this_thread::get_id(), clientIP);
-
-							// Read the HTTP headers
-							const int headerBufferSize = 8192;
-							char headerBuffer[headerBufferSize];
-							int headerBytesReceived = recv(client_sock, headerBuffer, headerBufferSize - 1, 0);
-
-							if (headerBytesReceived <= 0)
+												  std::this_thread::get_id(), clientIP);							// Read the HTTP request with improved error handling
+							const int bufferSize = 16384; // Increased buffer size for larger headers
+							char buffer[bufferSize];
+							std::string request;
+							
+							// Read data in chunks until we have the complete headers
+							bool headersComplete = false;
+							int totalBytesReceived = 0;
+							
+							// Set socket timeout to prevent hanging
+							struct timeval timeout;
+							timeout.tv_sec = 30;  // 30 second timeout
+							timeout.tv_usec = 0;
+							setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+							
+							while (!headersComplete && totalBytesReceived < bufferSize - 1)
 							{
-								ServerLogger::logError("[Thread %d] Failed to read HTTP headers", std::this_thread::get_id());
+								int bytesReceived = recv(client_sock, buffer + totalBytesReceived, 
+														bufferSize - 1 - totalBytesReceived, 0);
+								
+								if (bytesReceived <= 0)
+								{
+									if (totalBytesReceived == 0)
+									{
+										ServerLogger::logError("[Thread %d] Failed to read HTTP headers from %s", 
+															   std::this_thread::get_id(), clientIP);
+									}
+									else
+									{
+										ServerLogger::logWarning("[Thread %d] Incomplete HTTP request from %s, using partial data", 
+																std::this_thread::get_id(), clientIP);
+									}
+									break;
+								}
+								
+								totalBytesReceived += bytesReceived;
+								buffer[totalBytesReceived] = '\0';
+								
+								// Check if we have complete headers (indicated by \r\n\r\n)
+								if (strstr(buffer, "\r\n\r\n") != nullptr)
+								{
+									headersComplete = true;
+								}
+							}
+							
+							if (totalBytesReceived == 0)
+							{
+								ServerLogger::logError("[Thread %d] No data received from %s", 
+													   std::this_thread::get_id(), clientIP);
 #ifdef _WIN32
 								closesocket(client_sock);
 #else
@@ -359,9 +422,8 @@ namespace kolosal
 #endif
 								return;
 							}
-
-							headerBuffer[headerBytesReceived] = '\0';
-							std::string request(headerBuffer, headerBytesReceived);
+							
+							request = std::string(buffer, totalBytesReceived);
 
 							// Parse the HTTP request line
 							size_t endOfLine = request.find("\r\n");
@@ -398,10 +460,19 @@ namespace kolosal
 												  std::this_thread::get_id(),
 												  authResult.allowed ? "true" : "false",
 												  authResult.statusCode,
-												  authResult.reason.c_str());
-
-							// Add authentication response headers
-							std::map<std::string, std::string> responseHeaders = {{"Content-Type", "application/json"}};
+												  authResult.reason.c_str());							// Add OpenAI-compatible response headers
+							std::map<std::string, std::string> responseHeaders = {
+								{"Content-Type", "application/json"},
+								{"Access-Control-Allow-Origin", "*"},
+								{"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
+								{"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-API-Key"},
+								{"X-Content-Type-Options", "nosniff"},
+								{"X-Frame-Options", "DENY"},
+								{"X-XSS-Protection", "1; mode=block"},
+								{"Referrer-Policy", "strict-origin-when-cross-origin"}
+							};
+							
+							// Merge authentication response headers
 							responseHeaders.insert(authResult.headers.begin(), authResult.headers.end());
 
 							// Check if request is blocked by authentication
@@ -437,31 +508,21 @@ namespace kolosal
 								close(client_sock);
 #endif
 								return;
-							}
-
-							// Find Content-Length header
+							}							// Find Content-Length header (case-insensitive)
 							int contentLength = 0;
-							std::string contentLengthHeader = "Content-Length: ";
-							size_t contentLengthPos = request.find(contentLengthHeader);
-
-							if (contentLengthPos != std::string::npos)
+							auto it = headers.find("content-length");
+							if (it != headers.end())
 							{
-								size_t valueStart = contentLengthPos + contentLengthHeader.length();
-								size_t valueEnd = request.find("\r\n", valueStart);
-								if (valueEnd != std::string::npos)
+								try
 								{
-									std::string lengthStr = request.substr(valueStart, valueEnd - valueStart);
-									try
-									{
-										contentLength = std::stoi(lengthStr);
-										ServerLogger::logDebug("[Thread %d] Content-Length: %d",
-															   std::this_thread::get_id(), contentLength);
-									}
-									catch (const std::exception &e)
-									{
-										ServerLogger::logWarning("[Thread %d] Invalid Content-Length header: %s",
-																 std::this_thread::get_id(), lengthStr.c_str());
-									}
+									contentLength = std::stoi(it->second);
+									ServerLogger::logDebug("[Thread %d] Content-Length: %d",
+														   std::this_thread::get_id(), contentLength);
+								}
+								catch (const std::exception &e)
+								{
+									ServerLogger::logWarning("[Thread %d] Invalid Content-Length header: %s",
+															 std::this_thread::get_id(), it->second.c_str());
 								}
 							}
 

@@ -409,10 +409,11 @@ namespace kolosal
             config["auth"]["rate_limit"]["window_size"] = static_cast<int>(auth.rateLimiter.windowSize.count());
             config["auth"]["cors"]["enabled"] = auth.cors.enabled;
             config["auth"]["cors"]["allow_credentials"] = auth.cors.allowCredentials;
-            config["auth"]["cors"]["max_age"] = auth.cors.maxAge;
-            config["auth"]["cors"]["allowed_origins"] = auth.cors.allowedOrigins;
+            config["auth"]["cors"]["max_age"] = auth.cors.maxAge;            config["auth"]["cors"]["allowed_origins"] = auth.cors.allowedOrigins;
             config["auth"]["cors"]["allowed_methods"] = auth.cors.allowedMethods;
-            config["auth"]["cors"]["allowed_headers"] = auth.cors.allowedHeaders;            // Models
+            config["auth"]["cors"]["allowed_headers"] = auth.cors.allowedHeaders;
+            
+            // Models
             for (const auto &model : models)
             {
                 YAML::Node modelNode;

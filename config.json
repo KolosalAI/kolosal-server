@@ -1,5 +1,5 @@
 {    "server": {
-        "port": "8081",
+        "port": "8084",
         "host": "0.0.0.0",
         "max_connections": 100,
         "worker_threads": 0,
@@ -47,9 +47,31 @@
                 "Accept",
                 "Origin"
             ]
+        }    },
+    "models": [
+        {
+            "id": "qwen3-0.6b",
+            "name": "Qwen 3 0.6B",
+            "type": "completion",
+            "path": "https://huggingface.co/kolosal/qwen3-0.6b",
+            "context_length": 2048,
+            "batch_size": 512,
+            "gpu_layers": -1,
+            "rope_freq_base": 10000.0,
+            "rope_freq_scale": 1.0,
+            "embedding": false
+        },
+        {
+            "id": "all-minilm-l6-v2",
+            "name": "All-MiniLM-L6-v2 Embedding",
+            "type": "embedding",
+            "path": "https://huggingface.co/second-state/All-MiniLM-L6-v2-Embedding-GGUF",
+            "context_length": 512,
+            "batch_size": 512,
+            "gpu_layers": -1,
+            "embedding": true
         }
-    },
-    "models": [],
+    ],
     "features": {
         "health_check": true,
         "metrics": false

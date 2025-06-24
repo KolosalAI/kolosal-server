@@ -660,11 +660,37 @@ namespace kolosal
         record.mainGpuId = mainGpuId;
         record.modelType = ModelType::EMBEDDING;
         record.isLoaded = false; // Mark as not loaded for lazy loading
-        record.lastActivityTime = std::chrono::steady_clock::now();
-
-        engines_[engineId] = record;
+        record.lastActivityTime = std::chrono::steady_clock::now();        engines_[engineId] = record;
         ServerLogger::logInfo("Successfully registered embedding engine with ID \'%s\' for lazy loading. Model: %s", engineId.c_str(), actualModelPath.c_str());
         return true;
+    }
+
+    // Static members for singleton pattern
+    std::unique_ptr<NodeManager> NodeManager::instance_ = nullptr;
+    std::mutex NodeManager::instanceMutex_;
+
+    NodeManager* NodeManager::getInstance()
+    {
+        std::lock_guard<std::mutex> lock(instanceMutex_);
+        if (!instance_)
+        {
+            instance_ = std::make_unique<NodeManager>();
+        }
+        return instance_.get();
+    }
+
+    void NodeManager::initialize(std::chrono::seconds idleTimeout)
+    {
+        std::lock_guard<std::mutex> lock(instanceMutex_);
+        if (!instance_)
+        {
+            instance_ = std::make_unique<NodeManager>(idleTimeout);
+        }
+    }
+
+    std::vector<std::string> NodeManager::getAvailableModels() const
+    {
+        return listEngineIds();
     }
 
 } // namespace kolosal

@@ -30,7 +30,22 @@ public:
     NodeManager(const NodeManager&) = delete;
     NodeManager& operator=(const NodeManager&) = delete;
     NodeManager(NodeManager&&) = delete;
-    NodeManager& operator=(NodeManager&&) = delete;    /**
+    NodeManager& operator=(NodeManager&&) = delete;
+
+    /**
+     * @brief Get the singleton instance of NodeManager.
+     * 
+     * @return Pointer to the singleton instance.
+     */
+    static NodeManager* getInstance();
+
+    /**
+     * @brief Initialize the singleton instance with specific idle timeout.
+     * Should be called once at startup.
+     * 
+     * @param idleTimeout Timeout for idle model unloading.
+     */
+    static void initialize(std::chrono::seconds idleTimeout = std::chrono::seconds(300));/**
      * @brief Loads a new inference engine with the given model and parameters.
      * 
      * @param engineId A unique identifier for this engine.
@@ -90,14 +105,19 @@ public:
      * @param engineId The ID of the engine to remove.
      * @return True if the engine was removed successfully, false otherwise.
      */
-    bool removeEngine(const std::string& engineId);
-
-    /**
+    bool removeEngine(const std::string& engineId);    /**
      * @brief Lists the IDs of all currently managed engines.
      * 
      * @return A vector of strings containing the engine IDs.
      */
     std::vector<std::string> listEngineIds() const;
+
+    /**
+     * @brief Gets the list of available model IDs (alias for listEngineIds for OpenAI compatibility).
+     * 
+     * @return A vector of strings containing the available model IDs.
+     */
+    std::vector<std::string> getAvailableModels() const;
 
     /**
      * @brief Validates if a model file exists without loading it.
@@ -127,6 +147,10 @@ private:
 
     std::unordered_map<std::string, EngineRecord> engines_;
     mutable std::mutex mutex_; // Protects access to the engines_ map
+
+    // Singleton instance
+    static std::unique_ptr<NodeManager> instance_;
+    static std::mutex instanceMutex_;
 
     // Autoscaling members
     std::thread autoscalingThread_;

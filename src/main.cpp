@@ -499,6 +499,7 @@ int main(int argc, char *argv[])
     std::cout << "  GET  /models                 - List available models" << std::endl;
     std::cout << "  POST /v1/chat/completions    - Chat completions (OpenAI compatible)" << std::endl;
     std::cout << "  POST /v1/completions         - Text completions (OpenAI compatible)" << std::endl;
+    std::cout << "  POST /v1/embeddings          - Text embeddings (OpenAI compatible)" << std::endl;
     std::cout << "  GET  /engines                - List engines" << std::endl;
     std::cout << "  POST /engines                - Add new engine" << std::endl;
     std::cout << "  GET  /engines/{id}/status    - Engine status" << std::endl;

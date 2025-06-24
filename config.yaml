@@ -1,5 +1,5 @@
 server:
-  port: "8084"
+  port: "8080"
   host: "0.0.0.0"
   max_connections: 100
   worker_threads: 0
@@ -93,9 +93,9 @@ models:
       cont_batching: true
       n_batch: 512
       n_ubatch: 128
-  - id: "mini-lm-l6-v2"
+  - id: "text-embedding-3-large"
     type: "embedding"
-    path: "https://huggingface.co/Mungert/all-MiniLM-L6-v2-GGUF/blob/main/all-MiniLM-L6-v2-bf16-q4_k.gguf"
+    path: "https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/all-MiniLM-L12-v2-Q4_K_M.gguf"
     load_at_startup: false
     main_gpu_id: 0
     preload_context: false
