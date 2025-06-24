@@ -19,23 +19,33 @@ graph TD
         A["/v1/chat/completions<br/>POST - Chat interface"]
         B["/v1/completions<br/>POST - Text completion"]
     end
-    
-    subgraph "Engine Management"
+      subgraph "Engine Management"
         C["/engines<br/>GET - List engines"]
         D["/engines<br/>POST - Add engine"]
         E["/engines/{id}<br/>DELETE - Remove engine"]
         F["/engines/{id}/status<br/>GET - Engine status"]
     end
     
-    subgraph "System"
-        G["/v1/health<br/>GET - Health check"]
+    subgraph "Agent System"
+        AA["/api/v1/agents<br/>GET/POST - Agent management"]
+        BB["/api/v1/agents/{id}/execute<br/>POST - Function execution"]
+        CC["/api/v1/orchestration/workflows<br/>POST - Workflow creation"]
+        DD["/api/v1/agents/messages/send<br/>POST - Agent communication"]
+        EE["/v1/agents/{id}/chat/completions<br/>POST - OpenAI compatible"]
     end
     
-    subgraph "Features"
+    subgraph "System"
+        G["/v1/health<br/>GET - Health check"]
+        GG["/api/v1/agents/system/status<br/>GET - Agent system status"]
+        HH["/api/v1/orchestration/metrics<br/>GET - Orchestration metrics"]
+    end
+      subgraph "Features"
         H["Streaming Support<br/>Server-Sent Events"]
         I["GPU Acceleration<br/>CUDA/Vulkan"]
         J["Model Loading<br/>Dynamic GGUF"]
         K["Error Handling<br/>OpenAI Format"]
+        L["Multi-Agent System<br/>Orchestration & Collaboration"]
+        M["Hot-Reloading<br/>Dynamic Configuration"]
     end
     
     A --> H
@@ -46,6 +56,13 @@ graph TD
     D --> J
     E --> J
     F --> J
+    AA --> L
+    BB --> L
+    CC --> L
+    DD --> L
+    EE --> L
+    AA --> M
+    GG --> M
     
     A --> K
     B --> K
@@ -54,18 +71,33 @@ graph TD
     E --> K
     F --> K
     G --> K
-    
-    style A fill:#e3f2fd
+    AA --> K
+    BB --> K
+    CC --> K
+    DD --> K
+    EE --> K
+    GG --> K
+    HH --> K
+      style A fill:#e3f2fd
     style B fill:#e3f2fd
     style C fill:#e8f5e8
     style D fill:#e8f5e8
     style E fill:#e8f5e8
     style F fill:#e8f5e8
     style G fill:#fff3e0
+    style AA fill:#e1f5fe
+    style BB fill:#e1f5fe
+    style CC fill:#e1f5fe
+    style DD fill:#e1f5fe
+    style EE fill:#e1f5fe
+    style GG fill:#fff3e0
+    style HH fill:#fff3e0
     style H fill:#f3e5f5
     style I fill:#f3e5f5
     style J fill:#f3e5f5
     style K fill:#f3e5f5
+    style L fill:#f3e5f5
+    style M fill:#f3e5f5
 ```
 
 ## Common Structures
@@ -470,6 +502,11 @@ GET /v1/health
     "unloaded": 1,
     "total": 3
   },
+  "agents": {
+    "running": 5,
+    "stopped": 1,
+    "total": 6
+  },
   "system": {
     "uptime_seconds": 3600,
     "memory_usage_mb": 8192,
@@ -483,6 +520,18 @@ GET /v1/health
     {
       "engine_id": "codellama-13b",
       "status": "unloaded"
+    }
+  ],
+  "agents_summary": [
+    {
+      "agent_id": "research_assistant",
+      "status": "running",
+      "type": "research"
+    },
+    {
+      "agent_id": "code_assistant",
+      "status": "running",
+      "type": "development"
     }
   ]
 }
@@ -570,6 +619,46 @@ Connection: keep-alive           # For streaming responses
 | `n_ctx` | integer | 128-∞ | 4096 | Context window size (tokens) |
 | `n_gpu_layers` | integer | 0-∞ | 100 | Number of layers to offload to GPU |
 | `main_gpu_id` | integer | 0-∞ | 0 | Primary GPU device ID |
+
+### Agent System Parameters
+
+| Parameter | Type | Range | Default | Description |
+|-----------|------|-------|---------|-------------|
+| `name` | string | - | required | Agent name/identifier |
+| `type` | string | - | required | Agent type (research, development, analytics, creative, management, quality_assurance) |
+| `role` | string | - | optional | Human-readable role description |
+| `system_prompt` | string | - | optional | System prompt for the agent |
+| `capabilities` | array | - | required | List of agent capabilities |
+| `functions` | array | - | required | List of available functions |
+| `auto_start` | boolean | - | false | Whether to start agent automatically |
+| `max_concurrent_jobs` | integer | 1-∞ | 3 | Maximum concurrent job execution |
+| `heartbeat_interval_seconds` | integer | 1-∞ | 10 | Health check interval |
+
+### Workflow Parameters
+
+| Parameter | Type | Range | Default | Description |
+|-----------|------|-------|---------|-------------|
+| `name` | string | - | required | Workflow name |
+| `description` | string | - | optional | Workflow description |
+| `global_context` | object | - | optional | Shared context for all steps |
+| `steps` | array | - | required | Array of workflow steps |
+| `step_id` | string | - | required | Unique step identifier |
+| `agent_id` | string | - | required | Agent to execute the step |
+| `function_name` | string | - | required | Function to execute |
+| `parameters` | object | - | optional | Function parameters |
+| `dependencies` | array | - | [] | Array of step IDs this step depends on |
+| `parallel_allowed` | boolean | - | true | Whether step can run in parallel |
+
+### Message Parameters
+
+| Parameter | Type | Range | Default | Description |
+|-----------|------|-------|---------|-------------|
+| `from_agent` | string | - | required | Sender agent ID |
+| `to_agent` | string | - | required | Recipient agent ID (for direct messages) |
+| `type` | string | - | required | Message type (task_request, status_update, etc.) |
+| `payload` | object | - | required | Message content |
+| `priority` | integer | 1-5 | 3 | Message priority (1=highest, 5=lowest) |
+| `correlation_id` | string | - | optional | Correlation ID for tracking |
 
 ## Error Examples
 
@@ -663,6 +752,76 @@ Invoke-RestMethod -Uri "http://localhost:8080/engines" `
 $health = Invoke-RestMethod -Uri "http://localhost:8080/v1/health" -Method GET
 Write-Output "Server Status: $($health.status)"
 Write-Output "Loaded Engines: $($health.engines.loaded)"
+Write-Output "Running Agents: $($health.agents.running)"
+```
+
+### Agent System Operations
+
+```powershell
+# Create a new agent
+$agentBody = @{
+    name = "research_agent"
+    type = "research"
+    role = "Research Assistant"
+    capabilities = @("web_search", "text_processing")
+    auto_start = $true
+} | ConvertTo-Json -Depth 3
+
+$agent = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/agents" `
+                           -Method POST `
+                           -Body $agentBody `
+                           -ContentType "application/json"
+
+# Execute function on agent
+$execBody = @{
+    function = "text_processing"
+    parameters = @{
+        text = "Analyze this text for sentiment"
+        operation = "analyze"
+    }
+} | ConvertTo-Json -Depth 3
+
+$result = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/agents/research_agent/execute" `
+                            -Method POST `
+                            -Body $execBody `
+                            -ContentType "application/json"
+
+Write-Output "Execution Result: $($result.data.result)"
+
+# Get agent system status
+$agentStatus = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/agents/system/status" -Method GET
+Write-Output "Total Agents: $($agentStatus.data.agent_count)"
+Write-Output "System Status: $($agentStatus.data.system_status)"
+
+# Create and execute workflow
+$workflowBody = @{
+    name = "Simple Research Workflow"
+    description = "Basic research and analysis"
+    steps = @(
+        @{
+            step_id = "research"
+            agent_id = "research_agent"
+            function_name = "web_search"
+            parameters = @{
+                query = "PowerShell automation"
+                limit = 5
+            }
+            dependencies = @()
+        }
+    )
+} | ConvertTo-Json -Depth 4
+
+$workflow = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/orchestration/workflows" `
+                              -Method POST `
+                              -Body $workflowBody `
+                              -ContentType "application/json"
+
+# Execute workflow asynchronously
+$workflowExec = Invoke-RestMethod -Uri "http://localhost:8080/api/v1/orchestration/workflows/$($workflow.data.workflow_id)/execute-async" `
+                                  -Method POST `
+                                  -ContentType "application/json"
+
+Write-Output "Workflow Status: $($workflowExec.data.status)"
 ```
 
 ## Rate Limiting and Quotas
@@ -693,8 +852,615 @@ This API maintains compatibility with OpenAI's API format for:
 - Error response format
 - Streaming protocol (Server-Sent Events)
 
+**OpenAI Compatible Endpoints**:
+- `/v1/chat/completions` - Standard chat completions
+- `/v1/completions` - Text completions
+- `/v1/agents/{agent_id}/chat/completions` - Agent-specific chat completions
+
+**Agent System Extensions**:
+- Multi-agent orchestration and workflow management
+- Inter-agent communication protocols
+- Dynamic agent creation and management
+- Advanced function execution with job queuing
+- Real-time system monitoring and metrics
+
 **Differences from OpenAI**:
 - No authentication required
 - Additional engine management endpoints
 - Extended health check information
 - Custom error codes for inference-specific issues
+- Multi-agent system capabilities
+- Workflow orchestration features
+- Hot-reloading configuration support
+
+## Agent System Endpoints
+
+### 5. Agent Management
+
+#### List All Agents
+
+```http
+GET /api/v1/agents
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "uuid": "agent_12345_67890",
+      "id": "research_assistant",
+      "name": "research_assistant",
+      "type": "research",
+      "capabilities": [
+        "web_search",
+        "text_processing",
+        "data_analysis"
+      ],
+      "running": true
+    }
+  ],
+  "count": 1
+}
+```
+
+#### Create New Agent
+
+```http
+POST /api/v1/agents
+```
+
+**Request Body**:
+```json
+{
+  "name": "custom_agent",
+  "type": "research",
+  "role": "Research Assistant",
+  "system_prompt": "You are a helpful research assistant.",
+  "capabilities": [
+    "web_search",
+    "text_processing",
+    "data_analysis"
+  ],
+  "functions": [
+    "inference",
+    "web_search",
+    "text_processing"
+  ],
+  "llm_config": {
+    "model_name": "test-qwen-0.6b",
+    "api_endpoint": "http://localhost:8080/v1",
+    "temperature": 0.7,
+    "max_tokens": 2048
+  },
+  "auto_start": true,
+  "max_concurrent_jobs": 3
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "agent_id": "custom_agent_12345",
+    "status": "created"
+  }
+}
+```
+
+#### Get Agent Details
+
+```http
+GET /api/v1/agents/{agent_id}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "uuid": "agent_12345_67890",
+    "id": "research_assistant",
+    "name": "research_assistant",
+    "type": "research",
+    "capabilities": [
+      "web_search",
+      "text_processing",
+      "data_analysis"
+    ],
+    "running": true,
+    "functions": [
+      "inference",
+      "web_search",
+      "text_processing"
+    ],
+    "max_concurrent_jobs": 3
+  }
+}
+```
+
+#### Agent Control
+
+```http
+POST /api/v1/agents/{agent_id}/start
+POST /api/v1/agents/{agent_id}/stop
+DELETE /api/v1/agents/{agent_id}
+```
+
+### 6. Function Execution
+
+#### Execute Function Synchronously
+
+```http
+POST /api/v1/agents/{agent_id}/execute
+```
+
+**Request Body**:
+```json
+{
+  "function": "text_processing",
+  "parameters": {
+    "text": "The quick brown fox jumps over the lazy dog",
+    "operation": "analyze"
+  }
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "success": true,
+    "execution_time_ms": 234.5,
+    "result": {
+      "word_count": 9,
+      "character_count": 43,
+      "sentiment": "neutral"
+    }
+  }
+}
+```
+
+#### Execute Function Asynchronously
+
+```http
+POST /api/v1/agents/{agent_id}/execute-async
+```
+
+**Request Body**:
+```json
+{
+  "function": "code_generation",
+  "parameters": {
+    "requirements": "Create a REST API endpoint",
+    "language": "python",
+    "framework": "fastapi"
+  },
+  "priority": 1
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "job_id": "job_67890",
+    "status": "queued",
+    "agent_id": "code_assistant",
+    "function": "code_generation"
+  }
+}
+```
+
+#### Job Management
+
+```http
+GET /api/v1/agents/jobs/{job_id}/status
+GET /api/v1/agents/jobs/{job_id}/result
+```
+
+### 7. Agent Communication
+
+#### Send Message Between Agents
+
+```http
+POST /api/v1/agents/messages/send
+```
+
+**Request Body**:
+```json
+{
+  "from_agent": "research_assistant",
+  "to_agent": "code_assistant",
+  "type": "task_request",
+  "payload": {
+    "task": "Generate code based on research",
+    "data": "Research findings...",
+    "priority": "high"
+  },
+  "correlation_id": "workflow_abc123"
+}
+```
+
+#### Broadcast Message
+
+```http
+POST /api/v1/agents/messages/broadcast
+```
+
+**Request Body**:
+```json
+{
+  "from_agent": "project_manager",
+  "type": "status_update",
+  "payload": {
+    "message": "System maintenance scheduled",
+    "timestamp": "2025-06-25T02:00:00Z"
+  }
+}
+```
+
+### 8. OpenAI Compatible Agent Endpoints
+
+#### Agent Chat Completions
+
+```http
+POST /v1/agents/{agent_id}/chat/completions
+```
+
+**Request Body** (OpenAI Format):
+```json
+{
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a helpful assistant."
+    },
+    {
+      "role": "user",
+      "content": "Hello, how are you?"
+    }
+  ],
+  "model": "agent_model",
+  "max_tokens": 150,
+  "temperature": 0.7
+}
+```
+
+**Response** (OpenAI Format):
+```json
+{
+  "id": "chatcmpl-123",
+  "object": "chat.completion",
+  "created": 1677652288,
+  "model": "agent_model",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Hello! I'm doing well, thank you for asking."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 20,
+    "completion_tokens": 15,
+    "total_tokens": 35
+  }
+}
+```
+
+#### Additional Agent Endpoints
+
+```http
+POST /v1/agents/{agent_id}/chat
+POST /v1/agents/{agent_id}/message
+POST /v1/agents/{agent_id}/generate
+POST /v1/agents/{agent_id}/respond
+```
+
+### 9. Workflow Orchestration
+
+#### Create Workflow
+
+```http
+POST /api/v1/orchestration/workflows
+```
+
+**Request Body**:
+```json
+{
+  "name": "Content Creation Workflow",
+  "description": "Research, write, and review content",
+  "global_context": {
+    "topic": "AI in Healthcare",
+    "target_audience": "medical professionals"
+  },
+  "steps": [
+    {
+      "step_id": "research",
+      "agent_id": "research_assistant",
+      "function_name": "web_search",
+      "parameters": {
+        "query": "AI applications in healthcare 2024"
+      },
+      "dependencies": [],
+      "parallel_allowed": true
+    },
+    {
+      "step_id": "write_content",
+      "agent_id": "content_creator",
+      "function_name": "text_processing", 
+      "parameters": {
+        "operation": "write_article"
+      },
+      "dependencies": ["research"],
+      "parallel_allowed": false
+    }
+  ]
+}
+```
+
+#### Execute Workflow
+
+```http
+POST /api/v1/orchestration/workflows/{workflow_id}/execute
+POST /api/v1/orchestration/workflows/{workflow_id}/execute-async
+```
+
+#### Get Workflow Results
+
+```http
+GET /api/v1/orchestration/workflows/{workflow_id}/result
+GET /api/v1/orchestration/workflows/{workflow_id}/status
+```
+
+### 10. Collaboration Patterns
+
+#### Create Collaboration Group
+
+```http
+POST /api/v1/orchestration/collaboration-groups
+```
+
+**Request Body**:
+```json
+{
+  "name": "Development Team",
+  "pattern": "hierarchy",
+  "agent_ids": ["project_manager", "code_assistant", "qa_specialist"],
+  "consensus_threshold": 2
+}
+```
+
+**Collaboration Patterns**:
+- `sequential` - Agents work one after another
+- `parallel` - Agents work simultaneously  
+- `pipeline` - Output feeds into next agent
+- `consensus` - Agents vote on best result
+- `hierarchy` - Master-slave coordination
+- `negotiation` - Agents negotiate agreement
+
+#### Execute Collaboration
+
+```http
+POST /api/v1/orchestration/collaboration-groups/{group_id}/execute
+```
+
+### 11. System Management & Monitoring
+
+#### Agent System Status
+
+```http
+GET /api/v1/agents/system/status
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "system_running": true,
+    "agent_count": 6,
+    "system_status": "All systems operational",
+    "agents": [
+      {
+        "id": "research_assistant",
+        "name": "research_assistant",
+        "running": true
+      }
+    ]
+  }
+}
+```
+
+#### System Metrics
+
+```http
+GET /api/v1/agents/system/metrics
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "total_agents": 6,
+    "running_agents": 5,
+    "stopped_agents": 1,
+    "total_functions_executed": 1247,
+    "average_execution_time_ms": 856.3,
+    "active_jobs": 4,
+    "system_uptime_seconds": 86400,
+    "memory_usage_mb": 512,
+    "cpu_usage_percent": 23.5
+  }
+}
+```
+
+#### Orchestration Metrics
+
+```http
+GET /api/v1/orchestration/metrics
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "active_workflows": 3,
+    "completed_workflows": 15,
+    "failed_workflows": 1,
+    "total_workflows": 19,
+    "collaboration_groups": 2,
+    "orchestrator_status": "running",
+    "workflow_execution_times": {
+      "average_ms": 2340,
+      "min_ms": 450,
+      "max_ms": 8920
+    }
+  }
+}
+```
+
+#### Orchestrator Status
+
+```http
+GET /api/v1/orchestration/status
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "data": {
+    "status": "running",
+    "is_running": true
+  }
+}
+```
+
+#### Configuration Management
+
+```http
+POST /api/v1/agents/system/reload
+```
+
+**Request Body**:
+```json
+{
+  "config_file": "/path/to/agents.yaml"
+}
+```
+
+## Agent System Examples
+
+### Basic Agent Operations
+
+```bash
+# Create a research agent
+curl -X POST http://localhost:8080/api/v1/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "research_bot",
+    "type": "research",
+    "role": "Research Assistant",
+    "capabilities": ["web_search", "text_processing"],
+    "auto_start": true
+  }'
+
+# List all agents
+curl http://localhost:8080/api/v1/agents
+
+# Execute a function on the agent
+curl -X POST http://localhost:8080/api/v1/agents/research_bot/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "function": "web_search",
+    "parameters": {
+      "query": "latest AI developments",
+      "limit": 10
+    }
+  }'
+```
+
+### Multi-Agent Workflow
+
+```bash
+# Create multiple specialized agents
+curl -X POST http://localhost:8080/api/v1/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "researcher",
+    "type": "research",
+    "capabilities": ["web_search", "text_processing"]
+  }'
+
+curl -X POST http://localhost:8080/api/v1/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "writer",
+    "type": "creative", 
+    "capabilities": ["text_processing", "content_creation"]
+  }'
+
+# Create a workflow
+curl -X POST http://localhost:8080/api/v1/orchestration/workflows \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Research and Write",
+    "steps": [
+      {
+        "step_id": "research",
+        "agent_id": "researcher",
+        "function_name": "web_search",
+        "parameters": {"query": "quantum computing trends"}
+      },
+      {
+        "step_id": "write",
+        "agent_id": "writer", 
+        "function_name": "text_processing",
+        "parameters": {"operation": "write_article"},
+        "dependencies": ["research"]
+      }
+    ]
+  }'
+
+# Execute the workflow
+curl -X POST http://localhost:8080/api/v1/orchestration/workflows/workflow_123/execute
+```
+
+### OpenAI Compatible Agent Usage
+
+```bash
+# Use agent as OpenAI-compatible endpoint
+curl -X POST http://localhost:8080/v1/agents/research_bot/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "messages": [
+      {"role": "user", "content": "Explain quantum computing"}
+    ],
+    "max_tokens": 200,
+    "temperature": 0.7
+  }'
+```
+
+### System Monitoring
+
+```bash
+# Check agent system status
+curl http://localhost:8080/api/v1/agents/system/status
+
+# Get system metrics
+curl http://localhost:8080/api/v1/agents/system/metrics
+
+# Get orchestration metrics
+curl http://localhost:8080/api/v1/orchestration/metrics
+```
