@@ -6,10 +6,39 @@
 #include <thread>
 
 namespace kolosal
-{
-
-    bool ServerConfig::loadFromArgs(int argc, char *argv[])
+{    bool ServerConfig::loadFromArgs(int argc, char *argv[])
     {
+        // Automatically detect and load configuration files in working directory
+        // Check for config files in this order: config.yaml, config.json
+        bool configLoaded = false;
+        
+        // Try config.yaml first
+        std::ifstream yamlFile("config.yaml");
+        if (yamlFile.good()) {
+            yamlFile.close();
+            if (loadFromFile("config.yaml")) {
+                std::cout << "Loaded configuration from config.yaml" << std::endl;
+                configLoaded = true;
+            }
+        }
+        
+        // If config.yaml not found or failed, try config.json
+        if (!configLoaded) {
+            std::ifstream jsonFile("config.json");
+            if (jsonFile.good()) {
+                jsonFile.close();
+                if (loadFromFile("config.json")) {
+                    std::cout << "Loaded configuration from config.json" << std::endl;
+                    configLoaded = true;
+                }
+            }
+        }
+        
+        if (!configLoaded) {
+            std::cout << "No configuration file found, using default settings" << std::endl;
+        }
+
+        // Process command line arguments (they can override config file settings)
         for (int i = 1; i < argc; i++)
         {
             std::string arg = argv[i];
