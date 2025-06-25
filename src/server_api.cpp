@@ -10,6 +10,7 @@
 #include "kolosal/routes/auth_config_route.hpp"
 #include "kolosal/routes/agents_route.hpp"
 #include "kolosal/routes/orchestration_route.hpp"
+#include "kolosal/routes/sequential_workflow_route.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
 #include "kolosal/agents/multi_agent_system.hpp"
@@ -74,7 +75,12 @@ namespace kolosal
             
             // Add orchestration route directly (it implements IRoute interface)
             auto orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator);
-            pImpl->server->addRoute(std::move(orchestrationRoute));            // Start agent systems
+            pImpl->server->addRoute(std::move(orchestrationRoute));
+            
+            // Add sequential workflow route
+            ServerLogger::logInfo("Registering sequential workflow route");
+            auto sequentialWorkflowRoute = std::make_unique<routes::SequentialWorkflowRoute>(pImpl->agentManager);
+            pImpl->server->addRoute(std::move(sequentialWorkflowRoute));            // Start agent systems
             ServerLogger::logInfo("Starting agent systems");
             
             // Load agent configuration and start agent manager

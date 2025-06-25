@@ -66,6 +66,10 @@ if(ENABLE_AGENTS)
         # Agent API routes
         src/routes/agents_route.cpp
         src/routes/orchestration_route.cpp
+        src/routes/sequential_workflow_route.cpp
+        
+        # Sequential workflow system
+        src/agents/sequential_workflow.cpp
     )
     message(STATUS "Agent system enabled - adding agent sources")
 endif()

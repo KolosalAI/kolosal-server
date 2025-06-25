@@ -102,6 +102,14 @@ int main(int argc, char* argv[]) {
     std::cout << "  POST /v1/agents/{id}/execute - Execute agent function" << std::endl;
     std::cout << "  GET  /v1/agents/system/status - Agent system status" << std::endl;
     std::cout << "  POST /v1/orchestration/workflows - Create workflow" << std::endl;
+    std::cout << "  GET  /api/v1/sequential-workflows - List sequential workflows" << std::endl;
+    std::cout << "  POST /api/v1/sequential-workflows - Create sequential workflow" << std::endl;
+    std::cout << "  GET  /api/v1/sequential-workflows/{id} - Get workflow details" << std::endl;
+    std::cout << "  POST /api/v1/sequential-workflows/{id}/execute - Execute workflow" << std::endl;
+    std::cout << "  POST /api/v1/sequential-workflows/{id}/execute-async - Execute workflow async" << std::endl;
+    std::cout << "  GET  /api/v1/sequential-workflows/{id}/status - Get workflow status" << std::endl;
+    std::cout << "  GET  /api/v1/sequential-workflows/{id}/result - Get workflow result" << std::endl;
+    std::cout << "  DELETE /api/v1/sequential-workflows/{id} - Delete workflow" << std::endl;
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
     
     // Main server loop
