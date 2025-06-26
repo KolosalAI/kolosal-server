@@ -2107,11 +2107,10 @@ bool InferenceEngine::Impl::isJobFinished(int job_id)
 
 	std::lock_guard<std::mutex> jobLock(job->mtx);
 	bool isFinished = job->isFinished;
-	if (isFinished)
-	{
-		std::lock_guard<std::mutex> lock(jobsMutex);
-		jobs.erase(job_id);
-	}
+	
+	// Don't remove the job here - let the caller get the results first
+	// Jobs will be cleaned up when they are accessed for results or errors
+	
 	return isFinished;
 }
 
@@ -2164,6 +2163,14 @@ EmbeddingResult InferenceEngine::Impl::getEmbeddingResult(int job_id)
 	std::lock_guard<std::mutex> jobLock(job->mtx);
 	EmbeddingResult result;
 	result.embedding = job->embedding;
+	result.tokens_count = 0; // Set default value, this should be populated during embedding generation
+	
+	// Clean up the job after getting the result
+	{
+		std::lock_guard<std::mutex> lock(jobsMutex);
+		jobs.erase(job_id);
+	}
+	
 	return result;
 }
 

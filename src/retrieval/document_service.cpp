@@ -48,18 +48,28 @@ public:
     {
         static thread_local std::random_device rd;
         static thread_local std::mt19937 gen(rd());
-        static thread_local std::uniform_int_distribution<> dis(0, 15);
+        static thread_local std::uniform_int_distribution<uint32_t> dis(0, 0xFFFFFFFF);
+        static thread_local std::uniform_int_distribution<uint16_t> dis16(0, 0xFFFF);
+        static thread_local std::uniform_int_distribution<unsigned int> dis8(0, 0xFF);
         
-        auto now = std::chrono::system_clock::now();
-        auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        // Generate UUID v4 (random) - format: xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx
+        // where x is any hex digit and y is one of 8, 9, A, or B
+        
+        uint32_t time_low = dis(gen);
+        uint16_t time_mid = dis16(gen);
+        uint16_t time_hi_and_version = (dis16(gen) & 0x0FFF) | 0x4000; // Version 4
+        uint8_t clock_seq_hi_and_reserved = static_cast<uint8_t>((dis8(gen) & 0x3F) | 0x80); // Variant bits
+        uint8_t clock_seq_low = static_cast<uint8_t>(dis8(gen));
+        uint64_t node = (static_cast<uint64_t>(dis(gen)) << 16) | dis16(gen);
         
         std::stringstream ss;
-        ss << "doc_" << std::hex << timestamp << "_";
-        
-        for (int i = 0; i < 8; ++i)
-        {
-            ss << std::hex << dis(gen);
-        }
+        ss << std::hex << std::setfill('0');
+        ss << std::setw(8) << time_low << "-";
+        ss << std::setw(4) << time_mid << "-";
+        ss << std::setw(4) << time_hi_and_version << "-";
+        ss << std::setw(2) << static_cast<int>(clock_seq_hi_and_reserved);
+        ss << std::setw(2) << static_cast<int>(clock_seq_low) << "-";
+        ss << std::setw(12) << node;
         
         return ss.str();
     }
@@ -105,6 +115,8 @@ public:
                 // Wait for job completion with timeout
                 const int max_wait_seconds = 30;
                 int wait_count = 0;
+                
+                ServerLogger::logDebug("Waiting for embedding job %d to complete", jobId);
                 
                 while (!engine->isJobFinished(jobId) && wait_count < max_wait_seconds * 10)
                 {
