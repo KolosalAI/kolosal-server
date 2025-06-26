@@ -47,6 +47,25 @@ struct AuthConfig {
 };
 
 /**
+ * @brief Database configuration
+ */
+struct DatabaseConfig {
+    struct QdrantConfig {
+        bool enabled = false;
+        std::string host = "localhost";
+        int port = 6333;
+        std::string collectionName = "documents";
+        std::string defaultEmbeddingModel = "text-embedding-3-small";
+        int timeout = 30;
+        std::string apiKey = "";
+        int maxConnections = 10;
+        int connectionTimeout = 5;
+    } qdrant;
+    
+    DatabaseConfig() = default;
+};
+
+/**
  * @brief Server startup configuration
  */
 struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
@@ -69,9 +88,11 @@ struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
     
     // Models to load at startup
     std::vector<ModelConfig> models;
-    
-    // Authentication configuration
+      // Authentication configuration
     AuthConfig auth;
+    
+    // Database configuration
+    DatabaseConfig database;
       // Feature flags
     bool enableHealthCheck = true;
     bool enableMetrics = false;

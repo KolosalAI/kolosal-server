@@ -50,6 +50,7 @@ set(SOURCES
     src/routes/cancel_download_route.cpp
     src/routes/cancel_all_downloads_route.cpp    src/routes/parse_pdf_route.cpp
     src/routes/parse_docx_route.cpp
+    src/routes/add_documents_route.cpp
     src/routes/models_route.cpp
     src/metrics_converter.cpp
     src/auth/rate_limiter.cpp
@@ -57,6 +58,9 @@ set(SOURCES
     src/auth/auth_middleware.cpp    src/node_manager.cpp    src/inference.cpp
     src/models/embedding_request_model.cpp
     src/models/embedding_response_model.cpp
+    src/models/add_documents_model.cpp
+    src/qdrant_client.cpp
+    src/document_service.cpp
     src/retrieval/parse_pdf.cpp
     src/retrieval/parse_docx.cpp
     # Minizip sources for DOCX parsing
@@ -259,6 +263,7 @@ target_include_directories(kolosal_server PUBLIC
   ${LLAMA_CPP_PATH}/include
   ${LLAMA_CPP_PATH}/common
   ${LLAMA_CPP_PATH}/ggml/include
+  ${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann
 )
 
 # Find and link thread library for the main library.

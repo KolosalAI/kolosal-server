@@ -14,6 +14,21 @@ logging:
   file: ""
   access_log: false
 
+database:
+  # Qdrant vector database configuration
+  qdrant:
+    enabled: true
+    host: "localhost"
+    port: 6333
+    collection_name: "documents"
+    default_embedding_model: "text-embedding-3-small"  # Model to use for embedding documents
+    timeout: 30
+    # Optional authentication
+    api_key: ""
+    # Connection pooling
+    max_connections: 10
+    connection_timeout: 5
+
 auth:
   enabled: true
   require_api_key: false

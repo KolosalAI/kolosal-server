@@ -8,11 +8,23 @@
         "idle_timeout": 300,
         "allow_public_access": false,
         "allow_internet_access": false
-    },
-    "logging": {
+    },    "logging": {
         "level": "INFO",
         "file": "",
         "access_log": false
+    },
+    "database": {
+        "qdrant": {
+            "enabled": true,
+            "host": "localhost",
+            "port": 6333,
+            "collection_name": "documents",
+            "default_embedding_model": "text-embedding-3-small",
+            "timeout": 30,
+            "api_key": "",
+            "max_connections": 10,
+            "connection_timeout": 5
+        }
     },
     "auth": {
         "enabled": false,
