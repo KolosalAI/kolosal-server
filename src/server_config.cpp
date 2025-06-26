@@ -264,9 +264,7 @@ namespace kolosal
                         allowPublicAccess = true; // Internet access implies public access
                     }
                 }
-            }
-
-            // Load logging settings
+            }            // Load logging settings
             if (config["logging"])
             {
                 auto logging = config["logging"];
@@ -276,6 +274,10 @@ namespace kolosal
                     logFile = logging["file"].as<std::string>();
                 if (logging["access_log"])
                     enableAccessLog = logging["access_log"].as<bool>();
+                if (logging["quiet_mode"])
+                    quietMode = logging["quiet_mode"].as<bool>();
+                if (logging["show_request_details"])
+                    showRequestDetails = logging["show_request_details"].as<bool>();
             }
 
             // Load authentication settings
@@ -416,12 +418,12 @@ namespace kolosal
             config["server"]["max_request_size"] = maxRequestSize;
             config["server"]["idle_timeout"] = static_cast<int>(idleTimeout.count());
             config["server"]["allow_public_access"] = allowPublicAccess;
-            config["server"]["allow_internet_access"] = allowInternetAccess;
-
-            // Logging settings
+            config["server"]["allow_internet_access"] = allowInternetAccess;            // Logging settings
             config["logging"]["level"] = logLevel;
             config["logging"]["file"] = logFile;
             config["logging"]["access_log"] = enableAccessLog;
+            config["logging"]["quiet_mode"] = quietMode;
+            config["logging"]["show_request_details"] = showRequestDetails;
 
             // Authentication settings
             config["auth"]["enabled"] = auth.enableAuth;
@@ -492,10 +494,8 @@ namespace kolosal
         {
             std::cerr << "Error: Invalid port number: " << port << std::endl;
             return false;
-        }
-
-        // Validate log level
-        if (logLevel != "DEBUG" && logLevel != "INFO" && logLevel != "WARN" && logLevel != "ERROR")
+        }        // Validate log level
+        if (logLevel != "DEBUG" && logLevel != "INFO" && logLevel != "WARN" && logLevel != "WARNING" && logLevel != "ERROR")
         {
             std::cerr << "Error: Invalid log level: " << logLevel << std::endl;
             return false;

@@ -337,11 +337,10 @@ namespace kolosal
 			inet_ntop(client_addr.ss_family,
 					  client_addr.ss_family == AF_INET ? (void *)&(((struct sockaddr_in *)&client_addr)->sin_addr) : (void *)&(((struct sockaddr_in6 *)&client_addr)->sin6_addr),
 					  clientIP, sizeof(clientIP));
-#endif
-			ServerLogger::logInfo("New client connection from %s", clientIP); // Spawn a thread to handle this client
+#endif			ServerLogger::logDebug("New client connection from %s", clientIP); // Spawn a thread to handle this client
 			std::thread([this, client_sock, clientIP]()
 						{
-							ServerLogger::logInfo("[Thread %d] Processing request from %s",
+							ServerLogger::logDebug("[Thread %d] Processing request from %s",
 												  std::this_thread::get_id(), clientIP);
 
 							// Read the HTTP headers
@@ -382,11 +381,9 @@ namespace kolosal
 							parse_request_line(requestLine, method, path);
 
 							// Parse headers for authentication middleware
-							auto headers = parseHeaders(request);
-
-							ServerLogger::logInfo("[Thread %d] Processing %s request for %s from %s",
+							auto headers = parseHeaders(request);							ServerLogger::logDebug("[Thread %d] Processing %s request for %s from %s",
 												  std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP); // Process authentication middleware
-							ServerLogger::logInfo("[Thread %d] Calling auth middleware for %s %s from %s",
+							ServerLogger::logDebug("[Thread %d] Calling auth middleware for %s %s from %s",
 												  std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
 
 							auth::AuthMiddleware::RequestInfo authRequest(method, path, clientIP);
@@ -394,7 +391,7 @@ namespace kolosal
 
 							auto authResult = authMiddleware_->processRequest(authRequest);
 
-							ServerLogger::logInfo("[Thread %d] Auth middleware result - Allowed: %s, Status: %d, Reason: %s",
+							ServerLogger::logDebug("[Thread %d] Auth middleware result - Allowed: %s, Status: %d, Reason: %s",
 												  std::this_thread::get_id(),
 												  authResult.allowed ? "true" : "false",
 												  authResult.statusCode,
@@ -426,9 +423,7 @@ namespace kolosal
 							// Handle CORS preflight requests
 							if (authResult.isPreflight)
 							{
-								send_response(client_sock, authResult.statusCode, "", responseHeaders);
-
-								ServerLogger::logInfo("[Thread %d] CORS preflight request handled",
+								send_response(client_sock, authResult.statusCode, "", responseHeaders);								ServerLogger::logDebug("[Thread %d] CORS preflight request handled",
 													  std::this_thread::get_id());
 
 #ifdef _WIN32
@@ -533,9 +528,7 @@ namespace kolosal
 
 								nlohmann::json jError = {{"error", {{"message", "Not found"}, {"type", "invalid_request_error"}, {"param", nullptr}, {"code", nullptr}}}};
 								send_response(client_sock, 404, jError.dump(), responseHeaders);
-							}
-
-							ServerLogger::logInfo("[Thread %d] Completed request for %s",
+							}							ServerLogger::logDebug("[Thread %d] Completed request for %s",
 												  std::this_thread::get_id(), path.c_str());
 
 #ifdef _WIN32

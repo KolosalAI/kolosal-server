@@ -252,6 +252,38 @@ int main(int argc, char *argv[])
     // Print startup banner
     std::cout << "Starting Kolosal Server v1.0.0..." << std::endl;
     config.printSummary();
+    
+    // Configure logger based on loaded config
+    auto& logger = ServerLogger::instance();
+    
+    // Convert string log level to enum
+    LogLevel logLevel = LogLevel::SERVER_INFO; // default
+    if (config.logLevel == "ERROR") {
+        logLevel = LogLevel::SERVER_ERROR;
+    } else if (config.logLevel == "WARNING" || config.logLevel == "WARN") {
+        logLevel = LogLevel::SERVER_WARNING;
+    } else if (config.logLevel == "INFO") {
+        logLevel = LogLevel::SERVER_INFO;
+    } else if (config.logLevel == "DEBUG") {
+        logLevel = LogLevel::SERVER_DEBUG;
+    }
+    
+    logger.setLevel(logLevel);
+    logger.setQuietMode(config.quietMode);
+    logger.setShowRequestDetails(config.showRequestDetails);
+    
+    // Set log file if specified
+    if (!config.logFile.empty()) {
+        if (!logger.setLogFile(config.logFile)) {
+            std::cerr << "Warning: Failed to open log file: " << config.logFile << std::endl;
+        }
+    }
+    
+    ServerLogger::logInfo("Logger configured - Level: %s, Quiet: %s, Details: %s", 
+                         config.logLevel.c_str(),
+                         config.quietMode ? "true" : "false",
+                         config.showRequestDetails ? "true" : "false");
+
     // Initialize the server
     ServerAPI &server = ServerAPI::instance();
 

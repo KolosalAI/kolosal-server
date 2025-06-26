@@ -152,7 +152,8 @@ namespace kolosal
 
     DownloadResult get_url_file_info(const std::string &url)
     {
-        ServerLogger::logInfo("Checking URL accessibility: %s", url.c_str());
+        // Check URL accessibility without verbose logging
+        // ServerLogger::logInfo("Checking URL accessibility: %s", url.c_str());
 
         // Validate URL
         if (!is_valid_url(url))
@@ -207,11 +208,10 @@ namespace kolosal
             std::string error = "HTTP error: " + std::to_string(response_code);
             ServerLogger::logError("%s", error.c_str());
             return DownloadResult(false, error);
-        }
-
-        size_t file_size = (content_length > 0) ? static_cast<size_t>(content_length) : 0;
-        ServerLogger::logInfo("URL is accessible. Response code: %ld, Content-Length: %zu bytes",
-                              response_code, file_size);
+        }        size_t file_size = (content_length > 0) ? static_cast<size_t>(content_length) : 0;
+        // URL is accessible, proceed without detailed logging
+        // ServerLogger::logInfo("URL is accessible. Response code: %ld, Content-Length: %zu bytes",
+        //                       response_code, file_size);
 
         return DownloadResult(true, "", "", file_size);
     }
@@ -245,14 +245,10 @@ namespace kolosal
             {
                 ServerLogger::logWarning("Cannot get file size from URL for resume check: %s", url.c_str());
                 return false;
-            }
-
-            // Check if local file is smaller than expected (incomplete download)
+            }            // Check if local file is smaller than expected (incomplete download)
             if (local_size < url_info.total_bytes)
             {
-                ServerLogger::logInfo("Found partial download: %zu/%zu bytes (%.1f%%) - can resume",
-                                      local_size, url_info.total_bytes,
-                                      (double)local_size / url_info.total_bytes * 100.0);
+                // File can be resumed - log only major status changes, not detailed progress
                 return true;
             }
             else if (local_size == url_info.total_bytes)
@@ -274,9 +270,9 @@ namespace kolosal
         }
     }    DownloadResult download_file_with_resume(const std::string &url, const std::string &local_path,
                                              DownloadProgressCallback progress_callback, bool resume)
-    {
-        ServerLogger::logInfo("Starting download from URL: %s to: %s (resume: %s)",
-                              url.c_str(), local_path.c_str(), resume ? "enabled" : "disabled");
+    {        // Check for existing partial downloads
+        // ServerLogger::logInfo("Starting download from URL: %s to: %s (resume: %s)",
+        //                       url.c_str(), local_path.c_str(), resume ? "enabled" : "disabled");
 
         // Validate URL
         if (!is_valid_url(url))
@@ -376,9 +372,8 @@ namespace kolosal
         // Set resume range if resuming
         if (resuming)
         {
-            std::string range = std::to_string(resume_from) + "-";
-            curl_easy_setopt(curl, CURLOPT_RANGE, range.c_str());
-            ServerLogger::logInfo("Setting HTTP range: %s", range.c_str());
+            std::string range = std::to_string(resume_from) + "-";            curl_easy_setopt(curl, CURLOPT_RANGE, range.c_str());
+            // Resume download from byte position (logging suppressed for verbosity)
         }
 
         // Set up progress callback if provided
@@ -570,9 +565,8 @@ namespace kolosal
         // Set resume range if resuming
         if (resuming)
         {
-            std::string range = std::to_string(resume_from) + "-";
-            curl_easy_setopt(curl, CURLOPT_RANGE, range.c_str());
-            ServerLogger::logInfo("Setting HTTP range: %s", range.c_str());
+            std::string range = std::to_string(resume_from) + "-";            curl_easy_setopt(curl, CURLOPT_RANGE, range.c_str());
+            // Resume download from byte position (logging suppressed for verbosity)
         }
 
         // Set up progress callback if provided

@@ -40,19 +40,15 @@ namespace kolosal
                                       model_id.c_str(), existing_progress->status.c_str());
                 download_futures_.erase(model_id);
                 downloads_.erase(existing_it);
-            }
-        } // Create new download progress entry
+            }        } // Create new download progress entry
         auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
         downloads_[model_id] = progress;
-
-        // Report initial progress as 0%
-        ServerLogger::logInfo("Initialized download for model %s: 0.0%% (0/0 bytes)", model_id.c_str());
 
         // Start download in background thread
         download_futures_[model_id] = std::async(std::launch::async, [this, progress]()
                                                  { performDownload(progress); });
 
-        ServerLogger::logInfo("Started download for model %s from URL: %s", model_id.c_str(), url.c_str());
+        ServerLogger::logInfo("Started download for model %s", model_id.c_str());
         return true;
     }
 
@@ -79,20 +75,18 @@ namespace kolosal
                                       model_id.c_str(), existing_progress->status.c_str());
                 download_futures_.erase(model_id);
                 downloads_.erase(existing_it);
-            }
-        } // Create new download progress entry with engine parameters
+            }        } 
+        
+        // Create new download progress entry with engine parameters
         auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
         progress->engine_params = std::make_unique<EngineCreationParams>(engine_params);
         downloads_[model_id] = progress;
-
-        // Report initial progress as 0%
-        ServerLogger::logInfo("Initialized download for model %s: 0.0%% (0/0 bytes)", model_id.c_str());
 
         // Start download in background thread
         download_futures_[model_id] = std::async(std::launch::async, [this, progress]()
                                                  { performDownload(progress); });
 
-        ServerLogger::logInfo("Started download with engine creation for model %s from URL: %s", model_id.c_str(), url.c_str());
+        ServerLogger::logInfo("Started download with engine creation for model %s", model_id.c_str());
         return true;
     }
 
@@ -319,11 +313,11 @@ namespace kolosal
                             std::lock_guard<std::mutex> lock(downloads_mutex_);
                             progress->status = "already_complete";
                             progress->total_bytes = local_size;
-                            progress->downloaded_bytes = local_size;
-                            progress->percentage = 100.0;
+                            progress->downloaded_bytes = local_size;                            progress->percentage = 100.0;
                             progress->end_time = std::chrono::system_clock::now();
 
-                            ServerLogger::logInfo("File already fully downloaded for model %s: %zu bytes (skipping download)",
+                            // File already downloaded - only log at debug level to reduce verbosity
+                            ServerLogger::logDebug("File already fully downloaded for model %s: %zu bytes (skipping download)",
                                                   progress->model_id.c_str(), local_size);
 
                             // If engine parameters are provided, create the engine
@@ -372,41 +366,50 @@ namespace kolosal
                         percentage = 0.0;
                     }
                 }
-                
-                progress->downloaded_bytes = downloaded;
+                  progress->downloaded_bytes = downloaded;
                 progress->total_bytes = total;
                 progress->percentage = percentage;
 
-                ServerLogger::logInfo("Download progress for %s: %.1f%% (%zu/%zu bytes)",
-                                      progress->model_id.c_str(), percentage, downloaded, total); }; // Perform the actual download with cancellation support
-            ServerLogger::logInfo("Starting download for model %s, initial progress: %.1f%% (%zu/%zu bytes)",
-                                  progress->model_id.c_str(), progress->percentage, progress->downloaded_bytes, progress->total_bytes);
+                // Only log progress at major milestones (every 10%) to reduce verbosity
+                static std::map<std::string, int> last_logged_milestone;
+                int current_milestone = static_cast<int>(percentage / 10) * 10;
+                if (last_logged_milestone[progress->model_id] != current_milestone && current_milestone > 0)
+                {
+                    last_logged_milestone[progress->model_id] = current_milestone;
+                    ServerLogger::logInfo("Download progress for %s: %d%% (%zu/%zu bytes)",                                          progress->model_id.c_str(), current_milestone, downloaded, total);
+                }
+            };
+            
+            // Perform the actual download with cancellation support
+            ServerLogger::logInfo("Starting download for model: %s", progress->model_id.c_str());
             DownloadResult result = download_file_with_cancellation_and_resume(progress->url, progress->local_path, progressCallback, &(progress->cancelled), true);
-
+            
             {
                 std::lock_guard<std::mutex> lock(downloads_mutex_);
 
-                ServerLogger::logInfo("Download result for model %s: success=%s, total_bytes=%zu, error='%s'",
-                                      progress->model_id.c_str(), result.success ? "true" : "false",
-                                      result.total_bytes, result.error_message.c_str());
+                // Only log final result, not detailed metrics to reduce verbosity
+                if (result.success)
+                {
+                    ServerLogger::logInfo("Download completed successfully for model: %s", progress->model_id.c_str());
+                }
+                else
+                {
+                    ServerLogger::logError("Download failed for model %s: %s", progress->model_id.c_str(), result.error_message.c_str());
+                }
+
                 if (result.success && progress->status != "cancelled")
                 {
                     progress->status = "completed";
                     progress->total_bytes = result.total_bytes;
                     progress->downloaded_bytes = result.total_bytes;
-                    progress->percentage = 100.0;
-
-                    // Check if this was a file that was already complete (no progress reported)
+                    progress->percentage = 100.0;                    // Check if this was a file that was already complete (no progress reported)
                     if (!progress_was_reported && result.total_bytes > 0)
                     {
                         ServerLogger::logInfo("File was already complete for model: %s (no download needed)", progress->model_id.c_str());
                         // Set status to indicate the file was already complete
                         progress->status = "already_complete";
                     }
-                    else
-                    {
-                        ServerLogger::logInfo("Download completed successfully for model: %s", progress->model_id.c_str());
-                    }
+                    // Download completion already logged above, no need to duplicate
                 }
                 else if (progress->status != "cancelled")
                 {
