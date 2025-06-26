@@ -1,4 +1,4 @@
-#include "kolosal/document_service.hpp"
+#include "kolosal/retrieval/document_service.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -10,6 +10,8 @@
 #include <random>
 
 namespace kolosal
+{
+namespace retrieval
 {
 
 class DocumentService::Impl
@@ -392,4 +394,5 @@ std::future<std::vector<float>> DocumentService::getEmbedding(const std::string&
     return pImpl->generateEmbedding(text, model_id);
 }
 
+} // namespace retrieval
 } // namespace kolosal

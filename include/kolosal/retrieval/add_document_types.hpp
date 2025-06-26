@@ -8,9 +8,14 @@
 
 namespace kolosal
 {
+namespace retrieval
+{
 
 /**
  * @brief Single document for indexing
+ * 
+ * Represents a document that can be added to the retrieval system,
+ * containing text content and optional metadata.
  */
 struct Document
 {
@@ -37,7 +42,9 @@ struct Document
 };
 
 /**
- * @brief Request model for add_documents endpoint
+ * @brief Request data type for add_documents endpoint
+ * 
+ * Contains the documents to be added and optional collection specification.
  */
 struct KOLOSAL_SERVER_API AddDocumentsRequest
 {
@@ -59,6 +66,8 @@ struct KOLOSAL_SERVER_API AddDocumentsRequest
 
 /**
  * @brief Single document indexing result
+ * 
+ * Represents the result of processing one document during indexing.
  */
 struct DocumentResult
 {
@@ -74,7 +83,10 @@ struct DocumentResult
 };
 
 /**
- * @brief Response model for add_documents endpoint
+ * @brief Response data type for add_documents endpoint
+ * 
+ * Contains the results of document indexing operation including
+ * success/failure counts and individual document results.
  */
 struct KOLOSAL_SERVER_API AddDocumentsResponse
 {
@@ -109,7 +121,9 @@ struct KOLOSAL_SERVER_API AddDocumentsResponse
 };
 
 /**
- * @brief Error response for add_documents endpoint
+ * @brief Error response data type for add_documents endpoint
+ * 
+ * Represents structured error information when document addition fails.
  */
 struct KOLOSAL_SERVER_API AddDocumentsErrorResponse
 {
@@ -125,4 +139,5 @@ struct KOLOSAL_SERVER_API AddDocumentsErrorResponse
     nlohmann::json to_json() const;
 };
 
+} // namespace retrieval
 } // namespace kolosal

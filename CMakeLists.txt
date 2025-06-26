@@ -58,9 +58,9 @@ set(SOURCES
     src/auth/auth_middleware.cpp    src/node_manager.cpp    src/inference.cpp
     src/models/embedding_request_model.cpp
     src/models/embedding_response_model.cpp
-    src/models/add_documents_model.cpp
+    src/retrieval/add_document_types.cpp
     src/qdrant_client.cpp
-    src/document_service.cpp
+    src/retrieval/document_service.cpp
     src/retrieval/parse_pdf.cpp
     src/retrieval/parse_docx.cpp
     # Minizip sources for DOCX parsing

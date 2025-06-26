@@ -1,8 +1,8 @@
 #pragma once
 
-#include "route_interface.hpp"
+#include "../routes/route_interface.hpp"
 #include "../export.hpp"
-#include "../retrieval/document_service.hpp"
+#include "document_service.hpp"
 #include <string>
 #include <memory>
 #include <atomic>
@@ -12,6 +12,9 @@ namespace kolosal
 {
 
 class CompletionMonitor;
+
+namespace retrieval
+{
 
 /**
  * @brief Route handler for adding documents to vector database
@@ -56,14 +59,16 @@ private:
      * @param message Error message
      * @param error_type Error type
      * @param param Parameter that caused the error (optional)
-     */    void sendErrorResponse(SocketType sock, int status, const std::string& message, 
+     */    
+    void sendErrorResponse(SocketType sock, int status, const std::string& message, 
                           const std::string& error_type = "invalid_request_error", 
                           const std::string& param = "");
 
     static std::atomic<long long> request_counter_;
     std::unique_ptr<CompletionMonitor> monitor_;
-    std::unique_ptr<kolosal::retrieval::DocumentService> document_service_;
+    std::unique_ptr<DocumentService> document_service_;
     std::mutex service_mutex_;
 };
 
+} // namespace retrieval
 } // namespace kolosal

@@ -1,5 +1,5 @@
 #include "kolosal/routes/add_documents_route.hpp"
-#include "kolosal/models/add_documents_model.hpp"
+#include "kolosal/retrieval/add_document_types.hpp"
 #include "kolosal/utils.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
@@ -59,7 +59,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
         }
 
         // Parse the request using the DTO model
-        AddDocumentsRequest request;
+        kolosal::retrieval::AddDocumentsRequest request;
         try
         {
             request.from_json(j);
@@ -103,7 +103,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
                 db_config.qdrant.maxConnections = 10;
                 db_config.qdrant.connectionTimeout = 5;
                 
-                document_service_ = std::make_unique<DocumentService>(db_config);
+                document_service_ = std::make_unique<kolosal::retrieval::DocumentService>(db_config);
                 
                 // Initialize service
                 bool initialized = document_service_->initialize().get();
@@ -131,7 +131,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
         auto response_future = document_service_->addDocuments(request);
         
         // Wait for processing to complete
-        AddDocumentsResponse response = response_future.get();
+        kolosal::retrieval::AddDocumentsResponse response = response_future.get();
 
         // Complete monitoring
         monitor_->completeRequest(requestId);
@@ -175,7 +175,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
 void AddDocumentsRoute::sendErrorResponse(SocketType sock, int status, const std::string& message,
                                          const std::string& error_type, const std::string& param)
 {
-    AddDocumentsErrorResponse errorResponse;
+    kolosal::retrieval::AddDocumentsErrorResponse errorResponse;
     errorResponse.error = message;
     errorResponse.error_type = error_type;
     errorResponse.param = param;

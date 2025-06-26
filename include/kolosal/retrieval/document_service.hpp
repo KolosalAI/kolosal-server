@@ -1,15 +1,17 @@
 #pragma once
 
-#include "export.hpp"
-#include "models/add_documents_model.hpp"
-#include "qdrant_client.hpp"
-#include "server_config.hpp"
+#include "../export.hpp"
+#include "add_document_types.hpp"
+#include "../qdrant_client.hpp"
+#include "../server_config.hpp"
 #include <memory>
 #include <future>
 #include <string>
 #include <vector>
 
 namespace kolosal
+{
+namespace retrieval
 {
 
 /**
@@ -72,4 +74,5 @@ private:
     std::unique_ptr<Impl> pImpl;
 };
 
+} // namespace retrieval
 } // namespace kolosal

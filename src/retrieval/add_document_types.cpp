@@ -1,7 +1,9 @@
-#include "kolosal/models/add_documents_model.hpp"
+#include "kolosal/retrieval/add_document_types.hpp"
 #include <stdexcept>
 
 namespace kolosal
+{
+namespace retrieval
 {
 
 // Document implementations
@@ -163,4 +165,5 @@ nlohmann::json AddDocumentsErrorResponse::to_json() const
     return j;
 }
 
+} // namespace retrieval
 } // namespace kolosal
