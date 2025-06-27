@@ -434,4 +434,17 @@ namespace kolosal
         return true;
     }
 
+    std::pair<bool, bool> NodeManager::getEngineStatus(const std::string& engineId) const
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        auto it = engines_.find(engineId);
+        if (it == engines_.end())
+        {
+            return std::make_pair(false, false); // Engine not found
+        }
+        
+        const EngineRecord& record = it->second;
+        return std::make_pair(true, record.isLoaded); // Engine exists, return load status
+    }
+
 } // namespace kolosal

@@ -66,6 +66,16 @@ public:
     std::shared_ptr<InferenceEngine> getEngine(const std::string& engineId);
 
     /**
+     * @brief Checks if an engine exists and its load status without loading it.
+     * This method does not trigger loading of lazy models and does not update activity time.
+     * 
+     * @param engineId The ID of the engine to check.
+     * @return A pair of (exists, isLoaded) where exists indicates if the engine is registered
+     *         and isLoaded indicates if it's currently loaded in memory.
+     */
+    std::pair<bool, bool> getEngineStatus(const std::string& engineId) const;
+
+    /**
      * @brief Removes and unloads an inference engine by its ID.
      * 
      * @param engineId The ID of the engine to remove.

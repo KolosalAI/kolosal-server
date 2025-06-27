@@ -35,8 +35,9 @@ namespace kolosal
 
             for (const auto &engineId : engineIds)
             {
-                auto engine = nodeManager.getEngine(engineId);
-                if (engine)
+                // Check engine status without loading it (to avoid triggering lazy model loading)
+                auto [exists, isLoaded] = nodeManager.getEngineStatus(engineId);
+                if (isLoaded)
                 {
                     loadedCount++;
                 }
@@ -46,7 +47,7 @@ namespace kolosal
                 }
 
                 engineSummary.push_back({{"engine_id", engineId},
-                                         {"status", engine ? "loaded" : "unloaded"}});
+                                         {"status", isLoaded ? "loaded" : "unloaded"}});
             } // Get current timestamp
             auto now = std::chrono::system_clock::now();
             auto time_t = std::chrono::system_clock::to_time_t(now);
