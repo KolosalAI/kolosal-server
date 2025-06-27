@@ -19,7 +19,7 @@ public:
     std::string model_path;
     
     // Optional fields
-    bool load_immediately = true;
+    bool load_immediately = true;      // Whether to load immediately after adding (vs register for lazy loading)
     int main_gpu_id = 0;
     
     // Loading parameters (nested object)

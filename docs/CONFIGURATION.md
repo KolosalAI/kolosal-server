@@ -62,7 +62,7 @@ The server will automatically detect and load the configuration file from the wo
         {
             "id": "qwen3-0.6b",
             "path": "https://huggingface.co/kolosal/qwen3-0.6b/resolve/main/Qwen3-0.6B-UD-Q4_K_XL.gguf",
-            "load_at_startup": true,
+            "load_immediately": true,
             "main_gpu_id": 0,
             "preload_context": false,
             "load_params": {
@@ -77,7 +77,7 @@ The server will automatically detect and load the configuration file from the wo
         {
             "id": "gpt-3.5-turbo",
             "path": "./models/gpt-3.5-turbo.gguf",
-            "load_at_startup": false,
+            "load_immediately": false,
             "main_gpu_id": 0,
             "preload_context": false,
             "load_params": {
@@ -147,7 +147,7 @@ auth:
 models:
   - id: "qwen3-0.6b"
     path: "https://huggingface.co/kolosal/qwen3-0.6b/resolve/main/Qwen3-0.6B-UD-Q4_K_XL.gguf"
-    load_at_startup: true
+    load_immediately: true
     main_gpu_id: 0
     preload_context: false
     load_params:
@@ -159,7 +159,7 @@ models:
       cont_batching: true
   - id: "gpt-3.5-turbo"
     path: "./models/gpt-3.5-turbo.gguf"
-    load_at_startup: false
+    load_immediately: false
     main_gpu_id: 0
     preload_context: false
     load_params:
@@ -279,7 +279,7 @@ The `models` section defines models to be loaded at startup:
 |-----------|------|----------|-------------|
 | `id` | string | ✅ | Unique identifier for the model |
 | `path` | string | ✅ | Local file path or URL to model file |
-| `load_at_startup` | boolean | ❌ | Load model immediately on server start |
+| `load_immediately` | boolean | ❌ | Load model immediately on server start |
 | `main_gpu_id` | integer | ❌ | Primary GPU ID for model inference |
 | `preload_context` | boolean | ❌ | Preload context for faster initial inference |
 | `load_params` | object | ❌ | Advanced model loading parameters |
@@ -302,7 +302,7 @@ The `models` section defines models to be loaded at startup:
 models:
   - id: "my-local-model"
     path: "./models/my-model.gguf"
-    load_at_startup: true
+    load_immediately: true
 ```
 
 **Hugging Face URL:**
@@ -310,7 +310,7 @@ models:
 models:
   - id: "remote-model"
     path: "https://huggingface.co/user/model/resolve/main/model.gguf"
-    load_at_startup: false  # Download on first use
+    load_immediately: false  # Download on first use
 ```
 
 **GPU Configuration:**
@@ -318,7 +318,7 @@ models:
 models:
   - id: "gpu-model"
     path: "./models/large-model.gguf"
-    load_at_startup: true
+    load_immediately: true
     main_gpu_id: 0
     load_params:
       n_ctx: 8192
@@ -392,7 +392,7 @@ server:
 models:
   - id: "default"
     path: "./models/model.gguf"
-    load_at_startup: true
+    load_immediately: true
 ```
 
 ### Production Configuration
@@ -429,7 +429,7 @@ auth:
 models:
   - id: "gpt-3.5-turbo"
     path: "./models/gpt-3.5-turbo.gguf"
-    load_at_startup: true
+    load_immediately: true
     main_gpu_id: 0
     load_params:
       n_ctx: 4096
@@ -462,7 +462,7 @@ auth:
 models:
   - id: "test-model"
     path: "./models/test-model.gguf"
-    load_at_startup: false  # Lazy loading for faster startup
+    load_immediately: false  # Lazy loading for faster startup
     load_params:
       n_ctx: 1024
 
@@ -506,7 +506,7 @@ The server validates configuration on startup and will report errors for:
 
 ### Model Management
 
-1. **Lazy Loading**: Use `load_at_startup: false` for large models to improve startup time
+1. **Lazy Loading**: Use `load_immediately: false` for large models to improve startup time
 2. **Context Size**: Set `n_ctx` based on your typical input lengths
 3. **GPU Layers**: Experiment with `n_gpu_layers` to find optimal GPU/CPU split
 4. **Continuous Batching**: Enable `cont_batching: true` for better throughput

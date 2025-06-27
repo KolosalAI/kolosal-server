@@ -49,7 +49,7 @@ auth:
 models:
   - id: "qwen3-0.6b"
     path: "https://huggingface.co/kolosal/qwen3-0.6b/resolve/main/Qwen3-0.6B-UD-Q4_K_XL.gguf"
-    load_at_startup: true
+    load_immediately: true
     main_gpu_id: 0
     preload_context: false
     load_params:
@@ -59,9 +59,13 @@ models:
       use_mlock: false
       n_parallel: 1
       cont_batching: true
+      warmup: false
+      n_gpu_layers: 100
+      n_batch: 2048
+      n_ubatch: 512
   - id: "gpt-3.5-turbo"
     path: "./models/gpt-3.5-turbo.gguf"
-    load_at_startup: false
+    load_immediately: false
     main_gpu_id: 0
     preload_context: false
     load_params:
@@ -71,6 +75,10 @@ models:
       use_mlock: false
       n_parallel: 1
       cont_batching: true
+      warmup: false
+      n_gpu_layers: 100
+      n_batch: 2048
+      n_ubatch: 512
 
 features:
   health_check: true

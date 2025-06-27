@@ -434,7 +434,7 @@ auth:
 models:
   - id: "production-model"
     path: "./models/production-model.gguf"
-    load_at_startup: true
+    load_immediately: true
     main_gpu_id: 0
     load_params:
       n_ctx: 8192

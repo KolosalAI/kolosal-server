@@ -325,7 +325,7 @@ server:
 models:
   - id: "my-model"
     path: "./models/model.gguf"
-    load_at_startup: true
+    load_immediately: true
 ```
 
 #### Production Configuration
@@ -345,7 +345,7 @@ auth:
 models:
   - id: "gpt-3.5-turbo"
     path: "./models/gpt-3.5-turbo.gguf"
-    load_at_startup: true
+    load_immediately: true
     main_gpu_id: 0
     load_params:
       n_ctx: 4096

@@ -95,7 +95,7 @@ auth:
 models:
   - id: "gpt-3.5-turbo"          # Model identifier
     path: "./models/model.gguf"   # Local path or URL
-    load_at_startup: true         # Load immediately on startup
+    load_immediately: true         # Load immediately on startup
     main_gpu_id: 0               # Primary GPU device ID
     load_params:                  # Model loading parameters
       n_ctx: 4096                # Context window size
