@@ -7,6 +7,7 @@
 
 namespace kolosal {    // Forward declarations
     class NodeManager;
+    class AutoSetupManager;
     namespace auth {
         class AuthMiddleware;
     }
@@ -42,6 +43,10 @@ namespace kolosal {    // Forward declarations
         
         agents::AgentOrchestrator& getAgentOrchestrator();
         const agents::AgentOrchestrator& getAgentOrchestrator() const;
+
+        // Auto-setup system access
+        AutoSetupManager& getAutoSetupManager();
+        const AutoSetupManager& getAutoSetupManager() const;
 
     private:
         ServerAPI();

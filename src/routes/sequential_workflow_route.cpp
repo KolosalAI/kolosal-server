@@ -2,6 +2,8 @@
 #include "kolosal/logger.hpp"
 #include "kolosal/agents/agent_data.hpp"
 #include "kolosal/utils.hpp"
+#include "kolosal/server_api.hpp"
+#include "kolosal/auto_setup_manager.hpp"
 #include <json.hpp>
 #include <regex>
 #include <sstream>
@@ -195,7 +197,75 @@ void SequentialWorkflowRoute::handle_create_workflow(SocketType sock, const std:
         
         json request_json = json::parse(body);
         
-        // Parse workflow from JSON
+        // Automatically map agent names to UUIDs if they appear to be names rather than UUIDs
+        try {
+            auto& server_api = ServerAPI::instance();
+            auto& auto_setup_manager = server_api.getAutoSetupManager();
+            
+            // Get agent name to UUID mapping
+            auto agent_mapping = auto_setup_manager.get_agent_name_to_uuid_mapping();
+            
+            // Check and update agent_id fields in workflow steps
+            if (request_json.contains("steps") && request_json["steps"].is_array()) {
+                bool updated_any = false;
+                
+                for (auto& step : request_json["steps"]) {
+                    if (step.contains("agent_id") && step["agent_id"].is_string()) {
+                        std::string agent_id = step["agent_id"];
+                        
+                        // Check if this looks like a name rather than a UUID
+                        // UUIDs are typically 36 characters with dashes
+                        if (agent_id.length() != 36 || agent_id.find('-') == std::string::npos) {
+                            // This looks like a name, try to map it to UUID
+                            auto it = agent_mapping.find(agent_id);
+                            if (it != agent_mapping.end()) {
+                                step["agent_id"] = it->second;
+                                ServerLogger::logInfo("Auto-mapped agent '%s' to UUID '%s' in workflow step", 
+                                                    agent_id.c_str(), it->second.c_str());
+                                updated_any = true;
+                            } else {
+                                ServerLogger::logWarning("Agent '%s' not found in mapping. Available agents: %s", 
+                                                       agent_id.c_str(), 
+                                                       [&agent_mapping]() {
+                                                           std::string available;
+                                                           for (const auto& pair : agent_mapping) {
+                                                               if (!available.empty()) available += ", ";
+                                                               available += pair.first;
+                                                           }
+                                                           return available;
+                                                       }().c_str());
+                                
+                                // Return helpful error message
+                                json error_response;
+                                error_response["error"] = {
+                                    {"message", "Agent '" + agent_id + "' not found"},
+                                    {"type", "invalid_agent_error"},
+                                    {"available_agents", [&agent_mapping]() {
+                                        std::vector<std::string> names;
+                                        for (const auto& pair : agent_mapping) {
+                                            names.push_back(pair.first);
+                                        }
+                                        return names;
+                                    }()}
+                                };
+                                send_response(sock, 400, error_response.dump());
+                                return;
+                            }
+                        }
+                    }
+                }
+                
+                if (updated_any) {
+                    ServerLogger::logInfo("✅ Workflow agent names automatically mapped to UUIDs");
+                }
+            }
+            
+        } catch (const std::exception& e) {
+            ServerLogger::logWarning("Failed to perform automatic agent mapping: %s", e.what());
+            // Continue with original workflow - maybe UUIDs were provided directly
+        }
+        
+        // Parse workflow from JSON (now with mapped UUIDs)
         auto workflow = parse_workflow_from_json(request_json);
         
         // Register workflow
@@ -203,6 +273,7 @@ void SequentialWorkflowRoute::handle_create_workflow(SocketType sock, const std:
             json response_data;
             response_data["workflow_id"] = workflow.workflow_id;
             response_data["message"] = "Workflow created successfully";
+            response_data["auto_mapping_applied"] = true;
             
             send_response(sock, 201, format_success_response(response_data));
         } else {

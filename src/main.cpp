@@ -87,29 +87,53 @@ int main(int argc, char* argv[]) {
         return 1;
     }
       std::cout << "Server started successfully!" << std::endl;
-    std::cout << "Available endpoints:" << std::endl;
+    std::cout << "\n🎉 KOLOSAL SERVER WITH AUTO-SETUP ENABLED!" << std::endl;
+    std::cout << "✅ Automatic model downloading and engine setup" << std::endl;
+    std::cout << "✅ Automatic agent discovery and UUID mapping" << std::endl;
+    std::cout << "✅ Simplified workflow creation with agent names" << std::endl;
+    
+    std::cout << "\nCore Endpoints:" << std::endl;
     std::cout << "  GET  /health                 - Health status" << std::endl;
     std::cout << "  GET  /models                 - List available models" << std::endl;
     std::cout << "  POST /v1/chat/completions    - Chat completions (OpenAI compatible)" << std::endl;
     std::cout << "  POST /v1/completions         - Text completions (OpenAI compatible)" << std::endl;
+    
+    std::cout << "\nEngine Management:" << std::endl;
     std::cout << "  GET  /engines                - List engines" << std::endl;
     std::cout << "  POST /engines                - Add new engine" << std::endl;
     std::cout << "  GET  /engines/{id}/status    - Engine status" << std::endl;
     std::cout << "  DELETE /engines/{id}         - Remove engine" << std::endl;
+    
+    std::cout << "\nAgent System:" << std::endl;
     std::cout << "  GET  /v1/agents              - List all agents" << std::endl;
     std::cout << "  GET  /v1/agents/{id}         - Get agent details" << std::endl;
     std::cout << "  POST /v1/agents              - Create new agent" << std::endl;
     std::cout << "  POST /v1/agents/{id}/execute - Execute agent function" << std::endl;
     std::cout << "  GET  /v1/agents/system/status - Agent system status" << std::endl;
-    std::cout << "  POST /v1/orchestration/workflows - Create workflow" << std::endl;
+    
+    std::cout << "\nWorkflow System (Auto-Setup Enabled):" << std::endl;
     std::cout << "  GET  /api/v1/sequential-workflows - List sequential workflows" << std::endl;
-    std::cout << "  POST /api/v1/sequential-workflows - Create sequential workflow" << std::endl;
+    std::cout << "  POST /api/v1/sequential-workflows - Create workflow (auto agent mapping!)" << std::endl;
     std::cout << "  GET  /api/v1/sequential-workflows/{id} - Get workflow details" << std::endl;
     std::cout << "  POST /api/v1/sequential-workflows/{id}/execute - Execute workflow" << std::endl;
     std::cout << "  POST /api/v1/sequential-workflows/{id}/execute-async - Execute workflow async" << std::endl;
     std::cout << "  GET  /api/v1/sequential-workflows/{id}/status - Get workflow status" << std::endl;
     std::cout << "  GET  /api/v1/sequential-workflows/{id}/result - Get workflow result" << std::endl;
     std::cout << "  DELETE /api/v1/sequential-workflows/{id} - Delete workflow" << std::endl;
+    
+    std::cout << "\n🔧 Auto-Setup System:" << std::endl;
+    std::cout << "  GET  /api/v1/auto-setup              - Get setup status" << std::endl;
+    std::cout << "  POST /api/v1/auto-setup              - Trigger manual setup" << std::endl;
+    std::cout << "  GET  /api/v1/auto-setup/agent-mappings - Get agent name mappings" << std::endl;
+    std::cout << "  GET  /api/v1/auto-setup/engine-status  - Get engine readiness" << std::endl;
+    std::cout << "  POST /api/v1/auto-setup/validate-workflow - Validate workflow JSON" << std::endl;
+    
+    std::cout << "\n💡 NEW SIMPLIFIED WORKFLOW USAGE:" << std::endl;
+    std::cout << "   - Use agent NAMES instead of UUIDs (e.g. 'research_assistant')" << std::endl;
+    std::cout << "   - Server automatically maps names to UUIDs" << std::endl;
+    std::cout << "   - Models download automatically if missing" << std::endl;
+    std::cout << "   - Default engine created automatically" << std::endl;
+    
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
     
     // Main server loop

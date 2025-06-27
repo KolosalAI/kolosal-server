@@ -11,10 +11,12 @@
 #include "kolosal/routes/agents_route.hpp"
 #include "kolosal/routes/orchestration_route.hpp"
 #include "kolosal/routes/sequential_workflow_route.hpp"
+#include "kolosal/routes/auto_setup_route.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
 #include "kolosal/agents/multi_agent_system.hpp"
 #include "kolosal/agents/agent_orchestrator.hpp"
+#include "kolosal/auto_setup_manager.hpp"
 #include <memory>
 #include <stdexcept>
 
@@ -26,12 +28,18 @@ namespace kolosal
         std::unique_ptr<NodeManager> nodeManager;
         std::shared_ptr<agents::YAMLConfigurableAgentManager> agentManager;
         std::shared_ptr<agents::AgentOrchestrator> agentOrchestrator;
+        std::unique_ptr<AutoSetupManager> autoSetupManager;
 
         Impl()
             : nodeManager(std::make_unique<NodeManager>()),
               agentManager(std::make_shared<agents::YAMLConfigurableAgentManager>()),
               agentOrchestrator(std::make_shared<agents::AgentOrchestrator>(agentManager))
         {
+            // Initialize auto-setup manager after node manager and agent manager
+            autoSetupManager = std::make_unique<AutoSetupManager>(
+                std::shared_ptr<NodeManager>(nodeManager.get(), [](NodeManager*) {}), // Non-owning shared_ptr
+                agentManager
+            );
         }
     };
 
@@ -80,7 +88,14 @@ namespace kolosal
             // Add sequential workflow route
             ServerLogger::logInfo("Registering sequential workflow route");
             auto sequentialWorkflowRoute = std::make_unique<routes::SequentialWorkflowRoute>(pImpl->agentManager);
-            pImpl->server->addRoute(std::move(sequentialWorkflowRoute));            // Start agent systems
+            pImpl->server->addRoute(std::move(sequentialWorkflowRoute));
+
+            // Add auto-setup route for user convenience
+            ServerLogger::logInfo("Registering auto-setup route");
+            auto autoSetupRoute = std::make_unique<routes::AutoSetupRoute>();
+            pImpl->server->addRoute(std::move(autoSetupRoute));
+
+            // Start agent systems
             ServerLogger::logInfo("Starting agent systems");
             
             // Load agent configuration and start agent manager
@@ -112,6 +127,14 @@ namespace kolosal
             }
             
             pImpl->agentOrchestrator->start();
+
+            // Perform automatic setup after all systems are initialized
+            ServerLogger::logInfo("Performing automatic server setup...");
+            if (pImpl->autoSetupManager->perform_auto_setup()) {
+                ServerLogger::logInfo("✅ Automatic setup completed successfully!");
+            } else {
+                ServerLogger::logWarning("⚠️  Automatic setup completed with some issues");
+            }
 
             // Start server in a background thread
             std::thread([this]()
@@ -217,6 +240,22 @@ namespace kolosal
             throw std::runtime_error("Agent orchestrator not initialized");
         }
         return *pImpl->agentOrchestrator;
+    }
+
+    AutoSetupManager& ServerAPI::getAutoSetupManager()
+    {
+        if (!pImpl->autoSetupManager) {
+            throw std::runtime_error("Auto-setup manager not initialized");
+        }
+        return *pImpl->autoSetupManager;
+    }
+
+    const AutoSetupManager& ServerAPI::getAutoSetupManager() const
+    {
+        if (!pImpl->autoSetupManager) {
+            throw std::runtime_error("Auto-setup manager not initialized");
+        }
+        return *pImpl->autoSetupManager;
     }
 
 } // namespace kolosal
