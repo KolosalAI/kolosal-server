@@ -454,11 +454,26 @@ namespace kolosal
 
             // Use the downloaded file path as the model path
             std::string actualModelPath = progress->local_path;
-            bool success = nodeManager.addEngine(
-                progress->engine_params->engine_id,
-                actualModelPath.c_str(),
-                progress->engine_params->loading_params,
-                progress->engine_params->main_gpu_id);
+            
+            bool success;
+            if (progress->engine_params->load_immediately)
+            {
+                // Load immediately - use addEngine
+                success = nodeManager.addEngine(
+                    progress->engine_params->engine_id,
+                    actualModelPath.c_str(),
+                    progress->engine_params->loading_params,
+                    progress->engine_params->main_gpu_id);
+            }
+            else
+            {
+                // Lazy loading - use registerEngine
+                success = nodeManager.registerEngine(
+                    progress->engine_params->engine_id,
+                    actualModelPath.c_str(),
+                    progress->engine_params->loading_params,
+                    progress->engine_params->main_gpu_id);
+            }
 
             std::lock_guard<std::mutex> lock(downloads_mutex_);
 
