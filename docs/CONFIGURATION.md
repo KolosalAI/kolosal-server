@@ -207,17 +207,41 @@ The `logging` section controls server logging behavior:
 
 | Parameter | Type | Default | Description |
 |-----------|------|---------|-------------|
-| `level` | string | `"INFO"` | Log level: `DEBUG`, `INFO`, `WARN`, `ERROR` |
+| `level` | string | `"INFO"` | Log level: `DEBUG`, `INFO`, `WARNING`, `ERROR` |
 | `file` | string | `""` | Log file path (empty = console only) |
 | `access_log` | boolean | `false` | Enable access logging for HTTP requests |
+| `quiet_mode` | boolean | `false` | Suppress routine operational messages (connections, requests) |
+| `show_request_details` | boolean | `true` | Show detailed request processing information |
+
+**Log Levels:**
+- `ERROR`: Only show errors and critical issues
+- `WARNING`: Show errors and warnings  
+- `INFO`: Show general operational information (default)
+- `DEBUG`: Show detailed debugging information
 
 **Example:**
 ```yaml
 logging:
-  level: "DEBUG"
+  level: "WARNING"      # Reduced verbosity
   file: "./logs/server.log"
-  access_log: true
+  access_log: false
+  quiet_mode: true      # Hide routine connection/request logs
+  show_request_details: false  # Hide detailed request processing
 ```
+
+**Quiet Mode:**
+When `quiet_mode` is enabled, routine operational messages are suppressed:
+- New client connections
+- Request processing messages  
+- Successful request completions
+- Authentication middleware details
+
+**Request Details:**
+When `show_request_details` is disabled, detailed request processing information is hidden:
+- Thread IDs and connection details
+- Content-Length headers
+- Authentication middleware results
+- CORS preflight handling
 
 ### Authentication Configuration
 

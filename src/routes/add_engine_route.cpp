@@ -34,7 +34,7 @@ namespace kolosal
             }
 
             auto j = json::parse(body);
-            ServerLogger::logInfo("[Thread %u] Received add engine request", std::this_thread::get_id());
+            ServerLogger::logDebug("[Thread %u] Received add engine request", std::this_thread::get_id());
 
             // Parse the request using the DTO model
             AddEngineRequest request;

@@ -33,6 +33,10 @@ public:
 
 	// Set minimum log level
 	void setLevel(LogLevel level);
+	
+	// Configure quiet mode settings
+	void setQuietMode(bool enabled);
+	void setShowRequestDetails(bool enabled);
 
 	// Set log file path
 	bool setLogFile(const std::string& filePath);
@@ -81,4 +85,8 @@ private:
 	std::ofstream logFile;
 	std::string logFilePath;
 	std::mutex logMutex;
+	
+	// Quiet mode settings
+	bool quietMode;
+	bool showRequestDetails;
 };

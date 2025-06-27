@@ -55,11 +55,12 @@ struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
     std::chrono::seconds requestTimeout{30};
     bool allowPublicAccess = false;    // Enable/disable external network access
     bool allowInternetAccess = false;  // Enable/disable internet access (UPnP + public IP detection)
-    
-    // Logging configuration
+      // Logging configuration
     std::string logLevel = "INFO";    // DEBUG, INFO, WARN, ERROR
     std::string logFile = "";         // Empty means console only
     bool enableAccessLog = false;     // Whether to log all requests
+    bool quietMode = false;           // Suppress routine operational messages
+    bool showRequestDetails = true;   // Show detailed request processing logs
     
     // Performance settings
     int workerThreads = 0;            // 0 = auto-detect based on CPU cores

@@ -6,7 +6,7 @@
 #include <cstdio>
 #include <cstdarg>
 
-ServerLogger::ServerLogger() : minLevel(LogLevel::SERVER_INFO)
+ServerLogger::ServerLogger() : minLevel(LogLevel::SERVER_INFO), quietMode(false), showRequestDetails(true)
 {
     // Default constructor
 }
@@ -29,6 +29,18 @@ void ServerLogger::setLevel(LogLevel level)
 {
     std::lock_guard<std::mutex> lock(logMutex);
     minLevel = level;
+}
+
+void ServerLogger::setQuietMode(bool enabled)
+{
+    std::lock_guard<std::mutex> lock(logMutex);
+    quietMode = enabled;
+}
+
+void ServerLogger::setShowRequestDetails(bool enabled)
+{
+    std::lock_guard<std::mutex> lock(logMutex);
+    showRequestDetails = enabled;
 }
 
 bool ServerLogger::setLogFile(const std::string &filePath)
@@ -218,6 +230,32 @@ void ServerLogger::log(LogLevel level, const std::string &message)
     }
 
     std::lock_guard<std::mutex> lock(logMutex);
+
+    // Filter out routine operational messages in quiet mode
+    if (quietMode && level == LogLevel::SERVER_INFO)
+    {
+        // Allow important startup/shutdown messages but filter routine operations
+        if (message.find("New client connection") != std::string::npos ||
+            message.find("Processing request") != std::string::npos ||
+            message.find("Completed request") != std::string::npos ||
+            message.find("Successfully provided") != std::string::npos ||
+            message.find("Successfully listed") != std::string::npos)
+        {
+            return; // Skip these routine messages
+        }
+    }
+
+    // Filter request details if disabled
+    if (!showRequestDetails && level == LogLevel::SERVER_INFO)
+    {
+        if (message.find("[Thread") != std::string::npos ||
+            message.find("Content-Length:") != std::string::npos ||
+            message.find("Auth middleware") != std::string::npos ||
+            message.find("CORS preflight") != std::string::npos)
+        {
+            return; // Skip detailed request processing info
+        }
+    }
 
     std::string timestamp = getCurrentTimestamp();
     std::string levelStr = levelToString(level);

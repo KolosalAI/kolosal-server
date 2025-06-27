@@ -10,9 +10,11 @@ server:
   allow_internet_access: false  # Set to true to enable internet access (requires port forwarding)
 
 logging:
-  level: "INFO"
+  level: "WARNING"  # Reduced verbosity: ERROR < WARNING < INFO < DEBUG
   file: ""
   access_log: false
+  quiet_mode: true  # Suppress routine operational messages
+  show_request_details: false  # Hide detailed request processing logs
 
 auth:
   enabled: true
