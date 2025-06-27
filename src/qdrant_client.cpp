@@ -245,6 +245,8 @@ public:
             try
             {
                 auto json_response = nlohmann::json::parse(request->response_body);
+                result.response_data = json_response;
+                
                 if (json_response.contains("result") && json_response["result"].contains("operation_id"))
                 {
                     result.operation_id = json_response["result"]["operation_id"];

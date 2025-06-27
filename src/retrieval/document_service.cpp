@@ -406,5 +406,105 @@ std::future<std::vector<float>> DocumentService::getEmbedding(const std::string&
     return pImpl->generateEmbedding(text, model_id);
 }
 
+std::future<RetrieveResponse> DocumentService::retrieveDocuments(const RetrieveRequest& request)
+{
+    return std::async(std::launch::async, [this, request]() -> RetrieveResponse {
+        RetrieveResponse response;
+        
+        try
+        {
+            if (!pImpl->initialized_)
+            {
+                throw std::runtime_error("DocumentService not initialized");
+            }
+            
+            if (!pImpl->config_.qdrant.enabled)
+            {
+                throw std::runtime_error("Qdrant is disabled in configuration");
+            }
+            
+            std::string collection_name = request.collection_name.empty() 
+                ? pImpl->config_.qdrant.collectionName 
+                : request.collection_name;
+            
+            response.query = request.query;
+            response.k = request.k;
+            response.collection_name = collection_name;
+            response.score_threshold = request.score_threshold;
+            
+            ServerLogger::logInfo("Retrieving documents for query: '%s' (k=%d, collection='%s')", 
+                                  request.query.c_str(), request.k, collection_name.c_str());
+            
+            // Generate embedding for the query
+            auto query_embedding_future = pImpl->generateEmbedding(request.query, "");
+            std::vector<float> query_embedding = query_embedding_future.get();
+            
+            if (query_embedding.empty())
+            {
+                throw std::runtime_error("Failed to generate embedding for query");
+            }
+            
+            ServerLogger::logDebug("Generated query embedding with %zu dimensions", query_embedding.size());
+            
+            // Perform vector search
+            auto search_result = pImpl->qdrant_client_->search(
+                collection_name, 
+                query_embedding, 
+                request.k, 
+                request.score_threshold
+            ).get();
+            
+            if (!search_result.success)
+            {
+                throw std::runtime_error("Vector search failed: " + search_result.error_message);
+            }
+            
+            // Parse search results
+            if (search_result.response_data.contains("result") && search_result.response_data["result"].is_array())
+            {
+                auto results = search_result.response_data["result"];
+                
+                for (const auto& result_item : results)
+                {
+                    if (result_item.contains("id") && result_item.contains("score") && 
+                        result_item.contains("payload"))
+                    {
+                        RetrievedDocument doc;
+                        doc.id = result_item["id"].get<std::string>();
+                        doc.score = result_item["score"].get<float>();
+                        
+                        // Extract text from payload
+                        auto payload = result_item["payload"];
+                        if (payload.contains("text"))
+                        {
+                            doc.text = payload["text"].get<std::string>();
+                        }
+                        
+                        // Extract metadata (exclude text field)
+                        for (auto& [key, value] : payload.items())
+                        {
+                            if (key != "text")
+                            {
+                                doc.metadata[key] = value;
+                            }
+                        }
+                        
+                        response.addDocument(doc);
+                    }
+                }
+            }
+            
+            ServerLogger::logInfo("Successfully retrieved %d documents for query", response.total_found);
+            
+            return response;
+        }
+        catch (const std::exception& ex)
+        {
+            ServerLogger::logError("Error retrieving documents: %s", ex.what());
+            throw;
+        }
+    });
+}
+
 } // namespace retrieval
 } // namespace kolosal

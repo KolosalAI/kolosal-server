@@ -2,6 +2,7 @@
 
 #include "../export.hpp"
 #include "add_document_types.hpp"
+#include "retrieve_types.hpp"
 #include "../qdrant_client.hpp"
 #include "../server_config.hpp"
 #include <memory>
@@ -68,6 +69,13 @@ public:
      * @return Future with embedding vector
      */
     std::future<std::vector<float>> getEmbedding(const std::string& text, const std::string& model_id = "");
+    
+    /**
+     * @brief Retrieve similar documents using vector search
+     * @param request Retrieve request with query and parameters
+     * @return Future with retrieve response containing similar documents
+     */
+    std::future<RetrieveResponse> retrieveDocuments(const RetrieveRequest& request);
 
 private:
     class Impl;

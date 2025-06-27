@@ -36,6 +36,9 @@ struct QdrantResult
     // For upsert operations
     std::vector<std::string> successful_ids;
     std::vector<std::string> failed_ids;
+    
+    // For search and other operations that return data
+    nlohmann::json response_data;
 };
 
 /**

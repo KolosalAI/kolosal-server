@@ -51,6 +51,7 @@ set(SOURCES
     src/routes/cancel_all_downloads_route.cpp    src/routes/parse_pdf_route.cpp
     src/routes/parse_docx_route.cpp
     src/routes/add_documents_route.cpp
+    src/routes/retrieve_route.cpp
     src/routes/models_route.cpp
     src/metrics_converter.cpp
     src/auth/rate_limiter.cpp
@@ -59,6 +60,7 @@ set(SOURCES
     src/models/embedding_request_model.cpp
     src/models/embedding_response_model.cpp
     src/retrieval/add_document_types.cpp
+    src/retrieval/retrieve_types.cpp
     src/qdrant_client.cpp
     src/retrieval/document_service.cpp
     src/retrieval/parse_pdf.cpp
