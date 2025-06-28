@@ -71,7 +71,8 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
-            pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());            pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
+            pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());
+            pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
             pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());
             pImpl->server->addRoute(std::make_unique<PauseDownloadRoute>());
             pImpl->server->addRoute(std::make_unique<ResumeDownloadRoute>());

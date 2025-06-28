@@ -45,8 +45,10 @@ set(SOURCES
     src/routes/health_status_route.cpp    
     src/routes/auth_config_route.cpp    
     src/routes/system_metrics_route.cpp    
-    src/routes/completion_metrics_route.cpp    src/routes/combined_metrics_route.cpp
-    src/routes/download_progress_route.cpp    src/routes/downloads_status_route.cpp
+    src/routes/completion_metrics_route.cpp
+    src/routes/combined_metrics_route.cpp
+    src/routes/download_progress_route.cpp
+    src/routes/downloads_status_route.cpp
     src/routes/cancel_download_route.cpp
     src/routes/pause_download_route.cpp
     src/routes/resume_download_route.cpp
