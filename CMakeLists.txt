@@ -5,8 +5,14 @@ project(KolosalServer VERSION 1.0.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Enable position independent code for shared libraries
-set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+# Enable position independent code for shared libraries only on ARM
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(aarch64|ARM64|arm64|armv8|armv7)")
+    message(STATUS "Building on ARM: Enabling -fPIC")
+    set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+else()
+    message(STATUS "Building on x86: No -fPIC required for better performance")
+    set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
+endif()
 
 if (MINGW)
     add_compile_definitions(_WIN32_WINNT=0x602)
@@ -249,12 +255,17 @@ else()
     message(STATUS "NVML not found - GPU monitoring will be limited")
 endif()
 
-# Add installation targets.
-install(TARGETS kolosal_server kolosal_server_exe
-    ARCHIVE DESTINATION lib
-    LIBRARY DESTINATION lib
-    RUNTIME DESTINATION bin
-)
+# Add aggressive optimization flags for better performance
+if(CMAKE_BUILD_TYPE STREQUAL "Release" OR NOT CMAKE_BUILD_TYPE)
+    if(MSVC)
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /Ob2 /DNDEBUG")
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /O2 /Ob2 /DNDEBUG")
+    else()
+        set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} -O3 -DNDEBUG -march=native -mtune=native")
+        set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} -O3 -DNDEBUG -march=native -mtune=native")
+    endif()
+    message(STATUS "Using aggressive optimization flags for Release build")
+endif()
 
 # Install header files.
 install(DIRECTORY include/

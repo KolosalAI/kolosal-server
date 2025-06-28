@@ -129,6 +129,10 @@ namespace kolosal
             for (const auto &header : config_.allowedHeaders)
             {
                 allowedHeadersSet_.insert(header);
+                // Also add lowercase version for fast case-insensitive lookup
+                std::string lowerHeader = header;
+                std::transform(lowerHeader.begin(), lowerHeader.end(), lowerHeader.begin(), ::tolower);
+                allowedHeadersSet_.insert(lowerHeader);
             }
 
             ServerLogger::logInfo("CORS configuration updated - Enabled: %s, Origins: %zu, Methods: %zu, Headers: %zu",
@@ -189,31 +193,25 @@ namespace kolosal
             auto headerList = parseHeaderList(headers);
             for (const auto &header : headerList)
             {
+                // First try exact match (fast path)
+                if (allowedHeadersSet_.count(header) > 0)
+                {
+                    continue;
+                }
+                
+                // Then try lowercase version
                 std::string lowerHeader = header;
                 std::transform(lowerHeader.begin(), lowerHeader.end(), lowerHeader.begin(), ::tolower);
-
-                // Check if this specific header is allowed
-                bool found = false;
-                for (const auto &allowedHeader : config_.allowedHeaders)
+                
+                if (allowedHeadersSet_.count(lowerHeader) == 0)
                 {
-                    std::string lowerAllowed = allowedHeader;
-                    std::transform(lowerAllowed.begin(), lowerAllowed.end(), lowerAllowed.begin(), ::tolower);
-                    if (lowerHeader == lowerAllowed)
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-
-                if (!found)
-                {
+                    ServerLogger::logDebug("CORS: Header not allowed: %s", header.c_str());
                     return false;
                 }
             }
 
             return true;
         }
-
         std::string CorsHandler::vectorToString(const std::vector<std::string> &items) const
         {
             if (items.empty())

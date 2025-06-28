@@ -37,17 +37,25 @@ namespace kolosal
         AuthMiddleware::AuthResult AuthMiddleware::processRequest(const RequestInfo &requestInfo)
         {
             AuthResult result;
-            ServerLogger::logInfo("Auth middleware processing request: %s %s from %s",
+            
+            // Fast path: if all auth features are disabled, allow immediately
+            if (!corsHandler_->getConfig().enabled && 
+                !rateLimiter_->getConfig().enabled && 
+                !apiKeyConfig_.enabled) {
+                return result; // Default result allows the request
+            }
+            
+            ServerLogger::logDebug("Auth middleware processing request: %s %s from %s",
                                   requestInfo.method.c_str(), requestInfo.path.c_str(), requestInfo.clientIP.c_str());
 
             // Process CORS first
-            std::string origin = getHeaderValue(requestInfo.headers, "Origin");
-            std::string requestHeaders = getHeaderValue(requestInfo.headers, "Access-Control-Request-Headers");
-            std::string requestMethod = getHeaderValue(requestInfo.headers, "Access-Control-Request-Method");
-            ServerLogger::logInfo("CORS headers - Origin: %s, Request-Headers: %s, Request-Method: %s",
+            std::string origin = getHeaderValue(requestInfo.headers, "origin");
+            std::string requestHeaders = getHeaderValue(requestInfo.headers, "access-control-request-headers");
+            std::string requestMethod = getHeaderValue(requestInfo.headers, "access-control-request-method");
+            ServerLogger::logDebug("CORS headers - Origin: %s, Request-Headers: %s, Request-Method: %s",
                                   origin.c_str(), requestHeaders.c_str(), requestMethod.c_str());
             auto corsResult = corsHandler_->processCors(requestInfo.method, origin, requestHeaders, requestMethod);
-            ServerLogger::logInfo("CORS result - IsValid: %s, IsPreflight: %s",
+            ServerLogger::logDebug("CORS result - IsValid: %s, IsPreflight: %s",
                                   corsResult.isValid ? "true" : "false",
                                   corsResult.isPreflight ? "true" : "false");
 
@@ -84,7 +92,7 @@ namespace kolosal
             }
             // Process rate limiting
             auto rateLimitResult = rateLimiter_->checkRateLimit(requestInfo.clientIP);
-            ServerLogger::logInfo("Rate limit result - Allowed: %s, Used: %zu, Remaining: %zu",
+            ServerLogger::logDebug("Rate limit result - Allowed: %s, Used: %zu, Remaining: %zu",
                                   rateLimitResult.allowed ? "true" : "false",
                                   rateLimitResult.requestsUsed, rateLimitResult.requestsRemaining);
 
@@ -120,7 +128,7 @@ namespace kolosal
                                    rateLimiter_->getConfig().maxRequests,
                                    origin.empty() ? "none" : origin.c_str());
 
-            ServerLogger::logInfo("Auth middleware completed - Request allowed: %s", result.allowed ? "true" : "false");
+            ServerLogger::logDebug("Auth middleware completed - Request allowed: %s", result.allowed ? "true" : "false");
 
             return result;
         }
@@ -211,7 +219,13 @@ namespace kolosal
 
         bool AuthMiddleware::validateApiKey(const std::string &apiKey) const
         {
-            return !apiKey.empty() && apiKeyConfig_.validKeys.find(apiKey) != apiKeyConfig_.validKeys.end();
+            // Fast path: empty key is never valid
+            if (apiKey.empty()) {
+                return false;
+            }
+            
+            // Use unordered_set's optimized find instead of find() != end() pattern
+            return apiKeyConfig_.validKeys.count(apiKey) > 0;
         }
 
         void AuthMiddleware::addApiKey(const std::string &apiKey)
@@ -242,23 +256,49 @@ namespace kolosal
         std::string AuthMiddleware::getHeaderValue(const std::map<std::string, std::string> &headers,
                                                    const std::string &name) const
         {
-            std::string lowerName = toLowercase(name);
-
-            for (const auto &header : headers)
-            {
-                if (toLowercase(header.first) == lowerName)
+            // Check cache first for frequently accessed headers
+            if (headerCache_.shouldClear()) {
+                headerCache_.clear();
+            }
+            
+            std::string cacheKey = name + ":" + std::to_string(headers.size());
+            auto cacheIt = headerCache_.cache.find(cacheKey);
+            if (cacheIt != headerCache_.cache.end()) {
+                return cacheIt->second;
+            }
+            
+            std::string result;
+            
+            // Try exact match first (common case optimization)
+            auto exact_it = headers.find(name);
+            if (exact_it != headers.end()) {
+                result = exact_it->second;
+            } else {
+                // Only do case-insensitive search if exact match fails
+                std::string lowerName = toLowercase(name);
+                for (const auto &header : headers)
                 {
-                    return header.second;
+                    if (toLowercase(header.first) == lowerName)
+                    {
+                        result = header.second;
+                        break;
+                    }
                 }
             }
+            
+            // Cache the result for future use
+            if (headerCache_.cache.size() < HeaderCache::MAX_CACHE_SIZE) {
+                headerCache_.cache[cacheKey] = result;
+            }
 
-            return "";
+            return result;
         }
 
-        std::string AuthMiddleware::toLowercase(const std::string &name) const
+        inline std::string AuthMiddleware::toLowercase(const std::string &name) const
         {
-            std::string result = name;
-            std::transform(result.begin(), result.end(), result.begin(), ::tolower);
+            std::string result;
+            result.reserve(name.size());
+            std::transform(name.begin(), name.end(), std::back_inserter(result), ::tolower);
             return result;
         }
 
@@ -274,9 +314,9 @@ namespace kolosal
             std::string apiKey = getHeaderValue(requestInfo.headers, apiKeyConfig_.headerName);
 
             // Handle Bearer token format if using Authorization header
-            if (toLowercase(apiKeyConfig_.headerName) == "authorization" && !apiKey.empty())
+            if (apiKeyConfig_.headerName == "Authorization" || apiKeyConfig_.headerName == "authorization")
             {
-                if (apiKey.substr(0, 7) == "Bearer ")
+                if (apiKey.length() > 7 && apiKey.compare(0, 7, "Bearer ") == 0)
                 {
                     apiKey = apiKey.substr(7);
                 }
@@ -285,12 +325,7 @@ namespace kolosal
             // Validate the API key
             bool isValid = validateApiKey(apiKey);
 
-            if (isValid)
-            {
-                ServerLogger::logDebug("API key authentication successful for %s %s from %s",
-                                       requestInfo.method.c_str(), requestInfo.path.c_str(), requestInfo.clientIP.c_str());
-            }
-            else
+            if (!isValid)
             {
                 ServerLogger::logWarning("API key authentication failed for %s %s from %s - Key: %s",
                                          requestInfo.method.c_str(), requestInfo.path.c_str(), requestInfo.clientIP.c_str(),

@@ -263,7 +263,9 @@ namespace kolosal
 
                     std::string sseData = "data: " + finalChunk.to_json().dump() + "\n\n";
                     send_stream_chunk(sock, StreamChunk(sseData, false));
-                } // Send the final [DONE] marker required by OpenAI client
+                } 
+                
+                // Send the final [DONE] marker required by OpenAI client
                 send_stream_chunk(sock, StreamChunk("data: [DONE]\n\n", false));
 
                 // Then terminate the stream
@@ -294,7 +296,9 @@ namespace kolosal
                 if (jobId < 0)
                 {
                     throw std::runtime_error("Failed to submit completion job to inference engine");
-                } // Wait for job completion
+                } 
+                
+                // Wait for job completion
                 engine->waitForJob(jobId);
 
                 // Check for errors

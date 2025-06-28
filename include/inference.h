@@ -140,7 +140,10 @@
 // =============================================================================
 // API Export/Import Macros
 // =============================================================================
-#ifdef _WIN32
+#ifdef KOLOSAL_SERVER_STATIC
+    // For static library linking, no import/export needed
+    #define INFERENCE_API
+#elif defined(_WIN32)
     #ifdef INFERENCE_EXPORTS
         #define INFERENCE_API __declspec(dllexport)
     #else
