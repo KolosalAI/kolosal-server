@@ -733,4 +733,15 @@ namespace kolosal
         std::cout << "Built with C++14, supports multiple models and authentication\n";
     }
 
+    ServerConfig& ServerConfig::getInstance()
+    {
+        static ServerConfig instance;
+        return instance;
+    }
+
+    void ServerConfig::setInstance(const ServerConfig& config)
+    {
+        getInstance() = config;
+    }
+
 } // namespace kolosal

@@ -79,6 +79,18 @@ struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
     ServerConfig() = default;
     
     /**
+     * @brief Get the global server config instance
+     * @return Reference to the global server config
+     */
+    static ServerConfig& getInstance();
+    
+    /**
+     * @brief Set the global server config instance
+     * @param config The config to set as the global instance
+     */
+    static void setInstance(const ServerConfig& config);
+    
+    /**
      * @brief Load configuration from command line arguments
      * @param argc Argument count
      * @param argv Argument values
