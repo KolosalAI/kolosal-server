@@ -55,9 +55,10 @@ logger = logging.getLogger(__name__)
 class UpdatedSequentialWorkflowDemo:
     """Updated demo using the simplified workflow system"""
     
-    def __init__(self, host: str = "localhost", port: int = 8080):
+    def __init__(self, host: str = "localhost", port: int = 8080, debug: bool = False):
         self.host = host
         self.port = port
+        self.debug = debug  # Add debug flag
         
         print("🚀 Initializing Updated Sequential Workflow Demo")
         print("="*60)
@@ -75,6 +76,9 @@ class UpdatedSequentialWorkflowDemo:
         # Get available agents for validation
         self.available_agents = self.client.get_available_agents()
         print(f"📋 Available agents: {', '.join(self.available_agents)}")
+        
+        if debug:
+            print("🐛 Debug mode enabled - will show detailed streaming information")
         
     def _validate_agent_name(self, agent_name: str) -> str:
         """Validate and suggest correct agent name if needed"""
@@ -142,6 +146,15 @@ class UpdatedSequentialWorkflowDemo:
             result = self._execute_with_enhanced_streaming(workflow)
             print("   " + "─" * 60)
             
+            # If streaming failed, try non-streaming as fallback
+            if result is None:
+                print("   🔄 Streaming failed, trying non-streaming fallback...")
+                result = self.client.execute_workflow(workflow, streaming=False)
+                if result:
+                    print("   ✅ Non-streaming fallback successful!")
+                else:
+                    print("   ❌ Both streaming and non-streaming failed!")
+            
             if result and show_step_outputs:
                 print("   📝 Final Step Summary:")
                 self._display_step_by_step_results(result)
@@ -152,6 +165,21 @@ class UpdatedSequentialWorkflowDemo:
             print("   " + "─" * 60)
             print(f"   ❌ Streaming execution failed: {e}")
             logger.error(f"Enhanced streaming execution error: {e}")
+            
+            # Try non-streaming as fallback
+            print("   🔄 Attempting non-streaming fallback...")
+            try:
+                result = self.client.execute_workflow(workflow, streaming=False)
+                if result:
+                    print("   ✅ Non-streaming fallback successful!")
+                    if show_step_outputs:
+                        self._display_step_by_step_results(result)
+                    return result
+                else:
+                    print("   ❌ Non-streaming fallback also failed!")
+            except Exception as fallback_error:
+                print(f"   ❌ Fallback execution failed: {fallback_error}")
+            
             return None
             
     def _execute_with_enhanced_streaming(self, workflow):
@@ -182,6 +210,8 @@ class UpdatedSequentialWorkflowDemo:
         import time
         
         try:
+            print(f"   📡 Starting streaming execution for workflow: {workflow_id}")
+            
             response = self.client.session.post(
                 f"{self.client.base_url}/api/v1/sequential-workflows/{workflow_id}/execute",
                 json={},
@@ -189,12 +219,71 @@ class UpdatedSequentialWorkflowDemo:
                     "Content-Type": "application/json", 
                     "Accept": "text/event-stream"
                 },
-                stream=True
+                stream=True,
+                timeout=300  # 5 minute timeout
             )
+            
+            print(f"   📡 Response status: {response.status_code}")
+            print(f"   📡 Response headers: {dict(response.headers)}")
             
             if response.status_code != 200:
                 print(f"❌ Streaming execution failed: {response.status_code}")
+                # Try to read error response
+                try:
+                    error_text = response.text
+                    print(f"   Error details: {error_text}")
+                except:
+                    pass
                 return None
+            
+            # Check if server actually supports streaming
+            content_type = response.headers.get('content-type', '').lower()
+            is_sse = 'text/event-stream' in content_type
+            
+            if not is_sse:
+                print(f"   ⚠️  Server returned Content-Type: {content_type}")
+                print(f"   ⚠️  Server does not support streaming for workflows - falling back to JSON parsing")
+                
+                # Server returned regular JSON instead of SSE
+                try:
+                    response_text = response.text
+                    if response_text.strip():
+                        result_json = json.loads(response_text)
+                        print(f"   ✅ Received complete JSON response ({len(response_text)} characters)")
+                        
+                        # Extract the actual result data
+                        if 'data' in result_json:
+                            final_result = result_json['data']
+                        else:
+                            final_result = result_json
+                            
+                        # Display the final output immediately since we have it all
+                        if final_result and 'final_output' in final_result:
+                            print(f"\n   📺 Complete Workflow Output:")
+                            print(f"   " + "═" * 60)
+                            output_text = str(final_result['final_output'])
+                            # Show the output with proper formatting
+                            output_lines = output_text.split('\n')
+                            for i, line in enumerate(output_lines[:20], 1):
+                                print(f"   {i:3d} │ {line}")
+                            if len(output_lines) > 20:
+                                total_lines = len(output_lines)
+                                print(f"   ... │ (showing first 20 lines of {total_lines} total)")
+                        
+                        # Always show the complete response JSON as well
+                        self._print_full_response_json(final_result, "Non-Streaming Workflow")
+                            
+                        return final_result
+                    else:
+                        print(f"   ❌ Empty response from server")
+                        return None
+                except json.JSONDecodeError as e:
+                    print(f"   ❌ Failed to parse JSON response: {e}")
+                    print(f"   Raw response: {response_text[:500]}...")
+                    return None
+            
+            # Server supports streaming - proceed with SSE parsing
+            print(f"   ✅ Server supports streaming (Content-Type: {content_type})")
             
             # Parse streaming response with enhanced display
             current_step = None
@@ -202,15 +291,21 @@ class UpdatedSequentialWorkflowDemo:
             buffer = ""
             final_result = None
             step_counter = 0
+            chunks_received = 0
             
-            print("   � Live LLM Output Stream:")
+            print("   📺 Live LLM Output Stream:")
             print("   " + "═" * 60)
             
             for chunk in response.iter_content(chunk_size=512, decode_unicode=True):
                 if not chunk:
                     continue
                     
+                chunks_received += 1
                 buffer += chunk
+                
+                # Debug: Show first few chunks to understand format
+                if self.debug and chunks_received <= 3:
+                    print(f"   DEBUG: Chunk {chunks_received}: {repr(chunk[:100])}")
                 
                 # Process complete lines
                 while '\n' in buffer:
@@ -219,6 +314,10 @@ class UpdatedSequentialWorkflowDemo:
                     
                     if line.startswith('data:'):
                         data_content = line[5:].strip()
+                        
+                        # Debug: Show what data we're getting
+                        if self.debug and chunks_received <= 5:
+                            print(f"   DEBUG: Data line: {data_content[:200]}")
                         
                         # Try to parse as JSON (structured data)
                         try:
@@ -273,19 +372,73 @@ class UpdatedSequentialWorkflowDemo:
                                 # If it's a complete result object
                                 elif 'final_output' in event_data or 'step_results' in event_data:
                                     final_result = event_data
+                                    print(f"\n   📋 Complete result received via streaming")
                                     
                         except json.JSONDecodeError:
                             # Handle plain text streaming (raw LLM output)
                             if data_content and data_content != '[DONE]':
+                                if self.debug and chunks_received <= 5:
+                                    print(f"   DEBUG: Raw text: {data_content}")
                                 print(data_content, end='', flush=True)
                                 current_step_output += data_content
                                 
-                    elif line and not line.startswith('event:'):
+                    elif line.startswith('event:'):
+                        event_type = line[6:].strip()
+                        if self.debug and chunks_received <= 5:
+                            print(f"   DEBUG: Event type: {event_type}")
+                                
+                    elif line and not line.startswith(':'):
                         # Handle any other text output
+                        if self.debug and chunks_received <= 5:
+                            print(f"   DEBUG: Other line: {line[:100]}")
                         print(line, end='', flush=True)
             
-            print("\n   " + "═" * 60)
+            if self.debug:
+                print(f"\n   DEBUG: Total chunks received: {chunks_received}")
+            print("   " + "═" * 60)
             print("   ✅ Streaming completed")
+            
+            # If no result was captured from streaming, try to get it via regular API
+            if final_result is None:
+                print("   ⚠️  No result from streaming, attempting fallback...")
+                try:
+                    # Try to get workflow result via status endpoint
+                    status_response = self.client.session.get(
+                        f"{self.client.base_url}/api/v1/sequential-workflows/{workflow_id}/status"
+                    )
+                    if status_response.status_code == 200:
+                        status_data = status_response.json()
+                        if status_data.get('status') == 'completed':
+                            final_result = status_data.get('result', status_data)
+                            print("   ✅ Retrieved result via fallback")
+                    
+                    # If still no result, try executing non-streaming as fallback
+                    if final_result is None:
+                        print("   🔄 Falling back to non-streaming execution...")
+                        fallback_response = self.client.session.post(
+                            f"{self.client.base_url}/api/v1/sequential-workflows/{workflow_id}/execute",
+                            json={},
+                            headers={"Content-Type": "application/json"},
+                            timeout=300
+                        )
+                        if fallback_response.status_code == 200:
+                            fallback_json = fallback_response.json()
+                            if 'data' in fallback_json:
+                                final_result = fallback_json['data']
+                            else:
+                                final_result = fallback_json
+                            print("   ✅ Fallback execution successful")
+                            # Show the complete JSON response from fallback
+                            self._print_full_response_json(final_result, "Fallback Non-Streaming")
+                        else:
+                            print(f"   ❌ Fallback execution failed: {fallback_response.status_code}")
+                            
+                except Exception as fallback_error:
+                    print(f"   ❌ Fallback failed: {fallback_error}")
+            
+            # Show complete response JSON for streaming results too
+            if final_result:
+                self._print_full_response_json(final_result, "Streaming Workflow")
             
             return final_result
             
@@ -443,6 +596,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Content creation completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Content Creation")
         else:
             print("   ❌ Content creation failed")
             
@@ -471,6 +625,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Streaming workflow completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Content Creation Streaming")
         else:
             print("   ❌ Streaming workflow failed - no result returned")
             
@@ -496,6 +651,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Traditional workflow completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Traditional Content Creation")
         else:
             print("   ❌ Traditional workflow failed")
             
@@ -542,6 +698,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Streaming code development completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Code Development")
         else:
             print("   ❌ Streaming code development failed - no result returned")
             
@@ -554,6 +711,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Traditional code generation completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Traditional Code Generation")
         else:
             print("   ❌ Traditional code generation failed")
             
@@ -603,6 +761,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Streaming development workflow completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Custom Development Pipeline")
         else:
             print("   ❌ Streaming development workflow failed - no result returned")
             
@@ -658,6 +817,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Streaming data analysis completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Data Analysis Streaming")
             self._maybe_show_full_output(result, "Data Analysis Results")
         else:
             print("   ❌ Streaming data analysis failed")
@@ -672,6 +832,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Traditional data analysis completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Traditional Data Analysis")
         else:
             print("   ❌ Traditional data analysis failed")
             
@@ -723,6 +884,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Streaming advanced analysis completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Advanced Data Analysis")
             self._maybe_show_full_output(result, "Advanced Analysis Results")
         else:
             print("   ❌ Streaming advanced analysis failed")
@@ -792,6 +954,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Streaming collaborative workflow completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Collaborative Workflow")
             self._maybe_show_full_output(result, "Collaborative Development Results")
         else:
             print("   ❌ Streaming collaborative workflow failed")
@@ -885,6 +1048,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Extended streaming collaborative workflow completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Extended Collaborative Workflow")
             self._maybe_show_full_output(result, "Extended Development Lifecycle Results")
         else:
             print("   ❌ Extended streaming collaborative workflow failed")
@@ -928,6 +1092,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Streaming monitored workflow completed successfully!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Monitoring Workflow")
             self._maybe_show_full_output(result, "Monitoring Workflow Results")
         else:
             print("   ❌ Streaming monitored workflow failed")
@@ -978,6 +1143,7 @@ class UpdatedSequentialWorkflowDemo:
             if result:
                 print("   ✅ Async monitored workflow completed successfully!")
                 self._show_result_summary(result)
+                self._ensure_output_displayed(result, "Async Monitoring Workflow")
             else:
                 print("   ❌ Async monitored workflow failed")
         else:
@@ -1031,6 +1197,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Simple streaming demo completed!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Simple Streaming Demo")
             self._maybe_show_full_output(result, "Creative Story Output", auto_show_if_short=True)
         else:
             print("   ❌ Simple streaming demo failed")
@@ -1088,6 +1255,7 @@ class UpdatedSequentialWorkflowDemo:
         if result:
             print("   ✅ Multi-step streaming demo completed!")
             self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Multi-Step Streaming Demo")
             self._maybe_show_full_output(result, "Complete Story Development Output")
         else:
             print("   ❌ Multi-step streaming demo failed")
@@ -1150,12 +1318,14 @@ class UpdatedSequentialWorkflowDemo:
         if streaming_result:
             print("     🌊 Streaming Result Quality: ✅ Available")
             self._show_result_summary(streaming_result)
+            self._ensure_output_displayed(streaming_result, "Streaming Comparison")
         else:
             print("     🌊 Streaming Result Quality: ❌ Failed")
             
         if non_streaming_result:
             print("\n     🛠️  Non-Streaming Result Quality: ✅ Available")
             self._show_result_summary(non_streaming_result)
+            self._ensure_output_displayed(non_streaming_result, "Non-Streaming Comparison")
         else:
             print("\n     🛠️  Non-Streaming Result Quality: ❌ Failed")
         
@@ -1192,14 +1362,8 @@ class UpdatedSequentialWorkflowDemo:
             result = self.client.execute_workflow(workflow, streaming=False)
             if result:
                 print("   ✅ Simple test workflow completed!")
-                print("   📄 LLM Output:")
-                # Show the actual AI explanation
-                if 'final_output' in result and result['final_output']:
-                    output = str(result['final_output'])
-                    lines = output.split('\n')
-                    for line in lines:
-                        print(f"      📝 {line}")
                 self._show_result_summary(result)
+                self._ensure_output_displayed(result, "Simple Test Workflow")
             else:
                 print("   ❌ Simple test workflow failed - no result")
         except Exception as e:
@@ -1215,6 +1379,7 @@ class UpdatedSequentialWorkflowDemo:
             if result:
                 print("   ✅ Streaming test workflow completed!")
                 self._show_result_summary(result)
+                self._ensure_output_displayed(result, "Streaming Test Workflow")
             else:
                 print("   ❌ Streaming test workflow failed - no result")
         except Exception as e:
@@ -1349,264 +1514,294 @@ class UpdatedSequentialWorkflowDemo:
         char_count = len(output)
         word_count = len(output.split())
         print(f"      ℹ️  {total_lines} lines, {word_count} words, {char_count} characters")
+
+    def _ensure_output_displayed(self, result: Dict[str, Any], context: str = "Workflow"):
+        """Ensure LLM output is always displayed to the user, regardless of streaming success"""
+        if not result:
+            print(f"   📭 No {context.lower()} output to display")
+            return
+
+        print(f"\n   🎯 {context} LLM Output:")
+        print("   " + "═" * 60)
+
+        # Show final output if available
+        if 'final_output' in result and result['final_output']:
+            output = str(result['final_output'])
+            lines = output.split('\n')
             
+            # Show the output with line numbers for easy reference
+            for i, line in enumerate(lines, 1):
+                print(f"   {i:3d} │ {line}")
+            
+            # Show output statistics
+            char_count = len(output)
+            word_count = len(output.split())
+            line_count = len(lines)
+            print(f"\n   📊 Output Stats: {line_count} lines, {word_count} words, {char_count} characters")
+            
+        elif 'step_results' in result:
+            # If no final output, show the last successful step output
+            step_results = result['step_results']
+            found_output = False
+            for step_name, step_data in reversed(list(step_results.items())):
+                if step_data.get('success'):
+                    # Check multiple possible locations for step output
+                    output = None
+                    if step_data.get('output'):
+                        output = str(step_data['output'])
+                    elif step_data.get('result_data', {}).get('text'):
+                        output = str(step_data['result_data']['text'])
+                    elif step_data.get('result'):
+                        output = str(step_data['result'])
+                    
+                    if output:
+                        print(f"   📝 Output from step '{step_name}':")
+                        lines = output.split('\n')
+                        for i, line in enumerate(lines[:15], 1):  # Show first 15 lines
+                            print(f"   {i:3d} │ {line}")
+                        if len(lines) > 15:
+                            print(f"   ... │ ({len(lines) - 15} more lines)")
+                        
+                        # Show output statistics
+                        char_count = len(output)
+                        word_count = len(output.split())
+                        line_count = len(lines)
+                        print(f"\n   📊 Output Stats: {line_count} lines, {word_count} words, {char_count} characters")
+                        found_output = True
+                        break
+            
+            if not found_output:
+                print(f"   📭 No successful step outputs found in {context.lower()}")
+        else:
+            print(f"   📭 No output found in {context.lower()} result")
+        
+        print("   " + "═" * 60)
+        
+        # Always print the full response JSON after the LLM output
+        self._print_full_response_json(result, context)
+
+    def _print_full_response_json(self, result: Dict[str, Any], context: str = "Workflow"):
+        """Always print the complete response JSON for full transparency"""
+        if not result:
+            print(f"   📭 No {context.lower()} response data to display")
+            return
+
+        print(f"\n   📋 Complete {context} Response JSON:")
+        print("   " + "═" * 80)
+        
+        try:
+            # Pretty-print the JSON with proper indentation
+            json_str = json.dumps(result, indent=2, ensure_ascii=False)
+            lines = json_str.split('\n')
+            
+            # Add line numbers and indentation for readability
+            for i, line in enumerate(lines, 1):
+                # Truncate very long lines to keep display manageable
+                if len(line) > 120:
+                    display_line = line[:117] + "..."
+                else:
+                    display_line = line
+                print(f"   {i:3d} │ {display_line}")
+            
+            # Show JSON statistics
+            total_chars = len(json_str)
+            total_lines = len(lines)
+            print(f"\n   📊 JSON Stats: {total_lines} lines, {total_chars} characters")
+            
+        except (TypeError, ValueError) as e:
+            # Fallback to repr if JSON serialization fails
+            print(f"   ⚠️  JSON serialization failed: {e}")
+            print(f"   📄 Raw response data:")
+            result_str = str(result)
+            lines = result_str.split('\n')
+            for i, line in enumerate(lines[:50], 1):  # Show first 50 lines
+                if len(line) > 120:
+                    display_line = line[:117] + "..."
+                else:
+                    display_line = line
+                print(f"   {i:3d} │ {display_line}")
+            if len(lines) > 50:
+                print(f"   ... │ ({len(lines) - 50} more lines truncated)")
+        
+        print("   " + "═" * 80)
+
+    def _maybe_show_full_output(self, result: Dict[str, Any], title: str = "Complete Output", auto_show_if_short: bool = True):
+        """Conditionally show full output based on result size and user preference"""
+        if not result:
+            return
+            
+        # Check if output is short enough to show automatically
+        final_output = result.get('final_output', '')
+        if auto_show_if_short and final_output:
+            output_length = len(str(final_output))
+            if output_length < 2000:  # Show automatically if less than 2000 characters
+                self._show_full_output(result, title)
+                return
+        
+        # For longer outputs, just mention it's available
+        print(f"\n   💡 Full output available - call _show_full_output() to see complete {title.lower()}")
+
+    def _show_streaming_benefits(self):
+        """Show the key benefits that streaming provides"""
+        print("\n   🌟 Key Streaming Benefits Demonstrated:")
+        print("   " + "─" * 60)
+        print("     🚀 Real-time feedback - See AI working in real-time")
+        print("     ⚡ Better user experience - No waiting for batch completion")
+        print("     🐛 Early error detection - Spot issues as they happen")
+        print("     📊 Progress visibility - Know which step is currently running")
+        print("     🎯 Token-by-token output - Watch content being generated")
+        print("     🔄 Graceful fallbacks - Automatic retry with non-streaming")
+        print("   " + "─" * 60)
+
     def run_interactive_mode(self):
         """Run interactive mode for custom workflow creation"""
         print("\n" + "="*60)
         print("🎮 INTERACTIVE MODE")
         print("="*60)
         
-        print("\n🛠️  Create your own custom workflow!")
+        print("\n🎯 Create your own custom workflow!")
+        print("Available agents:", ", ".join(self.available_agents))
         
-        # Get workflow details
-        workflow_id = input("Enter workflow ID: ").strip()
-        workflow_name = input("Enter workflow name: ").strip()
-        
-        if not workflow_id or not workflow_name:
-            print("❌ Workflow ID and name are required")
-            return
+        workflow_name = input("\nEnter workflow name: ").strip()
+        if not workflow_name:
+            workflow_name = "interactive_workflow"
             
-        # Ask about streaming preference
-        streaming_choice = input("Enable streaming? (y/n): ").strip().lower()
-        use_streaming = streaming_choice in ['y', 'yes', '1', 'true']
+        workflow = self.client.create_workflow(workflow_name, f"Interactive {workflow_name}")
         
-        workflow = self.client.create_workflow(workflow_id, workflow_name)
-        
-        print("\n📝 Add workflow steps:")
-        print("Available agent types: research_assistant, content_creator, data_analyst, code_assistant, qa_specialist, project_manager")
-        print("Enter 'done' when finished adding steps")
-        
-        step_count = 1
+        step_count = 0
         while True:
-            print(f"\n--- Step {step_count} ---")
-            step_id = input("Step ID: ").strip()
+            step_count += 1
+            print(f"\n📝 Step {step_count}:")
+            
+            step_id = input("  Step ID (or 'done' to finish): ").strip()
             if step_id.lower() == 'done':
                 break
                 
-            agent_type = input("Agent type: ").strip()
-            prompt = input("Task description: ").strip()
-            
-            if step_id and agent_type and prompt:
-                workflow.add_step(step_id, agent_type, prompt)
-                print(f"   ✓ Step '{step_id}' added")
-                step_count += 1
-            else:
-                print("   ❌ All fields are required")
+            agent_name = input("  Agent name: ").strip()
+            if agent_name not in self.available_agents:
+                agent_name = self._validate_agent_name(agent_name)
                 
-        if step_count > 1:
-            streaming_text = "with streaming" if use_streaming else "without streaming"
-            print(f"\n▶️  Executing custom workflow {streaming_text} ({step_count-1} steps)...")
-            
-            if use_streaming:
-                print("   📡 Real-time execution:")
-                print("   " + "-" * 50)
+            task = input("  Task description: ").strip()
+            if not task:
+                print("  ⚠️  Task description required!")
+                continue
                 
-            result = self.client.execute_workflow(workflow, streaming=use_streaming)
+            workflow.add_step(step_id, agent_name, task)
+            print(f"  ✅ Step {step_count} added!")
             
-            if use_streaming:
-                print("   " + "-" * 50)
-                
-            if result:
-                print("   ✅ Custom workflow completed successfully!")
-                self._show_result_summary(result)
-            else:
-                print("   ❌ Custom workflow failed")
+        if step_count == 1:
+            print("\n⚠️  No steps added to workflow")
+            return
+            
+        print(f"\n🚀 Executing your {step_count-1}-step workflow...")
+        
+        use_streaming = input("Use streaming? (y/n): ").strip().lower() == 'y'
+        
+        result = self._execute_workflow_with_enhanced_output(workflow, streaming=use_streaming)
+        
+        if result:
+            print("\n✅ Interactive workflow completed!")
+            self._show_result_summary(result)
+            self._ensure_output_displayed(result, "Interactive Workflow")
+            
+            show_full = input("\nShow full output? (y/n): ").strip().lower() == 'y'
+            if show_full:
+                self._show_full_output(result, "Interactive Workflow Results")
         else:
-            print("   ⚠️  No steps added to workflow")
-            
+            print("\n❌ Interactive workflow failed")
+
     def run_all_demos(self):
-        """Run all demo workflows"""
-        print("\n🎯 Running All Sequential Workflow Demos")
+        """Run all demonstration workflows"""
+        print("\n🎪 RUNNING ALL DEMOS")
         print("="*60)
         
-        self.show_available_agents()
-        
-        # Run all demos
         demos = [
             ("Content Creation", self.demo_content_creation_workflow),
-            ("Code Development", self.demo_code_development_workflow), 
+            ("Code Development", self.demo_code_development_workflow),
             ("Data Analysis", self.demo_data_analysis_workflow),
-            ("Collaborative", self.demo_collaborative_workflow),
-            ("Monitoring", self.demo_workflow_monitoring),
+            ("Collaborative Workflow", self.demo_collaborative_workflow),
+            ("Workflow Monitoring", self.demo_workflow_monitoring),
             ("Streaming Showcase", self.demo_streaming_showcase),
+            ("Simple Test", self.demo_simple_test),
         ]
-        
-        results = {}
         
         for demo_name, demo_func in demos:
             try:
-                print(f"\n🚀 Starting {demo_name} demo...")
-                start_time = time.time()
-                
+                print(f"\n🎯 Starting {demo_name} Demo...")
                 demo_func()
-                
-                execution_time = time.time() - start_time
-                results[demo_name] = {"status": "success", "time": execution_time}
-                
+                print(f"✅ {demo_name} Demo completed!")
+            except KeyboardInterrupt:
+                print(f"\n⏸️  {demo_name} Demo interrupted by user")
+                break
             except Exception as e:
-                logger.error(f"Error in {demo_name} demo: {e}")
-                results[demo_name] = {"status": "failed", "error": str(e)}
+                print(f"❌ {demo_name} Demo failed: {e}")
+                logger.error(f"{demo_name} demo error: {e}")
+                continue
                 
-        # Show final summary
-        print("\n" + "="*60)
-        print("📊 DEMO EXECUTION SUMMARY")
-        print("="*60)
-        
-        for demo_name, result in results.items():
-            status_icon = "✅" if result["status"] == "success" else "❌"
-            print(f"{status_icon} {demo_name}: {result['status']}")
-            if result["status"] == "success":
-                print(f"   ⏱️  Time: {result['time']:.2f}s")
-            else:
-                print(f"   💥 Error: {result['error']}")
-                
-        successful_demos = sum(1 for r in results.values() if r["status"] == "success")
-        total_demos = len(results)
-        
-        print(f"\n🎯 Overall: {successful_demos}/{total_demos} demos successful")
-        
-        # Show comparison with old demo
-        print("\n" + "="*60)
-        print("🔄 COMPARISON WITH ORIGINAL DEMO")
-        print("="*60)
-        print("📊 Original demo complexity:")
-        print("   • 1200+ lines of code")
-        print("   • Manual agent UUID mapping required")
-        print("   • Complex setup and configuration")
-        print("   • Manual engine/model management")
-        print("   • Verbose error handling")
-        print("   • Difficult to extend and modify")
-        
-        print("\n📊 Updated demo improvements:")
-        print("   • ~1500 lines of enhanced code")
-        print("   • Zero configuration - everything automatic")
-        print("   • Agent names used directly (no UUIDs)")
-        print("   • Auto-setup handles all complexity")
-        print("   • Built-in error handling and retries")
-        print("   • Easy to extend with new workflows")
-        print("   • ✨ Real-time LLM streaming with token-by-token display")
-        print("   • ✨ Enhanced LLM output formatting and visualization")
-        print("   • ✨ Step-by-step output tracking and display")
-        print("   • ✨ Professional result summaries with statistics")
-        print("   • ✨ Interactive full output viewing")
-        print("   • ✨ Comprehensive error reporting")
-        print("   • ✨ Live progress monitoring and feedback")
-        
-        print("\n🎉 LLM outputs are now beautifully displayed in real-time with professional formatting!")
-        
-        print("\n🎯 LLM Output Enhancement Summary:")
-        print("="*60)
-        print("✨ STREAMING IMPROVEMENTS:")
-        print("   • Real-time token-by-token LLM output display")
-        print("   • Live step-by-step execution monitoring")
-        print("   • Enhanced streaming response parsing")
-        print("   • Professional formatting with line numbers")
-        print("   • Automatic content type detection and styling")
-        
-        print("\n✨ OUTPUT DISPLAY IMPROVEMENTS:")
-        print("   • Comprehensive result summaries with metadata")
-        print("   • Step-by-step output tracking and visualization")
-        print("   • Formatted output with syntax highlighting")
-        print("   • Interactive full output viewing options")
-        print("   • Statistics (lines, words, characters, reading time)")
-        
-        print("\n✨ USER EXPERIENCE IMPROVEMENTS:")
-        print("   • Optional full output display based on content length")
-        print("   • Enhanced error reporting with context")
-        print("   • Professional progress indicators")
-        print("   • Better content truncation and previews")
-        print("   • Improved Unicode/emoji support for output")
-        
-        print("\n✨ TECHNICAL IMPROVEMENTS:")
-        print("   • Enhanced streaming parser with event handling")
-        print("   • Better error handling and debugging")
-        print("   • Structured output formatting methods")
-        print("   • Comprehensive logging and monitoring")
-        print("   • Robust encoding and display support")
-        
-    def _maybe_show_full_output(self, result: Dict[str, Any], title: str = "Complete Output", auto_show_if_short: bool = True):
-        """Optionally show full output based on user choice or content length"""
-        if not result:
-            return
-            
-        # Auto-show if content is short
-        if auto_show_if_short:
-            final_output = result.get('final_output', '')
-            if final_output and len(str(final_output)) < 500:
-                print(f"\n   📖 {title} (auto-shown due to short length):")
-                self._show_full_output(result, title)
-                return
-        
-        # Ask user for longer content
-        print(f"\n   💡 View complete {title.lower()}? (y/n): ", end="")
-        try:
-            choice = input().strip().lower()
-            if choice in ['y', 'yes', '1', 'true']:
-                self._show_full_output(result, title)
-        except:
-            # Skip if running non-interactively
-            pass
-            
-    def _show_streaming_benefits(self):
-        """Display the benefits of streaming vs traditional execution"""
-        print("\n   🌟 Streaming Benefits Demonstrated:")
-        print("   " + "─" * 50)
-        print("   ✨ Real-time LLM output visibility")
-        print("   ✨ Token-by-token streaming display")
-        print("   ✨ Immediate feedback on AI processing")
-        print("   ✨ Better user engagement and interactivity")
-        print("   ✨ Live progress indication per step")
-        print("   ✨ Enhanced debugging capabilities")
-        print("   ✨ Step-by-step output tracking")
-        print("   ✨ More responsive user experience")
-        print("   ✨ Professional-grade output formatting")
-        print("   ✨ Comprehensive result summaries")
+        print("\n🏁 All demos completed!")
 
 def main():
-    """Main entry point"""
-    parser = argparse.ArgumentParser(description="Updated Sequential Workflow Demo")
-    parser.add_argument("--host", default="localhost", help="Server host")
-    parser.add_argument("--port", type=int, default=8080, help="Server port")
+    """Main function with command-line argument handling"""
+    parser = argparse.ArgumentParser(
+        description="Updated Sequential Workflow Demo for Kolosal Server",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  python sequential_workflow_demo_updated.py                    # Run all demos
+  python sequential_workflow_demo_updated.py --demo streaming   # Show streaming demo only
+  python sequential_workflow_demo_updated.py --interactive      # Interactive mode
+  python sequential_workflow_demo_updated.py --host 192.168.1.100 --port 9090
+        """
+    )
+    
+    parser.add_argument("--host", default="localhost", help="Server host (default: localhost)")
+    parser.add_argument("--port", type=int, default=8080, help="Server port (default: 8080)")
+    parser.add_argument("--demo", choices=["streaming", "content", "code", "data", "collaborative", "monitoring", "test"], 
+                       help="Run specific demo only")
     parser.add_argument("--interactive", action="store_true", help="Run in interactive mode")
-    parser.add_argument("--demo", choices=["content", "code", "data", "collaborative", "monitoring", "streaming", "test"], 
-                       help="Run specific demo")
+    parser.add_argument("--debug", action="store_true", help="Enable debug mode with detailed output")
     
     args = parser.parse_args()
     
     try:
-        # Create demo instance
-        demo = UpdatedSequentialWorkflowDemo(host=args.host, port=args.port)
+        # Initialize the demo
+        demo = UpdatedSequentialWorkflowDemo(host=args.host, port=args.port, debug=args.debug)
         
         if args.interactive:
+            # Run interactive mode
             demo.run_interactive_mode()
         elif args.demo:
             # Run specific demo
-            demo.show_available_agents()
-            if args.demo == "content":
-                demo.demo_content_creation_workflow()
-            elif args.demo == "code":
-                demo.demo_code_development_workflow()
-            elif args.demo == "data":
-                demo.demo_data_analysis_workflow()
-            elif args.demo == "collaborative":
-                demo.demo_collaborative_workflow()
-            elif args.demo == "monitoring":
-                demo.demo_workflow_monitoring()
-            elif args.demo == "streaming":
-                demo.demo_streaming_showcase()
-            elif args.demo == "test":
-                demo.demo_simple_test()
+            demo_map = {
+                "streaming": demo.demo_streaming_showcase,
+                "content": demo.demo_content_creation_workflow,
+                "code": demo.demo_code_development_workflow,
+                "data": demo.demo_data_analysis_workflow,
+                "collaborative": demo.demo_collaborative_workflow,
+                "monitoring": demo.demo_workflow_monitoring,
+                "test": demo.demo_simple_test
+            }
+            
+            if args.demo in demo_map:
+                print(f"\n🎯 Running {args.demo.title()} Demo")
+                demo_map[args.demo]()
+            else:
+                print(f"❌ Unknown demo: {args.demo}")
+                return 1
         else:
             # Run all demos
             demo.run_all_demos()
             
+        print("\n🎉 Demo completed successfully!")
+        return 0
+        
     except KeyboardInterrupt:
-        print("\n🛑 Demo interrupted by user")
-        sys.exit(1)
+        print("\n⏸️  Demo interrupted by user")
+        return 0
     except Exception as e:
-        logger.error(f"Demo failed: {e}")
-        print(f"❌ Demo failed: {e}")
-        sys.exit(1)
+        print(f"\n❌ Demo failed: {e}")
+        logger.error(f"Main demo error: {e}")
+        return 1
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -93,5 +93,6 @@
         "xutility": "cpp",
         "complex": "cpp",
         "stack": "cpp"
-    }
+    },
+    "dotnet.defaultSolution": "disable"
 }
