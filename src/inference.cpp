@@ -839,7 +839,7 @@ namespace
 			common_sampler_accept(sampler, id, true);
 			common_batch_add(batch, id, n_past, { 0 }, true);
 
-			if (llama_token_is_eog(tokenizer->getVocab(), id) || id == llama_token_eos(tokenizer->getVocab())) {
+			if (llama_vocab_is_eog(tokenizer->getVocab(), id) || id == llama_vocab_eos(tokenizer->getVocab())) {
 				return false; // Stop generation
 			}
 
@@ -864,7 +864,7 @@ namespace
 			llama_token id = common_sampler_sample(job->smpl, context, job->batch_pos);
 			common_sampler_accept(job->smpl, id, false);
 
-			if (llama_token_is_eog(tokenizer->getVocab(), id) || id == llama_token_eos(tokenizer->getVocab())) {
+			if (llama_vocab_is_eog(tokenizer->getVocab(), id) || id == llama_vocab_eos(tokenizer->getVocab())) {
 				return false; // Stop generation
 			}
 

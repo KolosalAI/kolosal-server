@@ -1,0 +1,64 @@
+# Runtime-only Dockerfile for Kolosal Server
+# Assumes kolosal-server binary already exists
+FROM ubuntu:22.04
+
+# Set environment variables for NVIDIA runtime
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install minimal runtime dependencies in a single layer
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Core libraries
+    libcurl4 \
+    libssl3 \
+    zlib1g \
+    # GPU support
+    libgl1-mesa-glx \
+    vulkan-tools \
+    # Utilities
+    ca-certificates \
+    curl \
+    # Clean up
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Configure NVIDIA Vulkan ICD (minimal configuration)
+RUN mkdir -p /etc/vulkan/icd.d && \
+    echo '{"file_format_version":"1.0.0","ICD":{"library_path":"libGLX_nvidia.so.0","api_version":"1.3.194"}}' > /etc/vulkan/icd.d/nvidia_icd.json
+
+# Configure NVIDIA EGL vendor
+RUN mkdir -p /usr/share/glvnd/egl_vendor.d && \
+    echo '{"file_format_version":"1.0.0","ICD":{"library_path":"libEGL_nvidia.so.0"}}' > /usr/share/glvnd/egl_vendor.d/10_nvidia.json
+
+# Create non-root user and application directory
+RUN useradd -m -u 1000 -s /bin/bash kolosal && \
+    mkdir -p /app/models /app/logs
+
+# Set working directory
+WORKDIR /app
+
+# Copy pre-built binary and configuration
+# These files should be built externally and copied in
+COPY kolosal-server /app/
+COPY config.yaml /app/
+
+# Set executable permissions and ownership
+RUN chmod +x /app/kolosal-server && \
+    chown -R kolosal:kolosal /app
+
+# Create volumes for persistent data
+VOLUME ["/app/models", "/app/logs"]
+
+# Switch to non-root user
+USER kolosal
+
+# Expose the default port
+EXPOSE 8080
+
+# Minimal health check
+HEALTHCHECK --interval=60s --timeout=5s --start-period=30s --retries=2 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Default command
+CMD ["./kolosal-server", "--config", "config.yaml"]
