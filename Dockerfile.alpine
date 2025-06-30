@@ -1,0 +1,53 @@
+# Ultra-slim runtime Dockerfile using Alpine Linux
+# Assumes kolosal-server binary already exists and is statically linked
+FROM alpine:3.19
+
+# Set environment variables for NVIDIA runtime
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=all
+
+# Install minimal runtime dependencies
+RUN apk add --no-cache \
+    # Core libraries
+    libcurl \
+    openssl \
+    zlib \
+    # GPU support libraries
+    mesa-gl \
+    # Utilities
+    ca-certificates \
+    curl \
+    # C++ runtime (if needed for dynamic linking)
+    libstdc++ \
+    libgcc
+
+# Create non-root user and directories
+RUN adduser -D -u 1000 -s /bin/sh kolosal && \
+    mkdir -p /app/models /app/logs
+
+# Set working directory  
+WORKDIR /app
+
+# Copy pre-built binary and configuration
+COPY kolosal-server /app/
+COPY config.yaml /app/
+
+# Set permissions
+RUN chmod +x /app/kolosal-server && \
+    chown -R kolosal:kolosal /app
+
+# Create volumes
+VOLUME ["/app/models", "/app/logs"]
+
+# Switch to non-root user
+USER kolosal
+
+# Expose port
+EXPOSE 8080
+
+# Minimal health check
+HEALTHCHECK --interval=60s --timeout=3s --start-period=20s --retries=2 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Run the server
+CMD ["./kolosal-server", "--config", "config.yaml"]

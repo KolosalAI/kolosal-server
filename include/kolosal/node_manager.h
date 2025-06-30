@@ -7,6 +7,7 @@
 #include <memory>
 #include <string>
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
 #include <chrono> // Added for time tracking
 #include <thread> // Added for autoscaling thread
@@ -66,6 +67,16 @@ public:
     std::shared_ptr<InferenceEngine> getEngine(const std::string& engineId);
 
     /**
+     * @brief Checks if an engine exists and its load status without loading it.
+     * This method does not trigger loading of lazy models and does not update activity time.
+     * 
+     * @param engineId The ID of the engine to check.
+     * @return A pair of (exists, isLoaded) where exists indicates if the engine is registered
+     *         and isLoaded indicates if it's currently loaded in memory.
+     */
+    std::pair<bool, bool> getEngineStatus(const std::string& engineId) const;
+
+    /**
      * @brief Removes and unloads an inference engine by its ID.
      * 
      * @param engineId The ID of the engine to remove.
@@ -88,6 +99,14 @@ public:
      */
     bool validateModelPath(const std::string& modelPath);
 
+    /**
+     * @brief Handles URL download for models
+     * @param engineId Engine identifier for logging
+     * @param modelPath URL to download
+     * @return Local path to downloaded file, or empty string on failure
+     */
+    std::string handleUrlDownload(const std::string& engineId, const std::string& modelPath);
+
 private:
     struct EngineRecord {
         std::shared_ptr<InferenceEngine> engine;
@@ -95,18 +114,53 @@ private:
         LoadingParameters loadParams;          // Metadata: Parameters used to load the model
         int mainGpuId;                         // Metadata: Main GPU ID for the engine
         std::chrono::steady_clock::time_point lastActivityTime; // For autoscaling
-        bool isLoaded;                         // Tracks if the model is currently loaded
-
-        EngineRecord() : mainGpuId(0), lastActivityTime(std::chrono::steady_clock::now()), isLoaded(false) {}
+        std::atomic<bool> isLoaded{false};     // Tracks if the model is currently loaded
+        std::atomic<bool> isLoading{false};    // Tracks if the model is currently being loaded
+        std::atomic<bool> markedForRemoval{false}; // Tracks if engine is being removed
+        mutable std::mutex engineMutex;        // Per-engine mutex for thread safety
+        std::condition_variable loadingCv;     // For waiting on model loading
+        
+        EngineRecord() : mainGpuId(0), lastActivityTime(std::chrono::steady_clock::now()) {}
+        
+        // Disable copy operations to avoid mutex copying issues
+        EngineRecord(const EngineRecord&) = delete;
+        EngineRecord& operator=(const EngineRecord&) = delete;
+        
+        // Enable move operations
+        EngineRecord(EngineRecord&& other) noexcept 
+            : engine(std::move(other.engine))
+            , modelPath(std::move(other.modelPath))
+            , loadParams(other.loadParams)
+            , mainGpuId(other.mainGpuId)
+            , lastActivityTime(other.lastActivityTime)
+            , isLoaded(other.isLoaded.load())
+            , isLoading(other.isLoading.load())
+            , markedForRemoval(other.markedForRemoval.load())
+        {}
+        
+        EngineRecord& operator=(EngineRecord&& other) noexcept {
+            if (this != &other) {
+                engine = std::move(other.engine);
+                modelPath = std::move(other.modelPath);
+                loadParams = other.loadParams;
+                mainGpuId = other.mainGpuId;
+                lastActivityTime = other.lastActivityTime;
+                isLoaded.store(other.isLoaded.load());
+                isLoading.store(other.isLoading.load());
+                markedForRemoval.store(other.markedForRemoval.load());
+            }
+            return *this;
+        }
     };
 
-    std::unordered_map<std::string, EngineRecord> engines_;
-    mutable std::mutex mutex_; // Protects access to the engines_ map
+    std::unordered_map<std::string, std::shared_ptr<EngineRecord>> engines_;
+    mutable std::shared_mutex engineMapMutex_; // Shared mutex for engines map (allows concurrent reads)
 
     // Autoscaling members
     std::thread autoscalingThread_;
     std::atomic<bool> stopAutoscaling_{false};
     std::condition_variable autoscalingCv_;
+    mutable std::mutex autoscalingMutex_; // Separate mutex for autoscaling
     std::chrono::seconds idleTimeout_;
 
     /**

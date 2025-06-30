@@ -18,12 +18,12 @@ struct ModelConfig {
     std::string path;                  // Path to the model file
     LoadingParameters loadParams;      // Model loading parameters
     int mainGpuId = 0;                // GPU ID to use for this model
-    bool loadAtStartup = true;        // Whether to load the model immediately
+    bool loadImmediately = true;      // Whether to load immediately (true) vs lazy load on first use (false)
     bool preloadContext = false;      // Whether to preload context for faster inference
     
     ModelConfig() = default;
     ModelConfig(const std::string& modelId, const std::string& modelPath, bool load = true)
-        : id(modelId), path(modelPath), loadAtStartup(load) {}
+        : id(modelId), path(modelPath), loadImmediately(load) {}
 };
 
 /**
@@ -77,6 +77,18 @@ struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
     bool enableMetrics = false;
     
     ServerConfig() = default;
+    
+    /**
+     * @brief Get the global server config instance
+     * @return Reference to the global server config
+     */
+    static ServerConfig& getInstance();
+    
+    /**
+     * @brief Set the global server config instance
+     * @param config The config to set as the global instance
+     */
+    static void setInstance(const ServerConfig& config);
     
     /**
      * @brief Load configuration from command line arguments

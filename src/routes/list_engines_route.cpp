@@ -30,12 +30,12 @@ namespace kolosal
             json enginesList = json::array();
             for (const auto &engineId : engineIds)
             {
-                // Get engine to refresh activity and check status
-                auto engine = nodeManager.getEngine(engineId);
+                // Check engine status without loading it (to avoid triggering lazy model loading)
+                auto [exists, isLoaded] = nodeManager.getEngineStatus(engineId);
 
                 json engineInfo = {
                     {"engine_id", engineId},
-                    {"status", engine ? "loaded" : "unloaded"},
+                    {"status", isLoaded ? "loaded" : "unloaded"},
                     {"last_accessed", "recently"} // Could be enhanced with actual timestamps
                 };
 

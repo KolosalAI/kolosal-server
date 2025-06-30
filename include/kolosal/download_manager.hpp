@@ -15,7 +15,7 @@ namespace kolosal {
     // Structure to hold engine creation parameters
     struct EngineCreationParams {
         std::string engine_id;
-        bool load_immediately;
+        bool load_immediately;         // Whether to load immediately when download completes (vs register for lazy loading)
         int main_gpu_id;
         LoadingParameters loading_params;
         

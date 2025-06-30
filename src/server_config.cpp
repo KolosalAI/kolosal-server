@@ -147,7 +147,7 @@ namespace kolosal
                 ModelConfig model;
                 model.id = argv[++i];
                 model.path = argv[++i];
-                model.loadAtStartup = true;
+                model.loadImmediately = true;
                 models.push_back(model);
             }
             else if ((arg == "--model-lazy") && i + 2 < argc)
@@ -155,7 +155,7 @@ namespace kolosal
                 ModelConfig model;
                 model.id = argv[++i];
                 model.path = argv[++i];
-                model.loadAtStartup = false;
+                model.loadImmediately = false;
                 models.push_back(model);
             }
             else if ((arg == "--model-gpu") && i + 1 < argc)
@@ -359,8 +359,11 @@ namespace kolosal
                         model.id = modelConfig["id"].as<std::string>();
                     if (modelConfig["path"])
                         model.path = modelConfig["path"].as<std::string>();
-                    if (modelConfig["load_at_startup"])
-                        model.loadAtStartup = modelConfig["load_at_startup"].as<bool>();
+                    // Support both new and old field names for backward compatibility
+                    if (modelConfig["load_immediately"])
+                        model.loadImmediately = modelConfig["load_immediately"].as<bool>();
+                    else if (modelConfig["load_at_startup"])
+                        model.loadImmediately = modelConfig["load_at_startup"].as<bool>();
                     if (modelConfig["main_gpu_id"])
                         model.mainGpuId = modelConfig["main_gpu_id"].as<int>();
                     if (modelConfig["preload_context"])
@@ -380,6 +383,14 @@ namespace kolosal
                             model.loadParams.n_parallel = params["n_parallel"].as<int>();
                         if (params["cont_batching"])
                             model.loadParams.cont_batching = params["cont_batching"].as<bool>();
+                        if (params["warmup"])
+                            model.loadParams.warmup = params["warmup"].as<bool>();
+                        if (params["n_gpu_layers"])
+                            model.loadParams.n_gpu_layers = params["n_gpu_layers"].as<int>();
+                        if (params["n_batch"])
+                            model.loadParams.n_batch = params["n_batch"].as<int>();
+                        if (params["n_ubatch"])
+                            model.loadParams.n_ubatch = params["n_ubatch"].as<int>();
                     }
 
                     models.push_back(model);
@@ -446,7 +457,7 @@ namespace kolosal
                 YAML::Node modelNode;
                 modelNode["id"] = model.id;
                 modelNode["path"] = model.path;
-                modelNode["load_at_startup"] = model.loadAtStartup;
+                modelNode["load_immediately"] = model.loadImmediately;
                 modelNode["main_gpu_id"] = model.mainGpuId;
                 modelNode["preload_context"] = model.preloadContext;
                 modelNode["load_params"]["n_ctx"] = model.loadParams.n_ctx;
@@ -455,6 +466,10 @@ namespace kolosal
                 modelNode["load_params"]["use_mlock"] = model.loadParams.use_mlock;
                 modelNode["load_params"]["n_parallel"] = model.loadParams.n_parallel;
                 modelNode["load_params"]["cont_batching"] = model.loadParams.cont_batching;
+                modelNode["load_params"]["warmup"] = model.loadParams.warmup;
+                modelNode["load_params"]["n_gpu_layers"] = model.loadParams.n_gpu_layers;
+                modelNode["load_params"]["n_batch"] = model.loadParams.n_batch;
+                modelNode["load_params"]["n_ubatch"] = model.loadParams.n_ubatch;
                 config["models"].push_back(modelNode);
             }
             // Feature flags
@@ -528,6 +543,49 @@ namespace kolosal
                 std::cerr << "Error: Model path cannot be empty for model: " << model.id << std::endl;
                 return false;
             }
+            
+            // Validate loading parameters (consistent with API validation)
+            if (model.loadParams.n_ctx <= 0 || model.loadParams.n_ctx > 1000000)
+            {
+                std::cerr << "Error: Invalid n_ctx for model " << model.id << ": must be between 1 and 1000000" << std::endl;
+                return false;
+            }
+            
+            if (model.loadParams.n_keep < 0 || model.loadParams.n_keep > model.loadParams.n_ctx)
+            {
+                std::cerr << "Error: Invalid n_keep for model " << model.id << ": must be between 0 and n_ctx (" << model.loadParams.n_ctx << ")" << std::endl;
+                return false;
+            }
+            
+            if (model.loadParams.n_batch <= 0 || model.loadParams.n_batch > 8192)
+            {
+                std::cerr << "Error: Invalid n_batch for model " << model.id << ": must be between 1 and 8192" << std::endl;
+                return false;
+            }
+            
+            if (model.loadParams.n_ubatch <= 0 || model.loadParams.n_ubatch > model.loadParams.n_batch)
+            {
+                std::cerr << "Error: Invalid n_ubatch for model " << model.id << ": must be between 1 and n_batch (" << model.loadParams.n_batch << ")" << std::endl;
+                return false;
+            }
+            
+            if (model.loadParams.n_parallel <= 0 || model.loadParams.n_parallel > 16)
+            {
+                std::cerr << "Error: Invalid n_parallel for model " << model.id << ": must be between 1 and 16" << std::endl;
+                return false;
+            }
+            
+            if (model.loadParams.n_gpu_layers < 0 || model.loadParams.n_gpu_layers > 1000)
+            {
+                std::cerr << "Error: Invalid n_gpu_layers for model " << model.id << ": must be between 0 and 1000" << std::endl;
+                return false;
+            }
+            
+            if (model.mainGpuId < -1 || model.mainGpuId > 15)
+            {
+                std::cerr << "Error: Invalid main_gpu_id for model " << model.id << ": must be between -1 and 15" << std::endl;
+                return false;
+            }
         }
 
         // Validate rate limiting
@@ -584,7 +642,7 @@ namespace kolosal
             {
                 std::cout << "  " << model.id << ":" << std::endl;
                 std::cout << "    Path: " << model.path << std::endl;
-                std::cout << "    Load at startup: " << (model.loadAtStartup ? "Yes" : "No") << std::endl;
+                std::cout << "    Load immediately: " << (model.loadImmediately ? "Yes" : "No") << std::endl;
                 std::cout << "    GPU ID: " << model.mainGpuId << std::endl;
             }
         }
@@ -673,6 +731,17 @@ namespace kolosal
         std::cout << "Kolosal Server v1.0.0\n";
         std::cout << "A high-performance HTTP server for AI inference\n";
         std::cout << "Built with C++14, supports multiple models and authentication\n";
+    }
+
+    ServerConfig& ServerConfig::getInstance()
+    {
+        static ServerConfig instance;
+        return instance;
+    }
+
+    void ServerConfig::setInstance(const ServerConfig& config)
+    {
+        getInstance() = config;
     }
 
 } // namespace kolosal

@@ -8,6 +8,8 @@
 #include <memory>
 #include <vector>
 #include <unordered_set>
+#include <unordered_map>
+#include <chrono>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -233,7 +235,7 @@ namespace kolosal
              * @param name Header name
              * @return Lowercase header name
              */
-            std::string toLowercase(const std::string &name) const;
+            inline std::string toLowercase(const std::string &name) const;
 
             /**
              * @brief Validate API key authentication
@@ -242,9 +244,31 @@ namespace kolosal
              */
             bool validateApiKeyAuth(const RequestInfo& requestInfo) const;
 
+            /**
+             * @brief Simple cache for header lookups to improve performance
+             */
+            struct HeaderCache {
+                std::unordered_map<std::string, std::string> cache;
+                std::chrono::steady_clock::time_point lastClear;
+                static constexpr size_t MAX_CACHE_SIZE = 1000;
+                static constexpr auto CACHE_TTL = std::chrono::minutes(5);
+                
+                void clear() {
+                    cache.clear();
+                    lastClear = std::chrono::steady_clock::now();
+                }
+                
+                bool shouldClear() const {
+                    auto now = std::chrono::steady_clock::now();
+                    return cache.size() > MAX_CACHE_SIZE || 
+                           (now - lastClear) > CACHE_TTL;
+                }
+            };
+            
             std::unique_ptr<RateLimiter> rateLimiter_;
             std::unique_ptr<CorsHandler> corsHandler_;
             ApiKeyConfig apiKeyConfig_;
+            mutable HeaderCache headerCache_;
         };
 
     } // namespace auth

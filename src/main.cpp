@@ -378,7 +378,7 @@ int main(int argc, char *argv[])
                                                               modelConfig.path,
                                                               modelConfig.loadParams,
                                                               modelConfig.mainGpuId,
-                                                              modelConfig.loadAtStartup);
+                                                              modelConfig.loadImmediately);
 
             if (success)
             {
@@ -389,7 +389,7 @@ int main(int argc, char *argv[])
                     ServerLogger::logInfo("Model '%s' download started from URL: %s", modelConfig.id.c_str(), modelConfig.path.c_str());
                     asyncDownloads++;
                 }
-                else if (modelConfig.loadAtStartup)
+                else if (modelConfig.loadImmediately)
                 {
                     std::cout << "✓ Model '" << modelConfig.id << "' loaded successfully" << std::endl;
                     ServerLogger::logInfo("Model '%s' loaded successfully", modelConfig.id.c_str());

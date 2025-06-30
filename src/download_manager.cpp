@@ -55,6 +55,26 @@ namespace kolosal
     bool DownloadManager::startDownloadWithEngine(const std::string &model_id, const std::string &url,
                                                   const std::string &local_path, const EngineCreationParams &engine_params)
     {
+        // First check if an engine with this ID already exists
+        auto &nodeManager = ServerAPI::instance().getNodeManager();
+        auto [engineExists, engineLoaded] = nodeManager.getEngineStatus(engine_params.engine_id);
+        
+        if (engineExists)
+        {
+            ServerLogger::logInfo("Engine '%s' already exists on the server. Skipping download and engine creation.", engine_params.engine_id.c_str());
+            
+            // Create a completed download entry for consistency
+            std::lock_guard<std::mutex> lock(downloads_mutex_);
+            auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
+            progress->engine_params = std::make_unique<EngineCreationParams>(engine_params);
+            progress->status = "engine_already_exists";
+            progress->percentage = 100.0;
+            progress->end_time = std::chrono::system_clock::now();
+            downloads_[model_id] = progress;
+            
+            return true;
+        }
+
         std::lock_guard<std::mutex> lock(downloads_mutex_);
 
         // Check if download is already in progress
@@ -445,6 +465,19 @@ namespace kolosal
     {
         try
         {
+            // Get the NodeManager and check if engine already exists
+            auto &nodeManager = ServerAPI::instance().getNodeManager();
+            auto [engineExists, engineLoaded] = nodeManager.getEngineStatus(progress->engine_params->engine_id);
+            
+            if (engineExists)
+            {
+                std::lock_guard<std::mutex> lock(downloads_mutex_);
+                progress->status = "engine_already_exists";
+                progress->end_time = std::chrono::system_clock::now();
+                ServerLogger::logInfo("Engine '%s' already exists, skipping engine creation after download", progress->engine_params->engine_id.c_str());
+                return;
+            }
+
             // Update status to indicate engine creation
             {
                 std::lock_guard<std::mutex> lock(downloads_mutex_);
@@ -452,16 +485,28 @@ namespace kolosal
                 ServerLogger::logInfo("Starting engine creation for model: %s", progress->model_id.c_str());
             }
 
-            // Get the NodeManager and create the engine
-            auto &nodeManager = ServerAPI::instance().getNodeManager();
-
             // Use the downloaded file path as the model path
             std::string actualModelPath = progress->local_path;
-            bool success = nodeManager.addEngine(
-                progress->engine_params->engine_id,
-                actualModelPath.c_str(),
-                progress->engine_params->loading_params,
-                progress->engine_params->main_gpu_id);
+            
+            bool success;
+            if (progress->engine_params->load_immediately)
+            {
+                // Load immediately - use addEngine
+                success = nodeManager.addEngine(
+                    progress->engine_params->engine_id,
+                    actualModelPath.c_str(),
+                    progress->engine_params->loading_params,
+                    progress->engine_params->main_gpu_id);
+            }
+            else
+            {
+                // Lazy loading - use registerEngine
+                success = nodeManager.registerEngine(
+                    progress->engine_params->engine_id,
+                    actualModelPath.c_str(),
+                    progress->engine_params->loading_params,
+                    progress->engine_params->main_gpu_id);
+            }
 
             std::lock_guard<std::mutex> lock(downloads_mutex_);
 
@@ -493,6 +538,16 @@ namespace kolosal
     bool DownloadManager::loadModelAtStartup(const std::string &model_id, const std::string &model_path,
                                              const LoadingParameters &load_params, int main_gpu_id, bool load_immediately)
     {
+        // First check if an engine with this ID already exists
+        auto &nodeManager = ServerAPI::instance().getNodeManager();
+        auto [engineExists, engineLoaded] = nodeManager.getEngineStatus(model_id);
+        
+        if (engineExists)
+        {
+            ServerLogger::logInfo("Engine '%s' already exists during startup, skipping load", model_id.c_str());
+            return true;
+        }
+
         // Check if the model path is a URL
         if (is_valid_url(model_path))
         {
