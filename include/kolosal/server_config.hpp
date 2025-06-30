@@ -66,6 +66,24 @@ struct DatabaseConfig {
 };
 
 /**
+ * @brief Internet search configuration
+ */
+struct SearchConfig {
+    bool enabled = false;                      // Whether internet search is enabled
+    std::string searxng_url = "http://localhost:4000"; // SearXNG instance URL
+    int timeout = 30;                         // Request timeout in seconds
+    int max_results = 20;                     // Maximum number of search results to return
+    std::string default_engine = "";          // Default search engine (empty = use SearXNG default)
+    std::string api_key = "";                 // Optional API key for authentication
+    bool enable_safe_search = true;           // Enable safe search by default
+    std::string default_format = "json";      // Default output format (json, xml, csv)
+    std::string default_language = "en";      // Default search language
+    std::string default_category = "general"; // Default search category
+    
+    SearchConfig() = default;
+};
+
+/**
  * @brief Server startup configuration
  */
 struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
@@ -93,7 +111,11 @@ struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
     
     // Database configuration
     DatabaseConfig database;
-      // Feature flags
+    
+    // Internet search configuration
+    SearchConfig search;
+    
+    // Feature flags
     bool enableHealthCheck = true;
     bool enableMetrics = false;
     

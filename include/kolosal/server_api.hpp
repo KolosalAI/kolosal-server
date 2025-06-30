@@ -4,6 +4,7 @@
 #include <memory>
 
 #include "export.hpp"
+#include "server_config.hpp"
 
 namespace kolosal
 {
@@ -31,6 +32,7 @@ namespace kolosal
         
         // Feature management
         void enableMetrics();
+        void enableSearch(const SearchConfig& config);
 
         // NodeManager access
         NodeManager &getNodeManager();

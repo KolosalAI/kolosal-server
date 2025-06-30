@@ -328,6 +328,19 @@ int main(int argc, char *argv[])
             std::cerr << "Failed to enable metrics: " << e.what() << std::endl;
             return 1;
         }
+    } // Enable internet search if configured
+    if (config.search.enabled)
+    {
+        try
+        {
+            server.enableSearch(config.search);
+            ServerLogger::logInfo("Internet search endpoint enabled");
+        }
+        catch (const std::exception &e)
+        {
+            std::cerr << "Failed to enable internet search: " << e.what() << std::endl;
+            return 1;
+        }
     } // Load models if specified
     if (!config.models.empty())
     {

@@ -21,6 +21,7 @@
 #include "kolosal/routes/parse_docx_route.hpp"
 #include "kolosal/routes/add_documents_route.hpp"
 #include "kolosal/routes/retrieve_route.hpp"
+#include "kolosal/routes/internet_search_route.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -79,9 +80,10 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
             pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());
             pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
-            pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());            pImpl->server->addRoute(std::make_unique<CancelAllDownloadsRoute>());
+            pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());            
+            pImpl->server->addRoute(std::make_unique<CancelAllDownloadsRoute>());
             pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
-            pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());
+            pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());            
             pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
             pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
 
@@ -140,6 +142,16 @@ namespace kolosal
 
         ServerLogger::logInfo("Enabling completion metrics monitoring");
         pImpl->server->addRoute(std::make_unique<CompletionMetricsRoute>());
+    }
+    void ServerAPI::enableSearch(const SearchConfig &config)
+    {
+        if (!pImpl->server)
+        {
+            throw std::runtime_error("Server not initialized - call init() first");
+        }
+
+        ServerLogger::logInfo("Enabling internet search endpoint");
+        pImpl->server->addRoute(std::make_unique<InternetSearchRoute>(config));
     }
 
     NodeManager &ServerAPI::getNodeManager()

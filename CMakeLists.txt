@@ -52,6 +52,7 @@ set(SOURCES
     src/routes/parse_docx_route.cpp
     src/routes/add_documents_route.cpp
     src/routes/retrieve_route.cpp
+    src/routes/internet_search_route.cpp
     src/routes/models_route.cpp
     src/metrics_converter.cpp
     src/auth/rate_limiter.cpp

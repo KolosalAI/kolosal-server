@@ -29,6 +29,19 @@ database:
     max_connections: 10
     connection_timeout: 5
 
+# Internet search configuration
+search:
+  enabled: true                       # Enable/disable internet search endpoint
+  searxng_url: "http://localhost:8090" # SearXNG instance URL
+  timeout: 30                         # Request timeout in seconds
+  max_results: 20                     # Maximum number of search results
+  default_engine: ""                  # Default search engine (empty = SearXNG default)
+  api_key: ""                         # Optional API key for authentication
+  enable_safe_search: true            # Enable safe search by default
+  default_format: "json"              # Default output format (json, xml, csv, rss)
+  default_language: "en"              # Default search language
+  default_category: "general"         # Default search category
+
 auth:
   enabled: true
   require_api_key: false
