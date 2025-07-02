@@ -50,6 +50,36 @@
 // =============================================================================
 
 /**
+ * @brief Parameters for an embedding job.
+ */
+struct EmbeddingParameters {
+    // Input text to embed
+    std::string input;
+    
+    // Normalize the embeddings
+    bool normalize = true;
+    
+    // Cache and session management
+    std::string kvCacheFilePath = "";
+    int         seqId           = -1;
+
+    bool isValid() const;
+};
+
+/**
+ * @brief Result of an embedding job.
+ */
+struct EmbeddingResult {
+    std::vector<float> embedding;    // Embedding vector
+    int                tokens_count; // Number of tokens processed
+    
+    /**
+     * @brief Default constructor.
+     */
+    EmbeddingResult() : tokens_count(0) {}
+};
+
+/**
  * @brief Parameters for a completion job.
  */
 struct CompletionParameters {
@@ -211,6 +241,13 @@ public:
      */
     virtual int submitChatCompletionsJob(const ChatCompletionParameters& params) = 0;
 
+    /**
+     * @brief Submits an embedding job.
+     * @param params Embedding parameters
+     * @return Job ID for tracking the submitted job
+     */
+    virtual int submitEmbeddingJob(const EmbeddingParameters& params) = 0;
+
     // Job control
     /**
      * @brief Stops a running job.
@@ -239,6 +276,14 @@ public:
      * @note This function returns any results currently available, even if the job is not finished.
      */
     virtual CompletionResult getJobResult(int job_id) = 0;
+
+    /**
+     * @brief Retrieves the embedding result of a job.
+     * @param job_id ID of the job
+     * @return Embedding result
+     * @note This function should only be called for embedding jobs
+     */
+    virtual EmbeddingResult getEmbeddingResult(int job_id) = 0;
 
     // Error handling
     /**

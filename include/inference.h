@@ -173,6 +173,7 @@ struct Job {
     // Generation results
     std::vector<int32_t>    generatedTokens;
     std::string             generatedText;
+    std::vector<float>      embedding;        // For embedding jobs
     
     // Job state
     bool                    isFinished      = false;
@@ -186,9 +187,9 @@ struct Job {
     // Atomic flags for thread-safe operations
     std::atomic<bool>       cancelRequested{false};
     std::atomic<bool>       session_load_attempted{false};
-    
-    // Job parameters
+      // Job parameters
     CompletionParameters    params;
+    EmbeddingParameters     params_embedding;  // For embedding jobs
     
     // Processing state
     bool                    isDecodingPrompt            = true;
@@ -230,6 +231,7 @@ class INFERENCE_API InferenceEngine : public IInferenceEngine {
 public:
     explicit InferenceEngine();    // Model management
     bool loadModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = -1);
+    bool loadEmbeddingModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = -1);
     bool unloadModel();
 
     // Job submission
@@ -238,14 +240,19 @@ public:
      * @param params The parameters for the completion job.
      * @return The ID of the submitted job.
      */
-    int submitCompletionsJob(const CompletionParameters& params);
-
-    /**
+    int submitCompletionsJob(const CompletionParameters& params);    /**
      * @brief Submits a chat completion job and returns the job ID.
      * @param params The parameters for the chat completion job.
      * @return The ID of the submitted job.
      */
     int submitChatCompletionsJob(const ChatCompletionParameters& params);
+
+    /**
+     * @brief Submits an embedding job and returns the job ID.
+     * @param params The parameters for the embedding job.
+     * @return The ID of the submitted job.
+     */
+    int submitEmbeddingJob(const EmbeddingParameters& params);
 
     // Job control
     /**
@@ -266,9 +273,7 @@ public:
      * @param job_id The ID of the job to check.
      * @return True if the job is finished, false otherwise.
      */
-    bool isJobFinished(int job_id);
-
-    /**
+    bool isJobFinished(int job_id);    /**
      * @brief Gets the current result of a job.
      * @param job_id The ID of the job to get the result for.
      * @return The result of the job.
@@ -276,13 +281,22 @@ public:
      */
     CompletionResult getJobResult(int job_id);
 
+    /**
+     * @brief Gets the result of an embedding job.
+     * @param job_id The ID of the embedding job to get the result for.
+     * @return The result of the embedding job.
+     */
+    EmbeddingResult getEmbeddingResult(int job_id);
+
     // Error handling
     /**
      * @brief Checks if a job has an error.
      * @param job_id The ID of the job to check.
      * @return True if the job has an error, false otherwise.
      */
-    bool hasJobError(int job_id);    /**
+    bool hasJobError(int job_id);    
+    
+    /**
      * @brief Gets the error message for a job.
      * @param job_id The ID of the job to get the error message for.
      * @return The error message for the job.

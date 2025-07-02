@@ -6,12 +6,14 @@ This guide provides comprehensive information for developers working on or exten
 
 1. [Getting Started](#getting-started)
 2. [Architecture Overview](#architecture-overview)
-3. [Adding New Routes](#adding-new-routes)
-4. [Adding New Models](#adding-new-models)
-5. [API Specification](#api-specification)
-6. [Development Workflow](#development-workflow)
-7. [Testing](#testing)
-8. [Debugging](#debugging)
+3. [Configuration Management](#configuration-management)
+4. [Monitoring and Metrics](#monitoring-and-metrics)
+5. [Adding New Routes](#adding-new-routes)
+6. [Adding New Models](#adding-new-models)
+7. [API Specification](#api-specification)
+8. [Development Workflow](#development-workflow)
+9. [Testing](#testing)
+10. [Debugging](#debugging)
 
 ## Getting Started
 
@@ -57,20 +59,30 @@ graph TD
     A --> D[external/]
     A --> E[include/]
     A --> F[src/]
-    A --> G[CMakeLists.txt]
-    A --> H[README.md]
+    A --> G[config.example.json]
+    A --> H[config.example.yaml]
+    A --> I[CMakeLists.txt]
+    A --> J[README.md]
     
     B --> B1[Build artifacts - generated]
-    C --> C1[Documentation]
+    C --> C1[ARCHITECTURE.md]
+    C --> C2[CONFIGURATION.md]
+    C --> C3[SYSTEM_MONITORING.md]
+    C --> C4[DEVELOPER_GUIDE.md]
+    C --> C5[API_SPECIFICATION.md]
+    
     D --> D1[curl/ - HTTP client library]
     D --> D2[llama.cpp/ - LLM inference engine]
     D --> D3[nlohmann/ - JSON library]
+    D --> D4[yaml-cpp/ - YAML parsing]
     
     E --> E1[kolosal/]
     E --> E2[inference.h]
     E --> E3[kolosal_server.hpp]
     E1 --> E11[models/ - Data models]
     E1 --> E12[routes/ - Route handlers]
+    E1 --> E13[completion_monitor.hpp]
+    E1 --> E14[node_manager.h]
     
     F --> F1[routes/ - Route implementations]
     F --> F2[main.cpp - Application entry point]
@@ -78,6 +90,10 @@ graph TD
     F --> F4[server_api.cpp - Server API wrapper]
     F --> F5[node_manager.cpp - Model management]
     F --> F6[inference.cpp - Inference engine implementation]
+    F --> F7[completion_monitor.cpp - Metrics tracking]
+    F --> F8[system_monitor.cpp - System metrics]
+    F --> F9[server_config.cpp - Configuration management]
+    F --> F10[download_utils.cpp - Model downloading]
     
     style A fill:#e1f5fe
     style B fill:#fff3e0
@@ -87,6 +103,8 @@ graph TD
     style F fill:#fce4ec
     style G fill:#e0f2f1
     style H fill:#e0f2f1
+    style I fill:#e0f2f1
+    style J fill:#e0f2f1
 ```
 
 ## Architecture Overview
@@ -153,6 +171,255 @@ HTTP Request → Server → Route → NodeManager → InferenceEngine → Respon
 - **Main Thread**: HTTP server and request routing
 - **Worker Threads**: Inference processing (one per engine)
 - **Background Threads**: Model loading/unloading, cleanup
+- **Monitoring Threads**: Metrics collection and aggregation
+
+## Configuration Management
+
+Kolosal Server supports flexible configuration through JSON and YAML files, providing control over server behavior, model loading, authentication, and monitoring.
+
+### Configuration Architecture
+
+#### Configuration Loading Flow
+```
+Application Start → ServerConfig::load() → Parse JSON/YAML → Validate → Apply Settings
+```
+
+#### Key Configuration Components
+
+1. **ServerConfig Class** (`src/server_config.cpp`)
+   - Centralized configuration management
+   - JSON/YAML parsing and validation
+   - Environment variable overrides
+   - Default value management
+
+2. **Configuration Sections**:
+   - **Server**: Port, host, connection limits, timeouts
+   - **Logging**: Log levels, file output, access logging
+   - **Authentication**: API keys, rate limiting, CORS
+   - **Models**: Preloaded models with loading parameters
+   - **Features**: Health checks, metrics, monitoring
+
+### Developer Configuration Workflow
+
+#### 1. Adding New Configuration Options
+
+**Step 1**: Add to configuration structures:
+```cpp
+// In server_config.hpp
+struct NewFeatureConfig {
+    bool enabled = true;
+    std::string setting = "default";
+    int timeout = 30;
+};
+
+struct ServerConfig {
+    // ...existing sections...
+    NewFeatureConfig new_feature;
+};
+```
+
+**Step 2**: Add JSON/YAML parsing:
+```cpp
+// In server_config.cpp
+void ServerConfig::parseFeatureConfig(const nlohmann::json& config) {
+    if (config.contains("new_feature")) {
+        auto& nf = config["new_feature"];
+        new_feature.enabled = nf.value("enabled", true);
+        new_feature.setting = nf.value("setting", "default");
+        new_feature.timeout = nf.value("timeout", 30);
+    }
+}
+```
+
+**Step 3**: Add validation:
+```cpp
+bool ServerConfig::validateNewFeature() const {
+    if (new_feature.timeout < 1 || new_feature.timeout > 300) {
+        return false;
+    }
+    return true;
+}
+```
+
+#### 2. Configuration Testing
+
+**Unit Tests**:
+```cpp
+TEST(ServerConfigTest, NewFeatureDefaults) {
+    ServerConfig config;
+    config.setDefaults();
+    
+    EXPECT_TRUE(config.new_feature.enabled);
+    EXPECT_EQ(config.new_feature.setting, "default");
+    EXPECT_EQ(config.new_feature.timeout, 30);
+}
+```
+
+**Integration Tests**:
+```cpp
+TEST(ServerConfigTest, LoadFromJSON) {
+    std::string json_config = R"({
+        "new_feature": {
+            "enabled": false,
+            "setting": "custom",
+            "timeout": 60
+        }
+    })";
+    
+    ServerConfig config;
+    EXPECT_TRUE(config.loadFromString(json_config));
+    EXPECT_FALSE(config.new_feature.enabled);
+}
+```
+
+### Configuration Best Practices
+
+1. **Always provide defaults** for backward compatibility
+2. **Validate configuration** before applying
+3. **Document new options** in `docs/CONFIGURATION.md`
+4. **Support both JSON and YAML** formats
+5. **Use environment variables** for deployment flexibility
+
+## Monitoring and Metrics
+
+The Kolosal Server includes comprehensive monitoring capabilities for both system resources and completion performance.
+
+### Monitoring Architecture
+
+#### Component Overview
+```
+Completion Request → CompletionMonitor → Metrics Storage → API Endpoints
+System Resources → SystemMonitor → Resource Collection → API Endpoints
+```
+
+#### Key Monitoring Components
+
+1. **CompletionMonitor** (`src/completion_monitor.cpp`)
+   - Singleton pattern for global metrics
+   - Thread-safe request tracking
+   - Per-engine performance statistics
+   - Real-time metrics calculation
+
+2. **SystemMonitor** (`src/system_monitor.cpp`)
+   - Cross-platform resource monitoring
+   - CPU, memory, and GPU utilization
+   - Health status aggregation
+
+### Developer Monitoring Workflow
+
+#### 1. Adding Completion Monitoring to Routes
+
+**Step 1**: Include completion monitor:
+```cpp
+#include "kolosal/completion_monitor.hpp"
+
+void YourRoute::handle(SocketType sock, const std::string& body) {
+    auto& monitor = CompletionMonitor::getInstance();
+    
+    // Parse request to get model info
+    std::string engine_id = request.model;
+    int input_tokens = request.calculateInputTokens();
+    
+    // Start monitoring
+    monitor.startRequest(engine_id, model_name, input_tokens);
+    
+    try {
+        // Process request...
+        auto result = processInference(request);
+        
+        // End monitoring with success
+        monitor.endRequest(engine_id, true, result.output_tokens, result.ttft_ms);
+    } catch (const std::exception& e) {
+        // End monitoring with failure
+        monitor.endRequest(engine_id, false, 0, 0);
+        throw;
+    }
+}
+```
+
+**Step 2**: Verify metrics collection:
+```cpp
+// Test that metrics are being collected
+TEST(YourRouteTest, MetricsCollection) {
+    auto& monitor = CompletionMonitor::getInstance();
+    
+    // Process test request
+    YourRoute route;
+    route.handle(mock_socket, test_request);
+    
+    // Verify metrics updated
+    auto metrics = monitor.getMetrics();
+    EXPECT_GT(metrics.summary.total_requests, 0);
+}
+```
+
+#### 2. Adding System Monitoring
+
+**Step 1**: Extend SystemMonitor for new metrics:
+```cpp
+// In system_monitor.hpp
+struct NewSystemMetric {
+    double value;
+    std::string unit;
+    std::chrono::system_clock::time_point timestamp;
+};
+
+class SystemMonitor {
+    // ...existing methods...
+    NewSystemMetric getNewMetric();
+};
+```
+
+**Step 2**: Implement collection logic:
+```cpp
+// In system_monitor.cpp
+NewSystemMetric SystemMonitor::getNewMetric() {
+    NewSystemMetric metric;
+    metric.value = collectNewMetricValue();
+    metric.unit = "units";
+    metric.timestamp = std::chrono::system_clock::now();
+    return metric;
+}
+```
+
+#### 3. Creating Monitoring API Endpoints
+
+**Step 1**: Create metrics route:
+```cpp
+class NewMetricsRoute : public IRoute {
+public:
+    bool match(const std::string& method, const std::string& path) override {
+        return method == "GET" && path == "/v1/new-metrics";
+    }
+    
+    void handle(SocketType sock, const std::string& body) override {
+        try {
+            SystemMonitor monitor;
+            auto metrics = monitor.getNewMetric();
+            
+            nlohmann::json response;
+            response["metric"] = {
+                {"value", metrics.value},
+                {"unit", metrics.unit},
+                {"timestamp", formatTimestamp(metrics.timestamp)}
+            };
+            
+            sendJsonResponse(sock, response);
+        } catch (const std::exception& e) {
+            sendErrorResponse(sock, 500, "Failed to collect metrics");
+        }
+    }
+};
+```
+
+### Monitoring Best Practices
+
+1. **Use singleton pattern** for global metrics collection
+2. **Ensure thread safety** with proper mutex usage
+3. **Handle monitoring failures gracefully** - don't break main functionality
+4. **Provide multiple API endpoints** for different metric types
+5. **Include timestamps** for all metrics
+6. **Test monitoring components** separately from business logic
 
 ## Adding New Routes
 

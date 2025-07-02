@@ -28,9 +28,21 @@ struct StreamChunk {
 inline std::string get_status_text(int status_code) {
     switch (status_code) {
     case 200: return "OK";
+    case 201: return "Created";
+    case 204: return "No Content";
     case 400: return "Bad Request";
+    case 401: return "Unauthorized";
+    case 403: return "Forbidden";
     case 404: return "Not Found";
     case 405: return "Method Not Allowed";
+    case 409: return "Conflict";
+    case 413: return "Payload Too Large";
+    case 422: return "Unprocessable Entity";
+    case 429: return "Too Many Requests";
+    case 500: return "Internal Server Error";
+    case 501: return "Not Implemented";
+    case 502: return "Bad Gateway";
+    case 503: return "Service Unavailable";
     default:  return "Error";
     }
 }
@@ -72,6 +84,13 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
     // Default headers for streaming
     headerStream << "Transfer-Encoding: chunked\r\n";
     headerStream << "Connection: keep-alive\r\n";
+    headerStream << "Cache-Control: no-cache\r\n";
+    headerStream << "Access-Control-Allow-Origin: *\r\n";
+    headerStream << "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n";
+    headerStream << "Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-API-Key\r\n";
+    headerStream << "X-Content-Type-Options: nosniff\r\n";
+    headerStream << "X-Frame-Options: DENY\r\n";
+    headerStream << "X-XSS-Protection: 1; mode=block\r\n";
 
     // Add SSE headers if not present in custom headers
     bool hasContentType = false;
@@ -79,14 +98,15 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
     // Add all custom headers
     for (const auto& [name, value] : headers) {
         headerStream << name << ": " << value << "\r\n";
-        if (name == "Content-Type") {
+        if (name == "Content-Type" || name == "content-type") {
             hasContentType = true;
         }
     }
 
-    // Default to application/json if no Content-Type provided
+    // Default to text/plain for streaming if no Content-Type provided
+    // This is important for OpenAI API compatibility with streaming responses
     if (!hasContentType) {
-        headerStream << "Content-Type: application/json\r\n";
+        headerStream << "Content-Type: text/plain; charset=utf-8\r\n";
     }
 
     // End of headers

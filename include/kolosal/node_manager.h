@@ -1,6 +1,7 @@
 #ifndef KOLOSAL_NODE_MANAGER_H
 #define KOLOSAL_NODE_MANAGER_H
 
+#include "export.hpp"
 #include "inference.h" // Assuming InferenceEngine is defined here
 #include <vector>
 #include <memory>
@@ -21,7 +22,7 @@ namespace kolosal {
  * to multiple inference engines. This allows for managing different models
  * or configurations simultaneously.
  */
-class NodeManager {
+class KOLOSAL_SERVER_API NodeManager {
 public:
     NodeManager(std::chrono::seconds idleTimeout = std::chrono::seconds(300)); // Added idleTimeout parameter
     ~NodeManager();
@@ -32,6 +33,19 @@ public:
     NodeManager& operator=(NodeManager&&) = delete;
 
     /**
+     * @brief Get the singleton instance of NodeManager.
+     * 
+     * @return Pointer to the singleton instance.
+     */
+    static NodeManager* getInstance();
+
+    /**
+     * @brief Initialize the singleton instance with specific idle timeout.
+     * Should be called once at startup.
+     * 
+     * @param idleTimeout Timeout for idle model unloading.
+     */
+    static void initialize(std::chrono::seconds idleTimeout = std::chrono::seconds(300));/**
      * @brief Loads a new inference engine with the given model and parameters.
      * 
      * @param engineId A unique identifier for this engine.
@@ -41,6 +55,39 @@ public:
      * @return True if the engine was loaded successfully, false otherwise.
      */
     bool addEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
+
+    /**
+     * @brief Loads a new embedding engine with the given model and parameters.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the embedding model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the engine was loaded successfully, false otherwise.
+     */
+    bool addEmbeddingEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);    /**
+     * @brief Registers a model for lazy loading without immediately loading it.
+     * The model will be validated but not loaded until first access.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the model was validated and registered successfully, false otherwise.
+     */
+    bool registerEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
+
+    /**
+     * @brief Registers an embedding model for lazy loading without immediately loading it.
+     * The model will be validated but not loaded until first access.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the embedding model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the model was validated and registered successfully, false otherwise.
+     */
+    bool registerEmbeddingEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0);
 
     /**
      * @brief Retrieves a pointer to an inference engine by its ID.
@@ -58,29 +105,52 @@ public:
      * @param engineId The ID of the engine to remove.
      * @return True if the engine was removed successfully, false otherwise.
      */
-    bool removeEngine(const std::string& engineId);
-
-    /**
+    bool removeEngine(const std::string& engineId);    /**
      * @brief Lists the IDs of all currently managed engines.
      * 
      * @return A vector of strings containing the engine IDs.
      */
     std::vector<std::string> listEngineIds() const;
 
+    /**
+     * @brief Gets the list of available model IDs (alias for listEngineIds for OpenAI compatibility).
+     * 
+     * @return A vector of strings containing the available model IDs.
+     */
+    std::vector<std::string> getAvailableModels() const;
+
+    /**
+     * @brief Validates if a model file exists without loading it.
+     * 
+     * @param modelPath Path to the model file (local or URL).
+     * @return True if the model file exists and is accessible, false otherwise.
+     */
+    bool validateModelPath(const std::string& modelPath);
+
 private:
+    enum class ModelType {
+        LLM,
+        EMBEDDING
+    };
+
     struct EngineRecord {
         std::shared_ptr<InferenceEngine> engine;
         std::string modelPath;                 // Metadata: Path to the model file
         LoadingParameters loadParams;          // Metadata: Parameters used to load the model
         int mainGpuId;                         // Metadata: Main GPU ID for the engine
+        ModelType modelType;                   // Metadata: Type of model (LLM or Embedding)
         std::chrono::steady_clock::time_point lastActivityTime; // For autoscaling
         bool isLoaded;                         // Tracks if the model is currently loaded
 
-        EngineRecord() : mainGpuId(0), lastActivityTime(std::chrono::steady_clock::now()), isLoaded(false) {}
+        EngineRecord() : mainGpuId(0), modelType(ModelType::LLM), lastActivityTime(std::chrono::steady_clock::now()), isLoaded(false) {}
     };
 
     std::unordered_map<std::string, EngineRecord> engines_;
     mutable std::mutex mutex_; // Protects access to the engines_ map
+
+    // Singleton instance
+    static std::unique_ptr<NodeManager> instance_;
+    static std::mutex instanceMutex_;
 
     // Autoscaling members
     std::thread autoscalingThread_;
@@ -93,6 +163,14 @@ private:
      * Periodically checks for idle engines and unloads them.
      */
     void autoscalingLoop();
+
+    /**
+     * @brief Validates if a model file exists (either local path or URL).
+     * 
+     * @param modelPath Path to the model file (local or URL).
+     * @return True if the model file exists and is accessible, false otherwise.
+     */
+    bool validateModelFile(const std::string& modelPath);
 };
 
 } // namespace kolosal

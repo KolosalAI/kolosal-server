@@ -21,7 +21,7 @@ namespace kolosal
         std::regex enginePattern(R"(^/(v1/)?engines/([^/]+)$)");
         return (method == "DELETE" && std::regex_match(path, enginePattern));
     }
-    
+
     void RemoveEngineRoute::handle(SocketType sock, const std::string &body)
     {
         try
