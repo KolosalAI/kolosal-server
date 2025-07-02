@@ -299,16 +299,16 @@ AgentOrchestrator::WorkflowResult AgentOrchestrator::execute_workflow_internal(c
             
             // Collect results from parallel execution
             for (auto& future : futures) {
-                auto [step_id, step_result] = future.get();
-                completed_steps[step_id] = step_result;
-                result.step_results[step_id] = step_result;
+                auto step_pair = future.get();
+                completed_steps[step_pair.first] = step_pair.second;
+                result.step_results[step_pair.first] = step_pair.second;
             }
             
             // Check if any step failed
-            for (const auto& [step_id, step_result] : completed_steps) {
-                if (!step_result.success) {
+            for (const auto& step_pair : completed_steps) {
+                if (!step_pair.second.success) {
                     result.success = false;
-                    result.error_message = "Step " + step_id + " failed: " + step_result.error_message;
+                    result.error_message = "Step " + step_pair.first + " failed: " + step_pair.second.error_message;
                     break;
                 }
             }

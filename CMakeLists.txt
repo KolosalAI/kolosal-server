@@ -15,6 +15,7 @@ option(USE_VULKAN "Compile with VULKAN support" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
 option(ENABLE_AGENTS "Enable multi-agent system" ON)
+option(ENABLE_CLI "Enable CLI interface" ON)
 
 # Define include directories.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -40,6 +41,15 @@ set(SOURCES
     src/node_manager.cpp
     src/inference.cpp
 )
+
+# Add CLI interface sources if enabled
+if(ENABLE_CLI)
+    list(APPEND SOURCES
+        src/cli_interface.cpp
+        src/cli_advanced.cpp
+    )
+    message(STATUS "CLI interface enabled - adding CLI sources")
+endif()
 
 # Add agent system sources if enabled
 if(ENABLE_AGENTS)
@@ -232,6 +242,7 @@ target_compile_definitions(kolosal_server PUBLIC
   $<$<BOOL:${USE_MPI}>:USE_MPI>
   $<$<BOOL:${DEBUG}>:DEBUG>
   $<$<BOOL:${ENABLE_AGENTS}>:KOLOSAL_AGENTS_ENABLED>
+  $<$<BOOL:${ENABLE_CLI}>:KOLOSAL_CLI_ENABLED>
 )
 
 # Add llama.cpp subdirectory

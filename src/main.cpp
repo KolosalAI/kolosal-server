@@ -6,6 +6,10 @@
 #include <atomic>
 #include "kolosal_server.hpp"
 
+#ifdef KOLOSAL_CLI_ENABLED
+#include "kolosal/cli_interface.hpp"
+#endif
+
 using namespace kolosal;
 
 // Global flag for graceful shutdown
@@ -21,6 +25,9 @@ void print_usage(const char* program_name) {
     std::cout << "Usage: " << program_name << " [OPTIONS]\n"
               << "Options:\n"
               << "  -p, --port PORT    Server port (default: 8080)\n"
+#ifdef KOLOSAL_CLI_ENABLED
+              << "  -c, --cli          Start in CLI mode instead of server mode\n"
+#endif
               << "  -h, --help         Show this help message\n"
               << "  -v, --version      Show version information\n"
               << std::endl;
@@ -34,6 +41,7 @@ void print_version() {
 
 int main(int argc, char* argv[]) {
     std::string port = "8080";
+    bool cli_mode = false;
     
     // Parse command line arguments
     for (int i = 1; i < argc; i++) {
@@ -47,6 +55,11 @@ int main(int argc, char* argv[]) {
             print_version();
             return 0;
         }
+#ifdef KOLOSAL_CLI_ENABLED
+        else if (arg == "-c" || arg == "--cli") {
+            cli_mode = true;
+        }
+#endif
         else if ((arg == "-p" || arg == "--port") && i + 1 < argc) {
             port = argv[++i];
         }
@@ -75,6 +88,32 @@ int main(int argc, char* argv[]) {
 #ifdef _WIN32
     std::signal(SIGBREAK, signal_handler);
 #endif
+
+    // Check if CLI mode is requested
+    if (cli_mode) {
+#ifdef KOLOSAL_CLI_ENABLED
+        std::cout << "Starting Kolosal CLI..." << std::endl;
+        
+        // Initialize the server first for CLI to access
+        ServerAPI& server = ServerAPI::instance();
+        if (!server.init(port)) {
+            std::cerr << "Failed to initialize server for CLI mode on port " << port << std::endl;
+            return 1;
+        }
+        
+        // Start CLI interface
+        kolosal::cli::CLIInterface cli;
+        cli.start();
+        
+        // Cleanup
+        server.shutdown();
+        return 0;
+#else
+        std::cout << "CLI mode is not enabled in this build." << std::endl;
+        std::cout << "Please recompile with -DENABLE_CLI=ON to enable CLI support." << std::endl;
+        return 1;
+#endif
+    }
     
     std::cout << "Starting Kolosal Server v1.0.0..." << std::endl;
     std::cout << "Port: " << port << std::endl;
