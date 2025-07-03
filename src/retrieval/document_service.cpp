@@ -1,4 +1,5 @@
 #include "kolosal/retrieval/document_service.hpp"
+#include "kolosal/retrieval/remove_document_types.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -8,6 +9,7 @@
 #include <sstream>
 #include <iomanip>
 #include <random>
+#include <set>
 
 namespace kolosal
 {
@@ -271,9 +273,7 @@ std::future<AddDocumentsResponse> DocumentService::addDocuments(const AddDocumen
                 throw std::runtime_error("Qdrant is disabled in configuration");
             }
             
-            std::string collection_name = request.collection_name.empty() 
-                ? pImpl->config_.qdrant.collectionName 
-                : request.collection_name;
+            std::string collection_name = "documents"; // Always use "documents" collection
             
             response.collection_name = collection_name;
             
@@ -423,9 +423,7 @@ std::future<RetrieveResponse> DocumentService::retrieveDocuments(const RetrieveR
                 throw std::runtime_error("Qdrant is disabled in configuration");
             }
             
-            std::string collection_name = request.collection_name.empty() 
-                ? pImpl->config_.qdrant.collectionName 
-                : request.collection_name;
+            std::string collection_name = "documents"; // Always use "documents" collection
             
             response.query = request.query;
             response.k = request.k;
@@ -502,6 +500,144 @@ std::future<RetrieveResponse> DocumentService::retrieveDocuments(const RetrieveR
         {
             ServerLogger::logError("Error retrieving documents: %s", ex.what());
             throw;
+        }
+    });
+}
+
+std::future<RemoveDocumentsResponse> DocumentService::removeDocuments(const RemoveDocumentsRequest& request)
+{
+    return std::async(std::launch::async, [this, request]() -> RemoveDocumentsResponse {
+        RemoveDocumentsResponse response;
+        
+        try
+        {
+            if (!pImpl->initialized_)
+            {
+                throw std::runtime_error("DocumentService not initialized");
+            }
+            
+            if (!pImpl->config_.qdrant.enabled)
+            {
+                throw std::runtime_error("Qdrant is disabled in configuration");
+            }
+            
+            std::string collection_name = "documents"; // Always use "documents" collection
+            
+            response.collection_name = collection_name;
+            
+            ServerLogger::logInfo("Removing %zu documents from collection '%s'", 
+                                  request.ids.size(), collection_name.c_str());
+            
+            // Check if collection exists
+            auto exists_result = pImpl->qdrant_client_->collectionExists(collection_name).get();
+            if (!exists_result.success)
+            {
+                // Collection doesn't exist, all IDs are "not found"
+                ServerLogger::logWarning("Collection '%s' does not exist, marking all documents as not found", 
+                                         collection_name.c_str());
+                for (const auto& id : request.ids)
+                {
+                    response.addNotFound(id);
+                }
+                return response;
+            }
+            
+            // First, check which documents exist by retrieving them
+            ServerLogger::logDebug("Checking existence of %zu documents before deletion", request.ids.size());
+            auto get_result = pImpl->qdrant_client_->getPoints(collection_name, request.ids).get();
+            
+            std::vector<std::string> existing_ids;
+            std::vector<std::string> not_found_ids;
+            
+            if (get_result.success && get_result.response_data.contains("result"))
+            {
+                auto results = get_result.response_data["result"];
+                if (results.is_array())
+                {
+                    // Track which IDs were found
+                    std::set<std::string> found_ids;
+                    for (const auto& result_item : results)
+                    {
+                        if (result_item.contains("id") && !result_item["id"].is_null())
+                        {
+                            std::string found_id = result_item["id"].get<std::string>();
+                            found_ids.insert(found_id);
+                            existing_ids.push_back(found_id);
+                        }
+                    }
+                    
+                    // Identify which IDs were not found
+                    for (const auto& requested_id : request.ids)
+                    {
+                        if (found_ids.find(requested_id) == found_ids.end())
+                        {
+                            not_found_ids.push_back(requested_id);
+                        }
+                    }
+                }
+            }
+            else
+            {
+                ServerLogger::logWarning("Failed to check document existence: %s", get_result.error_message.c_str());
+                // If we can't check existence, treat all as not found
+                not_found_ids = request.ids;
+            }
+            
+            // Mark not found documents
+            for (const auto& id : not_found_ids)
+            {
+                response.addNotFound(id);
+            }
+            
+            ServerLogger::logInfo("Found %zu existing documents, %zu not found", 
+                                  existing_ids.size(), not_found_ids.size());
+            
+            // Only attempt to delete existing documents
+            if (!existing_ids.empty())
+            {
+                auto delete_result = pImpl->qdrant_client_->deletePoints(collection_name, existing_ids).get();
+                
+                if (delete_result.success)
+                {
+                    // Mark all existing documents as successfully removed
+                    for (const auto& id : existing_ids)
+                    {
+                        response.addRemoved(id);
+                    }
+                    
+                    ServerLogger::logInfo("Successfully deleted %zu document IDs from collection '%s'", 
+                                          existing_ids.size(), collection_name.c_str());
+                }
+                else
+                {
+                    // Delete operation failed, mark all existing documents as failed
+                    ServerLogger::logError("Failed to delete points from Qdrant: %s", 
+                                           delete_result.error_message.c_str());
+                    
+                    for (const auto& id : existing_ids)
+                    {
+                        response.addFailed(id);
+                    }
+                }
+            }
+            
+            return response;
+        }
+        catch (const std::exception& ex)
+        {
+            ServerLogger::logError("Error in removeDocuments: %s", ex.what());
+            
+            // If we had some successes but failed at the end, still return partial results
+            if (response.removed_count == 0 && response.not_found_count == 0)
+            {
+                // Mark all as failed if no operation succeeded
+                for (const auto& id : request.ids)
+                {
+                    response.addFailed(id);
+                }
+            }
+            
+            return response;
         }
     });
 }

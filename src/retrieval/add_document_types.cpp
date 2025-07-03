@@ -64,10 +64,8 @@ void AddDocumentsRequest::from_json(const nlohmann::json& j)
         documents.push_back(doc);
     }
     
-    if (j.contains("collection_name") && j["collection_name"].is_string())
-    {
-        collection_name = j["collection_name"];
-    }
+    // Collection name is always "documents" - ignore any provided collection_name
+    collection_name = "documents";
 }
 
 bool AddDocumentsRequest::validate() const

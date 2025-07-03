@@ -62,8 +62,10 @@ set(SOURCES
     src/models/embedding_response_model.cpp
     src/retrieval/add_document_types.cpp
     src/retrieval/retrieve_types.cpp
+    src/retrieval/remove_document_types.cpp
     src/qdrant_client.cpp
     src/retrieval/document_service.cpp
+    src/retrieval/remove_documents_route.cpp
     src/retrieval/parse_pdf.cpp
     src/retrieval/parse_docx.cpp
     # Minizip sources for DOCX parsing

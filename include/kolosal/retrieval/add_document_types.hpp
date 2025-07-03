@@ -44,12 +44,12 @@ struct Document
 /**
  * @brief Request data type for add_documents endpoint
  * 
- * Contains the documents to be added and optional collection specification.
+ * Contains the documents to be added. Collection name is always "documents".
  */
 struct KOLOSAL_SERVER_API AddDocumentsRequest
 {
     std::vector<Document> documents;
-    std::string collection_name = ""; // Optional, uses default if empty
+    std::string collection_name = "documents"; // Always set to "documents"
     
     /**
      * @brief Populates request from JSON

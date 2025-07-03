@@ -357,6 +357,18 @@ std::future<QdrantResult> QdrantClient::deletePoints(
     return pImpl->makeRequest("POST", "/collections/" + collection_name + "/points/delete", body.dump());
 }
 
+std::future<QdrantResult> QdrantClient::getPoints(
+    const std::string& collection_name,
+    const std::vector<std::string>& point_ids)
+{
+    nlohmann::json body;
+    body["ids"] = point_ids;
+    body["with_payload"] = true;
+    body["with_vector"] = false; // We don't need the vector data for existence check
+    
+    return pImpl->makeRequest("POST", "/collections/" + collection_name + "/points", body.dump());
+}
+
 std::future<QdrantResult> QdrantClient::search(
     const std::string& collection_name,
     const std::vector<float>& query_vector,

@@ -20,6 +20,7 @@
 #include "kolosal/routes/parse_pdf_route.hpp"
 #include "kolosal/routes/parse_docx_route.hpp"
 #include "kolosal/routes/add_documents_route.hpp"
+#include "kolosal/retrieval/remove_documents_route.hpp"
 #include "kolosal/routes/retrieve_route.hpp"
 #include "kolosal/routes/internet_search_route.hpp"
 #include "kolosal/download_manager.hpp"
@@ -85,6 +86,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
             pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());            
             pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
+            pImpl->server->addRoute(std::make_unique<kolosal::retrieval::RemoveDocumentsRoute>());
             pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
 
             // Register metrics routes
