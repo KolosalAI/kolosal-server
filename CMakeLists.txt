@@ -1,6 +1,12 @@
 cmake_minimum_required(VERSION 3.14)
 project(KolosalServer VERSION 1.0.0 LANGUAGES CXX)
 
+# Include UCM for runtime library management
+include(${CMAKE_SOURCE_DIR}/cmake/ucm.cmake)
+
+# Static link the runtime libraries
+ucm_set_runtime(STATIC)
+
 # Use C++17 for this project (required for std::filesystem)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -17,6 +23,9 @@ endif()
 if (MINGW)
     add_compile_definitions(_WIN32_WINNT=0x602)
 endif()
+
+# Print UCM flags for debugging
+ucm_print_flags()
 
 # Options for inference engine
 option(USE_CUDA   "Compile with CUDA support" OFF)
@@ -44,6 +53,8 @@ set(SOURCES
     src/enhanced_gpu_monitor.cpp
     src/routes/chat_completion_route.cpp
     src/routes/completion_route.cpp
+    src/routes/inference_completion_route.cpp
+    src/routes/inference_chat_completion_route.cpp
     src/routes/add_engine_route.cpp
     src/routes/list_engines_route.cpp
     src/routes/remove_engine_route.cpp

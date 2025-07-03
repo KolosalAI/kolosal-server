@@ -847,6 +847,23 @@ namespace
 			const std::string token_str = tokenizer->decode(id);
 			{
 				std::lock_guard<std::mutex> jobLock(job->mtx);
+				
+				// Record first token timing if this is the first generated token
+				if (job->generatedTokens.empty()) {
+					job->first_token_time = std::chrono::steady_clock::now();
+					job->first_token_generated = true;
+					
+					// Calculate TTFT in milliseconds
+					auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+						job->first_token_time - job->start_time
+					);
+					job->ttft = static_cast<float>(duration.count()) / 1000.0f;
+					
+#ifdef DEBUG
+					std::cout << "[INFERENCE] First token generated. TTFT: " << job->ttft << " ms" << std::endl;
+#endif
+				}
+				
 				job->generatedTokens.push_back(id);
 				job->generatedText += token_str;
 				job->tps = 1e3 / data.t_eval_ms * data.n_eval;
@@ -873,6 +890,22 @@ namespace
 			const auto data = llama_perf_context(context);
 			const std::string token_str = tokenizer->decode(id);
 			{
+				// Record first token timing if this is the first generated token
+				if (job->generatedTokens.empty()) {
+					job->first_token_time = std::chrono::steady_clock::now();
+					job->first_token_generated = true;
+					
+					// Calculate TTFT in milliseconds
+					auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
+						job->first_token_time - job->start_time
+					);
+					job->ttft = static_cast<float>(duration.count()) / 1000.0f;
+					
+#ifdef DEBUG
+					std::cout << "[INFERENCE] First token generated. TTFT: " << job->ttft << " ms" << std::endl;
+#endif
+				}
+				
 				job->generatedTokens.push_back(id);
 				job->generatedText += token_str;
 				job->tps = 1e3 / data.t_eval_ms * data.n_eval;
@@ -1206,6 +1239,7 @@ int InferenceEngine::Impl::submitCompletionsJob(const CompletionParameters& para
 	auto job = std::make_shared<Job>();
 	job->jobId = jobId;
 	job->seqId = params.seqId;
+	job->start_time = std::chrono::steady_clock::now(); // Record start time for TTFT calculation
 
 	// Asynchronously execute the job using thread pool
 	try {
@@ -1241,6 +1275,7 @@ int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParamete
 	auto job = std::make_shared<Job>();
 	job->jobId = jobId;
 	job->seqId = params.seqId;
+	job->start_time = std::chrono::steady_clock::now(); // Record start time for TTFT calculation
 
 #ifdef DEBUG
 	std::cout << "[INFERENCE] Submitting chat completions job to queue" << std::endl;
@@ -1339,6 +1374,7 @@ CompletionResult InferenceEngine::Impl::getJobResult(int job_id)
 			result.tokens = {};
 			result.text = "";
 			result.tps = 0.0F;
+			result.ttft = 0.0F;
 			return result;
 		}
 		job = it->second;
@@ -1349,6 +1385,7 @@ CompletionResult InferenceEngine::Impl::getJobResult(int job_id)
 	result.tokens = job->generatedTokens;
 	result.text = job->generatedText;
 	result.tps = job->tps;
+	result.ttft = job->ttft;
 	return result;
 }
 

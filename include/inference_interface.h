@@ -127,11 +127,12 @@ struct CompletionResult {
     std::vector<int32_t> tokens;    // Generated token IDs
     std::string          text;      // Generated text
     float                tps;       // Tokens per second
+    float                ttft;      // Time to first token (milliseconds)
     
     /**
      * @brief Default constructor.
      */
-    CompletionResult() : tps(0.0f) {}
+    CompletionResult() : tps(0.0f), ttft(0.0f) {}
 };
 
 /**

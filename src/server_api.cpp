@@ -2,6 +2,8 @@
 #include "kolosal/server.hpp"
 #include "kolosal/routes/chat_completion_route.hpp"
 #include "kolosal/routes/completion_route.hpp"
+#include "kolosal/routes/inference_completion_route.hpp"
+#include "kolosal/routes/inference_chat_completion_route.hpp"
 #include "kolosal/routes/add_engine_route.hpp"
 #include "kolosal/routes/list_engines_route.hpp"
 #include "kolosal/routes/remove_engine_route.hpp"
@@ -65,6 +67,8 @@ namespace kolosal
             ServerLogger::logInfo("Registering routes");
             pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
+            pImpl->server->addRoute(std::make_unique<InferenceCompletionRoute>());
+            pImpl->server->addRoute(std::make_unique<InferenceChatCompletionRoute>());
             pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());
             pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());
