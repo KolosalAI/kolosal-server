@@ -361,12 +361,12 @@ void AutoSetupManager::setup_default_engine_configs() {
     EngineConfig qwen_config;
     qwen_config.engine_id = "default";
     qwen_config.model_path = "downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf";
-    qwen_config.download_url = "https://huggingface.co/QuantFactory/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/Qwen2.5-0.5B-Instruct.Q4_K_M.gguf";
+    qwen_config.download_url = "";  // Disable auto-download
     qwen_config.n_ctx = 4096;
     qwen_config.n_gpu_layers = 0;
     qwen_config.n_batch = 512;
     qwen_config.n_threads = 4;
-    qwen_config.auto_download = true;
+    qwen_config.auto_download = false;  // Disable auto-download
     
     default_engine_configs_.push_back(qwen_config);
     

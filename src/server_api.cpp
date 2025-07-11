@@ -181,11 +181,15 @@ namespace kolosal
 
             // Perform automatic setup after all systems are initialized
             ServerLogger::logInfo("Performing automatic server setup...");
+            // Temporarily disable auto-setup to fix hanging issue
+            /*
             if (pImpl->autoSetupManager->perform_auto_setup()) {
                 ServerLogger::logInfo("✅ Automatic setup completed successfully!");
             } else {
                 ServerLogger::logWarning("⚠️  Automatic setup completed with some issues");
             }
+            */
+            ServerLogger::logInfo("Auto-setup disabled - server will start without automatic model loading");
 
             // Start server in a background thread
             std::thread([this]()
