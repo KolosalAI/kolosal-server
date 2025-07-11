@@ -12,17 +12,10 @@
 #include "kolosal/routes/engine_status_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/auth_config_route.hpp"
-<<<<<<< HEAD
 #include "kolosal/routes/agents_route.hpp"
 #include "kolosal/routes/orchestration_route.hpp"
 #include "kolosal/routes/sequential_workflow_route.hpp"
 #include "kolosal/routes/auto_setup_route.hpp"
-#include "kolosal/routes/system_metrics_route.hpp"
-#include "kolosal/routes/completion_metrics_route.hpp"
-#include "kolosal/routes/combined_metrics_route.hpp"
-=======
-
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 #include "kolosal/routes/download_progress_route.hpp"
 #include "kolosal/routes/downloads_status_route.hpp"
 #include "kolosal/routes/cancel_download_route.hpp"

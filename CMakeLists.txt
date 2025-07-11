@@ -33,7 +33,7 @@ option(USE_VULKAN "Compile with VULKAN support" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
 option(ENABLE_AGENTS "Enable multi-agent system" ON)
-option(ENABLE_CLI "Enable CLI interface" ON)
+option(ENABLE_CLI "Enable CLI interface" OFF)
 option(USE_CPPUPROFILE_GPU "Enable cppuprofile GPU monitoring" ON)
 
 # Define include directories.
@@ -69,9 +69,10 @@ set(SOURCES
     src/routes/engine_status_route.cpp
     src/routes/health_status_route.cpp
     src/routes/auth_config_route.cpp
-    src/routes/system_metrics_route.cpp
-    src/routes/completion_metrics_route.cpp
-    src/routes/combined_metrics_route.cpp
+    # Metrics routes are not yet implemented - commented out until available
+    # src/routes/system_metrics_route.cpp
+    # src/routes/completion_metrics_route.cpp
+    # src/routes/combined_metrics_route.cpp
     src/routes/download_progress_route.cpp
     src/routes/downloads_status_route.cpp
     src/routes/cancel_download_route.cpp
@@ -96,20 +97,16 @@ set(SOURCES
     src/retrieval/parse_docx.cpp
     src/retrieval/parse_pdf.cpp
     
-    src/metrics_converter.cpp
+    # src/metrics_converter.cpp - not yet implemented
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
     src/auth/auth_middleware.cpp
     src/node_manager.cpp
-    src/inference.cpp
+    # src/inference.cpp - handled by inference subdirectory
     src/models/embedding_request_model.cpp
     src/models/embedding_response_model.cpp
     
-    src/auth/rate_limiter.cpp
-    src/auth/cors_handler.cpp
-    src/auth/auth_middleware.cpp
-    
-    # src/completion_monitor.cpp
+    # src/completion_monitor.cpp - commented out
     
     external/pugixml/src/pugixml.cpp
     # Minizip sources for DOCX parsing
@@ -414,77 +411,37 @@ if(ENABLE_AGENTS)
     target_compile_definitions(kolosal_server PRIVATE KOLOSAL_AGENTS_ENABLED)
 endif()
 
-# Find and setup yaml-cpp
-set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
-if(NOT EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
-  message(FATAL_ERROR "yaml-cpp not found at ${YAML_CPP_PATH}. Please clone it or adjust YAML_CPP_PATH.")
-endif()
-
-# Configure yaml-cpp options
-set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
-set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
-set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
-set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static library" FORCE)
-
-# Add yaml-cpp subdirectory
-add_subdirectory(${YAML_CPP_PATH})
+# yaml-cpp is configured in the agent system section above when ENABLE_AGENTS is ON
+# This section is removed to avoid duplicate target creation
 
 # Build the inference engine as a subdirectory
 # This will create the llama-<cpu/cuda/vulkan> shared library
 # All llama.cpp, CUDA, Vulkan, and MPI dependencies are handled by the inference library
 add_subdirectory(inference)
 
-# Configure MuPDF for the main server
-set(MUPDF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf")
-target_include_directories(kolosal_server PRIVATE 
-    ${MUPDF_PATH}/include
-    ${MUPDF_PATH}/thirdparty/zlib/contrib/minizip
-    ${MUPDF_PATH}/thirdparty/zlib
-)
+# MuPDF configuration moved to later in the file to avoid duplication
 
-# Force Release build to match MuPDF (prebuilt Release library)
-if(WIN32 AND MSVC)
-    # MuPDF is only available as Release build, so force Release mode
-    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
-    set(CMAKE_CONFIGURATION_TYPES "Release" CACHE STRING "" FORCE)
-    message(STATUS "Forcing Release build to match MuPDF prebuilt library")
-endif()
-
-# Build MuPDF if it doesn't exist
-if(WIN32)
-    set(MUPDF_LIB_DIR "${MUPDF_PATH}/platform/win32/x64/Release")
-    set(MUPDF_LIBS "${MUPDF_LIB_DIR}/libmupdf.lib" "${MUPDF_LIB_DIR}/libthirdparty.lib")
-    
-    # Check if MuPDF libraries exist, if not build them
-    set(MUPDF_MISSING FALSE)
-    foreach(lib ${MUPDF_LIBS})
-        if(NOT EXISTS "${lib}")
-            set(MUPDF_MISSING TRUE)
-            break()
+# yaml-cpp is configured above when ENABLE_AGENTS is ON
+# Only add yaml-cpp if agents are disabled and it doesn't exist
+if(NOT ENABLE_AGENTS AND NOT TARGET yaml-cpp)
+    message(STATUS "Agents disabled - setting up yaml-cpp for basic functionality...")
+    set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
+    if(EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
+        # Configure yaml-cpp options
+        set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
+        set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
+        set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
+        set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static" FORCE)
+        
+        add_subdirectory(${YAML_CPP_PATH} yaml-cpp EXCLUDE_FROM_ALL)
+        
+        # Ensure yaml-cpp is built with -fPIC if needed
+        if(CMAKE_POSITION_INDEPENDENT_CODE)
+            set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
+            message(STATUS "Applied -fPIC to yaml-cpp static library")
         endif()
-    endforeach()
-    
-    if(MUPDF_MISSING)
-        # Add custom target to build MuPDF using devenv (Visual Studio)
-        # devenv can automatically retarget projects to the current VS version
-        add_custom_target(mupdf_build
-            COMMAND devenv mupdf.sln /upgrade
-            COMMAND devenv mupdf.sln /build "Release|x64" /project libmupdf
-            COMMAND devenv mupdf.sln /build "Release|x64" /project libthirdparty
-            WORKING_DIRECTORY ${MUPDF_PATH}/platform/win32
-            COMMENT "Building MuPDF libraries using devenv with auto-upgrade"
-        )
-        add_dependencies(kolosal_server mupdf_build)
-    endif()
-endif()
-
-# Only add yaml-cpp if it hasn't been added by the inference subdirectory
-if(NOT TARGET yaml-cpp)
-    add_subdirectory(external/yaml-cpp EXCLUDE_FROM_ALL)
-    # Ensure yaml-cpp is built with -fPIC if needed
-    if(CMAKE_POSITION_INDEPENDENT_CODE)
-        set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        message(STATUS "Applied -fPIC to yaml-cpp static library")
+    else()
+        message(WARNING "yaml-cpp not found at ${YAML_CPP_PATH}. Some features may not work.")
     endif()
 endif()
 
@@ -588,8 +545,10 @@ target_compile_definitions(kolosal_server PUBLIC
 # set(LLAMA_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
 # add_subdirectory(${LLAMA_CPP_PATH})
 
-# Only add yaml-cpp if it hasn't been added by llama.cpp
+# yaml-cpp is already configured above - don't add it again
+# Only add yaml-cpp if it hasn't been added by either agent system or inference subdirectory
 if(NOT TARGET yaml-cpp)
+    message(STATUS "yaml-cpp not found as target, adding from external directory...")
     add_subdirectory(external/yaml-cpp EXCLUDE_FROM_ALL)
 endif()
 

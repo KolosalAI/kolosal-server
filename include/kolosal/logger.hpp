@@ -4,6 +4,8 @@
 #include <string>
 #include <memory>
 #include <vector>
+#include <fstream>
+#include <mutex>
 
 enum class LogLevel {
 	SERVER_ERROR,
@@ -69,11 +71,6 @@ private:
 	void log(LogLevel level, const std::string& message);
 	std::string formatString(const char* format, va_list args);
 
-<<<<<<< HEAD
-	// PIMPL idiom - hide all STL containers from DLL interface
-	class Impl;
-	Impl* pImpl;
-=======
 	// Get string representation of log level
 	std::string levelToString(LogLevel level);
 
@@ -92,5 +89,4 @@ private:
 	// Quiet mode settings
 	bool quietMode;
 	bool showRequestDetails;
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 };
