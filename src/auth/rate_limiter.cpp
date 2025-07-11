@@ -2,7 +2,6 @@
 #include "kolosal/logger.hpp"
 #include <algorithm>
 
-<<<<<<< HEAD
 
 namespace kolosal {
 namespace auth {
@@ -58,7 +57,6 @@ RateLimiter::RateLimitResult RateLimiter::checkRateLimit(const std::string& clie
         if (oldestInWindow > windowStart) {
             resetTime = std::chrono::duration_cast<std::chrono::seconds>(
                 (oldestInWindow + config_.windowSize) - now);
-=======
 namespace kolosal
 {    namespace auth
     {
@@ -75,7 +73,6 @@ namespace kolosal
         {
             ServerLogger::logInfo("Rate limiter initialized - Max requests: %zu, Window: %lld seconds, Enabled: %s",
                                   config_.maxRequests, config_.windowSize.count(), config_.enabled ? "true" : "false");
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
         }
     }
     
@@ -97,7 +94,6 @@ RateLimiter::Config RateLimiter::getConfig() const {
     return config_;
 }
 
-<<<<<<< HEAD
 void RateLimiter::clearClient(const std::string& clientIP) {
     std::lock_guard<std::mutex> lock(mutex_);
     auto it = clients_.find(clientIP);
@@ -106,14 +102,12 @@ void RateLimiter::clearClient(const std::string& clientIP) {
         ServerLogger::logInfo("Cleared rate limit data for client %s", clientIP.c_str());
     }
 }
-=======
             // Perform periodic cleanup only occasionally to reduce overhead
             auto now = std::chrono::steady_clock::now();
             if (now - lastGlobalCleanup_ > GLOBAL_CLEANUP_INTERVAL)
             {
                 performPeriodicCleanup();
             }
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 
 void RateLimiter::clearAll() {
     std::lock_guard<std::mutex> lock(mutex_);
@@ -121,7 +115,6 @@ void RateLimiter::clearAll() {
     ServerLogger::logInfo("Cleared all rate limit data");
 }
 
-<<<<<<< HEAD
 std::unordered_map<std::string, size_t> RateLimiter::getStatistics() const {    std::lock_guard<std::mutex> lock(mutex_);
     std::unordered_map<std::string, size_t> stats;
     
@@ -143,7 +136,6 @@ void RateLimiter::cleanupOldRequests(ClientData& data) {
     
     data.lastCleanup = now;
 }
-=======
             // Clean up old requests for this client only if it hasn't been cleaned recently
             if (now - clientData.lastCleanup > std::chrono::seconds(10))
             {
@@ -151,7 +143,6 @@ void RateLimiter::cleanupOldRequests(ClientData& data) {
             }
 
             size_t currentRequests = clientData.requests.size();
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 
 void RateLimiter::performPeriodicCleanup() {
     auto now = std::chrono::steady_clock::now();

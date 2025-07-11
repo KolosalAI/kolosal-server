@@ -566,7 +566,6 @@ int main(int argc, char *argv[])
         std::cout << "  GET  /v1/auth/stats          - Get authentication statistics" << std::endl;
         std::cout << "  POST /v1/auth/clear          - Clear rate limit data" << std::endl;
     }
-<<<<<<< HEAD
     if (config.enableMetrics)
     {
         std::cout << "\nMetrics endpoints:" << std::endl;
@@ -576,9 +575,6 @@ int main(int argc, char *argv[])
         std::cout << "  GET  /completion-metrics     - Completion performance metrics" << std::endl;
         std::cout << "  GET  /v1/completion-metrics  - Completion performance metrics" << std::endl;
     }
-=======
-
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
 
     // Main server loop

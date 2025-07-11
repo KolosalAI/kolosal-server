@@ -32,12 +32,9 @@ option(USE_CUDA   "Compile with CUDA support" OFF)
 option(USE_VULKAN "Compile with VULKAN support" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
-<<<<<<< HEAD
 option(ENABLE_AGENTS "Enable multi-agent system" ON)
 option(ENABLE_CLI "Enable CLI interface" ON)
 option(USE_CPPUPROFILE_GPU "Enable cppuprofile GPU monitoring" ON)
-=======
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 
 # Define include directories.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -70,45 +67,26 @@ set(SOURCES
     src/routes/list_engines_route.cpp
     src/routes/remove_engine_route.cpp
     src/routes/engine_status_route.cpp
-<<<<<<< HEAD
     src/routes/health_status_route.cpp
     src/routes/auth_config_route.cpp
     src/routes/system_metrics_route.cpp
     src/routes/completion_metrics_route.cpp
     src/routes/combined_metrics_route.cpp
-=======
-    src/routes/health_status_route.cpp    
-    src/routes/auth_config_route.cpp    
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
     src/routes/download_progress_route.cpp
     src/routes/downloads_status_route.cpp
     src/routes/cancel_download_route.cpp
     src/routes/cancel_all_downloads_route.cpp
-<<<<<<< HEAD
     src/routes/parse_pdf_route.cpp
     src/routes/parse_docx_route.cpp
     src/routes/add_documents_route.cpp
     src/routes/retrieve_route.cpp
-    src/routes/internet_search_route.cpp
-    src/routes/models_route.cpp
-    src/metrics_converter.cpp
-    src/auth/rate_limiter.cpp
-    src/auth/cors_handler.cpp
-    src/auth/auth_middleware.cpp
-    src/node_manager.cpp
-    src/inference.cpp
-=======
     src/routes/embedding_route.cpp
     src/routes/inference_chat_completion_route.cpp
     src/routes/inference_completion_route.cpp
     src/routes/internet_search_route.cpp
     src/routes/models_route.cpp
-    src/routes/parse_docx_route.cpp
-    src/routes/parse_pdf_route.cpp
     src/routes/pause_download_route.cpp
     src/routes/resume_download_route.cpp
-    src/routes/retrieve_route.cpp
-    src/routes/add_documents_route.cpp
     
     src/retrieval/remove_documents_route.cpp
     src/retrieval/add_document_types.cpp
@@ -118,7 +96,12 @@ set(SOURCES
     src/retrieval/parse_docx.cpp
     src/retrieval/parse_pdf.cpp
     
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
+    src/metrics_converter.cpp
+    src/auth/rate_limiter.cpp
+    src/auth/cors_handler.cpp
+    src/auth/auth_middleware.cpp
+    src/node_manager.cpp
+    src/inference.cpp
     src/models/embedding_request_model.cpp
     src/models/embedding_response_model.cpp
     
@@ -185,7 +168,6 @@ endif()
 add_library(kolosal_server SHARED ${SOURCES})
 target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE_EXPORTS)
 
-<<<<<<< HEAD
 # Force Release build to match MuPDF (prebuilt Release library)
 if(WIN32 AND MSVC)
     # MuPDF is only available as Release build, warn about potential issues in Debug
@@ -197,15 +179,105 @@ if(WIN32 AND MSVC)
     set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
     message(STATUS "Configured for both Debug and Release builds (MuPDF may require Release)")
 endif()
-
-=======
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 # Create executable
 add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
 
-<<<<<<< HEAD
+# Function to copy DLLs to executable directory
+function(copy_dll_to_output target_name dll_path)
+    if(WIN32 AND EXISTS "${dll_path}")
+        get_filename_component(dll_name "${dll_path}" NAME)
+        add_custom_command(TARGET ${target_name} POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${dll_path}"
+            "$<TARGET_FILE_DIR:${target_name}>/${dll_name}"
+            COMMENT "Copying ${dll_name} to output directory"
+        )
+        message(STATUS "Will copy ${dll_name} to output directory")
+    endif()
+endfunction()
+
+# Copy necessary DLLs to the executable directory on Windows
+if(WIN32)
+    # Copy the main server DLL
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:kolosal_server>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying kolosal_server.dll to executable directory"
+    )
+    
+    # Copy the inference engine DLL (llama-cpu by default, or llama-cuda/llama-vulkan based on options)
+    set(INFERENCE_DLL_NAME "llama-cpu")
+    if(USE_CUDA)
+        set(INFERENCE_DLL_NAME "llama-cuda")
+    elseif(USE_VULKAN)
+        set(INFERENCE_DLL_NAME "llama-vulkan")
+    endif()
+    
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:${INFERENCE_DLL_NAME}>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying ${INFERENCE_DLL_NAME}.dll to executable directory"
+    )
+    
+    # Copy CURL DLL if it exists
+    set(CURL_DLL_PATHS
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/bin/libcurl.dll"
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/libcurl.dll"
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/bin/curl.dll"
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/curl.dll"
+    )
+    
+    foreach(curl_dll ${CURL_DLL_PATHS})
+        if(EXISTS "${curl_dll}")
+            copy_dll_to_output(kolosal_server_exe "${curl_dll}")
+            break()
+        endif()
+    endforeach()
+    
+    # Copy yaml-cpp DLL if it's built as shared library
+    if(BUILD_SHARED_LIBS)
+        add_custom_command(TARGET kolosal_server_exe POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:yaml-cpp>"
+            "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+            COMMENT "Copying yaml-cpp DLL to executable directory"
+        )
+    endif()
+    
+    # Copy any additional system DLLs that might be needed
+    # Check for common MSVC runtime libraries
+    if(MSVC)
+        # These will be automatically handled by CMake's runtime library settings
+        message(STATUS "MSVC detected - runtime libraries will be statically linked")
+    endif()
+    
+    # Copy any additional DLLs from the inference build directory using correct paths
+    # Use CMAKE_BINARY_DIR instead of CMAKE_CURRENT_BINARY_DIR since inference puts files there
+    set(INFERENCE_BIN_DIR "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
+    
+    # Check if libcurl.dll exists and copy it
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${INFERENCE_BIN_DIR}/libcurl.dll"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying libcurl.dll from inference bin directory"
+        VERBATIM
+    )
+    
+    # Also ensure the inference DLL is copied from the correct location
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "${INFERENCE_BIN_DIR}/${INFERENCE_DLL_NAME}.dll"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying ${INFERENCE_DLL_NAME}.dll from inference bin directory"
+        VERBATIM
+    )
+endif()
+
 # Find and setup llama.cpp
 set(LLAMA_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
 if(NOT EXISTS "${LLAMA_CPP_PATH}/CMakeLists.txt")
@@ -342,141 +414,6 @@ if(ENABLE_AGENTS)
     target_compile_definitions(kolosal_server PRIVATE KOLOSAL_AGENTS_ENABLED)
 endif()
 
-# Define inference-related compile definitions
-target_compile_definitions(kolosal_server PUBLIC
-  $<$<BOOL:${USE_CUDA}>:USE_CUDA>
-  $<$<BOOL:${USE_VULKAN}>:USE_VULKAN>
-  $<$<BOOL:${USE_MPI}>:USE_MPI>
-  $<$<BOOL:${DEBUG}>:DEBUG>
-  $<$<BOOL:${ENABLE_AGENTS}>:KOLOSAL_AGENTS_ENABLED>
-  $<$<BOOL:${ENABLE_CLI}>:KOLOSAL_CLI_ENABLED>
-  $<$<BOOL:${USE_CPPUPROFILE_GPU}>:USE_CPPUPROFILE_GPU>
-)
-
-# Add subdirectories for external libraries
-add_subdirectory(${LLAMA_CPP_PATH})
-
-# Add cppuprofile if GPU monitoring is enabled
-if(USE_CPPUPROFILE_GPU)
-    # Configure cppuprofile with NVIDIA support
-    set(GPU_MONITOR_NVIDIA ON CACHE BOOL "Enable NVIDIA GPU monitoring in cppuprofile" FORCE)
-    add_subdirectory(external/cppuprofile/lib)
-    message(STATUS "cppuprofile GPU monitoring enabled")
-endif()
-
-# Link libraries
-set(KOLOSAL_LINK_LIBRARIES llama common ggml toolcall pugixml)
-
-# Add yaml-cpp if agents are enabled
-if(ENABLE_AGENTS)
-    list(APPEND KOLOSAL_LINK_LIBRARIES yaml-cpp::yaml-cpp)
-endif()
-
-# Add cppuprofile if enabled
-if(USE_CPPUPROFILE_GPU)
-    list(APPEND KOLOSAL_LINK_LIBRARIES cppuprofile)
-endif()
-
-target_link_libraries(kolosal_server PRIVATE ${KOLOSAL_LINK_LIBRARIES})
-
-# Link CURL libraries and include directories
-target_include_directories(kolosal_server PRIVATE ${CURL_INCLUDE_DIR})
-target_link_libraries(kolosal_server PRIVATE ${CURL_LIBRARIES})
-=======
-# Function to copy DLLs to executable directory
-function(copy_dll_to_output target_name dll_path)
-    if(WIN32 AND EXISTS "${dll_path}")
-        get_filename_component(dll_name "${dll_path}" NAME)
-        add_custom_command(TARGET ${target_name} POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "${dll_path}"
-            "$<TARGET_FILE_DIR:${target_name}>/${dll_name}"
-            COMMENT "Copying ${dll_name} to output directory"
-        )
-        message(STATUS "Will copy ${dll_name} to output directory")
-    endif()
-endfunction()
-
-# Copy necessary DLLs to the executable directory on Windows
-if(WIN32)
-    # Copy the main server DLL
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:kolosal_server>"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying kolosal_server.dll to executable directory"
-    )
-    
-    # Copy the inference engine DLL (llama-cpu by default, or llama-cuda/llama-vulkan based on options)
-    set(INFERENCE_DLL_NAME "llama-cpu")
-    if(USE_CUDA)
-        set(INFERENCE_DLL_NAME "llama-cuda")
-    elseif(USE_VULKAN)
-        set(INFERENCE_DLL_NAME "llama-vulkan")
-    endif()
-    
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:${INFERENCE_DLL_NAME}>"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying ${INFERENCE_DLL_NAME}.dll to executable directory"
-    )
-    
-    # Copy CURL DLL if it exists
-    set(CURL_DLL_PATHS
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/bin/libcurl.dll"
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/libcurl.dll"
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/bin/curl.dll"
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/curl.dll"
-    )
-    
-    foreach(curl_dll ${CURL_DLL_PATHS})
-        if(EXISTS "${curl_dll}")
-            copy_dll_to_output(kolosal_server_exe "${curl_dll}")
-            break()
-        endif()
-    endforeach()
-    
-    # Copy yaml-cpp DLL if it's built as shared library
-    if(BUILD_SHARED_LIBS)
-        add_custom_command(TARGET kolosal_server_exe POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:yaml-cpp>"
-            "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-            COMMENT "Copying yaml-cpp DLL to executable directory"
-        )
-    endif()
-    
-    # Copy any additional system DLLs that might be needed
-    # Check for common MSVC runtime libraries
-    if(MSVC)
-        # These will be automatically handled by CMake's runtime library settings
-        message(STATUS "MSVC detected - runtime libraries will be statically linked")
-    endif()
-    
-    # Copy any additional DLLs from the inference build directory using correct paths
-    # Use CMAKE_BINARY_DIR instead of CMAKE_CURRENT_BINARY_DIR since inference puts files there
-    set(INFERENCE_BIN_DIR "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
-    
-    # Check if libcurl.dll exists and copy it
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${INFERENCE_BIN_DIR}/libcurl.dll"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying libcurl.dll from inference bin directory"
-        VERBATIM
-    )
-    
-    # Also ensure the inference DLL is copied from the correct location
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${INFERENCE_BIN_DIR}/${INFERENCE_DLL_NAME}.dll"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying ${INFERENCE_DLL_NAME}.dll from inference bin directory"
-        VERBATIM
-    )
-endif()
-
 # Find and setup yaml-cpp
 set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
 if(NOT EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
@@ -496,7 +433,6 @@ add_subdirectory(${YAML_CPP_PATH})
 # This will create the llama-<cpu/cuda/vulkan> shared library
 # All llama.cpp, CUDA, Vulkan, and MPI dependencies are handled by the inference library
 add_subdirectory(inference)
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 
 # Configure MuPDF for the main server
 set(MUPDF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf")
