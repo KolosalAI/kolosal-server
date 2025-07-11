@@ -178,10 +178,12 @@ namespace kolosal
              * @brief Add an allowed CORS origin
              * @param origin Origin to add
              */
-            void addAllowedOrigin(const std::string &origin); /**
-                                                               * @brief Remove an allowed CORS origin
-                                                               * @param origin Origin to remove
-                                                               */
+            void addAllowedOrigin(const std::string &origin);
+
+            /**
+             * @brief Remove an allowed CORS origin
+             * @param origin Origin to remove
+             */
             void removeAllowedOrigin(const std::string &origin);
 
             /**

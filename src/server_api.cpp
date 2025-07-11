@@ -52,12 +52,9 @@ namespace kolosal
         std::unique_ptr<AutoSetupManager> autoSetupManager;
 
         Impl()
-<<<<<<< HEAD
             : nodeManager(std::make_unique<NodeManager>()),
               agentManager(std::make_shared<agents::YAMLConfigurableAgentManager>()),
               agentOrchestrator(std::make_shared<agents::AgentOrchestrator>(agentManager))
-=======
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
         {
             // Initialize auto-setup manager after node manager and agent manager
             autoSetupManager = std::make_unique<AutoSetupManager>(

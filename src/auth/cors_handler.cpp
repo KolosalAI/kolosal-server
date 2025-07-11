@@ -3,10 +3,13 @@
 #include <algorithm>
 #include <sstream>
 
-<<<<<<< HEAD
 
 namespace kolosal {
 namespace auth {
+
+CorsHandler::CorsHandler() : config_() {
+    updateConfig(config_);
+}
 
 CorsHandler::CorsHandler(const Config& config) : config_(config) {
     updateConfig(config);
@@ -35,20 +38,6 @@ CorsHandler::CorsResult CorsHandler::processCors(const std::string& method,
             result.headers["Access-Control-Allow-Origin"] = "*";
         } else {
             result.headers["Access-Control-Allow-Origin"] = origin;
-=======
-namespace kolosal
-{    namespace auth
-    {
-
-        CorsHandler::CorsHandler() : config_()
-        {
-            updateConfig(config_);
-        }
-
-        CorsHandler::CorsHandler(const Config &config) : config_(config)
-        {
-            updateConfig(config);
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
         }
     }
 
@@ -62,156 +51,7 @@ namespace kolosal
             result.isValid = false;
             return result;
         }
-<<<<<<< HEAD
-        
-        // Check if the requested headers are allowed
-        if (!requestHeaders.empty() && !areHeadersAllowed(requestHeaders)) {
-            ServerLogger::logWarning("CORS: Headers not allowed in preflight: %s", requestHeaders.c_str());
-            result.isValid = false;
-=======
 
-        void CorsHandler::updateConfig(const Config &config)
-        {
-            config_ = config;
-
-            // Update sets for faster lookup
-            allowedOriginsSet_.clear();
-            for (const auto &origin : config_.allowedOrigins)
-            {
-                allowedOriginsSet_.insert(origin);
-            }
-
-            allowedMethodsSet_.clear();
-            for (const auto &method : config_.allowedMethods)
-            {
-                allowedMethodsSet_.insert(method);
-            }
-
-            allowedHeadersSet_.clear();
-            for (const auto &header : config_.allowedHeaders)
-            {
-                allowedHeadersSet_.insert(header);
-                // Also add lowercase version for fast case-insensitive lookup
-                std::string lowerHeader = header;
-                std::transform(lowerHeader.begin(), lowerHeader.end(), lowerHeader.begin(), ::tolower);
-                allowedHeadersSet_.insert(lowerHeader);
-            }
-
-            ServerLogger::logInfo("CORS configuration updated - Enabled: %s, Origins: %zu, Methods: %zu, Headers: %zu",
-                                  config_.enabled ? "true" : "false",
-                                  config_.allowedOrigins.size(),
-                                  config_.allowedMethods.size(),
-                                  config_.allowedHeaders.size());
-        }
-
-        CorsHandler::Config CorsHandler::getConfig() const
-        {
-            return config_;
-        }
-
-        void CorsHandler::addAllowedOrigin(const std::string &origin)
-        {
-            auto it = std::find(config_.allowedOrigins.begin(), config_.allowedOrigins.end(), origin);
-            if (it == config_.allowedOrigins.end())
-            {
-                config_.allowedOrigins.push_back(origin);
-                allowedOriginsSet_.insert(origin);
-                ServerLogger::logInfo("CORS: Added allowed origin: %s", origin.c_str());
-            }
-        }
-
-        void CorsHandler::removeAllowedOrigin(const std::string &origin)
-        {
-            auto it = std::find(config_.allowedOrigins.begin(), config_.allowedOrigins.end(), origin);
-            if (it != config_.allowedOrigins.end())
-            {
-                config_.allowedOrigins.erase(it);
-                allowedOriginsSet_.erase(origin);
-                ServerLogger::logInfo("CORS: Removed allowed origin: %s", origin.c_str());
-            }
-        }
-
-        bool CorsHandler::isOriginAllowed(const std::string &origin) const
-        {
-            if (allowedOriginsSet_.count("*") > 0)
-            {
-                return true;
-            }
-            return allowedOriginsSet_.count(origin) > 0;
-        }
-
-        bool CorsHandler::isMethodAllowed(const std::string &method) const
-        {
-            return allowedMethodsSet_.count(method) > 0;
-        }
-
-        bool CorsHandler::areHeadersAllowed(const std::string &headers) const
-        {
-            if (headers.empty())
-            {
-                return true;
-            }
-
-            auto headerList = parseHeaderList(headers);
-            for (const auto &header : headerList)
-            {
-                // First try exact match (fast path)
-                if (allowedHeadersSet_.count(header) > 0)
-                {
-                    continue;
-                }
-                
-                // Then try lowercase version
-                std::string lowerHeader = header;
-                std::transform(lowerHeader.begin(), lowerHeader.end(), lowerHeader.begin(), ::tolower);
-                
-                if (allowedHeadersSet_.count(lowerHeader) == 0)
-                {
-                    ServerLogger::logDebug("CORS: Header not allowed: %s", header.c_str());
-                    return false;
-                }
-            }
-
-            return true;
-        }
-        std::string CorsHandler::vectorToString(const std::vector<std::string> &items) const
-        {
-            if (items.empty())
-            {
-                return "";
-            }
-
-            std::ostringstream oss;
-            for (size_t i = 0; i < items.size(); ++i)
-            {
-                if (i > 0)
-                {
-                    oss << ", ";
-                }
-                oss << items[i];
-            }
-            return oss.str();
-        }
-
-        std::vector<std::string> CorsHandler::parseHeaderList(const std::string &str) const
-        {
-            std::vector<std::string> result;
-            std::istringstream iss(str);
-            std::string item;
-
-            while (std::getline(iss, item, ','))
-            {
-                std::string trimmed = trim(item);
-                if (!trimmed.empty())
-                {
-                    result.push_back(trimmed);
-                }
-            }
-
->>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
-            return result;
-        }
-        
         // Set preflight response headers
         result.headers["Access-Control-Allow-Methods"] = vectorToString(config_.allowedMethods);
         result.headers["Access-Control-Allow-Headers"] = vectorToString(config_.allowedHeaders);
@@ -261,6 +101,10 @@ void CorsHandler::updateConfig(const Config& config) {
     allowedHeadersSet_.clear();
     for (const auto& header : config_.allowedHeaders) {
         allowedHeadersSet_.insert(header);
+        // Also add lowercase version for fast case-insensitive lookup
+        std::string lowerHeader = header;
+        std::transform(lowerHeader.begin(), lowerHeader.end(), lowerHeader.begin(), ::tolower);
+        allowedHeadersSet_.insert(lowerHeader);
     }
     
     ServerLogger::logInfo("CORS configuration updated - Enabled: %s, Origins: %zu, Methods: %zu, Headers: %zu",
@@ -310,21 +154,17 @@ bool CorsHandler::areHeadersAllowed(const std::string& headers) const {
     
     auto headerList = parseHeaderList(headers);
     for (const auto& header : headerList) {
+        // First try exact match (fast path)
+        if (allowedHeadersSet_.count(header) > 0) {
+            continue;
+        }
+        
+        // Then try lowercase version
         std::string lowerHeader = header;
         std::transform(lowerHeader.begin(), lowerHeader.end(), lowerHeader.begin(), ::tolower);
         
-        // Check if this specific header is allowed
-        bool found = false;
-        for (const auto& allowedHeader : config_.allowedHeaders) {
-            std::string lowerAllowed = allowedHeader;
-            std::transform(lowerAllowed.begin(), lowerAllowed.end(), lowerAllowed.begin(), ::tolower);
-            if (lowerHeader == lowerAllowed) {
-                found = true;
-                break;
-            }
-        }
-        
-        if (!found) {
+        if (allowedHeadersSet_.count(lowerHeader) == 0) {
+            ServerLogger::logDebug("CORS: Header not allowed: %s", header.c_str());
             return false;
         }
     }

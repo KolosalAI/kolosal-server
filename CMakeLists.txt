@@ -165,21 +165,48 @@ endif()
 add_library(kolosal_server SHARED ${SOURCES})
 target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE_EXPORTS)
 
-# Force Release build to match MuPDF (prebuilt Release library)
-if(WIN32 AND MSVC)
-    # MuPDF is only available as Release build, warn about potential issues in Debug
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR "Debug" IN_LIST CMAKE_CONFIGURATION_TYPES)
-        message(WARNING "Debug build requested but MuPDF prebuilt library is Release only. "
-                       "Debug builds may have linking issues with MuPDF components.")
-    endif()
-    # Allow both Debug and Release configurations
-    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
-    message(STATUS "Configured for both Debug and Release builds (MuPDF may require Release)")
-endif()
 # Create executable
 add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
+
+# Force compatible runtime libraries to match MuPDF (prebuilt Release library)
+if(WIN32 AND MSVC)
+    # Add /FS flag globally and to Debug-specific flags to prevent PDB file conflicts
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FS")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /FS")
+    
+    # Force Release runtime libraries even in Debug builds to match MuPDF
+    # This prevents LNK2038 errors about mismatched runtime libraries
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /FS /MD")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /FS /MD")
+    
+    # Also set _ITERATOR_DEBUG_LEVEL to 0 in Debug builds to match MuPDF
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=0")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=0")
+    
+    # Alternative approach: disable incremental linking in Debug which can cause PDB issues
+    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
+    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
+    
+    message(STATUS "Configured MSVC Debug builds to use Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 to match MuPDF")
+    
+    # Add /FS flag specifically to our main targets as well
+    target_compile_options(kolosal_server PRIVATE /FS)
+    target_compile_options(kolosal_server_exe PRIVATE /FS)
+    
+    # Set specific target properties to ensure runtime compatibility
+    set_target_properties(kolosal_server PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+    )
+    set_target_properties(kolosal_server_exe PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+    )
+    
+    # Allow both Debug and Release configurations
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+    message(STATUS "Configured for both Debug and Release builds with MuPDF compatibility")
+endif()
 
 # Function to copy DLLs to executable directory
 function(copy_dll_to_output target_name dll_path)
