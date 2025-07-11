@@ -69,14 +69,14 @@ namespace kolosal
                     auto it = std::find(engineIds.begin(), engineIds.end(), engineId);
                     if (it != engineIds.end())
                     {
-                        // Try to get the engine to check if it's loaded
-                        auto engine = nodeManager.getEngine(engineId);
+                        // Check engine status without loading it (to avoid triggering lazy model loading)
+                        auto [exists, isLoaded] = nodeManager.getEngineStatus(engineId);
 
                         EngineStatusResponse response;
                         response.engine_id = engineId;
-                        response.status = engine ? "loaded" : "unloaded";
+                        response.status = isLoaded ? "loaded" : "unloaded";
                         response.available = true;
-                        response.message = engine ? "Engine is loaded and ready" : "Engine exists but is currently unloaded";
+                        response.message = isLoaded ? "Engine is loaded and ready" : "Engine exists but is currently unloaded";
 
                         send_response(sock, 200, response.to_json().dump());
                         ServerLogger::logInfo("[Thread %u] Successfully retrieved status for engine '%s'", std::this_thread::get_id(), engineId.c_str());

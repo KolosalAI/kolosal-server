@@ -3,7 +3,7 @@
 #include "kolosal/utils.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
-#include "kolosal/completion_monitor.hpp"
+// #include "kolosal/completion_monitor.hpp"
 #include <json.hpp>
 #include <iostream>
 #include <stdexcept>
@@ -19,7 +19,7 @@ namespace kolosal
 std::atomic<long long> AddDocumentsRoute::request_counter_{0};
 
 AddDocumentsRoute::AddDocumentsRoute()
-    : monitor_(std::make_unique<CompletionMonitor>())
+    // : monitor_(std::make_unique<CompletionMonitor>())
 {
     ServerLogger::logInfo("AddDocumentsRoute initialized");
 }
@@ -86,7 +86,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
                               std::this_thread::get_id(), request.documents.size(), requestId.c_str());
 
         // Start monitoring
-        monitor_->startRequest("document-indexing", "add_documents");        // Initialize document service if needed
+        // monitor_->startRequest("document-indexing", "add_documents");        // Initialize document service if needed
         {
             std::lock_guard<std::mutex> lock(service_mutex_);
             if (!document_service_)
@@ -134,7 +134,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
         kolosal::retrieval::AddDocumentsResponse response = response_future.get();
 
         // Complete monitoring
-        monitor_->completeRequest(requestId);
+        // monitor_->completeRequest(requestId);
 
         // Send successful response
         std::map<std::string, std::string> headers = {
@@ -153,7 +153,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
         // Mark request as failed if monitoring was started
         if (!requestId.empty())
         {
-            monitor_->failRequest(requestId);
+            // monitor_->failRequest(requestId);
         }
 
         ServerLogger::logError("[Thread %u] JSON parsing error: %s", std::this_thread::get_id(), ex.what());
@@ -164,7 +164,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
         // Mark request as failed if monitoring was started
         if (!requestId.empty())
         {
-            monitor_->failRequest(requestId);
+            // monitor_->failRequest(requestId);
         }
 
         ServerLogger::logError("[Thread %u] Error handling add documents request: %s", std::this_thread::get_id(), ex.what());

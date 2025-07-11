@@ -9,6 +9,7 @@
 #include <json.hpp>
 #include <algorithm>
 #include <cctype>
+#include <sstream>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -256,7 +257,7 @@ namespace kolosal
 				continue;
 			}
 
-			if (bind(listen_sock, p->ai_addr, p->ai_addrlen) == -1)
+			if (bind(listen_sock, p->ai_addr, static_cast<int>(p->ai_addrlen)) == -1)
 			{
 #ifdef _WIN32
 				closesocket(listen_sock);
@@ -319,7 +320,7 @@ namespace kolosal
 			tv.tv_sec = 1; // 1 second timeout
 			tv.tv_usec = 0;
 
-			int select_result = select(listen_sock + 1, &readfds, NULL, NULL, &tv);
+			int select_result = select(static_cast<int>(listen_sock) + 1, &readfds, NULL, NULL, &tv);
 
 			if (select_result == -1)
 			{
@@ -362,6 +363,7 @@ namespace kolosal
 			inet_ntop(client_addr.ss_family,
 					  client_addr.ss_family == AF_INET ? (void *)&(((struct sockaddr_in *)&client_addr)->sin_addr) : (void *)&(((struct sockaddr_in6 *)&client_addr)->sin6_addr),
 					  clientIP, sizeof(clientIP));
+<<<<<<< HEAD
 #endif
 			ServerLogger::logInfo("New client connection from %s", clientIP);			
 			
@@ -419,6 +421,63 @@ namespace kolosal
 				{
 					ServerLogger::logError("[Thread %d] No data received from %s", 
 										   std::this_thread::get_id(), clientIP);
+=======
+#endif			ServerLogger::logDebug("New client connection from %s", clientIP);			// Spawn a thread to handle this client
+			std::thread([this, client_sock, clientIP]()
+						{
+							ServerLogger::logDebug("[Thread %d] Processing request from %s",
+												  std::this_thread::get_id(), clientIP);
+
+							// Read the HTTP request with improved error handling
+							const int bufferSize = 16384; // Increased buffer size for larger headers
+							char buffer[bufferSize];
+							std::string request;
+							
+							// Read data in chunks until we have the complete headers
+							bool headersComplete = false;
+							int totalBytesReceived = 0;
+							
+							// Set socket timeout to prevent hanging
+							struct timeval timeout;
+							timeout.tv_sec = 30;  // 30 second timeout
+							timeout.tv_usec = 0;
+							setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+							
+							while (!headersComplete && totalBytesReceived < bufferSize - 1)
+							{
+								int bytesReceived = recv(client_sock, buffer + totalBytesReceived, 
+														bufferSize - 1 - totalBytesReceived, 0);
+								
+								if (bytesReceived <= 0)
+								{
+									if (totalBytesReceived == 0)
+									{
+										ServerLogger::logError("[Thread %d] Failed to read HTTP headers from %s", 
+															   std::this_thread::get_id(), clientIP);
+									}
+									else
+									{
+										ServerLogger::logWarning("[Thread %d] Incomplete HTTP request from %s, using partial data", 
+																std::this_thread::get_id(), clientIP);
+									}
+									break;
+								}
+								
+								totalBytesReceived += bytesReceived;
+								buffer[totalBytesReceived] = '\0';
+								
+								// Check if we have complete headers (indicated by \r\n\r\n)
+								if (strstr(buffer, "\r\n\r\n") != nullptr)
+								{
+									headersComplete = true;
+								}
+							}
+							
+							if (totalBytesReceived == 0)
+							{
+								ServerLogger::logError("[Thread %d] No data received from %s", 
+													   std::this_thread::get_id(), clientIP);
+>>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 #ifdef _WIN32
 					closesocket(client_sock);
 #else
@@ -559,6 +618,7 @@ namespace kolosal
 							body.append(bodyBuffer.data(), totalRead);
 						}
 
+<<<<<<< HEAD
 						ServerLogger::logDebug("[Thread %d] Read %d additional bytes for body",
 							std::this_thread::get_id(), totalRead);
 					}
@@ -590,6 +650,13 @@ namespace kolosal
 						break;
 					}
 				}
+=======
+							// Parse headers for authentication middleware
+							auto headers = parseHeaders(request);ServerLogger::logDebug("[Thread %d] Processing %s request for %s from %s",
+												  std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP); // Process authentication middleware
+							ServerLogger::logDebug("[Thread %d] Calling auth middleware for %s %s from %s",
+												  std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
+>>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 
 				if (!routeFound) {
 					ServerLogger::logWarning("[Thread %d] No route found for %s %s",
@@ -604,15 +671,161 @@ namespace kolosal
 					send_response(client_sock, 404, jError.dump(), responseHeaders);
 				}
 
+<<<<<<< HEAD
 				ServerLogger::logInfo("[Thread %d] Completed request for %s",
 					std::this_thread::get_id(), path.c_str());
+=======
+							ServerLogger::logDebug("[Thread %d] Auth middleware result - Allowed: %s, Status: %d, Reason: %s",
+												  std::this_thread::get_id(),
+												  authResult.allowed ? "true" : "false",
+												  authResult.statusCode,
+												  authResult.reason.c_str());							// Add OpenAI-compatible response headers
+							std::map<std::string, std::string> responseHeaders = {
+								{"Content-Type", "application/json"},
+								{"Access-Control-Allow-Origin", "*"},
+								{"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
+								{"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-API-Key"},
+								{"X-Content-Type-Options", "nosniff"},
+								{"X-Frame-Options", "DENY"},
+								{"X-XSS-Protection", "1; mode=block"},
+								{"Referrer-Policy", "strict-origin-when-cross-origin"}
+							};
+							
+							// Merge authentication response headers
+							responseHeaders.insert(authResult.headers.begin(), authResult.headers.end());
+
+							// Check if request is blocked by authentication
+							if (!authResult.allowed)
+							{
+								nlohmann::json jError = {
+									{"error", {{"message", authResult.reason}, {"type", authResult.statusCode == 429 ? "rate_limit_exceeded" : "authentication_error"}, {"code", authResult.statusCode}}}};
+
+								send_response(client_sock, authResult.statusCode, jError.dump(), responseHeaders);
+
+								ServerLogger::logWarning("[Thread %d] Request blocked: %s",
+														 std::this_thread::get_id(), authResult.reason.c_str());
+>>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 
 #ifdef _WIN32
 				closesocket(client_sock);
 #else
 				close(client_sock);
 #endif
+<<<<<<< HEAD
 			}).detach(); // Detach the thread to handle the request independently
+=======
+								return;
+							}
+
+							// Handle CORS preflight requests
+							if (authResult.isPreflight)
+							{
+								send_response(client_sock, authResult.statusCode, "", responseHeaders);								ServerLogger::logDebug("[Thread %d] CORS preflight request handled",
+													  std::this_thread::get_id());
+
+#ifdef _WIN32
+								closesocket(client_sock);
+#else
+								close(client_sock);
+#endif
+								return;
+							}							// Find Content-Length header (case-insensitive)
+							int contentLength = 0;
+							auto it = headers.find("content-length");
+							if (it != headers.end())
+							{
+								try
+								{
+									contentLength = std::stoi(it->second);
+									ServerLogger::logDebug("[Thread %d] Content-Length: %d",
+														   std::this_thread::get_id(), contentLength);
+								}
+								catch (const std::exception &)
+								{
+									ServerLogger::logWarning("[Thread %d] Invalid Content-Length header: %s",
+															 std::this_thread::get_id(), it->second.c_str());
+								}
+							}
+
+							// Find the start of the body
+							size_t bodyStart = request.find("\r\n\r\n");
+							std::string body;
+
+							if (bodyStart != std::string::npos)
+							{
+								// Extract the body we've already read
+								body = request.substr(bodyStart + 4);
+
+								// If Content-Length indicates there's more data to read
+								if (contentLength > 0 && body.length() < static_cast<size_t>(contentLength))
+								{
+									int remaining = static_cast<int>(contentLength - body.length());
+									std::vector<char> bodyBuffer(remaining + 1, 0);
+
+									int totalRead = 0;
+									while (totalRead < remaining)
+									{
+										int bytesRead = recv(client_sock, bodyBuffer.data() + totalRead,
+															 remaining - totalRead, 0);
+										if (bytesRead <= 0)
+										{
+											break; // Error or connection closed
+										}
+										totalRead += bytesRead;
+									}
+
+									if (totalRead > 0)
+									{
+										body.append(bodyBuffer.data(), totalRead);
+									}
+
+									ServerLogger::logDebug("[Thread %d] Read %d additional bytes for body",
+														   std::this_thread::get_id(), totalRead);
+								}
+							} // Route the request
+							bool routeFound = false;
+							for (auto &route : routes)
+							{
+								if (route->match(method, path))
+								{
+									routeFound = true;
+									try
+									{
+										// Note: Routes will need to be updated to handle authentication headers
+										// For now, they'll work as before but won't include auth headers
+										route->handle(client_sock, body);
+									}
+									catch (const std::exception &ex)
+									{
+										ServerLogger::logError("[Thread %d] Error in route handler: %s",
+															   std::this_thread::get_id(), ex.what());
+
+										// If we haven't sent a response yet, send an error
+										nlohmann::json jError = {{"error", {{"message", std::string("Internal error: ") + ex.what()}, {"type", "server_error"}, {"param", nullptr}, {"code", nullptr}}}};
+										send_response(client_sock, 500, jError.dump(), responseHeaders);
+									}
+									break;
+								}
+							}
+
+							if (!routeFound)
+							{
+								ServerLogger::logWarning("[Thread %d] No route found for %s %s",
+														 std::this_thread::get_id(), method.c_str(), path.c_str());
+
+								nlohmann::json jError = {{"error", {{"message", "Not found"}, {"type", "invalid_request_error"}, {"param", nullptr}, {"code", nullptr}}}};
+								send_response(client_sock, 404, jError.dump(), responseHeaders);
+							}							ServerLogger::logDebug("[Thread %d] Completed request for %s",
+												  std::this_thread::get_id(), path.c_str());
+
+#ifdef _WIN32
+							closesocket(client_sock);
+#else
+							close(client_sock);
+#endif
+						})
+				.detach(); // Detach the thread to handle the request independently
+>>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 		}
 
 		ServerLogger::logInfo("Server main loop exited");

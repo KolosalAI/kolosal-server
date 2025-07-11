@@ -132,6 +132,17 @@ public:
     );
     
     /**
+     * @brief Get points by their IDs
+     * @param collection_name Name of the collection
+     * @param point_ids Vector of point IDs to retrieve
+     * @return Future with result containing point data
+     */
+    std::future<QdrantResult> getPoints(
+        const std::string& collection_name,
+        const std::vector<std::string>& point_ids
+    );
+    
+    /**
      * @brief Search for similar vectors
      * @param collection_name Name of the collection
      * @param query_vector Vector to search for

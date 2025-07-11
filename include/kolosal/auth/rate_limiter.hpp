@@ -60,14 +60,17 @@ namespace kolosal
                 std::chrono::steady_clock::time_point lastCleanup;
 
                 ClientData() : lastCleanup(std::chrono::steady_clock::now()) {}
-            };
+            };        public:
+            /**
+             * @brief Default constructor with default configuration
+             */
+            RateLimiter();
 
-        public:
             /**
              * @brief Constructor with configuration
              * @param config Rate limiting configuration
              */
-            explicit RateLimiter(const Config &config = Config{});
+            explicit RateLimiter(const Config &config);
 
             /**
              * @brief Check if a request from the given client IP is allowed
@@ -118,12 +121,15 @@ namespace kolosal
             void performPeriodicCleanup();
 
             mutable std::mutex mutex_;
+#pragma warning(push)
+#pragma warning(disable: 4251)
             Config config_;
             std::unordered_map<std::string, ClientData> clients_;
             std::chrono::steady_clock::time_point lastGlobalCleanup_;
 
             // Global cleanup interval (clean up inactive clients every hour)
             static constexpr std::chrono::minutes GLOBAL_CLEANUP_INTERVAL{60};
+#pragma warning(pop)
         };
 
     } // namespace auth

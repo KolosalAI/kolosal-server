@@ -29,6 +29,10 @@ public:
 
 	// Set minimum log level
 	void setLevel(LogLevel level);
+	
+	// Configure quiet mode settings
+	void setQuietMode(bool enabled);
+	void setShowRequestDetails(bool enabled);
 
 	// Set log file path
 	bool setLogFile(const std::string& filePath);
@@ -65,7 +69,28 @@ private:
 	void log(LogLevel level, const std::string& message);
 	std::string formatString(const char* format, va_list args);
 
+<<<<<<< HEAD
 	// PIMPL idiom - hide all STL containers from DLL interface
 	class Impl;
 	Impl* pImpl;
+=======
+	// Get string representation of log level
+	std::string levelToString(LogLevel level);
+
+	// Get current timestamp
+	std::string getCurrentTimestamp();
+
+	LogLevel minLevel;
+#pragma warning(push)
+#pragma warning(disable: 4251)
+	std::vector<LogEntry> logs;
+	std::ofstream logFile;
+	std::string logFilePath;
+#pragma warning(pop)
+	std::mutex logMutex;
+	
+	// Quiet mode settings
+	bool quietMode;
+	bool showRequestDetails;
+>>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 };

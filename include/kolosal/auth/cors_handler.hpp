@@ -10,6 +10,8 @@
 #include <winsock2.h>
 using SocketType = SOCKET;
 #else
+#include <sys/socket.h>
+#include <unistd.h>
 using SocketType = int;
 #endif
 
@@ -63,14 +65,17 @@ namespace kolosal
                 CorsResult() = default;
                 CorsResult(bool valid, bool preflight = false)
                     : isValid(valid), isPreflight(preflight) {}
-            };
+            };        public:
+            /**
+             * @brief Default constructor with default configuration
+             */
+            CorsHandler();
 
-        public:
             /**
              * @brief Constructor with configuration
              * @param config CORS configuration
              */
-            explicit CorsHandler(const Config &config = Config{});
+            explicit CorsHandler(const Config &config);
 
             /**
              * @brief Process CORS for an incoming request
@@ -152,10 +157,13 @@ namespace kolosal
              */
             std::string trim(const std::string &str) const;
 
+#pragma warning(push)
+#pragma warning(disable: 4251)
             Config config_;
             std::unordered_set<std::string> allowedOriginsSet_; // For faster lookup
             std::unordered_set<std::string> allowedMethodsSet_; // For faster lookup
             std::unordered_set<std::string> allowedHeadersSet_; // For faster lookup
+#pragma warning(pop)
         };
 
     } // namespace auth

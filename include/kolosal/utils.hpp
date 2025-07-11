@@ -6,11 +6,14 @@
 #include <sstream>
 #include <iomanip>
 #include <map>
+#include <cstring>
 
 #ifdef _WIN32
 #include <winsock2.h>
 using SocketType = SOCKET;
 #else
+#include <sys/socket.h>
+#include <unistd.h>
 using SocketType = int;
 #endif
 
@@ -69,7 +72,7 @@ inline KOLOSAL_SERVER_API void send_response(
     // Add body
     response << body;
 
-    send(sock, response.str().c_str(), response.str().size(), 0);
+    send(sock, response.str().c_str(), static_cast<int>(response.str().size()), 0);
 }
 
 // Function to start a streaming response with SSE support
@@ -113,7 +116,7 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
     headerStream << "\r\n";
 
     std::string headerString = headerStream.str();
-    send(sock, headerString.c_str(), headerString.size(), 0);
+    send(sock, headerString.c_str(), static_cast<int>(headerString.size()), 0);
 }
 
 // Function to send a single stream chunk - modified to handle SSE format better
@@ -128,13 +131,13 @@ inline KOLOSAL_SERVER_API void send_stream_chunk(SocketType sock, const StreamCh
         std::string chunk_header = hex_length + "\r\n";
         std::string chunk_data = chunk.data + "\r\n";
 
-        send(sock, chunk_header.c_str(), chunk_header.size(), 0);
-        send(sock, chunk_data.c_str(), chunk_data.size(), 0);
+        send(sock, chunk_header.c_str(), static_cast<int>(chunk_header.size()), 0);
+        send(sock, chunk_data.c_str(), static_cast<int>(chunk_data.size()), 0);
     }
 
     // If this is the final chunk, send the terminating empty chunk
     if (chunk.isComplete) {
         const char* end_chunk = "0\r\n\r\n";
-        send(sock, end_chunk, strlen(end_chunk), 0);
+        send(sock, end_chunk, static_cast<int>(strlen(end_chunk)), 0);
     }
 }

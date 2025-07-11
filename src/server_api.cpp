@@ -4,12 +4,15 @@
 #include "kolosal/routes/completion_route.hpp"
 #include "kolosal/routes/embedding_route.hpp"
 #include "kolosal/routes/models_route.hpp"
+#include "kolosal/routes/inference_completion_route.hpp"
+#include "kolosal/routes/inference_chat_completion_route.hpp"
 #include "kolosal/routes/add_engine_route.hpp"
 #include "kolosal/routes/list_engines_route.hpp"
 #include "kolosal/routes/remove_engine_route.hpp"
 #include "kolosal/routes/engine_status_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/auth_config_route.hpp"
+<<<<<<< HEAD
 #include "kolosal/routes/agents_route.hpp"
 #include "kolosal/routes/orchestration_route.hpp"
 #include "kolosal/routes/sequential_workflow_route.hpp"
@@ -17,13 +20,19 @@
 #include "kolosal/routes/system_metrics_route.hpp"
 #include "kolosal/routes/completion_metrics_route.hpp"
 #include "kolosal/routes/combined_metrics_route.hpp"
+=======
+
+>>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
 #include "kolosal/routes/download_progress_route.hpp"
 #include "kolosal/routes/downloads_status_route.hpp"
 #include "kolosal/routes/cancel_download_route.hpp"
+#include "kolosal/routes/pause_download_route.hpp"
+#include "kolosal/routes/resume_download_route.hpp"
 #include "kolosal/routes/cancel_all_downloads_route.hpp"
 #include "kolosal/routes/parse_pdf_route.hpp"
 #include "kolosal/routes/parse_docx_route.hpp"
 #include "kolosal/routes/add_documents_route.hpp"
+#include "kolosal/retrieval/remove_documents_route.hpp"
 #include "kolosal/routes/retrieve_route.hpp"
 #include "kolosal/routes/internet_search_route.hpp"
 #include "kolosal/download_manager.hpp"
@@ -50,15 +59,23 @@ namespace kolosal
         std::unique_ptr<AutoSetupManager> autoSetupManager;
 
         Impl()
+<<<<<<< HEAD
             : nodeManager(std::make_unique<NodeManager>()),
               agentManager(std::make_shared<agents::YAMLConfigurableAgentManager>()),
               agentOrchestrator(std::make_shared<agents::AgentOrchestrator>(agentManager))
+=======
+>>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d
         {
             // Initialize auto-setup manager after node manager and agent manager
             autoSetupManager = std::make_unique<AutoSetupManager>(
                 std::shared_ptr<NodeManager>(nodeManager.get(), [](NodeManager*) {}), // Non-owning shared_ptr
                 agentManager
             );
+        }
+        
+        void initNodeManager(std::chrono::seconds idleTimeout)
+        {
+            nodeManager = std::make_unique<NodeManager>(idleTimeout);
         }
     };
 
@@ -74,23 +91,30 @@ namespace kolosal
         static ServerAPI instance;
         return instance;
     }
-    bool ServerAPI::init(const std::string &port, const std::string &host)
+    bool ServerAPI::init(const std::string &port, const std::string &host, std::chrono::seconds idleTimeout)
     {
         try
         {
-            ServerLogger::logInfo("Initializing server on %s:%s", host.c_str(), port.c_str());
+            ServerLogger::logInfo("Initializing server on %s:%s with idle timeout: %lld seconds", host.c_str(), port.c_str(), idleTimeout.count());
+
+            // Initialize NodeManager with configured idle timeout
+            pImpl->initNodeManager(idleTimeout);
 
             pImpl->server = std::make_unique<Server>(port, host);
             if (!pImpl->server->init())
             {
                 ServerLogger::logError("Failed to initialize server");
                 return false;
-            }            // Register routes
+            }
+            
+            // Register routes
             ServerLogger::logInfo("Registering routes");
             pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<EmbeddingRoute>());
             pImpl->server->addRoute(std::make_unique<ModelsRoute>());
+            pImpl->server->addRoute(std::make_unique<InferenceCompletionRoute>());
+            pImpl->server->addRoute(std::make_unique<InferenceChatCompletionRoute>());
             pImpl->server->addRoute(std::make_unique<AddEngineRoute>());
             pImpl->server->addRoute(std::make_unique<ListEnginesRoute>());
             pImpl->server->addRoute(std::make_unique<RemoveEngineRoute>());
@@ -120,16 +144,17 @@ namespace kolosal
             // Register retrieval and monitoring routes
             pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());
             pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
-            pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());            
+            pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());
+            pImpl->server->addRoute(std::make_unique<PauseDownloadRoute>());
+            pImpl->server->addRoute(std::make_unique<ResumeDownloadRoute>());
             pImpl->server->addRoute(std::make_unique<CancelAllDownloadsRoute>());
             pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
             pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());            
             pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
+            pImpl->server->addRoute(std::make_unique<kolosal::retrieval::RemoveDocumentsRoute>());
             pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
 
-            // Register metrics routes
-            pImpl->server->addRoute(std::make_unique<CombinedMetricsRoute>()); // Handles /metrics and /v1/metrics
-            pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());   // Handles /system/metrics
+            ServerLogger::logInfo("Routes registered successfully");
 
             // Start agent systems
             ServerLogger::logInfo("Starting agent systems");
@@ -224,6 +249,7 @@ namespace kolosal
             ServerLogger::logInfo("Server shutdown complete");
         }
     }
+
     void ServerAPI::enableMetrics()
     {
         if (!pImpl->server)
@@ -231,12 +257,12 @@ namespace kolosal
             throw std::runtime_error("Server not initialized - call init() first");
         }
 
-        ServerLogger::logInfo("Enabling system metrics monitoring");
-        pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());
-
-        ServerLogger::logInfo("Enabling completion metrics monitoring");
-        pImpl->server->addRoute(std::make_unique<CompletionMetricsRoute>());
+        ServerLogger::logInfo("Metrics functionality not yet implemented");
+        // TODO: Add metrics routes when they are implemented
+        // pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());
+        // pImpl->server->addRoute(std::make_unique<CompletionMetricsRoute>());
     }
+
     void ServerAPI::enableSearch(const SearchConfig &config)
     {
         if (!pImpl->server)

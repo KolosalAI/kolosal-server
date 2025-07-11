@@ -3,6 +3,7 @@
 #include "../export.hpp"
 #include "add_document_types.hpp"
 #include "retrieve_types.hpp"
+#include "remove_document_types.hpp"
 #include "../qdrant_client.hpp"
 #include "../server_config.hpp"
 #include <memory>
@@ -55,6 +56,13 @@ public:
      * @return Future with response containing results
      */
     std::future<AddDocumentsResponse> addDocuments(const AddDocumentsRequest& request);
+    
+    /**
+     * @brief Remove documents from the vector database
+     * @param request Document IDs to remove
+     * @return Future with response containing results
+     */
+    std::future<RemoveDocumentsResponse> removeDocuments(const RemoveDocumentsRequest& request);
     
     /**
      * @brief Test database connection

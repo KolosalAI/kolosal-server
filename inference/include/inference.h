@@ -136,11 +136,15 @@
 #include <atomic>
 #include <exception>
 #include <condition_variable>
+#include <chrono>
 
 // =============================================================================
 // API Export/Import Macros
 // =============================================================================
-#ifdef _WIN32
+#ifdef KOLOSAL_SERVER_STATIC
+    // For static library linking, no import/export needed
+    #define INFERENCE_API
+#elif defined(_WIN32)
     #ifdef INFERENCE_EXPORTS
         #define INFERENCE_API __declspec(dllexport)
     #else
@@ -183,6 +187,12 @@ struct Job {
     // Performance metrics
     float                   tps             = 0.0f;    // Tokens per second
     float                   tts             = 0.0f;    // Time to start
+    float                   ttft            = 0.0f;    // Time to first token (milliseconds)
+    
+    // Timing tracking
+    std::chrono::steady_clock::time_point start_time;
+    std::chrono::steady_clock::time_point first_token_time;
+    bool                    first_token_generated = false;
     
     // Atomic flags for thread-safe operations
     std::atomic<bool>       cancelRequested{false};

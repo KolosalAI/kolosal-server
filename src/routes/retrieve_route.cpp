@@ -3,7 +3,7 @@
 #include "kolosal/utils.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
-#include "kolosal/completion_monitor.hpp"
+// #include "kolosal/completion_monitor.hpp"
 #include <json.hpp>
 #include <iostream>
 #include <stdexcept>
@@ -19,7 +19,7 @@ namespace kolosal
 std::atomic<long long> RetrieveRoute::request_counter_{0};
 
 RetrieveRoute::RetrieveRoute()
-    : monitor_(std::make_unique<CompletionMonitor>())
+    // : monitor_(std::make_unique<CompletionMonitor>())
 {
     ServerLogger::logInfo("RetrieveRoute initialized");
 }
@@ -86,7 +86,7 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
                               std::this_thread::get_id(), request.query.c_str(), request.k, requestId.c_str());
 
         // Start monitoring
-        monitor_->startRequest("document-retrieval", "retrieve");
+        // monitor_->startRequest("document-retrieval", "retrieve");
 
         // Initialize document service if needed
         {
@@ -136,7 +136,7 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         kolosal::retrieval::RetrieveResponse response = response_future.get();
 
         // Complete monitoring
-        monitor_->completeRequest(requestId);
+        // monitor_->completeRequest(requestId);
 
         // Send successful response
         std::map<std::string, std::string> headers = {
@@ -155,7 +155,7 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         // Mark request as failed if monitoring was started
         if (!requestId.empty())
         {
-            monitor_->failRequest(requestId);
+            // monitor_->failRequest(requestId);
         }
 
         ServerLogger::logError("[Thread %u] JSON parsing error: %s", std::this_thread::get_id(), ex.what());
@@ -166,7 +166,7 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         // Mark request as failed if monitoring was started
         if (!requestId.empty())
         {
-            monitor_->failRequest(requestId);
+            // monitor_->failRequest(requestId);
         }
 
         ServerLogger::logError("[Thread %u] Error handling retrieve request: %s", std::this_thread::get_id(), ex.what());

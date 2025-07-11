@@ -2,16 +2,17 @@
 #define KOLOSAL_NODE_MANAGER_H
 
 #include "export.hpp"
-#include "inference.h" // Assuming InferenceEngine is defined here
+#include "inference.h"
 #include <vector>
 #include <memory>
 #include <string>
 #include <mutex>
+#include <shared_mutex>
 #include <unordered_map>
-#include <chrono> // Added for time tracking
-#include <thread> // Added for autoscaling thread
-#include <atomic> // Added for thread control
-#include <condition_variable> // Added for autoscaling thread synchronization
+#include <chrono>
+#include <thread>
+#include <atomic>
+#include <condition_variable>
 
 namespace kolosal {
 
@@ -24,7 +25,7 @@ namespace kolosal {
  */
 class KOLOSAL_SERVER_API NodeManager {
 public:
-    NodeManager(std::chrono::seconds idleTimeout = std::chrono::seconds(300)); // Added idleTimeout parameter
+    NodeManager(std::chrono::seconds idleTimeout = std::chrono::seconds(300));
     ~NodeManager();
 
     NodeManager(const NodeManager&) = delete;
@@ -100,6 +101,16 @@ public:
     std::shared_ptr<InferenceEngine> getEngine(const std::string& engineId);
 
     /**
+     * @brief Checks if an engine exists and its load status without loading it.
+     * This method does not trigger loading of lazy models and does not update activity time.
+     * 
+     * @param engineId The ID of the engine to check.
+     * @return A pair of (exists, isLoaded) where exists indicates if the engine is registered
+     *         and isLoaded indicates if it's currently loaded in memory.
+     */
+    std::pair<bool, bool> getEngineStatus(const std::string& engineId) const;
+
+    /**
      * @brief Removes and unloads an inference engine by its ID.
      * 
      * @param engineId The ID of the engine to remove.
@@ -127,6 +138,14 @@ public:
      */
     bool validateModelPath(const std::string& modelPath);
 
+    /**
+     * @brief Handles URL download for models
+     * @param engineId Engine identifier for logging
+     * @param modelPath URL to download
+     * @return Local path to downloaded file, or empty string on failure
+     */
+    std::string handleUrlDownload(const std::string& engineId, const std::string& modelPath);
+
 private:
     enum class ModelType {
         LLM,
@@ -135,28 +154,64 @@ private:
 
     struct EngineRecord {
         std::shared_ptr<InferenceEngine> engine;
-        std::string modelPath;                 // Metadata: Path to the model file
-        LoadingParameters loadParams;          // Metadata: Parameters used to load the model
-        int mainGpuId;                         // Metadata: Main GPU ID for the engine
-        ModelType modelType;                   // Metadata: Type of model (LLM or Embedding)
-        std::chrono::steady_clock::time_point lastActivityTime; // For autoscaling
-        bool isLoaded;                         // Tracks if the model is currently loaded
-
-        EngineRecord() : mainGpuId(0), modelType(ModelType::LLM), lastActivityTime(std::chrono::steady_clock::now()), isLoaded(false) {}
+        std::string modelPath;
+        LoadingParameters loadParams;
+        int mainGpuId;
+        std::chrono::steady_clock::time_point lastActivityTime;
+        std::atomic<bool> isLoaded{false};
+        std::atomic<bool> isLoading{false};
+        std::atomic<bool> markedForRemoval{false};
+        std::atomic<bool> isEmbeddingModel{false}; // Track if this is an embedding model
+        mutable std::mutex engineMutex;
+        std::condition_variable loadingCv;
+        
+        EngineRecord() : mainGpuId(0), lastActivityTime(std::chrono::steady_clock::now()) {}
+        
+        EngineRecord(const EngineRecord&) = delete;
+        EngineRecord& operator=(const EngineRecord&) = delete;
+        
+        EngineRecord(EngineRecord&& other) noexcept 
+            : engine(std::move(other.engine))
+            , modelPath(std::move(other.modelPath))
+            , loadParams(other.loadParams)
+            , mainGpuId(other.mainGpuId)
+            , lastActivityTime(other.lastActivityTime)
+            , isLoaded(other.isLoaded.load())
+            , isLoading(other.isLoading.load())
+            , markedForRemoval(other.markedForRemoval.load())
+            , isEmbeddingModel(other.isEmbeddingModel.load())
+        {}
+        
+        EngineRecord& operator=(EngineRecord&& other) noexcept {
+            if (this != &other) {
+                engine = std::move(other.engine);
+                modelPath = std::move(other.modelPath);
+                loadParams = other.loadParams;
+                mainGpuId = other.mainGpuId;
+                lastActivityTime = other.lastActivityTime;
+                isLoaded.store(other.isLoaded.load());
+                isLoading.store(other.isLoading.load());
+                markedForRemoval.store(other.markedForRemoval.load());
+                isEmbeddingModel.store(other.isEmbeddingModel.load());
+            }
+            return *this;
+        }
     };
 
-    std::unordered_map<std::string, EngineRecord> engines_;
-    mutable std::mutex mutex_; // Protects access to the engines_ map
+#pragma warning(push)
+#pragma warning(disable: 4251)
+    std::unordered_map<std::string, std::shared_ptr<EngineRecord>> engines_;
+    mutable std::shared_mutex engineMapMutex_;
 
-    // Singleton instance
-    static std::unique_ptr<NodeManager> instance_;
-    static std::mutex instanceMutex_;
-
-    // Autoscaling members
     std::thread autoscalingThread_;
     std::atomic<bool> stopAutoscaling_{false};
     std::condition_variable autoscalingCv_;
+#pragma warning(pop)
+    mutable std::mutex autoscalingMutex_;
+#pragma warning(push)
+#pragma warning(disable: 4251)
     std::chrono::seconds idleTimeout_;
+#pragma warning(pop)
 
     /**
      * @brief The main loop for the autoscaling thread.

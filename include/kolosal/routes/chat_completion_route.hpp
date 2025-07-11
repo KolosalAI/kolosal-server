@@ -7,8 +7,6 @@
 #include <memory>
 
 namespace kolosal {
-    
-    class CompletionMonitor;
 
     class KOLOSAL_SERVER_API ChatCompletionsRoute : public IRoute {
     public:
@@ -19,8 +17,6 @@ namespace kolosal {
         void handle(SocketType sock, const std::string& body) override;    private:
         // Helper methods
         int countTokens(const std::string& text);
-        
-        CompletionMonitor* monitor_;  // Pointer to singleton instance
     };
 
 } // namespace kolosal

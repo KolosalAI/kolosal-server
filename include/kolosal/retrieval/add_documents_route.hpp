@@ -11,8 +11,6 @@
 namespace kolosal
 {
 
-class CompletionMonitor;
-
 namespace retrieval
 {
 
@@ -65,7 +63,7 @@ private:
                           const std::string& param = "");
 
     static std::atomic<long long> request_counter_;
-    std::unique_ptr<CompletionMonitor> monitor_;
+    // std::unique_ptr<CompletionMonitor> monitor_;
     std::unique_ptr<DocumentService> document_service_;
     std::mutex service_mutex_;
 };

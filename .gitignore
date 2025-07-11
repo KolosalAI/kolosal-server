@@ -22,4 +22,7 @@ __pycache__
 =======
 models/**
 downloads/**
+<<<<<<< HEAD
 >>>>>>> origin/retrieval
+=======
+>>>>>>> e45dbad8fd9aafe89b192b548e51b6598f36470d

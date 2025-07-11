@@ -5,7 +5,7 @@
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/node_manager.h"
-#include "kolosal/completion_monitor.hpp"
+// #include "kolosal/completion_monitor.hpp"
 #include "inference_interface.h"
 #include <json.hpp>
 #include <iostream>
@@ -21,8 +21,8 @@ namespace kolosal
 {
 
 EmbeddingRoute::EmbeddingRoute() 
-    : monitor_(&CompletionMonitor::getInstance())
-    , request_counter_(0)
+    // : monitor_(&CompletionMonitor::getInstance())
+    : request_counter_(0)
 {
     ServerLogger::logInfo("EmbeddingRoute initialized with completion monitoring");
 }
@@ -100,7 +100,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
                               std::this_thread::get_id(), inputTexts.size(), request.model.c_str());
 
         // Start monitoring
-        monitor_->startRequest(request.model, "embedding");
+        // monitor_->startRequest(request.model, "embedding");
 
         // Estimate total prompt tokens
         int totalPromptTokens = 0;
@@ -108,7 +108,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         {
             totalPromptTokens += estimateTokenCount(text);
         }
-        monitor_->recordInputTokens(requestId, totalPromptTokens);
+        // monitor_->recordInputTokens(requestId, totalPromptTokens);
 
         // Process embeddings
         std::vector<std::future<std::vector<float>>> embeddingFutures;
@@ -137,7 +137,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
             }
             catch (const std::exception& ex)
             {
-                monitor_->failRequest(requestId);
+                // monitor_->failRequest(requestId);
                 sendErrorResponse(sock, 500, "Failed to generate embedding for input " + std::to_string(i) + ": " + ex.what(), "server_error");
                 return;
             }
@@ -147,7 +147,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         response.setUsage(totalPromptTokens);
 
         // Complete monitoring
-        monitor_->completeRequest(requestId);
+        // monitor_->completeRequest(requestId);
 
         // Send successful response
         send_response(sock, 200, response.to_json().dump());
@@ -160,7 +160,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         // Mark request as failed if monitoring was started
         if (!requestId.empty())
         {
-            monitor_->failRequest(requestId);
+            // monitor_->failRequest(requestId);
         }
 
         ServerLogger::logError("[Thread %u] JSON parsing error: %s", std::this_thread::get_id(), ex.what());
@@ -171,7 +171,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         // Mark request as failed if monitoring was started
         if (!requestId.empty())
         {
-            monitor_->failRequest(requestId);
+            // monitor_->failRequest(requestId);
         }
 
         ServerLogger::logError("[Thread %u] Error handling embedding request: %s", std::this_thread::get_id(), ex.what());

@@ -21,7 +21,7 @@ namespace kolosal
     {
         try
         {
-            ServerLogger::logInfo("[Thread %u] Received list engines request", std::this_thread::get_id());
+            ServerLogger::logDebug("[Thread %u] Received list engines request", std::this_thread::get_id());
 
             // Get the NodeManager and list engines
             auto &nodeManager = ServerAPI::instance().getNodeManager();
@@ -30,12 +30,12 @@ namespace kolosal
             json enginesList = json::array();
             for (const auto &engineId : engineIds)
             {
-                // Get engine to refresh activity and check status
-                auto engine = nodeManager.getEngine(engineId);
+                // Check engine status without loading it (to avoid triggering lazy model loading)
+                auto [exists, isLoaded] = nodeManager.getEngineStatus(engineId);
 
                 json engineInfo = {
                     {"engine_id", engineId},
-                    {"status", engine ? "loaded" : "unloaded"},
+                    {"status", isLoaded ? "loaded" : "unloaded"},
                     {"last_accessed", "recently"} // Could be enhanced with actual timestamps
                 };
 
@@ -47,7 +47,7 @@ namespace kolosal
                 {"total_count", enginesList.size()}};
 
             send_response(sock, 200, response.dump());
-            ServerLogger::logInfo("[Thread %u] Successfully listed %zu engines", std::this_thread::get_id(), enginesList.size());
+            ServerLogger::logDebug("[Thread %u] Successfully listed %zu engines", std::this_thread::get_id(), enginesList.size());
         }
         catch (const std::exception &ex)
         {

@@ -1,4 +1,5 @@
 #include "kolosal/download_manager.hpp"
+#include "kolosal/download_utils.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/node_manager.h"
@@ -7,6 +8,7 @@
 #include <chrono>
 #include <thread>
 #include <filesystem>
+#include <cmath>
 
 namespace kolosal
 {
@@ -21,13 +23,25 @@ namespace kolosal
         std::lock_guard<std::mutex> lock(downloads_mutex_);
 
         // Check if download is already in progress
-        if (downloads_.find(model_id) != downloads_.end())
+        auto existing_it = downloads_.find(model_id);
+        if (existing_it != downloads_.end())
         {
-            ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
-            return false;
-        }
-
-        // Create new download progress entry
+            // If the existing download is cancelled, failed, or completed, we can restart it
+            auto &existing_progress = existing_it->second;
+            if (existing_progress->status == "downloading" || existing_progress->status == "paused")
+            {
+                ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
+                return false;
+            }
+            else
+            {
+                // Clean up the old entry to allow restart
+                ServerLogger::logInfo("Cleaning up previous download entry for model: %s (status: %s)",
+                                      model_id.c_str(), existing_progress->status.c_str());
+                download_futures_.erase(model_id);
+                downloads_.erase(existing_it);
+            }
+        } // Create new download progress entry
         auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
         downloads_[model_id] = progress;
 
@@ -35,20 +49,54 @@ namespace kolosal
         download_futures_[model_id] = std::async(std::launch::async, [this, progress]()
                                                  { performDownload(progress); });
 
-        ServerLogger::logInfo("Started download for model %s from URL: %s", model_id.c_str(), url.c_str());
+        ServerLogger::logInfo("Started download for model %s", model_id.c_str());
         return true;
     }
 
     bool DownloadManager::startDownloadWithEngine(const std::string &model_id, const std::string &url,
                                                   const std::string &local_path, const EngineCreationParams &engine_params)
     {
+        // First check if an engine with this ID already exists
+        auto &nodeManager = ServerAPI::instance().getNodeManager();
+        auto [engineExists, engineLoaded] = nodeManager.getEngineStatus(engine_params.engine_id);
+
+        if (engineExists)
+        {
+            ServerLogger::logInfo("Engine '%s' already exists on the server. Skipping download and engine creation.", engine_params.engine_id.c_str());
+
+            // Create a completed download entry for consistency
+            std::lock_guard<std::mutex> lock(downloads_mutex_);
+            auto progress = std::make_shared<DownloadProgress>(model_id, url, local_path);
+            progress->engine_params = std::make_unique<EngineCreationParams>(engine_params);
+            progress->status = "engine_already_exists";
+            progress->percentage = 100.0;
+            progress->end_time = std::chrono::system_clock::now();
+            downloads_[model_id] = progress;
+
+            return true;
+        }
+
         std::lock_guard<std::mutex> lock(downloads_mutex_);
 
         // Check if download is already in progress
-        if (downloads_.find(model_id) != downloads_.end())
+        auto existing_it = downloads_.find(model_id);
+        if (existing_it != downloads_.end())
         {
-            ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
-            return false;
+            // If the existing download is cancelled, failed, or completed, we can restart it
+            auto &existing_progress = existing_it->second;
+            if (existing_progress->status == "downloading" || existing_progress->status == "paused")
+            {
+                ServerLogger::logWarning("Download already in progress for model: %s", model_id.c_str());
+                return false;
+            }
+            else
+            {
+                // Clean up the old entry to allow restart
+                ServerLogger::logInfo("Cleaning up previous download entry for model: %s (status: %s)",
+                                      model_id.c_str(), existing_progress->status.c_str());
+                download_futures_.erase(model_id);
+                downloads_.erase(existing_it);
+            }
         }
 
         // Create new download progress entry with engine parameters
@@ -60,7 +108,7 @@ namespace kolosal
         download_futures_[model_id] = std::async(std::launch::async, [this, progress]()
                                                  { performDownload(progress); });
 
-        ServerLogger::logInfo("Started download with engine creation for model %s from URL: %s", model_id.c_str(), url.c_str());
+        ServerLogger::logInfo("Started download with engine creation for model %s", model_id.c_str());
         return true;
     }
 
@@ -92,13 +140,13 @@ namespace kolosal
     bool DownloadManager::cancelDownload(const std::string &model_id)
     {
         std::lock_guard<std::mutex> lock(downloads_mutex_);
-
         auto it = downloads_.find(model_id);
-        if (it != downloads_.end() && (it->second->status == "downloading" || it->second->status == "creating_engine"))
+        if (it != downloads_.end() && (it->second->status == "downloading" || it->second->status == "creating_engine" || it->second->status == "paused"))
         {
             it->second->status = "cancelled";
             it->second->end_time = std::chrono::system_clock::now();
             it->second->cancelled = true; // Set the cancellation flag
+            it->second->paused = false;   // Clear pause flag when cancelling
 
             // Check if this is a startup download (has engine params)
             if (it->second->engine_params)
@@ -120,15 +168,15 @@ namespace kolosal
         int cancelled_count = 0;
         int startup_downloads = 0;
         int regular_downloads = 0;
-
         for (auto &pair : downloads_)
         {
             auto progress = pair.second;
-            if (progress && (progress->status == "downloading" || progress->status == "creating_engine"))
+            if (progress && (progress->status == "downloading" || progress->status == "creating_engine" || progress->status == "paused"))
             {
                 progress->status = "cancelled";
                 progress->end_time = std::chrono::system_clock::now();
                 progress->cancelled = true; // Set the cancellation flag
+                progress->paused = false;   // Clear pause flag when cancelling
                 cancelled_count++;
 
                 // Check if this is a startup download (has engine params)
@@ -184,7 +232,7 @@ namespace kolosal
 
         // Wait for all download threads to complete with progressive timeout
         int completed = 0;
-        int total = futures_to_wait.size();
+        int total = static_cast<int>(futures_to_wait.size());
 
         for (auto &pair : futures_to_wait)
         {
@@ -228,10 +276,9 @@ namespace kolosal
         std::lock_guard<std::mutex> lock(downloads_mutex_);
 
         std::map<std::string, std::shared_ptr<DownloadProgress>> active_downloads;
-
         for (const auto &pair : downloads_)
         {
-            if (pair.second->status == "downloading")
+            if (pair.second->status == "downloading" || pair.second->status == "paused")
             {
                 active_downloads[pair.first] = pair.second;
             }
@@ -250,10 +297,9 @@ namespace kolosal
         auto it = downloads_.begin();
         while (it != downloads_.end())
         {
-            auto &progress = it->second;
-
-            // Only clean up completed, failed, or cancelled downloads
+            auto &progress = it->second; // Only clean up completed, failed, or cancelled downloads (not downloading or paused)
             if (progress->status != "downloading" &&
+                progress->status != "paused" &&
                 progress->end_time < cutoff_time)
             {
 
@@ -274,29 +320,119 @@ namespace kolosal
     {
         try
         {
+            // Check if file is already complete before starting download
+            if (std::filesystem::exists(progress->local_path))
+            {
+                try
+                {
+                    size_t local_size = std::filesystem::file_size(progress->local_path);
+                    if (local_size > 0)
+                    {
+                        // Get expected file size to check if file is complete
+                        DownloadResult url_info = get_url_file_info(progress->url);
+                        if (url_info.success && local_size == url_info.total_bytes)
+                        {
+                            std::lock_guard<std::mutex> lock(downloads_mutex_);
+                            progress->status = "already_complete";
+                            progress->total_bytes = local_size;
+                            progress->downloaded_bytes = local_size;
+                            progress->percentage = 100.0;
+                            progress->end_time = std::chrono::system_clock::now();
+
+                            // File already downloaded - only log at debug level to reduce verbosity
+                            ServerLogger::logDebug("File already fully downloaded for model %s: %zu bytes (skipping download)",
+                                                   progress->model_id.c_str(), local_size);
+
+                            // If engine parameters are provided, create the engine
+                            if (progress->engine_params)
+                            {
+                                createEngineAfterDownload(progress);
+                            }
+                            return;
+                        }
+                    }
+                }
+                catch (const std::exception &ex)
+                {
+                    ServerLogger::logWarning("Error checking existing file for model %s: %s",
+                                             progress->model_id.c_str(), ex.what());
+                }
+            }
             // Progress callback to update download progress
-            auto progressCallback = [progress](size_t downloaded, size_t total, double percentage)
+            bool progress_was_reported = false;
+            auto progressCallback = [progress, &progress_was_reported](size_t downloaded, size_t total, double percentage)
             {
                 std::lock_guard<std::mutex> lock(const_cast<DownloadManager &>(getInstance()).downloads_mutex_);
+
+                // Handle pause by checking the pause flag and waiting
+                while (progress->paused && progress->status == "paused" && !progress->cancelled)
+                {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                }
+
+                // If cancelled while paused, return early
+                if (progress->cancelled)
+                {
+                    return;
+                }
+
+                progress_was_reported = true;
+
+                // Validate percentage value before storing
+                if (percentage < 0.0 || percentage > 100.0 || std::isnan(percentage) || std::isinf(percentage))
+                {
+                    ServerLogger::logWarning("Invalid percentage value %.2f for model %s, clamping to valid range",
+                                             percentage, progress->model_id.c_str());
+                    percentage = std::fmax(0.0, std::fmin(100.0, percentage));
+                    if (std::isnan(percentage) || std::isinf(percentage))
+                    {
+                        percentage = 0.0;
+                    }
+                }
                 progress->downloaded_bytes = downloaded;
                 progress->total_bytes = total;
                 progress->percentage = percentage;
 
-                ServerLogger::logInfo("Download progress for %s: %.1f%% (%zu/%zu bytes)",
-                                      progress->model_id.c_str(), percentage, downloaded, total);
-            }; // Perform the actual download with cancellation support
-            DownloadResult result = download_file_with_cancellation(progress->url, progress->local_path, progressCallback, &(progress->cancelled));
+                // Only log progress at major milestones (every 10%) to reduce verbosity
+                static std::map<std::string, int> last_logged_milestone;
+                int current_milestone = static_cast<int>(percentage / 10) * 10;
+                if (last_logged_milestone[progress->model_id] != current_milestone && current_milestone > 0)
+                {
+                    last_logged_milestone[progress->model_id] = current_milestone;
+                    ServerLogger::logInfo("Download progress for %s: %d%% (%zu/%zu bytes)", progress->model_id.c_str(), current_milestone, downloaded, total);
+                }
+            };
+
+            // Perform the actual download with cancellation support
+            ServerLogger::logInfo("Starting download for model: %s", progress->model_id.c_str());
+            DownloadResult result = download_file_with_cancellation_and_resume(progress->url, progress->local_path, progressCallback, &(progress->cancelled), true);
 
             {
                 std::lock_guard<std::mutex> lock(downloads_mutex_);
+
+                // Only log final result, not detailed metrics to reduce verbosity
+                if (result.success)
+                {
+                    ServerLogger::logInfo("Download completed successfully for model: %s", progress->model_id.c_str());
+                }
+                else
+                {
+                    ServerLogger::logError("Download failed for model %s: %s", progress->model_id.c_str(), result.error_message.c_str());
+                }
 
                 if (result.success && progress->status != "cancelled")
                 {
                     progress->status = "completed";
                     progress->total_bytes = result.total_bytes;
                     progress->downloaded_bytes = result.total_bytes;
-                    progress->percentage = 100.0;
-                    ServerLogger::logInfo("Download completed successfully for model: %s", progress->model_id.c_str());
+                    progress->percentage = 100.0; // Check if this was a file that was already complete (no progress reported)
+                    if (!progress_was_reported && result.total_bytes > 0)
+                    {
+                        ServerLogger::logInfo("File was already complete for model: %s (no download needed)", progress->model_id.c_str());
+                        // Set status to indicate the file was already complete
+                        progress->status = "already_complete";
+                    }
+                    // Download completion already logged above, no need to duplicate
                 }
                 else if (progress->status != "cancelled")
                 {
@@ -332,20 +468,33 @@ namespace kolosal
     {
         try
         {
+            // Get the NodeManager and check if engine already exists
+            auto &nodeManager = ServerAPI::instance().getNodeManager();
+            auto [engineExists, engineLoaded] = nodeManager.getEngineStatus(progress->engine_params->engine_id);
+
+            if (engineExists)
+            {
+                std::lock_guard<std::mutex> lock(downloads_mutex_);
+                progress->status = "engine_already_exists";
+                progress->end_time = std::chrono::system_clock::now();
+                ServerLogger::logInfo("Engine '%s' already exists, skipping engine creation after download", progress->engine_params->engine_id.c_str());
+                return;
+            }
+
             // Update status to indicate engine creation
             {
                 std::lock_guard<std::mutex> lock(downloads_mutex_);
                 progress->status = "creating_engine";
                 ServerLogger::logInfo("Starting engine creation for model: %s", progress->model_id.c_str());
-            }            // Get the NodeManager and create the engine
-            auto &nodeManager = ServerAPI::instance().getNodeManager();
+            }
 
             // Use the downloaded file path as the model path
             std::string actualModelPath = progress->local_path;
             bool success = false;
-            
+
             if (progress->engine_params->model_type == "embedding")
             {
+                // For embedding engines, always use addEmbeddingEngine
                 success = nodeManager.addEmbeddingEngine(
                     progress->engine_params->engine_id,
                     actualModelPath.c_str(),
@@ -354,11 +503,25 @@ namespace kolosal
             }
             else
             {
-                success = nodeManager.addEngine(
-                    progress->engine_params->engine_id,
-                    actualModelPath.c_str(),
-                    progress->engine_params->loading_params,
-                    progress->engine_params->main_gpu_id);
+                // For LLM engines, check loading preference
+                if (progress->engine_params->load_immediately)
+                {
+                    // Load immediately - use addEngine
+                    success = nodeManager.addEngine(
+                        progress->engine_params->engine_id,
+                        actualModelPath.c_str(),
+                        progress->engine_params->loading_params,
+                        progress->engine_params->main_gpu_id);
+                }
+                else
+                {
+                    // Lazy loading - use registerEngine
+                    success = nodeManager.registerEngine(
+                        progress->engine_params->engine_id,
+                        actualModelPath.c_str(),
+                        progress->engine_params->loading_params,
+                        progress->engine_params->main_gpu_id);
+                }
             }
 
             std::lock_guard<std::mutex> lock(downloads_mutex_);
@@ -385,11 +548,21 @@ namespace kolosal
             progress->end_time = std::chrono::system_clock::now();
             ServerLogger::logError("Exception during engine creation for model %s: %s", progress->model_id.c_str(), ex.what());
         }
-    }    // Add a helper method for startup model loading
+    } // Add a helper method for startup model loading
     bool DownloadManager::loadModelAtStartup(const std::string &model_id, const std::string &model_path,
-                                             const std::string &model_type, const LoadingParameters &load_params, 
+                                             const std::string &model_type, const LoadingParameters &load_params,
                                              int main_gpu_id, bool load_immediately)
     {
+        // First check if an engine with this ID already exists
+        auto &nodeManager = ServerAPI::instance().getNodeManager();
+        auto [engineExists, engineLoaded] = nodeManager.getEngineStatus(model_id);
+
+        if (engineExists)
+        {
+            ServerLogger::logInfo("Engine '%s' already exists during startup, skipping load", model_id.c_str());
+            return true;
+        }
+
         // Check if the model path is a URL
         if (is_valid_url(model_path))
         {
@@ -403,7 +576,7 @@ namespace kolosal
                 if (can_resume_download(model_path, download_path))
                 {
                     ServerLogger::logInfo("Found incomplete download for startup model '%s', will resume: %s",
-                                          model_id.c_str(), download_path.c_str());                    // Create engine creation parameters for resume
+                                          model_id.c_str(), download_path.c_str()); // Create engine creation parameters for resume
                     EngineCreationParams engine_params;
                     engine_params.engine_id = model_id;
                     engine_params.model_type = model_type;
@@ -417,7 +590,7 @@ namespace kolosal
                 else
                 {
                     ServerLogger::logInfo("Model file already exists locally for startup model '%s': %s",
-                                          model_id.c_str(), download_path.c_str());                    // Load directly using NodeManager
+                                          model_id.c_str(), download_path.c_str()); // Load directly using NodeManager
                     auto &node_manager = ServerAPI::instance().getNodeManager();
                     if (load_immediately)
                     {
@@ -445,7 +618,7 @@ namespace kolosal
             }
             else
             {
-                ServerLogger::logInfo("Starting startup download for model '%s' from URL: %s", model_id.c_str(), model_path.c_str());                // Create engine creation parameters
+                ServerLogger::logInfo("Starting startup download for model '%s' from URL: %s", model_id.c_str(), model_path.c_str()); // Create engine creation parameters
                 EngineCreationParams engine_params;
                 engine_params.engine_id = model_id;
                 engine_params.model_type = model_type;
@@ -458,7 +631,7 @@ namespace kolosal
             }
         }
         else
-        {            // Not a URL, use regular NodeManager methods
+        { // Not a URL, use regular NodeManager methods
             auto &node_manager = ServerAPI::instance().getNodeManager();
             if (load_immediately)
             {
@@ -476,12 +649,45 @@ namespace kolosal
                 if (model_type == "embedding")
                 {
                     return node_manager.registerEmbeddingEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
-                }                else
+                }
+                else
                 {
                     return node_manager.registerEngine(model_id, model_path.c_str(), load_params, main_gpu_id);
                 }
             }
         }
+    }
+
+    bool DownloadManager::pauseDownload(const std::string &model_id)
+    {
+        std::lock_guard<std::mutex> lock(downloads_mutex_);
+
+        auto it = downloads_.find(model_id);
+        if (it != downloads_.end() && it->second->status == "downloading")
+        {
+            it->second->paused = true;
+            it->second->status = "paused";
+            ServerLogger::logInfo("Paused download for model: %s", model_id.c_str());
+            return true;
+        }
+
+        return false;
+    }
+
+    bool DownloadManager::resumeDownload(const std::string &model_id)
+    {
+        std::lock_guard<std::mutex> lock(downloads_mutex_);
+
+        auto it = downloads_.find(model_id);
+        if (it != downloads_.end() && it->second->status == "paused")
+        {
+            it->second->paused = false;
+            it->second->status = "downloading";
+            ServerLogger::logInfo("Resumed download for model: %s", model_id.c_str());
+            return true;
+        }
+
+        return false;
     }
 
 } // namespace kolosal

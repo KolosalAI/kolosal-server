@@ -2,6 +2,7 @@
 #include "kolosal/logger.hpp" // Assuming a logger is available
 #include "kolosal/download_utils.hpp"
 #include <filesystem>
+#include <mutex>
 
 namespace kolosal
 {
@@ -17,21 +18,35 @@ namespace kolosal
     {
         ServerLogger::logInfo("NodeManager shutting down.");
         stopAutoscaling_.store(true);
-        autoscalingCv_.notify_one();
+        
+        // Wake up autoscaling thread
+        {
+            std::lock_guard<std::mutex> lock(autoscalingMutex_);
+            autoscalingCv_.notify_one();
+        }
+        
         if (autoscalingThread_.joinable())
         {
             autoscalingThread_.join();
         }
         ServerLogger::logInfo("Autoscaling thread stopped.");
 
-        std::lock_guard<std::mutex> lock(mutex_);
-        for (auto const &[id, record] : engines_)
+        // Get exclusive access to engines map
+        std::unique_lock<std::shared_mutex> mapLock(engineMapMutex_);
+        
+        // Mark all engines for removal and unload them
+        for (auto& [id, recordPtr] : engines_)
         {
-            if (record.isLoaded && record.engine)
+            if (recordPtr)        {
+            recordPtr->markedForRemoval.store(true);
+            std::lock_guard<std::mutex> engineLock(recordPtr->engineMutex);
+            
+            if (recordPtr->isLoaded.load() && recordPtr->engine)
             {
                 ServerLogger::logInfo("Unloading engine ID \'%s\' during shutdown.", id.c_str());
-                record.engine->unloadModel();
+                recordPtr->engine->unloadModel();
             }
+        }
         }
         engines_.clear();
         ServerLogger::logInfo("All engines unloaded and NodeManager shut down complete.");
@@ -39,14 +54,17 @@ namespace kolosal
 
     bool NodeManager::addEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (engines_.count(engineId))
+        // First check if engine already exists (read lock)
         {
-            ServerLogger::logWarning("Engine with ID \'%s\' already exists.", engineId.c_str());
-            return false;
+            std::shared_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            if (engines_.count(engineId))
+            {
+                ServerLogger::logWarning("Engine with ID \'%s\' already exists.", engineId.c_str());
+                return false;
+            }
         }
 
-        // First, validate if the model file exists
+        // Validate model file outside of any locks
         ServerLogger::logInfo("Validating model file for engine \'%s\': %s", engineId.c_str(), modelPath);
         if (!validateModelFile(modelPath))
         {
@@ -55,111 +73,67 @@ namespace kolosal
         }
 
         std::string actualModelPath = modelPath;
-        // Check if the model path is a URL and download if necessary
+        // Handle URL downloads outside of locks to avoid blocking other engines
         if (is_valid_url(modelPath))
         {
-            ServerLogger::logInfo("Model path for engine \'%s\' is a URL. Starting download: %s", engineId.c_str(), modelPath);
-
-            // Generate local path for the downloaded model
-            std::string downloadsDir = "./models";
-            std::string localPath = generate_download_path(modelPath, downloadsDir);
-
-            // Check if the file already exists locally
-            if (std::filesystem::exists(localPath))
+            actualModelPath = handleUrlDownload(engineId, modelPath);
+            if (actualModelPath.empty())
             {
-                // Check if we can resume this download (file might be incomplete)
-                if (can_resume_download(modelPath, localPath))
-                {
-                    ServerLogger::logInfo("Found incomplete download for engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
-
-                    // Download the model with progress callback (will resume automatically)
-                    auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
-                    {
-                        if (total > 0)
-                        {
-                            ServerLogger::logInfo("Resuming download for engine '%s': %.1f%% (%zu/%zu bytes)",
-                                                  engineId.c_str(), percentage, downloaded, total);
-                        }
-                    };
-
-                    DownloadResult result = download_file(modelPath, localPath, progressCallback);
-
-                    if (!result.success)
-                    {
-                        ServerLogger::logError("Failed to resume download for engine '%s' from URL '%s': %s",
-                                               engineId.c_str(), modelPath, result.error_message.c_str());
-                        return false;
-                    }
-
-                    ServerLogger::logInfo("Successfully completed download for engine '%s' to: %s (%.2f MB)",
-                                          engineId.c_str(), localPath.c_str(),
-                                          static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
-                    actualModelPath = localPath;
-                }
-                else
-                {
-                    ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
-                    actualModelPath = localPath;
-                }
-            }
-            else
-            {
-                // Download the model with progress callback
-                auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
-                {
-                    if (total > 0)
-                    {
-                        ServerLogger::logInfo("Downloading model for engine \'%s\': %.1f%% (%zu/%zu bytes)",
-                                              engineId.c_str(), percentage, downloaded, total);
-                    }
-                };
-
-                DownloadResult result = download_file(modelPath, localPath, progressCallback);
-
-                if (!result.success)
-                {
-                    ServerLogger::logError("Failed to download model for engine \'%s\' from URL \'%s\': %s",
-                                           engineId.c_str(), modelPath, result.error_message.c_str());
-                    return false;
-                }
-
-                ServerLogger::logInfo("Successfully downloaded model for engine \'%s\' to: %s (%.2f MB)",
-                                      engineId.c_str(), localPath.c_str(),
-                                      static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
-                actualModelPath = localPath;
+                return false; // Download failed
             }
         }
 
+        // Create engine instance and load model (outside of map lock)
         auto engine = std::make_shared<InferenceEngine>();
         if (!engine->loadModel(actualModelPath.c_str(), loadParams, mainGpuId))
         {
             ServerLogger::logError("Failed to load model for engine ID \'%s\' from path \'%s\'.", engineId.c_str(), actualModelPath.c_str());
             return false;
-        }        EngineRecord record;
-        record.engine = engine;
-        record.modelPath = actualModelPath; // Store the actual local path
-        record.loadParams = loadParams;
-        record.mainGpuId = mainGpuId;
-        record.modelType = ModelType::LLM;  // Standard LLM model
-        record.isLoaded = true;
-        record.lastActivityTime = std::chrono::steady_clock::now();
+        }
 
-        engines_[engineId] = record;
+        // Create record and add to map (exclusive lock only for map modification)
+        auto recordPtr = std::make_shared<EngineRecord>();
+        recordPtr->engine = engine;
+        recordPtr->modelPath = actualModelPath;
+        recordPtr->loadParams = loadParams;
+        recordPtr->mainGpuId = mainGpuId;
+        recordPtr->isLoaded.store(true);
+        recordPtr->lastActivityTime = std::chrono::steady_clock::now();
+
+        {
+            std::unique_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            // Double-check pattern to ensure no race condition
+            if (engines_.count(engineId))
+            {
+                ServerLogger::logWarning("Engine with ID \'%s\' was added by another thread.", engineId.c_str());
+                return false;
+            }
+            engines_[engineId] = recordPtr;
+        }
+
         ServerLogger::logInfo("Successfully added and loaded engine with ID \'%s\'. Model: %s", engineId.c_str(), actualModelPath.c_str());
-        autoscalingCv_.notify_one(); // Notify autoscaling thread about new engine
+        
+        // Notify autoscaling thread about new engine
+        {
+            std::lock_guard<std::mutex> lock(autoscalingMutex_);
+            autoscalingCv_.notify_one();
+        }
         return true;
     }
 
     bool NodeManager::addEmbeddingEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (engines_.count(engineId))
+        // First check if engine already exists (read lock)
         {
-            ServerLogger::logWarning("Embedding engine with ID \'%s\' already exists.", engineId.c_str());
-            return false;
+            std::shared_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            if (engines_.count(engineId))
+            {
+                ServerLogger::logWarning("Embedding engine with ID \'%s\' already exists.", engineId.c_str());
+                return false;
+            }
         }
 
-        // First, validate if the model file exists
+        // Validate model file outside of any locks
         ServerLogger::logInfo("Validating embedding model file for engine \'%s\': %s", engineId.c_str(), modelPath);
         if (!validateModelFile(modelPath))
         {
@@ -168,81 +142,17 @@ namespace kolosal
         }
 
         std::string actualModelPath = modelPath;
-        // Check if the model path is a URL and download if necessary
+        // Handle URL downloads outside of locks to avoid blocking other engines
         if (is_valid_url(modelPath))
         {
-            ServerLogger::logInfo("Embedding model path for engine \'%s\' is a URL. Starting download: %s", engineId.c_str(), modelPath);
-
-            // Generate local path for the downloaded model
-            std::string downloadsDir = "./models";
-            std::string localPath = generate_download_path(modelPath, downloadsDir);
-
-            // Check if the file already exists locally
-            if (std::filesystem::exists(localPath))
+            actualModelPath = handleUrlDownload(engineId, modelPath);
+            if (actualModelPath.empty())
             {
-                // Check if we can resume this download (file might be incomplete)
-                if (can_resume_download(modelPath, localPath))
-                {
-                    ServerLogger::logInfo("Found incomplete download for embedding engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
-
-                    // Download the model with progress callback (will resume automatically)
-                    auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
-                    {
-                        if (total > 0)
-                        {
-                            ServerLogger::logInfo("Resuming embedding model download for engine '%s': %.1f%% (%zu/%zu bytes)",
-                                                  engineId.c_str(), percentage, downloaded, total);
-                        }
-                    };
-
-                    DownloadResult result = download_file(modelPath, localPath, progressCallback);
-
-                    if (!result.success)
-                    {
-                        ServerLogger::logError("Failed to resume embedding model download for engine '%s' from URL '%s': %s",
-                                               engineId.c_str(), modelPath, result.error_message.c_str());
-                        return false;
-                    }
-
-                    ServerLogger::logInfo("Successfully completed embedding model download for engine '%s' to: %s (%.2f MB)",
-                                          engineId.c_str(), localPath.c_str(),
-                                          static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
-                    actualModelPath = localPath;
-                }
-                else
-                {
-                    ServerLogger::logInfo("Embedding model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
-                    actualModelPath = localPath;
-                }
-            }
-            else
-            {
-                // Download the model with progress callback
-                auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
-                {
-                    if (total > 0)
-                    {
-                        ServerLogger::logInfo("Downloading embedding model for engine \'%s\': %.1f%% (%zu/%zu bytes)",
-                                              engineId.c_str(), percentage, downloaded, total);
-                    }
-                };
-
-                DownloadResult result = download_file(modelPath, localPath, progressCallback);
-
-                if (!result.success)
-                {
-                    ServerLogger::logError("Failed to download embedding model for engine \'%s\' from URL \'%s\': %s",
-                                           engineId.c_str(), modelPath, result.error_message.c_str());
-                    return false;
-                }
-
-                ServerLogger::logInfo("Successfully downloaded embedding model for engine \'%s\' to: %s (%.2f MB)",
-                                      engineId.c_str(), localPath.c_str(),
-                                      static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
-                actualModelPath = localPath;
+                return false; // Download failed
             }
         }
 
+        // Create engine instance and load model (outside of map lock)
         auto engine = std::make_shared<InferenceEngine>();
         if (!engine->loadEmbeddingModel(actualModelPath.c_str(), loadParams, mainGpuId))
         {
@@ -250,94 +160,210 @@ namespace kolosal
             return false;
         }
 
-        EngineRecord record;
-        record.engine = engine;
-        record.modelPath = actualModelPath; // Store the actual local path
-        record.loadParams = loadParams;
-        record.mainGpuId = mainGpuId;
-        record.modelType = ModelType::EMBEDDING;
-        record.isLoaded = true;
-        record.lastActivityTime = std::chrono::steady_clock::now();
+        // Create record and add to map (exclusive lock only for map modification)
+        auto recordPtr = std::make_shared<EngineRecord>();
+        recordPtr->engine = engine;
+        recordPtr->modelPath = actualModelPath;
+        recordPtr->loadParams = loadParams;
+        recordPtr->mainGpuId = mainGpuId;
+        recordPtr->isLoaded.store(true);
+        recordPtr->isEmbeddingModel.store(true); // Mark as embedding model
+        recordPtr->lastActivityTime = std::chrono::steady_clock::now();
 
-        engines_[engineId] = record;
+        {
+            std::unique_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            // Double-check pattern to ensure no race condition
+            if (engines_.count(engineId))
+            {
+                ServerLogger::logWarning("Embedding engine with ID \'%s\' was added by another thread.", engineId.c_str());
+                return false;
+            }
+            engines_[engineId] = recordPtr;
+        }
+
         ServerLogger::logInfo("Successfully added and loaded embedding engine with ID \'%s\'. Model: %s", engineId.c_str(), actualModelPath.c_str());
-        autoscalingCv_.notify_one(); // Notify autoscaling thread about new engine
+        
+        // Notify autoscaling thread about new engine
+        {
+            std::lock_guard<std::mutex> lock(autoscalingMutex_);
+            autoscalingCv_.notify_one();
+        }
+        
         return true;
     }
 
     std::shared_ptr<InferenceEngine> NodeManager::getEngine(const std::string &engineId)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto it = engines_.find(engineId);
-        if (it == engines_.end())
+        // First, get shared access to find the engine record
+        std::shared_ptr<EngineRecord> recordPtr;
         {
-            ServerLogger::logWarning("Engine with ID \'%s\' not found.", engineId.c_str());
-            return nullptr;
-        }        EngineRecord &record = it->second;
-        if (!record.isLoaded)
-        {
-            ServerLogger::logInfo("Engine ID \'%s\' was unloaded due to inactivity. Attempting to reload.", engineId.c_str());
-            record.engine = std::make_shared<InferenceEngine>(); // Create new engine instance
-
-            // Note: During reload, we use the stored model path which should already be local
-            // because the download would have happened during the initial addEngine call
-            bool loadSuccess = false;
-            if (record.modelType == ModelType::EMBEDDING)
+            std::shared_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            auto it = engines_.find(engineId);
+            if (it == engines_.end())
             {
-                loadSuccess = record.engine->loadEmbeddingModel(record.modelPath.c_str(), record.loadParams, record.mainGpuId);
+                ServerLogger::logWarning("Engine with ID \'%s\' not found.", engineId.c_str());
+                return nullptr;
+            }
+            
+            recordPtr = it->second; // Get shared ownership of the record
+            if (!recordPtr || recordPtr->markedForRemoval.load())
+            {
+                ServerLogger::logWarning("Engine with ID \'%s\' is marked for removal.", engineId.c_str());
+                return nullptr;
+            }
+        }
+        
+        // Now work with the engine record without holding the map lock
+        std::unique_lock<std::mutex> engineLock(recordPtr->engineMutex);
+        
+        // Update activity time first
+        recordPtr->lastActivityTime = std::chrono::steady_clock::now();
+        
+        if (!recordPtr->isLoaded.load())
+        {
+            // Check if another thread is already loading
+            if (recordPtr->isLoading.load())
+            {
+                ServerLogger::logDebug("Engine ID \'%s\' is being loaded by another thread. Waiting...", engineId.c_str());
+                recordPtr->loadingCv.wait(engineLock, [recordPtr] { 
+                    return !recordPtr->isLoading.load() || recordPtr->markedForRemoval.load(); 
+                });
+                
+                if (recordPtr->markedForRemoval.load())
+                {
+                    return nullptr;
+                }
+                
+                if (recordPtr->isLoaded.load() && recordPtr->engine)
+                {
+                    ServerLogger::logDebug("Engine ID \'%s\' loaded by another thread.", engineId.c_str());
+                    return recordPtr->engine;
+                }
+                else
+                {
+                    ServerLogger::logError("Engine ID \'%s\' failed to load by another thread.", engineId.c_str());
+                    return nullptr;
+                }
+            }
+            
+            // This thread will handle the loading
+            recordPtr->isLoading.store(true);
+            engineLock.unlock(); // Release lock during potentially long loading operation
+            
+            ServerLogger::logInfo("Engine ID \'%s\' was unloaded due to inactivity. Attempting to reload.", engineId.c_str());
+            auto newEngine = std::make_shared<InferenceEngine>();
+            
+            // Check if this is an embedding model or regular model
+            bool loadSuccess = false;
+            if (recordPtr->isEmbeddingModel.load())
+            {
+                loadSuccess = newEngine->loadEmbeddingModel(recordPtr->modelPath.c_str(), recordPtr->loadParams, recordPtr->mainGpuId);
             }
             else
             {
-                loadSuccess = record.engine->loadModel(record.modelPath.c_str(), record.loadParams, record.mainGpuId);
+                loadSuccess = newEngine->loadModel(recordPtr->modelPath.c_str(), recordPtr->loadParams, recordPtr->mainGpuId);
             }
-
-            if (!loadSuccess)
+            
+            // Re-acquire lock to update state
+            engineLock.lock();
+            recordPtr->isLoading.store(false);
+            
+            if (loadSuccess && !recordPtr->markedForRemoval.load())
             {
-                ServerLogger::logError("Failed to reload %s model for engine ID \'%s\' from path \'%s\'.", 
-                                       (record.modelType == ModelType::EMBEDDING) ? "embedding" : "LLM",
-                                       engineId.c_str(), record.modelPath.c_str());
-                record.engine = nullptr; // Ensure engine is null if reload fails
+                recordPtr->engine = newEngine;
+                recordPtr->isLoaded.store(true);
+                ServerLogger::logInfo("Successfully reloaded %s engine ID \'%s\'.", 
+                                      recordPtr->isEmbeddingModel.load() ? "embedding" : "LLM", 
+                                      engineId.c_str());
+            }
+            else
+            {
+                if (recordPtr->markedForRemoval.load())
+                {
+                    ServerLogger::logInfo("Engine ID \'%s\' was marked for removal during loading.", engineId.c_str());
+                }
+                else
+                {
+                    ServerLogger::logError("Failed to reload %s model for engine ID \'%s\' from path \'%s\'.", 
+                                          recordPtr->isEmbeddingModel.load() ? "embedding" : "LLM",
+                                          engineId.c_str(), recordPtr->modelPath.c_str());
+                }
+                recordPtr->engine = nullptr;
+            }
+            
+            // Notify all waiting threads
+            recordPtr->loadingCv.notify_all();
+            
+            if (!loadSuccess || recordPtr->markedForRemoval.load())
+            {
                 return nullptr;
             }
-            record.isLoaded = true;
-            ServerLogger::logInfo("Successfully reloaded %s engine ID \'%s\'.", 
-                                  (record.modelType == ModelType::EMBEDDING) ? "embedding" : "LLM",
-                                  engineId.c_str());
         }
-
-        record.lastActivityTime = std::chrono::steady_clock::now();
-        autoscalingCv_.notify_one(); // Notify autoscaling thread about activity
-        return record.engine;
+        
+        // Notify autoscaling thread about activity
+        {
+            std::lock_guard<std::mutex> lock(autoscalingMutex_);
+            autoscalingCv_.notify_one();
+        }
+        
+        return recordPtr->engine;
     }
 
     bool NodeManager::removeEngine(const std::string &engineId)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        auto it = engines_.find(engineId);
-        if (it != engines_.end())
+        std::shared_ptr<EngineRecord> recordPtr;
+        
+        // Get the engine record and mark it for removal
         {
-            if (it->second.isLoaded && it->second.engine)
+            std::unique_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            auto it = engines_.find(engineId);
+            if (it == engines_.end())
             {
-                it->second.engine->unloadModel();
+                ServerLogger::logWarning("Attempted to remove non-existent engine with ID \'%s\'.", engineId.c_str());
+                return false;
+            }
+            
+            recordPtr = it->second;
+            engines_.erase(it);
+        }
+        
+        if (recordPtr)
+        {
+            recordPtr->markedForRemoval.store(true);
+            std::lock_guard<std::mutex> engineLock(recordPtr->engineMutex);
+            
+            if (recordPtr->isLoaded.load() && recordPtr->engine)
+            {
+                recordPtr->engine->unloadModel();
                 ServerLogger::logInfo("Engine with ID \'%s\' unloaded.", engineId.c_str());
             }
-            engines_.erase(it);
-            ServerLogger::logInfo("Engine with ID \'%s\' removed from manager.", engineId.c_str());
-            autoscalingCv_.notify_one(); // Notify autoscaling thread
-            return true;
+            
+            // Wake up any threads waiting on this engine
+            recordPtr->loadingCv.notify_all();
         }
-        ServerLogger::logWarning("Attempted to remove non-existent engine with ID \'%s\'.", engineId.c_str());
-        return false;
+        
+        ServerLogger::logInfo("Engine with ID \'%s\' removed from manager.", engineId.c_str());
+        
+        // Notify autoscaling thread
+        {
+            std::lock_guard<std::mutex> lock(autoscalingMutex_);
+            autoscalingCv_.notify_one();
+        }
+        
+        return true;
     }
 
     std::vector<std::string> NodeManager::listEngineIds() const
     {
-        std::lock_guard<std::mutex> lock(mutex_);
+        std::shared_lock<std::shared_mutex> mapLock(engineMapMutex_);
         std::vector<std::string> ids;
         ids.reserve(engines_.size());
-        for (auto const &[id, val] : engines_)
+        for (auto const &[id, recordPtr] : engines_)
         {
-            ids.push_back(id);
+            if (recordPtr && !recordPtr->markedForRemoval.load())
+            {
+                ids.push_back(id);
+            }
         }
         return ids;
     }
@@ -403,66 +429,126 @@ namespace kolosal
     void NodeManager::autoscalingLoop()
     {
         ServerLogger::logInfo("Autoscaling thread started.");
+        
+        // Initial check interval
+        auto nextCheckInterval = std::chrono::seconds(10);
+        
         while (!stopAutoscaling_.load())
         {
-            std::unique_lock<std::mutex> lock(mutex_);
-            // Wait for a timeout or a notification
-            // The condition variable waits for idleTimeout_ unless notified earlier
-            // We use a shorter wait time in the loop to check stopAutoscaling_ more frequently
-            // and to re-evaluate idle engines.
-            if (autoscalingCv_.wait_for(lock, std::chrono::seconds(60), [this]
-                                        { return stopAutoscaling_.load(); }))
             {
-                // stopAutoscaling_ is true, so exit
-                break;
+                std::unique_lock<std::mutex> autoscalingLock(autoscalingMutex_);
+                
+                // Wait for a timeout or a notification
+                if (autoscalingCv_.wait_for(autoscalingLock, nextCheckInterval, [this]
+                                            { return stopAutoscaling_.load(); }))
+                {
+                    // stopAutoscaling_ is true, so exit
+                    break;
+                }
+
+                if (stopAutoscaling_.load())
+                    break; // Check again after wait
             }
 
-            if (stopAutoscaling_.load())
-                break; // Check again after wait
-
             auto now = std::chrono::steady_clock::now();
-            ServerLogger::logDebug("Autoscaling check at %lld", std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count());
-            for (auto &pair : engines_)
+            ServerLogger::logDebug("Autoscaling check at %lld (next check interval was: %lld seconds)", 
+                                   std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count(),
+                                   std::chrono::duration_cast<std::chrono::seconds>(nextCheckInterval).count());
+            
+            // Get snapshot of engines to process
+            std::vector<std::pair<std::string, std::shared_ptr<EngineRecord>>> engineSnapshot;
             {
-                EngineRecord &record = pair.second;
-                if (record.isLoaded && record.engine)
+                std::shared_lock<std::shared_mutex> mapLock(engineMapMutex_);
+                engineSnapshot.reserve(engines_.size());
+                for (const auto& [id, recordPtr] : engines_)
                 {
-                    auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(now - record.lastActivityTime);
+                    if (recordPtr && !recordPtr->markedForRemoval.load())
+                    {
+                        engineSnapshot.emplace_back(id, recordPtr);
+                    }
+                }
+            }
+            
+            // Process engines without holding the map lock
+            auto nextCheckTime = std::chrono::steady_clock::now() + std::chrono::seconds(60); // Default to 60 seconds
+            bool hasLoadedEngines = false;
+            
+            for (const auto& [engineId, recordPtr] : engineSnapshot)
+            {
+                if (recordPtr->markedForRemoval.load())
+                    continue;
+                    
+                std::lock_guard<std::mutex> engineLock(recordPtr->engineMutex);
+                
+                if (recordPtr->isLoaded.load() && recordPtr->engine && !recordPtr->markedForRemoval.load())
+                {
+                    hasLoadedEngines = true;
+                    auto idleDuration = std::chrono::duration_cast<std::chrono::seconds>(now - recordPtr->lastActivityTime);
+                    
                     if (idleDuration >= idleTimeout_)
                     {
                         // Check if the engine has any active jobs before unloading
-                        if (record.engine->hasActiveJobs())
+                        if (recordPtr->engine->hasActiveJobs())
                         {
                             ServerLogger::logDebug("Engine ID \'%s\' has been idle for %lld seconds but has active jobs. Skipping unload.",
-                                                   pair.first.c_str(), idleDuration.count());
+                                                   engineId.c_str(), idleDuration.count());
                             continue;
                         }
 
                         ServerLogger::logInfo("Engine ID \'%s\' has been idle for %lld seconds (threshold: %llds). Unloading.",
-                                              pair.first.c_str(), idleDuration.count(), idleTimeout_.count());
-                        record.engine->unloadModel();
-                        record.isLoaded = false;
-                        // record.engine can be reset here if desired, or kept for faster reload
-                        // For now, we keep the shared_ptr but mark as unloaded.
-                        // A new one will be created in getEngine if needed.
-                        ServerLogger::logInfo("Engine ID \'%s\' unloaded due to inactivity.", pair.first.c_str());
+                                              engineId.c_str(), idleDuration.count(), idleTimeout_.count());
+                        recordPtr->engine->unloadModel();
+                        recordPtr->isLoaded.store(false);
+                        recordPtr->engine = nullptr;
+                        ServerLogger::logInfo("Engine ID \'%s\' unloaded due to inactivity.", engineId.c_str());
+                    }
+                    else
+                    {
+                        // Calculate when this engine will become idle
+                        auto timeWhenIdle = recordPtr->lastActivityTime + idleTimeout_;
+                        if (timeWhenIdle < nextCheckTime)
+                        {
+                            nextCheckTime = timeWhenIdle;
+                        }
                     }
                 }
             }
+            
+            // If no loaded engines, use longer interval
+            if (!hasLoadedEngines)
+            {
+                nextCheckTime = now + std::chrono::seconds(60);
+            }
+            
+            // Calculate time until next check (but cap it)
+            auto timeUntilNextCheck = std::chrono::duration_cast<std::chrono::seconds>(nextCheckTime - now);
+            timeUntilNextCheck = std::max(timeUntilNextCheck, std::chrono::seconds(1)); // At least 1 second
+            
+            // Cap the maximum check interval based on idle timeout to ensure timely unloading
+            auto maxCheckInterval = std::max(idleTimeout_ / 2, std::chrono::seconds(5)); // At most half the idle timeout, minimum 5 seconds
+            timeUntilNextCheck = std::min(timeUntilNextCheck, maxCheckInterval);
+            
+            // Set the next check interval for the next iteration
+            nextCheckInterval = timeUntilNextCheck;
+            
+            ServerLogger::logDebug("Next autoscaling check in %lld seconds", timeUntilNextCheck.count());
         }
         ServerLogger::logInfo("Autoscaling thread finished.");
     }
 
     bool NodeManager::registerEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (engines_.count(engineId))
+        // First check if engine already exists (read lock)
         {
-            ServerLogger::logWarning("Engine with ID \'%s\' already exists.", engineId.c_str());
-            return false;
+            std::shared_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            if (engines_.count(engineId))
+            {
+                ServerLogger::logWarning("Engine with ID \'%s\' already exists.", engineId.c_str());
+                return false;
+            }
         }
 
-        // First, validate if the model file exists
+        // Validate model file outside of any locks
         ServerLogger::logInfo("Validating model file for engine registration \'%s\': %s", engineId.c_str(), modelPath);
         if (!validateModelFile(modelPath))
         {
@@ -471,61 +557,80 @@ namespace kolosal
         }
 
         std::string actualModelPath = modelPath;
-        // Check if the model path is a URL and pre-download if necessary
+        // Handle URL downloads outside of locks to avoid blocking other engines
         if (is_valid_url(modelPath))
         {
-            ServerLogger::logInfo("Model path for engine \'%s\' is a URL. Pre-downloading: %s", engineId.c_str(), modelPath);
-
-            // Generate local path for the downloaded model
-            std::string downloadsDir = "./models";
-            std::string localPath = generate_download_path(modelPath, downloadsDir);
-
-            // Check if the file already exists locally
-            if (std::filesystem::exists(localPath))
+            actualModelPath = handleUrlDownload(engineId, modelPath);
+            if (actualModelPath.empty())
             {
-                // Check if we can resume this download (file might be incomplete)
-                if (can_resume_download(modelPath, localPath))
-                {
-                    ServerLogger::logInfo("Found incomplete download for engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
-
-                    // Download the model with progress callback (will resume automatically)
-                    auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
-                    {
-                        if (total > 0)
-                        {
-                            ServerLogger::logInfo("Resuming pre-download for engine '%s': %.1f%% (%zu/%zu bytes)",
-                                                  engineId.c_str(), percentage, downloaded, total);
-                        }
-                    };
-
-                    DownloadResult result = download_file(modelPath, localPath, progressCallback);
-
-                    if (!result.success)
-                    {
-                        ServerLogger::logError("Failed to resume pre-download for engine '%s' from URL '%s': %s",
-                                               engineId.c_str(), modelPath, result.error_message.c_str());
-                        return false;
-                    }
-
-                    ServerLogger::logInfo("Successfully completed pre-download for engine '%s' to: %s (%.2f MB)",
-                                          engineId.c_str(), localPath.c_str(),
-                                          static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
-                    actualModelPath = localPath;
-                }
-                else
-                {
-                    ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
-                    actualModelPath = localPath;
-                }
+                return false; // Download failed
             }
-            else
+        }
+
+        // Create a record for lazy loading (engine is not loaded yet)
+        auto recordPtr = std::make_shared<EngineRecord>();
+        recordPtr->engine = nullptr;            // No engine instance yet
+        recordPtr->modelPath = actualModelPath; // Store the actual local path
+        recordPtr->loadParams = loadParams;
+        recordPtr->mainGpuId = mainGpuId;
+        recordPtr->isLoaded.store(false); // Mark as not loaded for lazy loading
+        recordPtr->lastActivityTime = std::chrono::steady_clock::now();
+
+        {
+            std::unique_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            // Double-check pattern to ensure no race condition
+            if (engines_.count(engineId))
             {
-                // Download the model with progress callback
+                ServerLogger::logWarning("Engine with ID \'%s\' was registered by another thread.", engineId.c_str());
+                return false;
+            }
+            engines_[engineId] = recordPtr;
+        }
+
+        ServerLogger::logInfo("Successfully registered engine with ID \'%s\' for lazy loading. Model: %s", engineId.c_str(), actualModelPath.c_str());
+        return true;
+    }
+
+    std::pair<bool, bool> NodeManager::getEngineStatus(const std::string& engineId) const
+    {
+        std::shared_lock<std::shared_mutex> mapLock(engineMapMutex_);
+        auto it = engines_.find(engineId);
+        if (it == engines_.end())
+        {
+            return std::make_pair(false, false); // Engine not found
+        }
+        
+        const auto& recordPtr = it->second;
+        if (!recordPtr || recordPtr->markedForRemoval.load())
+        {
+            return std::make_pair(false, false); // Engine marked for removal
+        }
+        
+        return std::make_pair(true, recordPtr->isLoaded.load()); // Engine exists, return load status
+    }
+
+    std::string NodeManager::handleUrlDownload(const std::string& engineId, const std::string& modelPath)
+    {
+        ServerLogger::logInfo("Model path for engine \'%s\' is a URL. Starting download: %s", engineId.c_str(), modelPath.c_str());
+
+        // Generate local path for the downloaded model
+        std::string downloadsDir = "./models";
+        std::string localPath = generate_download_path(modelPath, downloadsDir);
+
+        // Check if the file already exists locally
+        if (std::filesystem::exists(localPath))
+        {
+            // Check if we can resume this download (file might be incomplete)
+            if (can_resume_download(modelPath, localPath))
+            {
+                ServerLogger::logInfo("Found incomplete download for engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
+
+                // Download the model with progress callback (will resume automatically)
                 auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
                 {
                     if (total > 0)
                     {
-                        ServerLogger::logInfo("Pre-downloading model for engine \'%s\': %.1f%% (%zu/%zu bytes)",
+                        ServerLogger::logInfo("Resuming download for engine '%s': %.1f%% (%zu/%zu bytes)",
                                               engineId.c_str(), percentage, downloaded, total);
                     }
                 };
@@ -534,41 +639,63 @@ namespace kolosal
 
                 if (!result.success)
                 {
-                    ServerLogger::logError("Failed to pre-download model for engine \'%s\' from URL \'%s\': %s",
-                                           engineId.c_str(), modelPath, result.error_message.c_str());
-                    return false;
+                    ServerLogger::logError("Failed to resume download for engine '%s' from URL '%s': %s",
+                                           engineId.c_str(), modelPath.c_str(), result.error_message.c_str());
+                    return "";
                 }
 
-                ServerLogger::logInfo("Successfully pre-downloaded model for engine \'%s\' to: %s (%.2f MB)",
+                ServerLogger::logInfo("Successfully completed download for engine '%s' to: %s (%.2f MB)",
                                       engineId.c_str(), localPath.c_str(),
                                       static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
-                actualModelPath = localPath;
+                return localPath;
             }
-        }        // Create a record for lazy loading (engine is not loaded yet)
-        EngineRecord record;
-        record.engine = nullptr;            // No engine instance yet
-        record.modelPath = actualModelPath; // Store the actual local path
-        record.loadParams = loadParams;
-        record.mainGpuId = mainGpuId;
-        record.modelType = ModelType::LLM;  // Standard LLM model
-        record.isLoaded = false; // Mark as not loaded for lazy loading
-        record.lastActivityTime = std::chrono::steady_clock::now();
+            else
+            {
+                ServerLogger::logInfo("Model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
+                return localPath;
+            }
+        }
+        else
+        {
+            // Download the model with progress callback
+            auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
+            {
+                if (total > 0)
+                {
+                    ServerLogger::logInfo("Downloading model for engine \'%s\': %.1f%% (%zu/%zu bytes)",
+                                          engineId.c_str(), percentage, downloaded, total);
+                }
+            };
 
-        engines_[engineId] = record;
-        ServerLogger::logInfo("Successfully registered engine with ID \'%s\' for lazy loading. Model: %s", engineId.c_str(), actualModelPath.c_str());
-        return true;
+            DownloadResult result = download_file(modelPath, localPath, progressCallback);
+
+            if (!result.success)
+            {
+                ServerLogger::logError("Failed to download model for engine \'%s\' from URL \'%s\': %s",
+                                       engineId.c_str(), modelPath.c_str(), result.error_message.c_str());
+                return "";
+            }
+
+            ServerLogger::logInfo("Successfully downloaded model for engine \'%s\' to: %s (%.2f MB)",
+                                  engineId.c_str(), localPath.c_str(),
+                                  static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
+            return localPath;
+        }
     }
 
     bool NodeManager::registerEmbeddingEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId)
     {
-        std::lock_guard<std::mutex> lock(mutex_);
-        if (engines_.count(engineId))
+        // First check if engine already exists (read lock)
         {
-            ServerLogger::logWarning("Embedding engine with ID \'%s\' already exists.", engineId.c_str());
-            return false;
+            std::shared_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            if (engines_.count(engineId))
+            {
+                ServerLogger::logWarning("Embedding engine with ID \'%s\' already exists.", engineId.c_str());
+                return false;
+            }
         }
 
-        // First, validate if the model file exists
+        // Validate model file outside of any locks
         ServerLogger::logInfo("Validating embedding model file for engine registration \'%s\': %s", engineId.c_str(), modelPath);
         if (!validateModelFile(modelPath))
         {
@@ -577,97 +704,47 @@ namespace kolosal
         }
 
         std::string actualModelPath = modelPath;
-        // Check if the model path is a URL and pre-download if necessary
+        // Handle URL downloads outside of locks to avoid blocking other engines
         if (is_valid_url(modelPath))
         {
-            ServerLogger::logInfo("Embedding model path for engine \'%s\' is a URL. Pre-downloading: %s", engineId.c_str(), modelPath);
-
-            // Generate local path for the downloaded model
-            std::string downloadsDir = "./models";
-            std::string localPath = generate_download_path(modelPath, downloadsDir);
-
-            // Check if the file already exists locally
-            if (std::filesystem::exists(localPath))
+            actualModelPath = handleUrlDownload(engineId, modelPath);
+            if (actualModelPath.empty())
             {
-                // Check if we can resume this download (file might be incomplete)
-                if (can_resume_download(modelPath, localPath))
-                {
-                    ServerLogger::logInfo("Found incomplete download for embedding engine '%s', resuming: %s", engineId.c_str(), localPath.c_str());
-
-                    // Download the model with progress callback (will resume automatically)
-                    auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
-                    {
-                        if (total > 0)
-                        {
-                            ServerLogger::logInfo("Resuming embedding model pre-download for engine '%s': %.1f%% (%zu/%zu bytes)",
-                                                  engineId.c_str(), percentage, downloaded, total);
-                        }
-                    };
-
-                    DownloadResult result = download_file(modelPath, localPath, progressCallback);
-
-                    if (!result.success)
-                    {
-                        ServerLogger::logError("Failed to resume embedding model pre-download for engine '%s' from URL '%s': %s",
-                                               engineId.c_str(), modelPath, result.error_message.c_str());
-                        return false;
-                    }
-
-                    ServerLogger::logInfo("Successfully completed embedding model pre-download for engine '%s' to: %s (%.2f MB)",
-                                          engineId.c_str(), localPath.c_str(),
-                                          static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
-                    actualModelPath = localPath;
-                }
-                else
-                {
-                    ServerLogger::logInfo("Embedding model file already exists locally for engine \'%s\': %s", engineId.c_str(), localPath.c_str());
-                    actualModelPath = localPath;
-                }
-            }
-            else
-            {
-                // Download the model with progress callback
-                auto progressCallback = [&engineId](size_t downloaded, size_t total, double percentage)
-                {
-                    if (total > 0)
-                    {
-                        ServerLogger::logInfo("Pre-downloading embedding model for engine \'%s\': %.1f%% (%zu/%zu bytes)",
-                                              engineId.c_str(), percentage, downloaded, total);
-                    }
-                };
-
-                DownloadResult result = download_file(modelPath, localPath, progressCallback);
-
-                if (!result.success)
-                {
-                    ServerLogger::logError("Failed to pre-download embedding model for engine \'%s\' from URL \'%s\': %s",
-                                           engineId.c_str(), modelPath, result.error_message.c_str());
-                    return false;
-                }
-
-                ServerLogger::logInfo("Successfully pre-downloaded embedding model for engine \'%s\' to: %s (%.2f MB)",
-                                      engineId.c_str(), localPath.c_str(),
-                                      static_cast<double>(result.total_bytes) / (1024.0 * 1024.0));
-                actualModelPath = localPath;
+                return false; // Download failed
             }
         }
 
         // Create a record for lazy loading (engine is not loaded yet)
-        EngineRecord record;
-        record.engine = nullptr;            // No engine instance yet
-        record.modelPath = actualModelPath; // Store the actual local path
-        record.loadParams = loadParams;
-        record.mainGpuId = mainGpuId;
-        record.modelType = ModelType::EMBEDDING;
-        record.isLoaded = false; // Mark as not loaded for lazy loading
-        record.lastActivityTime = std::chrono::steady_clock::now();        engines_[engineId] = record;
+        auto recordPtr = std::make_shared<EngineRecord>();
+        recordPtr->engine = nullptr;            // No engine instance yet
+        recordPtr->modelPath = actualModelPath; // Store the actual local path
+        recordPtr->loadParams = loadParams;
+        recordPtr->mainGpuId = mainGpuId;
+        recordPtr->isLoaded.store(false); // Mark as not loaded for lazy loading
+        recordPtr->isEmbeddingModel.store(true); // Mark as embedding model
+        recordPtr->lastActivityTime = std::chrono::steady_clock::now();
+
+        {
+            std::unique_lock<std::shared_mutex> mapLock(engineMapMutex_);
+            // Double-check pattern to ensure no race condition
+            if (engines_.count(engineId))
+            {
+                ServerLogger::logWarning("Embedding engine with ID \'%s\' was registered by another thread.", engineId.c_str());
+                return false;
+            }
+            engines_[engineId] = recordPtr;
+        }
+
         ServerLogger::logInfo("Successfully registered embedding engine with ID \'%s\' for lazy loading. Model: %s", engineId.c_str(), actualModelPath.c_str());
         return true;
     }
 
-    // Static members for singleton pattern
-    std::unique_ptr<NodeManager> NodeManager::instance_ = nullptr;
-    std::mutex NodeManager::instanceMutex_;
+    // Singleton implementation
+    namespace {
+        std::unique_ptr<NodeManager> instance_;
+        std::mutex instanceMutex_;
+        bool isInitialized_ = false;
+    }
 
     NodeManager* NodeManager::getInstance()
     {
@@ -685,6 +762,7 @@ namespace kolosal
         if (!instance_)
         {
             instance_ = std::make_unique<NodeManager>(idleTimeout);
+            isInitialized_ = true;
         }
     }
 

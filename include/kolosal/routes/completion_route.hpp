@@ -6,8 +6,8 @@
 #include <memory>
 
 namespace kolosal {
-    
-    class CompletionMonitor;    class KOLOSAL_SERVER_API CompletionsRoute : public IRoute {
+
+    class KOLOSAL_SERVER_API CompletionsRoute : public IRoute {
     public:
         CompletionsRoute();
         ~CompletionsRoute();
@@ -16,7 +16,6 @@ namespace kolosal {
         void handle(SocketType sock, const std::string& body) override;
         
     private:
-        CompletionMonitor* monitor_;  // Pointer to singleton instance
     };
 
 } // namespace kolosal

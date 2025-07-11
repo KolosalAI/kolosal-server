@@ -7,7 +7,7 @@
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/node_manager.h"
-#include "kolosal/completion_monitor.hpp"
+
 #include "inference_interface.h"
 #include <json.hpp>
 #include <iostream>
@@ -82,15 +82,14 @@ namespace kolosal
             int totalChars = 0;
             for (const auto &msg : messages)
             {
-                totalChars += msg.content.length() + msg.role.length() + 10; // +10 for formatting
+                totalChars += static_cast<int>(msg.content.length() + msg.role.length()) + 10; // +10 for formatting
             }
             return totalChars / 4; // Rough approximation: 4 chars per token
         }
     }
 
-    ChatCompletionsRoute::ChatCompletionsRoute() : monitor_(&CompletionMonitor::getInstance())
+    ChatCompletionsRoute::ChatCompletionsRoute()
     {
-        ServerLogger::logInfo("ChatCompletionsRoute initialized with completion monitoring");
     }
 
     ChatCompletionsRoute::~ChatCompletionsRoute() = default;
@@ -101,7 +100,6 @@ namespace kolosal
     }
     void ChatCompletionsRoute::handle(SocketType sock, const std::string &body)
     {
-        std::string requestId; // Declare here so it's accessible in catch blocks
 
         try
         {
@@ -138,9 +136,6 @@ namespace kolosal
             // Estimate prompt tokens for usage tracking
             int estimatedPromptTokens = estimatePromptTokens(request.messages);
 
-            // Start completion monitoring
-            requestId = monitor_->startRequest(request.model, "default");
-            monitor_->recordInputTokens(requestId, estimatedPromptTokens);
 
             if (request.stream)
             {
@@ -196,7 +191,6 @@ namespace kolosal
                         // Record first token if this is the first output
                         if (!firstTokenRecorded && result.text.length() > 0)
                         {
-                            monitor_->recordFirstToken(requestId);
                             firstTokenRecorded = true;
                         }
 
@@ -206,7 +200,6 @@ namespace kolosal
                         int newTokens = static_cast<int>(newContent.length() / 4); // Rough approximation
                         for (int i = 0; i < newTokens; ++i)
                         {
-                            monitor_->recordOutputToken(requestId);
                         }
 
                         ChatCompletionChunk chunk;
@@ -265,14 +258,11 @@ namespace kolosal
                 // Then terminate the stream
                 send_stream_chunk(sock, StreamChunk("", true));
 
-                // Complete the monitoring for streaming request
                 if (engine->hasJobError(jobId))
                 {
-                    monitor_->failRequest(requestId);
                 }
                 else
                 {
-                    monitor_->completeRequest(requestId);
                 }
 
                 ServerLogger::logInfo("[Thread %u] Completed streaming response for job %d",
@@ -296,7 +286,6 @@ namespace kolosal
                 // Check for errors
                 if (engine->hasJobError(jobId))
                 {
-                    monitor_->failRequest(requestId);
                     std::string error = engine->getJobError(jobId);
                     throw std::runtime_error("Inference error: " + error);
                 }
@@ -307,13 +296,11 @@ namespace kolosal
                 // Record first token and output tokens for non-streaming
                 if (result.text.length() > 0)
                 {
-                    monitor_->recordFirstToken(requestId);
 
                     // Record output tokens (approximate by result tokens size)
                     int outputTokens = static_cast<int>(result.tokens.size());
                     for (int i = 0; i < outputTokens; ++i)
                     {
-                        monitor_->recordOutputToken(requestId);
                     }
                 }
 
@@ -331,8 +318,6 @@ namespace kolosal
                 // Update usage statistics
                 updateUsageStats(response, result, estimatedPromptTokens);
 
-                // Complete the monitoring
-                monitor_->completeRequest(requestId);
 
                 // Send the response
                 send_response(sock, 200, response.to_json().dump());
@@ -343,10 +328,7 @@ namespace kolosal
         }
         catch (const json::exception &ex)
         {
-            // Mark request as failed if monitoring was started
-            if (!requestId.empty())
             {
-                monitor_->failRequest(requestId);
             }
 
             // Specifically handle JSON parsing errors
@@ -359,10 +341,7 @@ namespace kolosal
         }
         catch (const std::exception &ex)
         {
-            // Mark request as failed if monitoring was started
-            if (!requestId.empty())
             {
-                monitor_->failRequest(requestId);
             }
 
             ServerLogger::logError("[Thread %u] Error handling chat completion: %s",

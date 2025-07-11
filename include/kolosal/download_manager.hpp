@@ -28,8 +28,7 @@ namespace kolosal {    // Structure to hold engine creation parameters
         std::string local_path;
         size_t total_bytes;
         size_t downloaded_bytes;
-        double percentage;
-        std::string status; // "downloading", "completed", "failed", "cancelled", "creating_engine"
+        double percentage;        std::string status; // "downloading", "completed", "failed", "cancelled", "creating_engine", "paused"
         std::string error_message;
         std::chrono::system_clock::time_point start_time;
         std::chrono::system_clock::time_point end_time;
@@ -39,13 +38,14 @@ namespace kolosal {    // Structure to hold engine creation parameters
         
         // Cancellation flag for download control
         volatile bool cancelled;
-
-        DownloadProgress() : total_bytes(0), downloaded_bytes(0), percentage(0.0), status("downloading"), cancelled(false) {}
+        
+        // Pause flag for download control
+        volatile bool paused;        DownloadProgress() : total_bytes(0), downloaded_bytes(0), percentage(0.0), status("downloading"), cancelled(false), paused(false) {}
         
         DownloadProgress(const std::string& id, const std::string& download_url, const std::string& path)
             : model_id(id), url(download_url), local_path(path), total_bytes(0), 
               downloaded_bytes(0), percentage(0.0), status("downloading"),
-              start_time(std::chrono::system_clock::now()), cancelled(false) {}
+              start_time(std::chrono::system_clock::now()), cancelled(false), paused(false) {}
     };    // Download manager class to handle concurrent downloads and track progress
     class KOLOSAL_SERVER_API DownloadManager {
     public:
@@ -62,10 +62,14 @@ namespace kolosal {    // Structure to hold engine creation parameters
         std::shared_ptr<DownloadProgress> getDownloadProgress(const std::string& model_id);
 
         // Check if a download is in progress
-        bool isDownloadInProgress(const std::string& model_id);
-
-        // Cancel a download
+        bool isDownloadInProgress(const std::string& model_id);        // Cancel a download
         bool cancelDownload(const std::string& model_id);
+
+        // Pause a download
+        bool pauseDownload(const std::string& model_id);
+
+        // Resume a paused download
+        bool resumeDownload(const std::string& model_id);
 
         // Cancel all active downloads
         int cancelAllDownloads();
@@ -104,8 +108,11 @@ namespace kolosal {    // Structure to hold engine creation parameters
         DownloadManager(const DownloadManager&) = delete;
         DownloadManager& operator=(const DownloadManager&) = delete;
 
+#pragma warning(push)
+#pragma warning(disable: 4251)
         std::map<std::string, std::shared_ptr<DownloadProgress>> downloads_;
         std::map<std::string, std::future<void>> download_futures_;
+#pragma warning(pop)
         mutable std::mutex downloads_mutex_;        // Internal method to perform the actual download
         void performDownload(std::shared_ptr<DownloadProgress> progress);
         
