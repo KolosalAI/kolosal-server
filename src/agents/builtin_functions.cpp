@@ -115,7 +115,7 @@ FunctionResult TextAnalysisFunction::execute(const AgentData& params) {
         return result;
     } else if (operation == "summarize") {
         // Simple summarization - take first sentence or first 100 chars
-        std::string summary = text.substr(0, std::min(100, (int)text.length()));
+        std::string summary = text.substr(0, std::min<size_t>(100, text.length()));
         if (text.length() > 100) summary += "...";
         
         FunctionResult result(true);
@@ -202,7 +202,7 @@ FunctionResult TextProcessingFunction::execute(const AgentData& params) {
         return result;
     } else if (operation == "summarize") {
         // Simple summarization - take first sentence or first 100 chars
-        std::string summary = text.substr(0, std::min(100, (int)text.length()));
+        std::string summary = text.substr(0, std::min<size_t>(100, text.length()));
         if (text.length() > 100) summary += "...";
         
         FunctionResult result(true);

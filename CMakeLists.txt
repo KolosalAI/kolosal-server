@@ -14,17 +14,13 @@ option(USE_CUDA   "Compile with CUDA support" OFF)
 option(USE_VULKAN "Compile with VULKAN support" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
-<<<<<<< HEAD
 option(ENABLE_AGENTS "Enable multi-agent system" ON)
 option(ENABLE_CLI "Enable CLI interface" ON)
-=======
 option(USE_CPPUPROFILE_GPU "Enable cppuprofile GPU monitoring" ON)
->>>>>>> origin/retrieval
 
 # Define include directories.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/cppuprofile/lib)
 
 # Define source files.
@@ -45,24 +41,16 @@ set(SOURCES
     src/routes/list_engines_route.cpp
     src/routes/remove_engine_route.cpp
     src/routes/engine_status_route.cpp
-<<<<<<< HEAD
     src/routes/health_status_route.cpp
     src/routes/auth_config_route.cpp
-    src/auth/rate_limiter.cpp
-    src/auth/cors_handler.cpp
-    src/auth/auth_middleware.cpp
-    src/node_manager.cpp
-    src/inference.cpp
-=======
-    src/routes/health_status_route.cpp    
-    src/routes/auth_config_route.cpp    
-    src/routes/system_metrics_route.cpp    
-    src/routes/completion_metrics_route.cpp    
+    src/routes/system_metrics_route.cpp
+    src/routes/completion_metrics_route.cpp
     src/routes/combined_metrics_route.cpp
     src/routes/download_progress_route.cpp
     src/routes/downloads_status_route.cpp
     src/routes/cancel_download_route.cpp
-    src/routes/cancel_all_downloads_route.cpp    src/routes/parse_pdf_route.cpp
+    src/routes/cancel_all_downloads_route.cpp
+    src/routes/parse_pdf_route.cpp
     src/routes/parse_docx_route.cpp
     src/routes/add_documents_route.cpp
     src/routes/retrieve_route.cpp
@@ -71,7 +59,9 @@ set(SOURCES
     src/metrics_converter.cpp
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
-    src/auth/auth_middleware.cpp    src/node_manager.cpp    src/inference.cpp
+    src/auth/auth_middleware.cpp
+    src/node_manager.cpp
+    src/inference.cpp
     src/models/embedding_request_model.cpp
     src/models/embedding_response_model.cpp
     src/retrieval/add_document_types.cpp
@@ -84,7 +74,6 @@ set(SOURCES
     external/mupdf/thirdparty/zlib/contrib/minizip/unzip.c
     external/mupdf/thirdparty/zlib/contrib/minizip/ioapi.c
     external/mupdf/thirdparty/zlib/contrib/minizip/iowin32.c
->>>>>>> origin/retrieval
 )
 
 # Add CLI interface sources if enabled
@@ -139,31 +128,20 @@ target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE
 
 # Force Release build to match MuPDF (prebuilt Release library)
 if(WIN32 AND MSVC)
-    # MuPDF is only available as Release build, so force Release mode
-    set(CMAKE_BUILD_TYPE "Release" CACHE STRING "Build type" FORCE)
-    set(CMAKE_CONFIGURATION_TYPES "Release" CACHE STRING "" FORCE)
-    message(STATUS "Forcing Release build to match MuPDF prebuilt library")
+    # MuPDF is only available as Release build, warn about potential issues in Debug
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug" OR "Debug" IN_LIST CMAKE_CONFIGURATION_TYPES)
+        message(WARNING "Debug build requested but MuPDF prebuilt library is Release only. "
+                       "Debug builds may have linking issues with MuPDF components.")
+    endif()
+    # Allow both Debug and Release configurations
+    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+    message(STATUS "Configured for both Debug and Release builds (MuPDF may require Release)")
 endif()
 
 # Create executable
 add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
-
-# Find and setup yaml-cpp
-set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
-if(NOT EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
-  message(FATAL_ERROR "yaml-cpp not found at ${YAML_CPP_PATH}. Please clone it or adjust YAML_CPP_PATH.")
-endif()
-
-# Configure yaml-cpp options
-set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
-set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
-set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
-set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static library" FORCE)
-
-# Add yaml-cpp subdirectory
-add_subdirectory(${YAML_CPP_PATH})
 
 # Find and setup llama.cpp
 set(LLAMA_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
@@ -298,8 +276,6 @@ if(ENABLE_AGENTS)
         message(STATUS "Found system yaml-cpp")
     endif()
     
-    # Link yaml-cpp to the main target
-    target_link_libraries(kolosal_server PRIVATE yaml-cpp::yaml-cpp)
     target_compile_definitions(kolosal_server PRIVATE KOLOSAL_AGENTS_ENABLED)
 endif()
 
@@ -309,21 +285,13 @@ target_compile_definitions(kolosal_server PUBLIC
   $<$<BOOL:${USE_VULKAN}>:USE_VULKAN>
   $<$<BOOL:${USE_MPI}>:USE_MPI>
   $<$<BOOL:${DEBUG}>:DEBUG>
-<<<<<<< HEAD
   $<$<BOOL:${ENABLE_AGENTS}>:KOLOSAL_AGENTS_ENABLED>
   $<$<BOOL:${ENABLE_CLI}>:KOLOSAL_CLI_ENABLED>
-=======
   $<$<BOOL:${USE_CPPUPROFILE_GPU}>:USE_CPPUPROFILE_GPU>
->>>>>>> origin/retrieval
 )
 
 # Add subdirectories for external libraries
 add_subdirectory(${LLAMA_CPP_PATH})
-
-# Only add yaml-cpp if it hasn't been added by llama.cpp
-if(NOT TARGET yaml-cpp)
-    add_subdirectory(external/yaml-cpp EXCLUDE_FROM_ALL)
-endif()
 
 # Add cppuprofile if GPU monitoring is enabled
 if(USE_CPPUPROFILE_GPU)
@@ -334,7 +302,12 @@ if(USE_CPPUPROFILE_GPU)
 endif()
 
 # Link libraries
-set(KOLOSAL_LINK_LIBRARIES llama common ggml toolcall yaml-cpp pugixml)
+set(KOLOSAL_LINK_LIBRARIES llama common ggml toolcall pugixml)
+
+# Add yaml-cpp if agents are enabled
+if(ENABLE_AGENTS)
+    list(APPEND KOLOSAL_LINK_LIBRARIES yaml-cpp::yaml-cpp)
+endif()
 
 # Add cppuprofile if enabled
 if(USE_CPPUPROFILE_GPU)

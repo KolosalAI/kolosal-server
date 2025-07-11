@@ -10,12 +10,10 @@
 #include "kolosal/routes/engine_status_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/auth_config_route.hpp"
-<<<<<<< HEAD
 #include "kolosal/routes/agents_route.hpp"
 #include "kolosal/routes/orchestration_route.hpp"
 #include "kolosal/routes/sequential_workflow_route.hpp"
 #include "kolosal/routes/auto_setup_route.hpp"
-=======
 #include "kolosal/routes/system_metrics_route.hpp"
 #include "kolosal/routes/completion_metrics_route.hpp"
 #include "kolosal/routes/combined_metrics_route.hpp"
@@ -29,17 +27,20 @@
 #include "kolosal/routes/retrieve_route.hpp"
 #include "kolosal/routes/internet_search_route.hpp"
 #include "kolosal/download_manager.hpp"
->>>>>>> origin/retrieval
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
+#include "kolosal/agents/agent_interfaces.hpp"
+#include "kolosal/agents/agent_data.hpp"
 #include "kolosal/agents/multi_agent_system.hpp"
 #include "kolosal/agents/agent_orchestrator.hpp"
 #include "kolosal/auto_setup_manager.hpp"
 #include <memory>
 #include <stdexcept>
+#include <thread>
 
 namespace kolosal
-{    class ServerAPI::Impl
+{
+    class ServerAPI::Impl
     {
     public:
         std::unique_ptr<Server> server;
@@ -65,7 +66,7 @@ namespace kolosal
 
     ServerAPI::~ServerAPI()
     {
-        shutdown();
+        this->shutdown();
     }
 
     ServerAPI &ServerAPI::instance()
@@ -85,12 +86,8 @@ namespace kolosal
                 ServerLogger::logError("Failed to initialize server");
                 return false;
             }            // Register routes
-<<<<<<< HEAD
-            ServerLogger::logInfo("Registering routes");            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
-=======
             ServerLogger::logInfo("Registering routes");
             pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
->>>>>>> origin/retrieval
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<EmbeddingRoute>());
             pImpl->server->addRoute(std::make_unique<ModelsRoute>());
@@ -100,8 +97,8 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<EngineStatusRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
-<<<<<<< HEAD
-              // Register agent system routes
+            
+            // Register agent system routes
             ServerLogger::logInfo("Registering agent system routes");
             auto agentsRoute = std::make_unique<routes::AgentsRoute>(pImpl->agentManager);
             agentsRoute->setup_routes(*pImpl->server);
@@ -119,6 +116,20 @@ namespace kolosal
             ServerLogger::logInfo("Registering auto-setup route");
             auto autoSetupRoute = std::make_unique<routes::AutoSetupRoute>();
             pImpl->server->addRoute(std::move(autoSetupRoute));
+            
+            // Register retrieval and monitoring routes
+            pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());
+            pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
+            pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());            
+            pImpl->server->addRoute(std::make_unique<CancelAllDownloadsRoute>());
+            pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
+            pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());            
+            pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
+            pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
+
+            // Register metrics routes
+            pImpl->server->addRoute(std::make_unique<CombinedMetricsRoute>()); // Handles /metrics and /v1/metrics
+            pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());   // Handles /system/metrics
 
             // Start agent systems
             ServerLogger::logInfo("Starting agent systems");
@@ -160,20 +171,6 @@ namespace kolosal
             } else {
                 ServerLogger::logWarning("⚠️  Automatic setup completed with some issues");
             }
-=======
-            pImpl->server->addRoute(std::make_unique<DownloadProgressRoute>());
-            pImpl->server->addRoute(std::make_unique<DownloadsStatusRoute>());
-            pImpl->server->addRoute(std::make_unique<CancelDownloadRoute>());            
-            pImpl->server->addRoute(std::make_unique<CancelAllDownloadsRoute>());
-            pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
-            pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());            
-            pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
-            pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
-
-            // Register metrics routes
-            pImpl->server->addRoute(std::make_unique<CombinedMetricsRoute>()); // Handles /metrics and /v1/metrics
-            pImpl->server->addRoute(std::make_unique<SystemMetricsRoute>());   // Handles /system/metrics
->>>>>>> origin/retrieval
 
             // Start server in a background thread
             std::thread([this]()
@@ -189,12 +186,9 @@ namespace kolosal
             ServerLogger::logError("Failed to initialize server: %s", ex.what());
             return false;
         }
-<<<<<<< HEAD
-    }    void ServerAPI::shutdown()
-=======
     }
+    
     void ServerAPI::shutdown()
->>>>>>> origin/retrieval
     {
         if (pImpl->agentOrchestrator)
         {
@@ -257,109 +251,101 @@ namespace kolosal
     NodeManager &ServerAPI::getNodeManager()
     {
         return *pImpl->nodeManager;
-<<<<<<< HEAD
-    }    const NodeManager &ServerAPI::getNodeManager() const
-=======
     }
+    
     const NodeManager &ServerAPI::getNodeManager() const
->>>>>>> origin/retrieval
     {
         return *pImpl->nodeManager;
     }
 
-<<<<<<< HEAD
-    auth::AuthMiddleware& ServerAPI::getAuthMiddleware()
-    {
-        if (!pImpl->server) {
-=======
     auth::AuthMiddleware &ServerAPI::getAuthMiddleware()
     {
         if (!pImpl->server)
         {
->>>>>>> origin/retrieval
             throw std::runtime_error("Server not initialized");
         }
         return pImpl->server->getAuthMiddleware();
     }
 
-<<<<<<< HEAD
-    const auth::AuthMiddleware& ServerAPI::getAuthMiddleware() const
-    {
-        if (!pImpl->server) {
-            throw std::runtime_error("Server not initialized");
-        }
-        return pImpl->server->getAuthMiddleware();
-    }    auth::AuthMiddleware& ServerAPI::getAuthManager()
-    {
-        if (!pImpl->server) {
-=======
     const auth::AuthMiddleware &ServerAPI::getAuthMiddleware() const
     {
         if (!pImpl->server)
         {
->>>>>>> origin/retrieval
+            throw std::runtime_error("Server not initialized");
+        }
+        return pImpl->server->getAuthMiddleware();
+    }
+    
+    auth::AuthMiddleware &ServerAPI::getAuthManager()
+    {
+        if (!pImpl->server)
+        {
             throw std::runtime_error("Server not initialized");
         }
         return pImpl->server->getAuthMiddleware();
     }
 
-<<<<<<< HEAD
-    const auth::AuthMiddleware& ServerAPI::getAuthManager() const
+    const auth::AuthMiddleware &ServerAPI::getAuthManager() const
     {
-        if (!pImpl->server) {
+        if (!pImpl->server)
+        {
             throw std::runtime_error("Server not initialized");
         }
         return pImpl->server->getAuthMiddleware();
     }
 
-    agents::YAMLConfigurableAgentManager& ServerAPI::getAgentManager()
+    agents::YAMLConfigurableAgentManager &ServerAPI::getAgentManager()
     {
-        if (!pImpl->agentManager) {
+        if (!pImpl->agentManager)
+        {
             throw std::runtime_error("Agent manager not initialized");
         }
         return *pImpl->agentManager;
     }
 
-    const agents::YAMLConfigurableAgentManager& ServerAPI::getAgentManager() const
+    const agents::YAMLConfigurableAgentManager &ServerAPI::getAgentManager() const
     {
-        if (!pImpl->agentManager) {
+        if (!pImpl->agentManager)
+        {
             throw std::runtime_error("Agent manager not initialized");
         }
         return *pImpl->agentManager;
     }
 
-    agents::AgentOrchestrator& ServerAPI::getAgentOrchestrator()
+    agents::AgentOrchestrator &ServerAPI::getAgentOrchestrator()
     {
-        if (!pImpl->agentOrchestrator) {
+        if (!pImpl->agentOrchestrator)
+        {
             throw std::runtime_error("Agent orchestrator not initialized");
         }
         return *pImpl->agentOrchestrator;
     }
 
-    const agents::AgentOrchestrator& ServerAPI::getAgentOrchestrator() const
+    const agents::AgentOrchestrator &ServerAPI::getAgentOrchestrator() const
     {
-        if (!pImpl->agentOrchestrator) {
+        if (!pImpl->agentOrchestrator)
+        {
             throw std::runtime_error("Agent orchestrator not initialized");
         }
         return *pImpl->agentOrchestrator;
     }
 
-    AutoSetupManager& ServerAPI::getAutoSetupManager()
+    AutoSetupManager &ServerAPI::getAutoSetupManager()
     {
-        if (!pImpl->autoSetupManager) {
+        if (!pImpl->autoSetupManager)
+        {
             throw std::runtime_error("Auto-setup manager not initialized");
         }
         return *pImpl->autoSetupManager;
     }
 
-    const AutoSetupManager& ServerAPI::getAutoSetupManager() const
+    const AutoSetupManager &ServerAPI::getAutoSetupManager() const
     {
-        if (!pImpl->autoSetupManager) {
+        if (!pImpl->autoSetupManager)
+        {
             throw std::runtime_error("Auto-setup manager not initialized");
         }
         return *pImpl->autoSetupManager;
     }
 
-=======
->>>>>>> origin/retrieval
 } // namespace kolosal

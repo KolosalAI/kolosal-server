@@ -6,11 +6,8 @@
 #include <string>
 #include <map>
 #include <memory>
-<<<<<<< HEAD
-=======
 #include <vector>
 #include <unordered_set>
->>>>>>> origin/retrieval
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -25,24 +22,15 @@ namespace kolosal
     {
 
         /**
-<<<<<<< HEAD
-         * @brief Authentication middleware that combines rate limiting and CORS
-         *
-         * This class provides a unified interface for handling authentication concerns
-         * including rate limiting and CORS validation.
-=======
          * @brief Authentication middleware that combines rate limiting, CORS, and API key authentication
          *
          * This class provides a unified interface for handling authentication concerns
          * including API key validation, rate limiting and CORS validation.
->>>>>>> origin/retrieval
          */
         class KOLOSAL_SERVER_API AuthMiddleware
         {
         public:
             /**
-<<<<<<< HEAD
-=======
              * @brief API key authentication configuration
              */
             struct ApiKeyConfig
@@ -56,7 +44,6 @@ namespace kolosal
             };
 
             /**
->>>>>>> origin/retrieval
              * @brief Request information for authentication processing
              */
             struct RequestInfo
@@ -92,28 +79,18 @@ namespace kolosal
                 AuthResult() = default;
                 AuthResult(bool allow, const std::string &r = "")
                     : allowed(allow), reason(r) {}
-<<<<<<< HEAD
             };
 
         public:
-=======
-            };        public:
->>>>>>> origin/retrieval
             /**
              * @brief Constructor
              * @param rateLimiterConfig Rate limiter configuration
              * @param corsConfig CORS configuration
-<<<<<<< HEAD
-             */
-            explicit AuthMiddleware(const RateLimiter::Config &rateLimiterConfig = RateLimiter::Config{},
-                                    const CorsHandler::Config &corsConfig = CorsHandler::Config{});
-=======
              * @param apiKeyConfig API key configuration
              */
             explicit AuthMiddleware(const RateLimiter::Config &rateLimiterConfig = RateLimiter::Config{},
                                     const CorsHandler::Config &corsConfig = CorsHandler::Config{},
                                     const ApiKeyConfig &apiKeyConfig = ApiKeyConfig{});
->>>>>>> origin/retrieval
 
             /**
              * @brief Process authentication for a request
@@ -135,15 +112,12 @@ namespace kolosal
             void updateCorsConfig(const CorsHandler::Config &config);
 
             /**
-<<<<<<< HEAD
-=======
              * @brief Update API key configuration
              * @param config New API key configuration
              */
             void updateApiKeyConfig(const ApiKeyConfig &config);
 
             /**
->>>>>>> origin/retrieval
              * @brief Get current rate limiter configuration
              * @return Rate limiter configuration
              */
@@ -156,15 +130,12 @@ namespace kolosal
             CorsHandler::Config getCorsConfig() const;
 
             /**
-<<<<<<< HEAD
-=======
              * @brief Get current API key configuration
              * @return API key configuration
              */
             ApiKeyConfig getApiKeyConfig() const;
 
             /**
->>>>>>> origin/retrieval
              * @brief Get rate limiting statistics
              * @return Map of client IP to request count
              */
@@ -212,8 +183,6 @@ namespace kolosal
             CorsHandler &getCorsHandler();
             const CorsHandler &getCorsHandler() const;
 
-<<<<<<< HEAD
-=======
             /**
              * @brief Validate an API key
              * @param apiKey API key to validate
@@ -238,7 +207,6 @@ namespace kolosal
              */
             void clearApiKeys();
 
->>>>>>> origin/retrieval
         private:
             /**
              * @brief Extract header value from request headers
@@ -256,10 +224,6 @@ namespace kolosal
              */
             std::string toLowercase(const std::string &name) const;
 
-<<<<<<< HEAD
-            std::unique_ptr<RateLimiter> rateLimiter_;
-            std::unique_ptr<CorsHandler> corsHandler_;
-=======
             /**
              * @brief Validate API key authentication
              * @param requestInfo Request information
@@ -270,7 +234,6 @@ namespace kolosal
             std::unique_ptr<RateLimiter> rateLimiter_;
             std::unique_ptr<CorsHandler> corsHandler_;
             ApiKeyConfig apiKeyConfig_;
->>>>>>> origin/retrieval
         };
 
     } // namespace auth
