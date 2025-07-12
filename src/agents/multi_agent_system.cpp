@@ -50,6 +50,10 @@ std::unique_ptr<AgentFunction> ConfigurableAgentFactory::create_function(const s
         return create_builtin_function(config);
     } else if (config.type == "inference") {
         return std::make_unique<InferenceFunction>();
+    } else if (config.type == "retrieval") {
+        return std::make_unique<RetrievalFunction>();
+    } else if (config.type == "context_retrieval") {
+        return std::make_unique<ContextRetrievalFunction>();
     }
 
     logger->warn("Unknown function type: " + config.type);
@@ -71,6 +75,10 @@ std::unique_ptr<AgentFunction> ConfigurableAgentFactory::create_builtin_function
         return std::make_unique<DataTransformFunction>();
     } else if (config.name == "inference") {
         return std::make_unique<InferenceFunction>();
+    } else if (config.name == "retrieval") {
+        return std::make_unique<RetrievalFunction>();
+    } else if (config.name == "context_retrieval") {
+        return std::make_unique<ContextRetrievalFunction>();
     }
     
     logger->warn("Unknown builtin function: " + config.name);

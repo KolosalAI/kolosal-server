@@ -11,12 +11,16 @@ namespace kolosal {
     // Forward declarations
     class NodeManager;
     class AutoSetupManager;
+    struct ServerConfig;
     namespace auth {
         class AuthMiddleware;
     }
     namespace agents {
         class YAMLConfigurableAgentManager;
         class AgentOrchestrator;
+    }
+    namespace retrieval {
+        class DocumentService;
     }
 
     class KOLOSAL_SERVER_API ServerAPI
@@ -33,6 +37,7 @@ namespace kolosal {
         
         // Initialize and start server
         bool init(const std::string &port, const std::string &host = "0.0.0.0", std::chrono::seconds idleTimeout = std::chrono::seconds(300));
+        bool init(const std::string &port, const std::string &host, std::chrono::seconds idleTimeout, const ServerConfig& config);
         void shutdown();
         
         // Feature management
@@ -61,6 +66,10 @@ namespace kolosal {
         // Auto-setup system access
         AutoSetupManager& getAutoSetupManager();
         const AutoSetupManager& getAutoSetupManager() const;
+
+        // Document retrieval system access
+        retrieval::DocumentService& getDocumentService();
+        const retrieval::DocumentService& getDocumentService() const;
 
     private:
         ServerAPI();

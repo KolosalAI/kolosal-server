@@ -11,12 +11,24 @@
 #include <chrono>
 #include <memory>
 
+// Ensure we're building the library for this definition
+#ifndef KOLOSAL_SERVER_BUILD
+#define KOLOSAL_SERVER_BUILD
+#endif
+
 using json = nlohmann::json;
 
 namespace kolosal
 {
 
-std::atomic<long long> RetrieveRoute::request_counter_{0};
+// Define the static member - using workaround for MSVC DLL export issue
+// std::atomic<long long> RetrieveRoute::request_counter_{0};
+
+// Static function to get request counter - avoids DLL export issues
+static std::atomic<long long>& getRequestCounter() {
+    static std::atomic<long long> counter{0};
+    return counter;
+}
 
 RetrieveRoute::RetrieveRoute()
     // : monitor_(std::make_unique<CompletionMonitor>())
@@ -78,7 +90,7 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         }
 
         // Generate unique request ID
-        requestId = "ret-" + std::to_string(++request_counter_) + "-" + 
+        requestId = "ret-" + std::to_string(++getRequestCounter()) + "-" + 
                    std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
                        std::chrono::system_clock::now().time_since_epoch()).count());
 
@@ -88,39 +100,12 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         // Start monitoring
         // monitor_->startRequest("document-retrieval", "retrieve");
 
-        // Initialize document service if needed
-        {
-            std::lock_guard<std::mutex> lock(service_mutex_);
-            if (!document_service_)
-            {
-                // Create a basic database config - in a production environment,
-                // this would be passed from the main server configuration
-                DatabaseConfig db_config;
-                db_config.qdrant.enabled = true;
-                db_config.qdrant.host = "localhost";
-                db_config.qdrant.port = 6333;
-                db_config.qdrant.collectionName = "documents";
-                db_config.qdrant.defaultEmbeddingModel = "text-embedding-3-small";
-                db_config.qdrant.timeout = 30;
-                db_config.qdrant.maxConnections = 10;
-                db_config.qdrant.connectionTimeout = 5;
-                
-                document_service_ = std::make_unique<kolosal::retrieval::DocumentService>(db_config);
-                
-                // Initialize service
-                bool initialized = document_service_->initialize().get();
-                if (!initialized)
-                {
-                    sendErrorResponse(sock, 500, "Failed to initialize document service", "service_error");
-                    return;
-                }
-                
-                ServerLogger::logInfo("DocumentService initialized successfully");
-            }
-        }
-
+        // Get document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        auto& document_service = serverAPI.getDocumentService();
+        
         // Test connection
-        bool connected = document_service_->testConnection().get();
+        bool connected = document_service.testConnection().get();
         if (!connected)
         {
             sendErrorResponse(sock, 503, "Database connection failed", "service_unavailable");
@@ -130,7 +115,7 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         // Process retrieval
         ServerLogger::logDebug("[Thread %u] Submitting retrieval for processing", std::this_thread::get_id());
         
-        auto response_future = document_service_->retrieveDocuments(request);
+        auto response_future = document_service.retrieveDocuments(request);
         
         // Wait for processing to complete
         kolosal::retrieval::RetrieveResponse response = response_future.get();

@@ -3,12 +3,15 @@
 #include "kolosal/server_api.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
+#include "kolosal/retrieval/document_service.hpp"
+#include "kolosal/retrieval/retrieve_types.hpp"
 #include "inference_interface.h"
 #include <algorithm>
 #include <cctype>
 #include <sstream>
 #include <chrono>
 #include <thread>
+#include <iomanip>
 
 namespace kolosal::agents {
 
@@ -563,6 +566,211 @@ FunctionResult ExternalAPIFunction::execute(const AgentData& params) {
     ServerLogger::logInfo("External API function simulated call to: %s", endpoint.c_str());
     
     return result;
+}
+
+// RetrievalFunction implementation
+RetrievalFunction::RetrievalFunction(const std::string& collection) : collection_name(collection) {}
+
+FunctionResult RetrievalFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        // Extract parameters
+        std::string query = params.get_string("query");
+        if (query.empty()) {
+            return FunctionResult(false, "Query parameter is required for retrieval");
+        }
+        
+        int k = params.get_int("k", 5); // Default to 5 results
+        float score_threshold = static_cast<float>(params.get_double("score_threshold", 0.0));
+        std::string collection = params.get_string("collection_name", collection_name);
+        
+        ServerLogger::logInfo("RetrievalFunction: Searching for '%s' (k=%d, threshold=%.2f)", 
+                             query.c_str(), k, score_threshold);
+        
+        // Get the document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        auto& documentService = serverAPI.getDocumentService();
+        
+        // Prepare retrieval request
+        kolosal::retrieval::RetrieveRequest request;
+        request.query = query;
+        request.k = k;
+        request.score_threshold = score_threshold;
+        request.collection_name = collection;
+        
+        // Validate request
+        if (!request.validate()) {
+            return FunctionResult(false, "Invalid retrieval request parameters");
+        }
+        
+        // Perform retrieval
+        auto future_response = documentService.retrieveDocuments(request);
+        auto response = future_response.get();
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        // Build result
+        FunctionResult result(true);
+        result.result_data.set("query", response.query);
+        result.result_data.set("total_found", response.total_found);
+        result.result_data.set("k_requested", response.k);
+        result.result_data.set("collection_name", response.collection_name);
+        
+        // Format retrieved documents
+        std::vector<std::string> document_texts;
+        std::vector<std::string> document_ids;
+        std::vector<float> document_scores;
+        
+        for (const auto& doc : response.documents) {
+            document_texts.push_back(doc.text);
+            document_ids.push_back(doc.id);
+            document_scores.push_back(doc.score);
+        }
+        
+        result.result_data.set("document_count", static_cast<int>(document_texts.size()));
+        result.result_data.set("documents", document_texts);
+        result.result_data.set("document_ids", document_ids);
+        
+        // Create a summary of retrieved documents
+        std::ostringstream summary;
+        summary << "Retrieved " << document_texts.size() << " documents for query: " << query;
+        if (!document_texts.empty()) {
+            summary << "\n\nTop result: " << document_texts[0].substr(0, 150);
+            if (document_texts[0].length() > 150) summary << "...";
+        }
+        
+        result.result_data.set("summary", summary.str());
+        result.result_data.set("result", "Retrieved " + std::to_string(document_texts.size()) + " relevant documents");
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("RetrievalFunction: Retrieved %d documents in %.2f ms", 
+                             static_cast<int>(document_texts.size()), result.execution_time_ms);
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Retrieval function error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logError("RetrievalFunction error: %s", e.what());
+        return result;
+    }
+}
+
+// ContextRetrievalFunction implementation
+ContextRetrievalFunction::ContextRetrievalFunction(const std::string& collection) : collection_name(collection) {}
+
+FunctionResult ContextRetrievalFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        // Extract parameters
+        std::string query = params.get_string("query");
+        if (query.empty()) {
+            return FunctionResult(false, "Query parameter is required for context retrieval");
+        }
+        
+        int k = params.get_int("k", 3); // Default to 3 results for context
+        float score_threshold = static_cast<float>(params.get_double("score_threshold", 0.1)); // Higher threshold for context
+        std::string collection = params.get_string("collection_name", collection_name);
+        std::string context_format = params.get_string("context_format", "detailed"); // "detailed" or "summary"
+        
+        ServerLogger::logInfo("ContextRetrievalFunction: Building context for '%s' (k=%d, format=%s)", 
+                             query.c_str(), k, context_format.c_str());
+        
+        // Get the document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        auto& documentService = serverAPI.getDocumentService();
+        
+        // Prepare retrieval request
+        kolosal::retrieval::RetrieveRequest request;
+        request.query = query;
+        request.k = k;
+        request.score_threshold = score_threshold;
+        request.collection_name = collection;
+        
+        // Validate request
+        if (!request.validate()) {
+            return FunctionResult(false, "Invalid context retrieval request parameters");
+        }
+        
+        // Perform retrieval
+        auto future_response = documentService.retrieveDocuments(request);
+        auto response = future_response.get();
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        // Build formatted context
+        std::ostringstream context_stream;
+        
+        if (response.documents.empty()) {
+            context_stream << "No relevant documents found for query: " << query;
+        } else {
+            context_stream << "Context Information for: " << query << "\n";
+            context_stream << "Found " << response.documents.size() << " relevant documents:\n\n";
+            
+            for (size_t i = 0; i < response.documents.size(); ++i) {
+                const auto& doc = response.documents[i];
+                
+                context_stream << "Document " << (i + 1) << " (Score: " << std::fixed << std::setprecision(3) << doc.score << "):\n";
+                
+                if (context_format == "summary") {
+                    // Provide a brief summary (first 200 characters)
+                    std::string summary = doc.text.substr(0, 200);
+                    if (doc.text.length() > 200) summary += "...";
+                    context_stream << summary << "\n\n";
+                } else {
+                    // Provide full text up to reasonable limit
+                    std::string full_text = doc.text.substr(0, 800);
+                    if (doc.text.length() > 800) full_text += "...";
+                    context_stream << full_text << "\n\n";
+                }
+            }
+        }
+        
+        std::string formatted_context = context_stream.str();
+        
+        // Build result
+        FunctionResult result(true);
+        result.result_data.set("query", response.query);
+        result.result_data.set("context", formatted_context);
+        result.result_data.set("document_count", response.total_found);
+        result.result_data.set("collection_name", response.collection_name);
+        result.result_data.set("context_format", context_format);
+        
+        // Store individual documents for programmatic access
+        std::vector<std::string> document_texts;
+        std::vector<float> document_scores;
+        for (const auto& doc : response.documents) {
+            document_texts.push_back(doc.text);
+            document_scores.push_back(doc.score);
+        }
+        result.result_data.set("documents", document_texts);
+        
+        result.result_data.set("result", "Generated context with " + std::to_string(response.documents.size()) + " relevant documents");
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("ContextRetrievalFunction: Generated context with %d documents in %.2f ms", 
+                             static_cast<int>(response.documents.size()), result.execution_time_ms);
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Context retrieval function error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logError("ContextRetrievalFunction error: %s", e.what());
+        return result;
+    }
 }
 
 } // namespace kolosal::agents

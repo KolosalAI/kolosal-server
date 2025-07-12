@@ -431,6 +431,34 @@ namespace kolosal
                     search.default_category = searchConfig["default_category"].as<std::string>();
             }
 
+            // Load database configuration
+            if (config["database"])
+            {
+                auto databaseConfig = config["database"];
+                if (databaseConfig["qdrant"])
+                {
+                    auto qdrant = databaseConfig["qdrant"];
+                    if (qdrant["enabled"])
+                        database.qdrant.enabled = qdrant["enabled"].as<bool>();
+                    if (qdrant["host"])
+                        database.qdrant.host = qdrant["host"].as<std::string>();
+                    if (qdrant["port"])
+                        database.qdrant.port = qdrant["port"].as<int>();
+                    if (qdrant["collection_name"])
+                        database.qdrant.collectionName = qdrant["collection_name"].as<std::string>();
+                    if (qdrant["default_embedding_model"])
+                        database.qdrant.defaultEmbeddingModel = qdrant["default_embedding_model"].as<std::string>();
+                    if (qdrant["timeout"])
+                        database.qdrant.timeout = qdrant["timeout"].as<int>();
+                    if (qdrant["api_key"])
+                        database.qdrant.apiKey = qdrant["api_key"].as<std::string>();
+                    if (qdrant["max_connections"])
+                        database.qdrant.maxConnections = qdrant["max_connections"].as<int>();
+                    if (qdrant["connection_timeout"])
+                        database.qdrant.connectionTimeout = qdrant["connection_timeout"].as<int>();
+                }
+            }
+
             // Load models
             if (config["models"])
             {

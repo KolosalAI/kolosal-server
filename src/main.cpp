@@ -312,7 +312,7 @@ int main(int argc, char *argv[])
         std::cout << "Server will only be accessible from this machine" << std::endl;
     }
 
-    if (!server.init(config.port, bindHost, config.idleTimeout))
+    if (!server.init(config.port, bindHost, config.idleTimeout, config))
     {
         std::cerr << "Failed to initialize server on " << bindHost << ":" << config.port << std::endl;
         return 1;

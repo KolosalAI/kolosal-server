@@ -28,6 +28,7 @@
 #include "kolosal/retrieval/remove_documents_route.hpp"
 #include "kolosal/routes/retrieve_route.hpp"
 #include "kolosal/routes/internet_search_route.hpp"
+#include "kolosal/retrieval/document_service.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -50,6 +51,8 @@ namespace kolosal
         std::shared_ptr<agents::YAMLConfigurableAgentManager> agentManager;
         std::shared_ptr<agents::AgentOrchestrator> agentOrchestrator;
         std::unique_ptr<AutoSetupManager> autoSetupManager;
+        std::unique_ptr<retrieval::DocumentService> documentService;
+        bool configLoaded = false;
 
         Impl()
             : nodeManager(std::make_unique<NodeManager>()),
@@ -61,6 +64,17 @@ namespace kolosal
                 std::shared_ptr<NodeManager>(nodeManager.get(), [](NodeManager*) {}), // Non-owning shared_ptr
                 agentManager
             );
+            
+            // Initialize document service with default configuration
+            // This will be updated when config is provided
+            DatabaseConfig dbConfig;
+            documentService = std::make_unique<retrieval::DocumentService>(dbConfig);
+        }
+        
+        void initializeDocumentService(const ServerConfig& config) {
+            // Re-initialize document service with actual configuration
+            documentService = std::make_unique<retrieval::DocumentService>(config.database);
+            configLoaded = true;
         }
         
         void initNodeManager(std::chrono::seconds idleTimeout)
@@ -205,6 +219,32 @@ namespace kolosal
             ServerLogger::logError("Failed to initialize server: %s", ex.what());
             return false;
         }
+    }
+    
+    bool ServerAPI::init(const std::string &port, const std::string &host, std::chrono::seconds idleTimeout, const ServerConfig& config)
+    {
+        // Initialize document service with loaded configuration
+        pImpl->initializeDocumentService(config);
+        
+        // Initialize the document service if database is enabled
+        if (config.database.qdrant.enabled)
+        {
+            ServerLogger::logInfo("Initializing document service with Qdrant configuration");
+            auto future = pImpl->documentService->initialize();
+            try {
+                bool initialized = future.get();
+                if (initialized) {
+                    ServerLogger::logInfo("Document service initialized successfully");
+                } else {
+                    ServerLogger::logWarning("Document service failed to initialize");
+                }
+            } catch (const std::exception& e) {
+                ServerLogger::logError("Document service initialization error: %s", e.what());
+            }
+        }
+        
+        // Call the standard init method
+        return init(port, host, idleTimeout);
     }
     
     void ServerAPI::shutdown()
@@ -366,6 +406,24 @@ namespace kolosal
             throw std::runtime_error("Auto-setup manager not initialized");
         }
         return *pImpl->autoSetupManager;
+    }
+
+    retrieval::DocumentService &ServerAPI::getDocumentService()
+    {
+        if (!pImpl->documentService)
+        {
+            throw std::runtime_error("Document service not initialized");
+        }
+        return *pImpl->documentService;
+    }
+
+    const retrieval::DocumentService &ServerAPI::getDocumentService() const
+    {
+        if (!pImpl->documentService)
+        {
+            throw std::runtime_error("Document service not initialized");
+        }
+        return *pImpl->documentService;
     }
 
 } // namespace kolosal

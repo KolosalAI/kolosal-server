@@ -138,4 +138,48 @@ public:
     FunctionResult execute(const AgentData& params) override;
 };
 
+/**
+ * @brief Retrieval function that bridges to Kolosal document retrieval system
+ * 
+ * This function allows agents to search for and retrieve relevant documents
+ * from the vector database using semantic similarity search.
+ */
+class KOLOSAL_SERVER_API RetrievalFunction : public AgentFunction {
+private:
+    std::string collection_name;
+    
+public:
+    RetrievalFunction(const std::string& collection = "documents");
+    
+    std::string get_name() const override { return "retrieval"; }
+    std::string get_description() const override { return "Search and retrieve relevant documents from the knowledge base"; }
+    std::string get_type() const override { return "retrieval"; }
+    FunctionResult execute(const AgentData& params) override;
+    
+    void set_collection_name(const std::string& collection) { collection_name = collection; }
+    const std::string& get_collection_name() const { return collection_name; }
+};
+
+/**
+ * @brief Context-aware retrieval function that combines retrieval with context enhancement
+ * 
+ * This function not only retrieves documents but also formats them as context
+ * that can be used by other agent functions, particularly LLM functions.
+ */
+class KOLOSAL_SERVER_API ContextRetrievalFunction : public AgentFunction {
+private:
+    std::string collection_name;
+    
+public:
+    ContextRetrievalFunction(const std::string& collection = "documents");
+    
+    std::string get_name() const override { return "context_retrieval"; }
+    std::string get_description() const override { return "Retrieve and format documents as context for enhanced agent responses"; }
+    std::string get_type() const override { return "context_retrieval"; }
+    FunctionResult execute(const AgentData& params) override;
+    
+    void set_collection_name(const std::string& collection) { collection_name = collection; }
+    const std::string& get_collection_name() const { return collection_name; }
+};
+
 } // namespace kolosal::agents

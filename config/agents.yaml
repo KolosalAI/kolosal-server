@@ -22,7 +22,7 @@ inference_engines:
       gpu_layers: 0
     auto_load: true
     
-  - name: "test-qwen-0.6b"
+  - name: "qwen3-0.6b"
     type: "llama_cpp" 
     model_path: "downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf"
     settings:
@@ -87,6 +87,26 @@ functions:
       language: "Programming language"
       style: "Coding style preference"
     timeout_ms: 60000
+    
+  - name: "retrieval"
+    type: "builtin"
+    description: "Search and retrieve relevant documents from knowledge base"
+    parameters:
+      query: "Search query for document retrieval"
+      k: "Number of documents to retrieve"
+      score_threshold: "Minimum similarity score threshold"
+      collection_name: "Collection name (optional)"
+    timeout_ms: 30000
+    
+  - name: "context_retrieval"
+    type: "builtin"
+    description: "Retrieve and format documents as context for enhanced responses"
+    parameters:
+      query: "Search query for context retrieval"
+      k: "Number of context documents"
+      context_format: "Format for context (detailed/summary)"
+      score_threshold: "Minimum similarity score threshold"
+    timeout_ms: 30000
 
 # Agent definitions
 agents:
@@ -102,14 +122,18 @@ agents:
       - "web_search"
       - "text_processing" 
       - "data_analysis"
-      - "information_synthesis"    
+      - "information_synthesis"
+      - "document_retrieval"
+      - "context_retrieval"    
     functions:
       - "inference"
       - "web_search"
       - "text_processing"
-      - "data_analysis"    
+      - "data_analysis"
+      - "retrieval"
+      - "context_retrieval"    
     llm_config:
-      model_name: "test-qwen-0.6b"
+      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a research assistant. Provide accurate, well-researched, and comprehensive answers."
       temperature: 0.3
@@ -141,7 +165,7 @@ agents:
       - "code_generation"
       - "text_processing"
     llm_config:
-      model_name: "test-qwen-0.6b"
+      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a software development assistant. Write clean, maintainable code and follow best practices."
       temperature: 0.2
@@ -170,7 +194,7 @@ agents:
       - "data_analysis"
       - "text_processing"
     llm_config:
-      model_name: "test-qwen-0.6b"
+      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a data analyst. Extract insights from data and explain your analytical approach."
       temperature: 0.1
@@ -201,7 +225,7 @@ agents:
       - "inference"
       - "text_processing"
     llm_config:
-      model_name: "test-qwen-0.6b"
+      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a creative content writer. Adapt your tone and style to match the intended audience."
       temperature: 0.7
@@ -229,7 +253,7 @@ agents:
       - "inference"
       - "text_processing"
     llm_config:
-      model_name: "test-qwen-0.6b"
+      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a project manager. Focus on planning, organizing, and tracking progress."
       temperature: 0.4
@@ -261,7 +285,7 @@ agents:
       - "text_processing"
       - "data_analysis"
     llm_config:
-      model_name: "test-qwen-0.6b"
+      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a QA specialist. Focus on quality, testing, and process improvement."
       temperature: 0.2
@@ -286,23 +310,55 @@ agents:
     capabilities:
       - "general_assistance"
       - "math_calculation"
-      - "code_generation"
-      - "explanation"    
+      - "coding_help"
     functions:
       - "inference"
       - "text_processing"
-      - "code_generation"
     llm_config:
-      model_name: "test-qwen-0.6b"
+      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
-      instruction: "You are a helpful AI assistant. Provide clear, accurate, and concise responses."
-      temperature: 0.5
+      instruction: "You are a helpful AI assistant for testing. Be clear, accurate, and concise."
+      temperature: 0.7
       max_tokens: 1024
-      timeout_seconds: 60
+      timeout_seconds: 30
+      max_retries: 2
+    auto_start: true
+    max_concurrent_jobs: 1
+    heartbeat_interval_seconds: 30
+    custom_settings:
+      test_mode: true
+      
+  # Knowledge Retrieval Agent (RAG-focused)
+  - name: "knowledge_agent"
+    type: "research"
+    role: "Knowledge retrieval and context-aware assistant"
+    system_prompt: >
+      You are a knowledge-aware AI assistant that uses document retrieval to provide
+      accurate, context-rich responses. Always search for relevant information first,
+      then provide comprehensive answers based on the retrieved context.
+      When you don't find relevant information, clearly state this limitation.
+    capabilities:
+      - "document_retrieval"
+      - "context_integration"
+      - "knowledge_synthesis"
+      - "information_verification"
+    functions:
+      - "inference"
+      - "retrieval"
+      - "context_retrieval"
+      - "text_processing"
+    llm_config:
+      model_name: "qwen3-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
+      instruction: "You are a knowledge-aware assistant. Always use retrieved context to provide accurate, comprehensive answers."
+      temperature: 0.3
+      max_tokens: 3072
+      timeout_seconds: 90
       max_retries: 3
     auto_start: true
-    max_concurrent_jobs: 5
-    heartbeat_interval_seconds: 10
+    max_concurrent_jobs: 4
+    heartbeat_interval_seconds: 15
     custom_settings:
-      response_format: "conversational"
-      enable_testing: true
+      retrieval_threshold: 0.1
+      context_window: "large"
+      fact_checking: "enabled"

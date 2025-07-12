@@ -28,6 +28,8 @@ AgentCore::AgentCore(const std::string& name, const std::string& type)
     function_manager->register_function(std::make_unique<DataTransformFunction>());
     function_manager->register_function(std::make_unique<DataAnalysisFunction>());
     function_manager->register_function(std::make_unique<InferenceFunction>());
+    function_manager->register_function(std::make_unique<RetrievalFunction>());
+    function_manager->register_function(std::make_unique<ContextRetrievalFunction>());
     
     logger->info("Agent created: " + agent_name + " (ID: " + agent_id.substr(0, 8) + "...)");
 }

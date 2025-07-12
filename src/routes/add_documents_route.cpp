@@ -1,3 +1,7 @@
+#ifndef KOLOSAL_SERVER_BUILD
+#define KOLOSAL_SERVER_BUILD
+#endif
+
 #include "kolosal/routes/add_documents_route.hpp"
 #include "kolosal/retrieval/add_document_types.hpp"
 #include "kolosal/utils.hpp"
@@ -10,6 +14,11 @@
 #include <thread>
 #include <chrono>
 #include <memory>
+
+// Ensure we're building the library for this definition
+#ifndef KOLOSAL_SERVER_BUILD
+#define KOLOSAL_SERVER_BUILD
+#endif
 
 using json = nlohmann::json;
 
@@ -86,39 +95,14 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
                               std::this_thread::get_id(), request.documents.size(), requestId.c_str());
 
         // Start monitoring
-        // monitor_->startRequest("document-indexing", "add_documents");        // Initialize document service if needed
-        {
-            std::lock_guard<std::mutex> lock(service_mutex_);
-            if (!document_service_)
-            {
-                // Create a basic database config - in a production environment,
-                // this would be passed from the main server configuration
-                DatabaseConfig db_config;
-                db_config.qdrant.enabled = true;
-                db_config.qdrant.host = "localhost";
-                db_config.qdrant.port = 6333;
-                db_config.qdrant.collectionName = "documents";
-                db_config.qdrant.defaultEmbeddingModel = "text-embedding-3-small";
-                db_config.qdrant.timeout = 30;
-                db_config.qdrant.maxConnections = 10;
-                db_config.qdrant.connectionTimeout = 5;
-                
-                document_service_ = std::make_unique<kolosal::retrieval::DocumentService>(db_config);
-                
-                // Initialize service
-                bool initialized = document_service_->initialize().get();
-                if (!initialized)
-                {
-                    sendErrorResponse(sock, 500, "Failed to initialize document service", "service_error");
-                    return;
-                }
-                
-                ServerLogger::logInfo("DocumentService initialized successfully");
-            }
-        }
-
+        // monitor_->startRequest("document-indexing", "add_documents");
+        
+        // Get document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        auto& document_service = serverAPI.getDocumentService();
+        
         // Test connection
-        bool connected = document_service_->testConnection().get();
+        bool connected = document_service.testConnection().get();
         if (!connected)
         {
             sendErrorResponse(sock, 503, "Database connection failed", "service_unavailable");
@@ -128,7 +112,7 @@ void AddDocumentsRoute::handle(SocketType sock, const std::string& body)
         // Process documents
         ServerLogger::logDebug("[Thread %u] Submitting documents for processing", std::this_thread::get_id());
         
-        auto response_future = document_service_->addDocuments(request);
+        auto response_future = document_service.addDocuments(request);
         
         // Wait for processing to complete
         kolosal::retrieval::AddDocumentsResponse response = response_future.get();
