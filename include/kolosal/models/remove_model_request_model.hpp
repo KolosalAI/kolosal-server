@@ -6,18 +6,18 @@
 #include <json.hpp>
 
 /**
- * @brief Model for engine status request parameters
+ * @brief Model for remove model request parameters
  * 
- * This model represents the JSON request body for checking engine status.
+ * This model represents the JSON request body for removing a model.
  * Currently used as a workaround since path parameters aren't accessible in the routing system.
  */
-class KOLOSAL_SERVER_API EngineStatusRequest : public IModel {
+class KOLOSAL_SERVER_API RemoveModelRequest : public IModel {
 public:
     // Required field (when using JSON body workaround)
-    std::string engine_id;
+    std::string model_id;
 
     bool validate() const override {
-        if (engine_id.empty()) {
+        if (model_id.empty()) {
             return false;
         }
         return true;
@@ -30,19 +30,19 @@ public:
         }
 
         // Check for required field
-        if (!j.contains("engine_id")) {
-            throw std::runtime_error("Missing required field: engine_id is required");
+        if (!j.contains("model_id")) {
+            throw std::runtime_error("Missing required field: model_id is required");
         }
 
-        if (!j["engine_id"].is_string()) {
-            throw std::runtime_error("engine_id must be a string");
+        if (!j["model_id"].is_string()) {
+            throw std::runtime_error("model_id must be a string");
         }
-        j.at("engine_id").get_to(engine_id);
+        j.at("model_id").get_to(model_id);
     }
 
     nlohmann::json to_json() const override {
         nlohmann::json j = {
-            {"engine_id", engine_id}
+            {"model_id", model_id}
         };
 
         return j;

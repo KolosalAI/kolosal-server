@@ -6,35 +6,32 @@
 #include <json.hpp>
 
 /**
- * @brief Model for engine status response
+ * @brief Model for remove model response
  * 
- * This model represents the JSON response body for engine status queries.
+ * This model represents the JSON response body for successful model removal.
  */
-class KOLOSAL_SERVER_API EngineStatusResponse : public IModel {
+class KOLOSAL_SERVER_API RemoveModelResponse : public IModel {
 public:
-    std::string engine_id;
-    std::string status;      // "loaded", "unloaded"
-    bool available;          // true if engine exists, false otherwise
-    std::string message;     // Descriptive message about the engine status
+    std::string model_id;
+    std::string status;      // "removed"
+    std::string message;     // Descriptive message about the removal
 
     bool validate() const override {
         // Basic validation for response
-        return !engine_id.empty() && !status.empty() && !message.empty();
+        return !model_id.empty() && !status.empty() && !message.empty();
     }
 
     void from_json(const nlohmann::json& j) override {
         // This would be used if parsing a response JSON
-        if (j.contains("engine_id")) j.at("engine_id").get_to(engine_id);
+        if (j.contains("model_id")) j.at("model_id").get_to(model_id);
         if (j.contains("status")) j.at("status").get_to(status);
-        if (j.contains("available")) j.at("available").get_to(available);
         if (j.contains("message")) j.at("message").get_to(message);
     }
 
     nlohmann::json to_json() const override {
         nlohmann::json j = {
-            {"engine_id", engine_id},
+            {"model_id", model_id},
             {"status", status},
-            {"available", available},
             {"message", message}
         };
 
@@ -43,11 +40,11 @@ public:
 };
 
 /**
- * @brief Model for engine status error response
+ * @brief Model for remove model error response
  * 
- * This model represents error responses for engine status queries.
+ * This model represents error responses for model removal requests.
  */
-class KOLOSAL_SERVER_API EngineStatusErrorResponse : public IModel {
+class KOLOSAL_SERVER_API RemoveModelErrorResponse : public IModel {
 public:
     struct ErrorDetails {
         std::string message;

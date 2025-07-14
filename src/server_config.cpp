@@ -491,6 +491,8 @@ namespace kolosal
                         model.loadImmediately = modelConfig["load_at_startup"].as<bool>();
                     if (modelConfig["main_gpu_id"])
                         model.mainGpuId = modelConfig["main_gpu_id"].as<int>();
+                    if (modelConfig["inference_engine"])
+                        model.inferenceEngine = modelConfig["inference_engine"].as<std::string>();
                     if (modelConfig["load_params"])
                     {
                         auto params = modelConfig["load_params"];

@@ -6,32 +6,35 @@
 #include <json.hpp>
 
 /**
- * @brief Model for remove engine response
+ * @brief Model for model status response
  * 
- * This model represents the JSON response body for successful engine removal.
+ * This model represents the JSON response body for model status queries.
  */
-class KOLOSAL_SERVER_API RemoveEngineResponse : public IModel {
+class KOLOSAL_SERVER_API ModelStatusResponse : public IModel {
 public:
-    std::string engine_id;
-    std::string status;      // "removed"
-    std::string message;     // Descriptive message about the removal
+    std::string model_id;
+    std::string status;      // "loaded", "unloaded"
+    bool available;          // true if model exists, false otherwise
+    std::string message;     // Descriptive message about the model status
 
     bool validate() const override {
         // Basic validation for response
-        return !engine_id.empty() && !status.empty() && !message.empty();
+        return !model_id.empty() && !status.empty() && !message.empty();
     }
 
     void from_json(const nlohmann::json& j) override {
         // This would be used if parsing a response JSON
-        if (j.contains("engine_id")) j.at("engine_id").get_to(engine_id);
+        if (j.contains("model_id")) j.at("model_id").get_to(model_id);
         if (j.contains("status")) j.at("status").get_to(status);
+        if (j.contains("available")) j.at("available").get_to(available);
         if (j.contains("message")) j.at("message").get_to(message);
     }
 
     nlohmann::json to_json() const override {
         nlohmann::json j = {
-            {"engine_id", engine_id},
+            {"model_id", model_id},
             {"status", status},
+            {"available", available},
             {"message", message}
         };
 
@@ -40,11 +43,11 @@ public:
 };
 
 /**
- * @brief Model for remove engine error response
+ * @brief Model for model status error response
  * 
- * This model represents error responses for engine removal requests.
+ * This model represents error responses for model status queries.
  */
-class KOLOSAL_SERVER_API RemoveEngineErrorResponse : public IModel {
+class KOLOSAL_SERVER_API ModelStatusErrorResponse : public IModel {
 public:
     struct ErrorDetails {
         std::string message;
@@ -75,7 +78,9 @@ public:
             if (err.contains("param") && !err["param"].is_null()) err.at("param").get_to(error.param);
             if (err.contains("code") && !err["code"].is_null()) err.at("code").get_to(error.code);
         }
-    }    nlohmann::json to_json() const override {
+    }
+
+    nlohmann::json to_json() const override {
         nlohmann::json j = {
             {"error", error.to_json()}
         };

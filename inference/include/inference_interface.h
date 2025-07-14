@@ -322,3 +322,39 @@ public:
 typedef IInferenceEngine* (*CreateInferenceEngineFn)();
 
 #endif // INFERENCE_INTERFACE_H
+
+// =============================================================================
+// C-Style Factory Functions for Dynamic Loading
+// =============================================================================
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+/**
+ * @brief Factory function to create an inference engine instance
+ * @return Pointer to a new inference engine instance
+ */
+INFERENCE_API IInferenceEngine* createInferenceEngine();
+
+/**
+ * @brief Factory function to destroy an inference engine instance
+ * @param engine Pointer to the inference engine instance to destroy
+ */
+INFERENCE_API void destroyInferenceEngine(IInferenceEngine* engine);
+
+/**
+ * @brief Get engine information (optional, for plugin metadata)
+ * @return Engine name (e.g., "cpu", "cuda", "vulkan")
+ */
+INFERENCE_API const char* getEngineType();
+
+/**
+ * @brief Get engine version (optional, for plugin metadata)
+ * @return Engine version string
+ */
+INFERENCE_API const char* getEngineVersion();
+
+#ifdef __cplusplus
+}
+#endif

@@ -6,13 +6,13 @@
 #include <json.hpp>
 
 /**
- * @brief Model for add engine response
+ * @brief Model for add model response
  * 
- * This model represents the JSON response body for a successful engine addition.
+ * This model represents the JSON response body for a successful model addition.
  */
-class KOLOSAL_SERVER_API AddEngineResponse : public IModel {
+class KOLOSAL_SERVER_API AddModelResponse : public IModel {
 public:
-    std::string engine_id;
+    std::string model_id;
     std::string model_path;
     std::string status;  // "loaded" or "created"
     bool load_immediately;
@@ -50,12 +50,12 @@ public:
 
     bool validate() const override {
         // Basic validation for response
-        return !engine_id.empty() && !model_path.empty() && !status.empty();
+        return !model_id.empty() && !model_path.empty() && !status.empty();
     }
 
     void from_json(const nlohmann::json& j) override {
         // This would be used if parsing a response JSON
-        if (j.contains("engine_id")) j.at("engine_id").get_to(engine_id);
+        if (j.contains("model_id")) j.at("model_id").get_to(model_id);
         if (j.contains("model_path")) j.at("model_path").get_to(model_path);
         if (j.contains("status")) j.at("status").get_to(status);
         if (j.contains("load_immediately")) j.at("load_immediately").get_to(load_immediately);
@@ -79,7 +79,7 @@ public:
 
     nlohmann::json to_json() const override {
         nlohmann::json j = {
-            {"engine_id", engine_id},
+            {"model_id", model_id},
             {"model_path", model_path},
             {"status", status},
             {"load_immediately", load_immediately},

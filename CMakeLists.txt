@@ -24,31 +24,6 @@ if (MINGW)
     add_compile_definitions(_WIN32_WINNT=0x602)
 endif()
 
-# Enable security hardening features
-if(NOT WIN32)
-    # Add security flags for non-Windows builds
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORTIFY_SOURCE=2")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wformat -Wformat-security")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
-    
-    # Add linker security flags
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,relro,-z,now")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,noexecstack")
-    
-    message(STATUS "Applied security hardening flags for non-Windows build")
-else()
-    # Windows security flags
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GS") # Stack security check
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /sdl") # Additional security checks
-    # Silence C++17 STL adaptor typedef deprecation warnings
-    add_compile_definitions(_SILENCE_CXX17_ADAPTOR_TYPEDEFS_DEPRECATION_WARNING)
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NXCOMPAT /DYNAMICBASE")
-    
-    message(STATUS "Applied security hardening flags for Windows build")
-endif()
-
 # Print UCM flags for debugging
 ucm_print_flags()
 
@@ -57,23 +32,16 @@ option(USE_CUDA   "Compile with CUDA support" OFF)
 option(USE_VULKAN "Compile with VULKAN support" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
-option(ENABLE_AGENTS "Enable multi-agent system" ON)
-option(ENABLE_CLI "Enable CLI interface" OFF)
-option(USE_CPPUPROFILE_GPU "Enable cppuprofile GPU monitoring" ON)
 
 # Define include directories.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/cppuprofile/lib)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inference/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/common)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/ggml/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/pugixml/src)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/thirdparty/zlib/contrib/minizip)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/thirdparty/zlib)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/minizip)
 
 # Define source files.
 set(SOURCES
@@ -83,155 +51,35 @@ set(SOURCES
     src/logger.cpp
     src/download_utils.cpp
     src/download_manager.cpp
-    src/qdrant_client.cpp
-    src/node_manager.cpp
+    src/inference_loader.cpp
+    src/inference_interface_impl.cpp
 
     src/routes/chat_completion_route.cpp
     src/routes/completion_route.cpp
-    src/routes/add_engine_route.cpp
-    src/routes/list_engines_route.cpp
-    src/routes/remove_engine_route.cpp
-    src/routes/engine_status_route.cpp
-    src/routes/health_status_route.cpp
-    src/routes/auth_config_route.cpp
-    # Metrics routes are not yet implemented - commented out until available
-    # src/routes/system_metrics_route.cpp
-    # src/routes/completion_metrics_route.cpp
-    # src/routes/combined_metrics_route.cpp
-    src/routes/download_progress_route.cpp
-    src/routes/downloads_status_route.cpp
-    src/routes/cancel_download_route.cpp
-    src/routes/cancel_all_downloads_route.cpp
-    src/routes/parse_pdf_route.cpp
-    src/routes/parse_docx_route.cpp
-    src/routes/add_documents_route.cpp
-    src/routes/retrieve_route.cpp
-    src/routes/embedding_route.cpp
-    src/routes/inference_chat_completion_route.cpp
     src/routes/inference_completion_route.cpp
-    src/routes/internet_search_route.cpp
+    src/routes/inference_chat_completion_route.cpp
     src/routes/models_route.cpp
-    src/routes/pause_download_route.cpp
-    src/routes/resume_download_route.cpp
-    
-    src/retrieval/remove_documents_route.cpp
-    src/retrieval/add_document_types.cpp
-    src/retrieval/remove_document_types.cpp
-    src/retrieval/retrieve_types.cpp
-    src/retrieval/document_service.cpp
-    src/retrieval/parse_docx.cpp
-    src/retrieval/parse_pdf.cpp
-    
-    # src/metrics_converter.cpp - not yet implemented
+    src/routes/list_inference_engines_route.cpp
+    src/routes/health_status_route.cpp    
+    src/routes/auth_config_route.cpp    
+    src/routes/server_logs_route.cpp    
+
+    src/routes/downloads_route.cpp
+
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
     src/auth/auth_middleware.cpp
     src/node_manager.cpp
-    # src/inference.cpp - handled by inference subdirectory
-    src/models/embedding_request_model.cpp
-    src/models/embedding_response_model.cpp
-    
-    # src/completion_monitor.cpp - commented out
-    
-    external/pugixml/src/pugixml.cpp
-    # Minizip sources for DOCX parsing
-    external/mupdf/thirdparty/zlib/contrib/minizip/unzip.c
-    external/mupdf/thirdparty/zlib/contrib/minizip/ioapi.c
-    external/mupdf/thirdparty/zlib/contrib/minizip/iowin32.c
 )
-
-# Add CLI interface sources if enabled
-if(ENABLE_CLI)
-    list(APPEND SOURCES
-        src/cli_interface.cpp
-        src/cli_advanced.cpp
-    )
-    message(STATUS "CLI interface enabled - adding CLI sources")
-endif()
-
-# Add agent system sources if enabled
-if(ENABLE_AGENTS)
-    list(APPEND SOURCES
-        # Agent system core
-        src/agents/agent_data.cpp
-        src/agents/agent_interfaces.cpp
-        src/agents/yaml_config.cpp
-        
-        # Agent functions
-        src/agents/builtin_functions.cpp
-        src/agents/function_manager.cpp
-        
-        # Agent infrastructure
-        src/agents/job_manager.cpp
-        src/agents/message_router.cpp
-        src/agents/event_system.cpp
-        
-        # Agent core and system
-        src/agents/agent_core.cpp
-        src/agents/multi_agent_system.cpp
-        src/agents/agent_orchestrator.cpp
-        
-        # Agent API routes
-        src/routes/agents_route.cpp
-        src/routes/orchestration_route.cpp
-        src/routes/sequential_workflow_route.cpp
-        src/routes/auto_setup_route.cpp
-        
-        # Sequential workflow system
-        src/agents/sequential_workflow.cpp
-        
-        # Auto-setup system
-        src/auto_setup_manager.cpp
-    )
-    message(STATUS "Agent system enabled - adding agent sources")
-endif()
 
 # Create shared library instead of static library.
 add_library(kolosal_server SHARED ${SOURCES})
-target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE_EXPORTS)
+target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD)
 
 # Create executable
 add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
-
-# Force compatible runtime libraries to match MuPDF (prebuilt Release library)
-if(WIN32 AND MSVC)
-    # Add /FS flag globally and to Debug-specific flags to prevent PDB file conflicts
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FS")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /FS")
-    
-    # Force Release runtime libraries even in Debug builds to match MuPDF
-    # This prevents LNK2038 errors about mismatched runtime libraries
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /FS /MD")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /FS /MD")
-    
-    # Also set _ITERATOR_DEBUG_LEVEL to 0 in Debug builds to match MuPDF
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=0")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /D_ITERATOR_DEBUG_LEVEL=0")
-    
-    # Alternative approach: disable incremental linking in Debug which can cause PDB issues
-    set(CMAKE_EXE_LINKER_FLAGS_DEBUG "${CMAKE_EXE_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
-    set(CMAKE_SHARED_LINKER_FLAGS_DEBUG "${CMAKE_SHARED_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
-    
-    message(STATUS "Configured MSVC Debug builds to use Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 to match MuPDF")
-    
-    # Add /FS flag specifically to our main targets as well
-    target_compile_options(kolosal_server PRIVATE /FS)
-    target_compile_options(kolosal_server_exe PRIVATE /FS)
-    
-    # Set specific target properties to ensure runtime compatibility
-    set_target_properties(kolosal_server PROPERTIES
-        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-    set_target_properties(kolosal_server_exe PROPERTIES
-        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-    
-    # Allow both Debug and Release configurations
-    set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
-    message(STATUS "Configured for both Debug and Release builds with MuPDF compatibility")
-endif()
 
 # Function to copy DLLs to executable directory
 function(copy_dll_to_output target_name dll_path)
@@ -257,20 +105,8 @@ if(WIN32)
         COMMENT "Copying kolosal_server.dll to executable directory"
     )
     
-    # Copy the inference engine DLL (llama-cpu by default, or llama-cuda/llama-vulkan based on options)
-    set(INFERENCE_DLL_NAME "llama-cpu")
-    if(USE_CUDA)
-        set(INFERENCE_DLL_NAME "llama-cuda")
-    elseif(USE_VULKAN)
-        set(INFERENCE_DLL_NAME "llama-vulkan")
-    endif()
-    
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:${INFERENCE_DLL_NAME}>"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying ${INFERENCE_DLL_NAME}.dll to executable directory"
-    )
+    # Note: Inference engine DLLs are now loaded at runtime and should be placed
+    # in the plugins directory or same directory as the executable manually
     
     # Copy CURL DLL if it exists
     set(CURL_DLL_PATHS
@@ -303,217 +139,35 @@ if(WIN32)
         # These will be automatically handled by CMake's runtime library settings
         message(STATUS "MSVC detected - runtime libraries will be statically linked")
     endif()
-    
-    # Copy any additional DLLs from the inference build directory using correct paths
-    # Use CMAKE_BINARY_DIR instead of CMAKE_CURRENT_BINARY_DIR since inference puts files there
-    set(INFERENCE_BIN_DIR "${CMAKE_BINARY_DIR}/bin/$<CONFIG>")
-    
-    # Check if libcurl.dll exists and copy it
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${INFERENCE_BIN_DIR}/libcurl.dll"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying libcurl.dll from inference bin directory"
-        VERBATIM
-    )
-    
-    # Also ensure the inference DLL is copied from the correct location
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "${INFERENCE_BIN_DIR}/${INFERENCE_DLL_NAME}.dll"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying ${INFERENCE_DLL_NAME}.dll from inference bin directory"
-        VERBATIM
-    )
 endif()
 
-# Find and setup llama.cpp
-set(LLAMA_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
-if(NOT EXISTS "${LLAMA_CPP_PATH}/CMakeLists.txt")
-  message(FATAL_ERROR "llama.cpp not found at ${LLAMA_CPP_PATH}. Please clone it or adjust LLAMA_CPP_PATH.")
+# Find and setup yaml-cpp
+set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
+if(NOT EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
+  message(FATAL_ERROR "yaml-cpp not found at ${YAML_CPP_PATH}. Please clone it or adjust YAML_CPP_PATH.")
 endif()
 
-# Find CURL
-set(CMAKE_PREFIX_PATH "${CMAKE_SOURCE_DIR}/external/curl" ${CMAKE_PREFIX_PATH})
-find_package(CURL REQUIRED)
-if(NOT CURL_FOUND)
-    message(FATAL_ERROR "CURL not found")
-endif()
-message(STATUS "Found CURL: ${CURL_INCLUDE_DIR}")
+# Configure yaml-cpp options
+set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
+set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
+set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
+set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static library" FORCE)
 
-# Configure llama.cpp options
-set(GGML_NATIVE           OFF CACHE BOOL "Disable LLAMA_NATIVE in llama.cpp"    FORCE)
-set(INS_ENB               ON  CACHE BOOL "Enable INS_ENB in llama.cpp"          FORCE)
-set(LLAMA_BUILD_TESTS     OFF CACHE BOOL "Disable llama.cpp tests"              FORCE)
-set(LLAMA_BUILD_EXAMPLES  OFF CACHE BOOL "Disable llama.cpp examples"           FORCE)
-set(LLAMA_BUILD_SERVER    OFF CACHE BOOL "Disable llama.cpp server"             FORCE)
-set(LLAMA_BUILD_COMMON    ON  CACHE BOOL "Enable  llama.cpp common"             FORCE)
-set(LLAMA_ALL_WARNINGS    OFF CACHE BOOL "Disable warnings in llama.cpp"        FORCE)
-set(LLAMA_CURL            ON  CACHE BOOL "Enable curl in llama.cpp"             FORCE)
-set(LLAMA_TOOLCALL        ON  CACHE BOOL "Enable llama.cpp toolcall"            FORCE)
-set(BUILD_SHARED_LIBS     OFF CACHE BOOL "Build llama.cpp as a static lib"      FORCE)
-set(GGML_STATIC_LINK      ON  CACHE BOOL "Static link ggml libraries"           FORCE)
-set(GGML_STATIC           ON  CACHE BOOL "Static link ggml libraries"           FORCE)
-set(LLAMA_AVX512          OFF CACHE BOOL "Disable AVX512 in llama.cpp"          FORCE)
-set(GGML_CANN             OFF CACHE BOOL "Disable CANN support in llama.cpp"    FORCE)
+# Add yaml-cpp subdirectory
+add_subdirectory(${YAML_CPP_PATH})
 
-# Enable GGML acceleration based on options
-if(USE_CUDA)
-  set(GGML_CUDA ON CACHE BOOL "Enable GGML CUDA support" FORCE)
-  message(STATUS "Using CUDA for GGML acceleration")
-  
-  find_package(CUDA REQUIRED)
-  if(CUDA_FOUND)
-    target_include_directories(kolosal_server PRIVATE ${CUDA_INCLUDE_DIRS})
-    target_link_libraries(kolosal_server PRIVATE ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_CUDA_LIBRARY})
-  else()
-    message(FATAL_ERROR "CUDA not found. Please install CUDA toolkit.")
-  endif()
-elseif(USE_VULKAN)
-  set(GGML_VULKAN ON CACHE BOOL "Enable GGML Vulkan support" FORCE)
-  message(STATUS "Using vulkan for GGML acceleration")
-  
-  find_package(Vulkan REQUIRED)
-  if(Vulkan_FOUND)
-    target_include_directories(kolosal_server PRIVATE ${Vulkan_INCLUDE_DIRS})
-    target_link_libraries(kolosal_server PRIVATE ${Vulkan_LIBRARIES})
-  else()
-    message(FATAL_ERROR "Vulkan not found. Please install Vulkan SDK.")
-  endif()
-else()
-  message(STATUS "Using OpenBLAS for GGML acceleration")
-endif()
-
-# Find and configure MPI if enabled
-if(USE_MPI)
-  find_package(MPI REQUIRED)
-  if(MPI_FOUND)
-    target_include_directories(kolosal_server PRIVATE ${MPI_CXX_INCLUDE_DIRS})
-    target_link_libraries(kolosal_server PRIVATE ${MPI_CXX_LIBRARIES})
-    target_compile_definitions(kolosal_server PRIVATE ${MPI_CXX_COMPILE_DEFINITIONS})
-    if(MPI_CXX_COMPILE_FLAGS)
-      set_target_properties(kolosal_server PROPERTIES
-        COMPILE_FLAGS "${MPI_CXX_COMPILE_FLAGS}")
-    endif()
-    if(MPI_CXX_LINK_FLAGS)
-      set_target_properties(kolosal_server PROPERTIES
-        LINK_FLAGS "${MPI_CXX_LINK_FLAGS}")
-    endif()
-    message(STATUS "Found MPI: ${MPI_CXX_INCLUDE_DIRS}")
-  else()
-    message(FATAL_ERROR "MPI not found. Please install MPI implementation (OpenMPI, MPICH, or MS-MPI).")
-  endif()
-endif()
-
-# Setup yaml-cpp for agent system
-if(ENABLE_AGENTS)
-    message(STATUS "Agent system enabled - setting up yaml-cpp...")
-    
-    # Try to find system yaml-cpp first
-    find_package(yaml-cpp QUIET)
-    
-    if(NOT yaml-cpp_FOUND)
-        # Check for local yaml-cpp
-        set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
-        if(EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
-            message(STATUS "Found local yaml-cpp at: ${YAML_CPP_PATH}")
-            
-            # Configure yaml-cpp options to avoid conflicts
-            set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
-            set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
-            set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
-            set(YAML_CPP_INSTALL OFF CACHE BOOL "Disable yaml-cpp install" FORCE)
-            set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static" FORCE)
-            
-            # Temporarily set minimum required version for yaml-cpp
-            set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
-            
-            # Add yaml-cpp as subdirectory
-            add_subdirectory(${YAML_CPP_PATH} yaml-cpp EXCLUDE_FROM_ALL)
-            
-            # Create an alias target for consistency
-            if(NOT TARGET yaml-cpp::yaml-cpp)
-                add_library(yaml-cpp::yaml-cpp ALIAS yaml-cpp)
-            endif()
-            
-            message(STATUS "Built yaml-cpp from source")
-        else()
-            message(STATUS "yaml-cpp not found locally, downloading...")
-            
-            # Download yaml-cpp using FetchContent
-            include(FetchContent)
-            FetchContent_Declare(
-                yaml-cpp
-                GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
-                GIT_TAG 0.8.0
-            )
-            
-            # Configure yaml-cpp options
-            set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
-            set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
-            set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
-            set(YAML_CPP_INSTALL OFF CACHE BOOL "Disable yaml-cpp install" FORCE)
-            
-            FetchContent_MakeAvailable(yaml-cpp)
-            message(STATUS "Downloaded and built yaml-cpp")
-        endif()
-    else()
-        message(STATUS "Found system yaml-cpp")
-    endif()
-    
-    target_compile_definitions(kolosal_server PRIVATE KOLOSAL_AGENTS_ENABLED)
-endif()
-
-# yaml-cpp is configured in the agent system section above when ENABLE_AGENTS is ON
-# This section is removed to avoid duplicate target creation
-
-# Build the inference engine as a subdirectory
-# This will create the llama-<cpu/cuda/vulkan> shared library
-# All llama.cpp, CUDA, Vulkan, and MPI dependencies are handled by the inference library
-add_subdirectory(inference)
-
-# MuPDF configuration moved to later in the file to avoid duplication
-
-# yaml-cpp is configured above when ENABLE_AGENTS is ON
-# Only add yaml-cpp if agents are disabled and it doesn't exist
-if(NOT ENABLE_AGENTS AND NOT TARGET yaml-cpp)
-    message(STATUS "Agents disabled - setting up yaml-cpp for basic functionality...")
-    set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
-    if(EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
-        # Configure yaml-cpp options
-        set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "Disable yaml-cpp tests" FORCE)
-        set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
-        set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
-        set(BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static" FORCE)
-        
-        add_subdirectory(${YAML_CPP_PATH} yaml-cpp EXCLUDE_FROM_ALL)
-        
-        # Ensure yaml-cpp is built with -fPIC if needed
-        if(CMAKE_POSITION_INDEPENDENT_CODE)
-            set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
-            message(STATUS "Applied -fPIC to yaml-cpp static library")
-        endif()
-    else()
-        message(WARNING "yaml-cpp not found at ${YAML_CPP_PATH}. Some features may not work.")
+# Note: yaml-cpp is still needed for server configuration
+if(NOT TARGET yaml-cpp)
+    add_subdirectory(external/yaml-cpp EXCLUDE_FROM_ALL)
+    # Ensure yaml-cpp is built with -fPIC if needed
+    if(CMAKE_POSITION_INDEPENDENT_CODE)
+        set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        message(STATUS "Applied -fPIC to yaml-cpp static library")
     endif()
 endif()
 
-# Link the inference engine library to kolosal_server
-# The target name is determined by the inference CMakeLists.txt based on acceleration options
-set(INFERENCE_TARGET_NAME "llama-cpu")
-if(USE_CUDA)
-    set(INFERENCE_TARGET_NAME "llama-cuda")
-elseif(USE_VULKAN)
-    set(INFERENCE_TARGET_NAME "llama-vulkan")
-endif()
-
-message(STATUS "Linking kolosal_server with inference engine: ${INFERENCE_TARGET_NAME}")
-
-# Link the main server library with the inference engine and yaml-cpp
-target_link_libraries(kolosal_server PUBLIC ${INFERENCE_TARGET_NAME} yaml-cpp)
-
-# Ensure the executable depends on the inference target for proper DLL copying
-add_dependencies(kolosal_server_exe ${INFERENCE_TARGET_NAME})
+# Link the main server library with yaml-cpp only
+target_link_libraries(kolosal_server PUBLIC yaml-cpp)
 
 # Configure CURL for main server (download utilities need it)
 set(CURL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/curl")
@@ -557,84 +211,10 @@ if(EXISTS "${CURL_PATH}/include/curl/curl.h")
             endif()
         endif()
     endif()
-endif()
-
-# Configure MuPDF for the main server
-set(MUPDF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf")
-target_include_directories(kolosal_server PRIVATE 
-    ${MUPDF_PATH}/include
-    ${MUPDF_PATH}/thirdparty/zlib/contrib/minizip
-    ${MUPDF_PATH}/thirdparty/zlib
-)
-
-# Link MuPDF libraries to main server
-if(WIN32)
-    # For Windows, we'll need to build MuPDF or use prebuilt libraries
-    # Point to the correct x64/Release directory where the libraries are built
-    target_link_directories(kolosal_server PRIVATE 
-        ${MUPDF_PATH}/platform/win32/x64/Release
-    )
-    target_link_libraries(kolosal_server PRIVATE 
-        libmupdf libthirdparty
-    )
 else()
-    # For Unix systems, link standard MuPDF libraries
-    target_link_libraries(kolosal_server PRIVATE 
-        mupdf mupdf-third
-    )
+    message(WARNING "CURL headers not found at ${CURL_PATH}/include/curl/curl.h")
+    message(STATUS "Download utilities will be disabled")
 endif()
-
-# Define inference-related compile definitions
-target_compile_definitions(kolosal_server PUBLIC
-  $<$<BOOL:${USE_CUDA}>:USE_CUDA>
-  $<$<BOOL:${USE_VULKAN}>:USE_VULKAN>
-  $<$<BOOL:${USE_MPI}>:USE_MPI>
-  $<$<BOOL:${DEBUG}>:DEBUG>
-  $<$<BOOL:${USE_CPPUPROFILE_GPU}>:USE_CPPUPROFILE_GPU>
-)
-
-# Add subdirectories for external libraries
-# llama.cpp is handled by the inference subdirectory, not directly
-# set(LLAMA_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp")
-# add_subdirectory(${LLAMA_CPP_PATH})
-
-# yaml-cpp is already configured above - don't add it again
-# Only add yaml-cpp if it hasn't been added by either agent system or inference subdirectory
-if(NOT TARGET yaml-cpp)
-    message(STATUS "yaml-cpp not found as target, adding from external directory...")
-    add_subdirectory(external/yaml-cpp EXCLUDE_FROM_ALL)
-endif()
-
-# Add cppuprofile if GPU monitoring is enabled
-if(USE_CPPUPROFILE_GPU)
-    # Configure cppuprofile with NVIDIA support
-    set(GPU_MONITOR_NVIDIA ON CACHE BOOL "Enable NVIDIA GPU monitoring in cppuprofile" FORCE)
-    add_subdirectory(external/cppuprofile/lib)
-    message(STATUS "cppuprofile GPU monitoring enabled")
-endif()
-
-# Link libraries - llama components are handled by inference library
-set(KOLOSAL_LINK_LIBRARIES yaml-cpp)
-
-# Add cppuprofile if enabled
-if(USE_CPPUPROFILE_GPU)
-    list(APPEND KOLOSAL_LINK_LIBRARIES cppuprofile)
-endif()
-
-target_link_libraries(kolosal_server PRIVATE ${KOLOSAL_LINK_LIBRARIES})
-
-# Link CURL libraries and include directories
-target_include_directories(kolosal_server PRIVATE ${CURL_INCLUDE_DIR})
-target_link_libraries(kolosal_server PRIVATE ${CURL_LIBRARIES})
-
-# MuPDF linking handled in main configuration section above
-
-# llama.cpp include directories are handled by the inference library
-# target_include_directories(kolosal_server PUBLIC
-#   ${LLAMA_CPP_PATH}/include
-#   ${LLAMA_CPP_PATH}/common
-#   ${LLAMA_CPP_PATH}/ggml/include
-# )
 
 # Find and link thread library for the main library.
 find_package(Threads REQUIRED)
@@ -656,7 +236,7 @@ else()
     endif()
 endif()
 
-# Add acggressive optimization flags for better performance
+# Add aggressive optimization flags for better performance
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR NOT CMAKE_BUILD_TYPE)
     if(MSVC)
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /Ob2 /DNDEBUG")
@@ -705,23 +285,26 @@ if(UNIX AND NOT APPLE)
         _LARGEFILE64_SOURCE
     )
     
-    # Set RPATH for proper library loading when installed
+    # Set RPATH for proper library loading when installed and during development
     set_target_properties(kolosal_server_exe PROPERTIES
-        INSTALL_RPATH "$ORIGIN/../lib:/usr/lib"
+        INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:/usr/lib"
         BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH_USE_LINK_PATH TRUE
     )
     
     set_target_properties(kolosal_server PROPERTIES
-        INSTALL_RPATH "$ORIGIN:/usr/lib"
+        INSTALL_RPATH "$ORIGIN:$ORIGIN/../lib:/usr/lib"
         BUILD_WITH_INSTALL_RPATH TRUE
         INSTALL_RPATH_USE_LINK_PATH TRUE
     )
     
 endif()
 
-# Install header files.
-install(DIRECTORY include/
-    DESTINATION include
-    FILES_MATCHING PATTERN "*.hpp"
-)
+# Install header files only for development packages
+option(INSTALL_HEADERS "Install header files for development" OFF)
+if(INSTALL_HEADERS)
+    install(DIRECTORY include/
+        DESTINATION include
+        FILES_MATCHING PATTERN "*.hpp"
+    )
+endif()

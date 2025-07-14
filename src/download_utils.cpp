@@ -39,17 +39,38 @@ namespace kolosal
             return 1; // Return non-zero to cancel the download
         }        if (data->callback)
         {
-            // Determine the total file size to use
+            // Determine the total file size to use - recalculate every time to handle dynamic updates
             size_t total_bytes = 0;
+            
             if (dltotal > 0)
             {
-                // Use CURL's reported total size (most reliable)
-                total_bytes = static_cast<size_t>(dltotal);
-                data->total_bytes = total_bytes; // Update our stored value
+                if (data->downloaded_bytes == 0)
+                {
+                    // This is a fresh download, dltotal is the actual file size
+                    total_bytes = static_cast<size_t>(dltotal);
+                    data->total_bytes = total_bytes; // Store for future use
+                }
+                else
+                {
+                    // This is a resume download, dltotal is remaining bytes
+                    // Calculate actual total size: already downloaded + remaining
+                    total_bytes = data->downloaded_bytes + static_cast<size_t>(dltotal);
+                    
+                    // Update stored total_bytes if we calculated a larger value (handles edge cases)
+                    if (total_bytes > data->total_bytes)
+                    {
+                        data->total_bytes = total_bytes;
+                    }
+                    else if (data->total_bytes > 0)
+                    {
+                        // Use the stored value if it's larger (more reliable)
+                        total_bytes = data->total_bytes;
+                    }
+                }
             }
             else if (data->total_bytes > 0)
             {
-                // Use pre-determined total size (from URL info check)
+                // Fall back to stored total bytes if CURL doesn't provide current total
                 total_bytes = data->total_bytes;
             }
 
@@ -57,6 +78,17 @@ namespace kolosal
             
             // Calculate total downloaded bytes (for resume case, add previous download to current)
             size_t total_downloaded = data->downloaded_bytes + current_downloaded;
+
+            // Debug logging to understand the values
+            static std::chrono::time_point<std::chrono::steady_clock> last_debug_log;
+            auto now = std::chrono::steady_clock::now();
+            if (now - last_debug_log > std::chrono::seconds(2)) // Log every 2 seconds
+            {
+                last_debug_log = now;
+                printf("[DEBUG] Download progress - dltotal: %lld, dlnow: %lld, data->downloaded_bytes: %zu, total_bytes: %zu, total_downloaded: %zu\n",
+                       static_cast<long long>(dltotal), static_cast<long long>(dlnow), 
+                       data->downloaded_bytes, total_bytes, total_downloaded);
+            }
 
             // Calculate percentage based on total expected size with bounds checking
             double percentage = 0.0;
@@ -286,22 +318,23 @@ namespace kolosal
         std::filesystem::path file_path(local_path);
         std::filesystem::create_directories(file_path.parent_path());
 
+        // Always get the expected file size from URL first
+        DownloadResult url_info = get_url_file_info(url);
+        size_t expected_total = 0;
+        if (url_info.success && url_info.total_bytes > 0)
+        {
+            expected_total = url_info.total_bytes;
+        }
+
         // Check if we can resume the download
         size_t resume_from = 0;
-        size_t expected_total = 0;
         bool resuming = false;
 
         if (resume && can_resume_download(url, local_path))
         {
             resume_from = std::filesystem::file_size(local_path);
-            // Get expected file size
-            DownloadResult url_info = get_url_file_info(url);
-            if (url_info.success)
-            {
-                expected_total = url_info.total_bytes;
-                resuming = true;
-                ServerLogger::logInfo("Resuming download from byte %zu/%zu", resume_from, expected_total);
-            }
+            resuming = true;
+            ServerLogger::logInfo("Resuming download from byte %zu/%zu", resume_from, expected_total);
         }
         else if (std::filesystem::exists(local_path))
         {
@@ -311,9 +344,8 @@ namespace kolosal
                 size_t local_size = std::filesystem::file_size(local_path);
                 if (local_size > 0)
                 {
-                    // Get expected file size to check if file is complete
-                    DownloadResult url_info = get_url_file_info(url);
-                    if (url_info.success && local_size == url_info.total_bytes)
+                    // Check if file is complete using the already fetched expected size
+                    if (expected_total > 0 && local_size == expected_total)
                     {
                         ServerLogger::logInfo("File already fully downloaded: %zu bytes, skipping download", local_size);
                         return DownloadResult(true, "", local_path, local_size);
@@ -450,8 +482,14 @@ namespace kolosal
         // If we know the expected size, verify it matches
         if (expected_total > 0 && final_size != expected_total)
         {
-            ServerLogger::logWarning("Downloaded file size (%zu) doesn't match expected size (%zu)",
-                                     final_size, expected_total);
+            std::string error = "Downloaded file size (" + std::to_string(final_size) + 
+                              ") doesn't match expected size (" + std::to_string(expected_total) + ")";
+            ServerLogger::logError("%s", error.c_str());
+            
+            // Remove incomplete file to allow clean restart
+            std::filesystem::remove(downloaded_file);
+            
+            return DownloadResult(false, error);
         }
 
         ServerLogger::logInfo("Download completed successfully. File size: %zu bytes %s",
@@ -479,22 +517,23 @@ namespace kolosal
         std::filesystem::path file_path(local_path);
         std::filesystem::create_directories(file_path.parent_path());
 
+        // Always get the expected file size from URL first
+        DownloadResult url_info = get_url_file_info(url);
+        size_t expected_total = 0;
+        if (url_info.success && url_info.total_bytes > 0)
+        {
+            expected_total = url_info.total_bytes;
+        }
+
         // Check if we can resume the download
         size_t resume_from = 0;
-        size_t expected_total = 0;
         bool resuming = false;
 
         if (resume && can_resume_download(url, local_path))
         {
             resume_from = std::filesystem::file_size(local_path);
-            // Get expected file size
-            DownloadResult url_info = get_url_file_info(url);
-            if (url_info.success)
-            {
-                expected_total = url_info.total_bytes;
-                resuming = true;
-                ServerLogger::logInfo("Resuming download from byte %zu/%zu", resume_from, expected_total);
-            }
+            resuming = true;
+            ServerLogger::logInfo("Resuming download from byte %zu/%zu", resume_from, expected_total);
         }        else if (std::filesystem::exists(local_path))
         {
             // Check if file is already complete before removing it
@@ -503,9 +542,8 @@ namespace kolosal
                 size_t local_size = std::filesystem::file_size(local_path);
                 if (local_size > 0)
                 {
-                    // Get expected file size to check if file is complete
-                    DownloadResult url_info = get_url_file_info(url);
-                    if (url_info.success && local_size == url_info.total_bytes)
+                    // Check if file is complete using the already fetched expected size
+                    if (expected_total > 0 && local_size == expected_total)
                     {
                         ServerLogger::logInfo("File already fully downloaded: %zu bytes, skipping download", local_size);
                         return DownloadResult(true, "", local_path, local_size);
@@ -651,8 +689,14 @@ namespace kolosal
         // If we know the expected size, verify it matches
         if (expected_total > 0 && final_size != expected_total)
         {
-            ServerLogger::logWarning("Downloaded file size (%zu) doesn't match expected size (%zu)",
-                                     final_size, expected_total);
+            std::string error = "Downloaded file size (" + std::to_string(final_size) + 
+                              ") doesn't match expected size (" + std::to_string(expected_total) + ")";
+            ServerLogger::logError("%s", error.c_str());
+            
+            // Remove incomplete file to allow clean restart
+            std::filesystem::remove(downloaded_file);
+            
+            return DownloadResult(false, error);
         }
 
         ServerLogger::logInfo("Download completed successfully. File size: %zu bytes %s",

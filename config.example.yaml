@@ -78,6 +78,7 @@ models:
     path: "https://huggingface.co/kolosal/qwen3-0.6b/resolve/main/Qwen3-0.6B-UD-Q4_K_XL.gguf"
     load_immediately: true
     main_gpu_id: 0
+    inference_engine: "llama-cpu"  # Available options: llama-cpu, llama-cuda, llama-vulkan, etc.
     load_params:
       n_ctx: 2048
       n_keep: 1024
@@ -94,6 +95,7 @@ models:
     path: "./models/gpt-3.5-turbo.gguf"
     load_immediately: false
     main_gpu_id: 0
+    inference_engine: "llama-cuda"  # Use CUDA for GPU acceleration
     load_params:
       n_ctx: 4096
       n_keep: 2048
