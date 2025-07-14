@@ -123,12 +123,12 @@ models:
       n_ubatch: 128
   - id: "text-embedding-3-large"
     type: "embedding"
-    path: "https://huggingface.co/sentence-transformers/all-MiniLM-L12-v2/resolve/main/all-MiniLM-L12-v2-Q4_K_M.gguf"
+    path: "./models/bge-large-en-v1.5-q4_k_m.gguf"
     load_at_startup: false
     main_gpu_id: 0
     preload_context: false
     embedding_config:
-      dimensions: 768
+      dimensions: 1024
       normalize: true
       pooling_type: "mean"
       max_input_length: 8192

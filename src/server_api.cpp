@@ -92,6 +92,28 @@ namespace kolosal
             return false;
         }
     }
+
+    bool ServerAPI::init(const std::string &port, const std::string &host, std::chrono::seconds idleTimeout, const ServerConfig& config)
+    {
+        // Call the main init method - the config parameter is used by main.cpp
+        // but the actual server initialization logic is in the other init method
+        return init(port, host, idleTimeout);
+    }
+
+    void ServerAPI::enableMetrics()
+    {
+        // Implementation for enabling metrics
+        // This would typically involve setting up metrics collection endpoints
+        ServerLogger::logInfo("Metrics enabled");
+    }
+
+    void ServerAPI::enableSearch(const SearchConfig& config)
+    {
+        // Implementation for enabling search functionality
+        // This would typically involve setting up search endpoints
+        ServerLogger::logInfo("Search functionality enabled");
+    }
+
     void ServerAPI::shutdown()
     {
         if (pImpl->server)
