@@ -1,0 +1,39 @@
+{
+    "configurations": [
+        {
+            "name": "Win32",
+            "includePath": [
+                "${workspaceFolder}/include",
+                "${workspaceFolder}/external/nlohmann",
+                "${workspaceFolder}/external/cppuprofile/lib",
+                "${workspaceFolder}/inference/include",
+                "${workspaceFolder}/external/llama.cpp/include",
+                "${workspaceFolder}/external/llama.cpp/common",
+                "${workspaceFolder}/external/llama.cpp/ggml/include",
+                "${workspaceFolder}/external/pugixml/src",
+                "${workspaceFolder}/external/mupdf/include",
+                "${workspaceFolder}/external/mupdf/thirdparty/zlib/contrib/minizip",
+                "${workspaceFolder}/external/mupdf/thirdparty/zlib",
+                "${workspaceFolder}/external/minizip",
+                "${workspaceFolder}/external/curl/include",
+                "${workspaceFolder}/external/yaml-cpp/include"
+            ],
+            "defines": [
+                "_DEBUG",
+                "UNICODE",
+                "_UNICODE",
+                "_WIN32_WINNT=0x0602",
+                "GGML_CANN=0",
+                "_SILENCE_CXX17_ADAPTOR_TYPEDEFS_DEPRECATION_WARNING",
+                "KOLOSAL_SERVER_API=__declspec(dllexport)"
+            ],
+            "windowsSdkVersion": "10.0.26100.0",
+            "compilerPath": "C:/Program Files (x86)/Microsoft Visual Studio/2022/BuildTools/VC/Tools/MSVC/14.41.34120/bin/Hostx64/x64/cl.exe",
+            "cStandard": "c17",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "windows-msvc-x64",
+            "configurationProvider": "ms-vscode.cmake-tools"
+        }
+    ],
+    "version": 4
+}

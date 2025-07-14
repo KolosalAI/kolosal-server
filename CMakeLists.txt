@@ -24,6 +24,31 @@ if (MINGW)
     add_compile_definitions(_WIN32_WINNT=0x602)
 endif()
 
+# Enable security hardening features
+if(NOT WIN32)
+    # Add security flags for non-Windows builds
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fstack-protector-strong")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_FORTIFY_SOURCE=2")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wformat -Wformat-security")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIE")
+    
+    # Add linker security flags
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -pie")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,relro,-z,now")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-z,noexecstack")
+    
+    message(STATUS "Applied security hardening flags for non-Windows build")
+else()
+    # Windows security flags
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /GS") # Stack security check
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /sdl") # Additional security checks
+    # Silence C++17 STL adaptor typedef deprecation warnings
+    add_compile_definitions(_SILENCE_CXX17_ADAPTOR_TYPEDEFS_DEPRECATION_WARNING)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /NXCOMPAT /DYNAMICBASE")
+    
+    message(STATUS "Applied security hardening flags for Windows build")
+endif()
+
 # Print UCM flags for debugging
 ucm_print_flags()
 
@@ -330,6 +355,7 @@ set(BUILD_SHARED_LIBS     OFF CACHE BOOL "Build llama.cpp as a static lib"      
 set(GGML_STATIC_LINK      ON  CACHE BOOL "Static link ggml libraries"           FORCE)
 set(GGML_STATIC           ON  CACHE BOOL "Static link ggml libraries"           FORCE)
 set(LLAMA_AVX512          OFF CACHE BOOL "Disable AVX512 in llama.cpp"          FORCE)
+set(GGML_CANN             OFF CACHE BOOL "Disable CANN support in llama.cpp"    FORCE)
 
 # Enable GGML acceleration based on options
 if(USE_CUDA)

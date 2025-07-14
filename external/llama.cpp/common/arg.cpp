@@ -2300,7 +2300,11 @@ common_params_context common_params_parser_init(common_params & params, llama_ex
                     throw std::invalid_argument("unknown buffer type");
                 }
                 // FIXME: this leaks memory
+#ifdef _WIN32
+                params.tensor_buft_overrides.push_back({_strdup(tensor_name.c_str()), buft_list.at(buffer_type)});
+#else
                 params.tensor_buft_overrides.push_back({strdup(tensor_name.c_str()), buft_list.at(buffer_type)});
+#endif
             }
         }
     ));

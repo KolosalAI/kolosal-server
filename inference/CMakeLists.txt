@@ -111,6 +111,7 @@ set(BUILD_SHARED_LIBS     OFF CACHE BOOL "Build llama.cpp as a static lib"      
 set(GGML_STATIC_LINK      ON  CACHE BOOL "Static link ggml libraries"           FORCE)
 set(GGML_STATIC           ON  CACHE BOOL "Static link ggml libraries"           FORCE)
 set(LLAMA_AVX512          OFF CACHE BOOL "Disable AVX512 in llama.cpp"          FORCE)
+set(GGML_CANN             OFF CACHE BOOL "Disable CANN support in llama.cpp"    FORCE)
 
 # Force position-independent code for llama.cpp when building shared library
 if(BUILD_SHARED_LIBS OR CMAKE_POSITION_INDEPENDENT_CODE)

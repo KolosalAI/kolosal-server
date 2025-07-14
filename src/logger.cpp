@@ -60,17 +60,23 @@ void ServerLogger::log(LogLevel level, const std::string& message) {
 	entry.timestamp = timestamp;
 	entry.message = message;
 	
-	// Store in memory
+	// Store in memory with size limit
+	const size_t maxLogEntries = 1000;
+	if (logs.size() >= maxLogEntries) {
+		logs.erase(logs.begin(), logs.begin() + (logs.size() - maxLogEntries + 1));
+	}
 	logs.push_back(entry);
 	
 	// Format message
 	std::string formattedMessage = "[" + timestamp + "] [" + levelStr + "] " + message;
 	
-	// Output to console
-	if (level == LogLevel::SERVER_ERROR) {
-		std::cerr << formattedMessage << std::endl;
-	} else {
-		std::cout << formattedMessage << std::endl;
+	// Output to console (only if not in quiet mode or if it's an error)
+	if (!quietMode || level == LogLevel::SERVER_ERROR) {
+		if (level == LogLevel::SERVER_ERROR) {
+			std::cerr << formattedMessage << std::endl;
+		} else {
+			std::cout << formattedMessage << std::endl;
+		}
 	}
 	
 	// Output to file
@@ -81,6 +87,11 @@ void ServerLogger::log(LogLevel level, const std::string& message) {
 }
 
 std::string ServerLogger::formatString(const char* format, va_list args) {
+	// Security check to prevent format string vulnerabilities
+	if (!format) {
+		return "";
+	}
+	
 	// Get the required buffer size
 	va_list args_copy;
 	va_copy(args_copy, args);
@@ -91,9 +102,26 @@ std::string ServerLogger::formatString(const char* format, va_list args) {
 		return "";
 	}
 	
+	// Limit maximum log message size to prevent memory exhaustion
+	const int maxLogSize = 8192; // 8KB max log message
+	if (size > maxLogSize) {
+		size = maxLogSize;
+	}
+	
 	// Create buffer and format string
 	std::string result(size, '\0');
-	vsnprintf(&result[0], size + 1, format, args);
+	int written = vsnprintf(&result[0], size + 1, format, args);
+	
+	if (written < 0) {
+		return ""; // Formatting error
+	}
+	
+	if (written > size) {
+		result.resize(size);
+		result += "... [truncated]";
+	} else {
+		result.resize(written);
+	}
 	
 	return result;
 }
@@ -105,7 +133,14 @@ std::string ServerLogger::getCurrentTimestamp() {
 		now.time_since_epoch()) % 1000;
 	
 	std::stringstream ss;
+#ifdef _WIN32
+	std::tm tm_buf;
+	if (localtime_s(&tm_buf, &time_t_now) == 0) {
+		ss << std::put_time(&tm_buf, "%Y-%m-%d %H:%M:%S");
+	}
+#else
 	ss << std::put_time(std::localtime(&time_t_now), "%Y-%m-%d %H:%M:%S");
+#endif
 	ss << '.' << std::setfill('0') << std::setw(3) << ms.count();
 	
 	return ss.str();

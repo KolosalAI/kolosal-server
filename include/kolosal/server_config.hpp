@@ -6,7 +6,7 @@
 #include "export.hpp"
 #include "auth/rate_limiter.hpp"
 #include "auth/cors_handler.hpp"
-#include "inference.h"
+#include "../../inference/include/inference_interface.h"
 
 namespace kolosal {
 

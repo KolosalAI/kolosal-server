@@ -80,10 +80,22 @@ namespace retrieval
             throw std::invalid_argument("Invalid PDF data");
         }
 
+        // Add size limit to prevent memory exhaustion
+        const size_t maxPdfSize = 100 * 1024 * 1024; // 100MB limit
+        if (size > maxPdfSize) {
+            throw std::invalid_argument("PDF file too large (max 100MB)");
+        }
+
         fz_try(ctx_)
         {
             stream_ = fz_open_memory(ctx_, data, size);
+            if (!stream_) {
+                fz_throw(ctx_, FZ_ERROR_GENERIC, "Failed to create memory stream");
+            }
             doc_ = fz_open_document_with_stream(ctx_, "pdf", stream_);
+            if (!doc_) {
+                fz_throw(ctx_, FZ_ERROR_GENERIC, "Failed to open PDF document");
+            }
         }
         fz_catch(ctx_)
         {

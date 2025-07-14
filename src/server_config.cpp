@@ -4,6 +4,10 @@
 #include <iostream>
 #include <fstream>
 #include <thread>
+#include "../../inference/include/inference_interface.h"
+#ifdef _WIN32
+#include <cstdlib>
+#endif
 
 namespace kolosal
 {    bool ServerConfig::loadFromArgs(int argc, char *argv[])
@@ -51,9 +55,18 @@ namespace kolosal
         
         // If still no config found, try user home directory
         if (!configLoaded) {
+#ifdef _WIN32
+            char* homeDir = nullptr;
+            size_t len = 0;
+            // On Windows, use USERPROFILE instead of HOME
+            if (_dupenv_s(&homeDir, &len, "USERPROFILE") == 0 && homeDir != nullptr) {
+                std::string userConfigPath = std::string(homeDir) + "/.kolosal/config.yaml";
+                free(homeDir);
+#else
             const char* homeDir = getenv("HOME");
             if (homeDir) {
                 std::string userConfigPath = std::string(homeDir) + "/.kolosal/config.yaml";
+#endif
                 std::ifstream userFile(userConfigPath);
                 if (userFile.good()) {
                     userFile.close();

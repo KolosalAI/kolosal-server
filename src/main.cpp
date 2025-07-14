@@ -6,14 +6,18 @@
 #include <atomic>
 #include <vector>
 #include <filesystem>
+#include <cstring>
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #include <wininet.h>
+#include <io.h>
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "wininet.lib")
+#define write _write
+#define STDERR_FILENO _fileno(stderr)
 #else
 #include <sys/socket.h>
 #include <ifaddrs.h>
@@ -69,18 +73,25 @@ std::vector<std::string> getLocalIPAddresses()
                          unicast != nullptr; unicast = unicast->Next)
                     {
 
-                        char ipStr[INET6_ADDRSTRLEN];
+                        wchar_t ipStr[INET6_ADDRSTRLEN];
                         DWORD ipStrLen = INET6_ADDRSTRLEN;
 
-                        if (WSAAddressToStringA(unicast->Address.lpSockaddr,
+                        if (WSAAddressToStringW(unicast->Address.lpSockaddr,
                                                 unicast->Address.iSockaddrLength,
                                                 nullptr, ipStr, &ipStrLen) == 0)
                         {
-                            std::string ip(ipStr);
-                            // Filter out loopback, link-local, and IPv6 addresses for simplicity
-                            if (ip != "127.0.0.1" && ip.find("169.254.") != 0 && ip.find(":") == std::string::npos)
-                            {
-                                addresses.push_back(ip);
+                            // Convert wide string to narrow string
+                            int len = WideCharToMultiByte(CP_UTF8, 0, ipStr, -1, nullptr, 0, nullptr, nullptr);
+                            if (len > 0) {
+                                std::vector<char> buffer(len);
+                                WideCharToMultiByte(CP_UTF8, 0, ipStr, -1, buffer.data(), len, nullptr, nullptr);
+                                std::string ip(buffer.data());
+                                
+                                // Filter out loopback, link-local, and IPv6 addresses for simplicity
+                                if (ip != "127.0.0.1" && ip.find("169.254.") != 0 && ip.find(":") == std::string::npos)
+                                {
+                                    addresses.push_back(ip);
+                                }
                             }
                         }
                     }
@@ -221,8 +232,10 @@ bool configureUPnPPortForwarding(const std::string &port)
 // Signal handler for graceful shutdown
 void signal_handler(int signal)
 {
-    std::cout << "\nReceived signal " << signal << ", shutting down gracefully..." << std::endl;
-    keep_running = false;
+    // Use async-signal-safe functions only
+    const char* msg = "\nReceived shutdown signal, shutting down gracefully...\n";
+    write(STDERR_FILENO, msg, strlen(msg));
+    keep_running.store(false, std::memory_order_release);
 }
 
 void print_usage(const char *program_name)

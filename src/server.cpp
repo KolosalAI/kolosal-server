@@ -372,25 +372,39 @@ namespace kolosal
 							ServerLogger::logDebug("[Thread %d] Processing request from %s",
 												  std::this_thread::get_id(), clientIP);
 
-							// Read the HTTP request with improved error handling
+							// Read the HTTP request with improved error handling and security
 							const int bufferSize = 16384; // Increased buffer size for larger headers
-							char buffer[bufferSize];
+							std::vector<char> buffer(bufferSize);
 							std::string request;
 							
 							// Read data in chunks until we have the complete headers
 							bool headersComplete = false;
-							int totalBytesReceived = 0;
+							size_t totalBytesReceived = 0;
+							const size_t maxRequestSize = 32768; // Maximum request size (32KB)
 							
 							// Set socket timeout to prevent hanging
 							struct timeval timeout;
 							timeout.tv_sec = 30;  // 30 second timeout
 							timeout.tv_usec = 0;
-							setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+							if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) < 0) {
+								ServerLogger::logWarning("[Thread %d] Failed to set socket timeout", std::this_thread::get_id());
+							}
 							
-							while (!headersComplete && totalBytesReceived < bufferSize - 1)
+							while (!headersComplete && totalBytesReceived < bufferSize - 1 && totalBytesReceived < maxRequestSize)
 							{
-								int bytesReceived = recv(client_sock, buffer + totalBytesReceived, 
-														bufferSize - 1 - totalBytesReceived, 0);
+								size_t bufferSizeT = static_cast<size_t>(bufferSize);
+								size_t remaining1 = bufferSizeT - 1 - totalBytesReceived;
+								size_t remaining2 = maxRequestSize - totalBytesReceived;
+								size_t remaining = (remaining1 < remaining2) ? remaining1 : remaining2;
+								
+								if (remaining == 0) {
+									ServerLogger::logError("[Thread %d] Request too large from %s", 
+														   std::this_thread::get_id(), clientIP);
+									break;
+								}
+								
+								int bytesReceived = recv(client_sock, buffer.data() + totalBytesReceived, 
+														static_cast<int>(remaining), 0);
 								
 								if (bytesReceived <= 0)
 								{
@@ -407,13 +421,15 @@ namespace kolosal
 									break;
 								}
 								
-								totalBytesReceived += bytesReceived;
+								totalBytesReceived += static_cast<size_t>(bytesReceived);
 								buffer[totalBytesReceived] = '\0';
 								
-								// Check if we have complete headers (indicated by \r\n\r\n)
-								if (strstr(buffer, "\r\n\r\n") != nullptr)
-								{
-									headersComplete = true;
+								// Check if we have complete headers (indicated by \r\n\r\n) using safer method
+								if (totalBytesReceived >= 4) {
+									std::string tempStr(buffer.data(), totalBytesReceived);
+									if (tempStr.find("\r\n\r\n") != std::string::npos) {
+										headersComplete = true;
+									}
 								}
 							}
 							
@@ -422,14 +438,14 @@ namespace kolosal
 								ServerLogger::logError("[Thread %d] No data received from %s", 
 													   std::this_thread::get_id(), clientIP);
 #ifdef _WIN32
-					closesocket(client_sock);
+								closesocket(client_sock);
 #else
-					close(client_sock);
+								close(client_sock);
 #endif
-					return;
-				}
-				
-				request = std::string(buffer, totalBytesReceived);
+								return;
+							}
+							
+							request = std::string(buffer.data(), totalBytesReceived);
 
 				// Parse the HTTP request line
 				size_t endOfLine = request.find("\r\n");
@@ -519,18 +535,42 @@ namespace kolosal
 					return;
 				}
 
-				// Find Content-Length header (case-insensitive)
+				// Find Content-Length header (case-insensitive) with validation
 				int contentLength = 0;
+				const size_t maxContentLength = 10 * 1024 * 1024; // 10MB maximum content length
 				auto it = headers.find("content-length");
 				if (it != headers.end()) {
 					try {
 						contentLength = std::stoi(it->second);
+						if (contentLength < 0) {
+							ServerLogger::logWarning("[Thread %d] Negative Content-Length from %s: %d",
+								std::this_thread::get_id(), clientIP, contentLength);
+							contentLength = 0;
+						} else if (static_cast<size_t>(contentLength) > maxContentLength) {
+							ServerLogger::logWarning("[Thread %d] Content-Length too large from %s: %d (max: %zu)",
+								std::this_thread::get_id(), clientIP, contentLength, maxContentLength);
+							// Send 413 Payload Too Large
+							nlohmann::json jError = {
+								{"error", {
+									{"message", "Payload too large"},
+									{"type", "payload_too_large_error"},
+									{"code", 413}
+								}}
+							};
+							send_response(client_sock, 413, jError.dump(), responseHeaders);
+#ifdef _WIN32
+							closesocket(client_sock);
+#else
+							close(client_sock);
+#endif
+							return;
+						}
 						ServerLogger::logDebug("[Thread %d] Content-Length: %d",
 							std::this_thread::get_id(), contentLength);
 					}
 					catch (const std::exception& e) {
-						ServerLogger::logWarning("[Thread %d] Invalid Content-Length header: %s",
-							std::this_thread::get_id(), it->second.c_str());
+						ServerLogger::logWarning("[Thread %d] Invalid Content-Length header from %s: %s",
+							std::this_thread::get_id(), clientIP, it->second.c_str());
 					}
 				}
 
@@ -544,17 +584,32 @@ namespace kolosal
 
 					// If Content-Length indicates there's more data to read
 					if (contentLength > 0 && body.length() < static_cast<size_t>(contentLength)) {
-						int remaining = contentLength - body.length();
-						std::vector<char> bodyBuffer(remaining + 1, 0);
-
-						int totalRead = 0;
+						size_t remaining = static_cast<size_t>(contentLength) - body.length();
+						
+						// Additional safety check
+						if (remaining > maxContentLength) {
+							ServerLogger::logError("[Thread %d] Calculated remaining size too large: %zu", 
+												   std::this_thread::get_id(), remaining);
+#ifdef _WIN32
+							closesocket(client_sock);
+#else
+							close(client_sock);
+#endif
+							return;
+						}
+						
+						std::vector<char> bodyBuffer(remaining);
+						size_t totalRead = 0;
+						
 						while (totalRead < remaining) {
 							int bytesRead = recv(client_sock, bodyBuffer.data() + totalRead,
-								remaining - totalRead, 0);
+								static_cast<int>(remaining - totalRead), 0);
 							if (bytesRead <= 0) {
+								ServerLogger::logWarning("[Thread %d] Failed to read complete body from %s (expected: %zu, got: %zu)",
+														std::this_thread::get_id(), clientIP, remaining, totalRead);
 								break;  // Error or connection closed
 							}
-							totalRead += bytesRead;
+							totalRead += static_cast<size_t>(bytesRead);
 						}
 
 						if (totalRead > 0) {

@@ -81,6 +81,7 @@ inline void ThreadPool::shutdown()
 {
 	{
 		std::unique_lock<std::mutex> lock(queue_mutex);
+		if (stop) return; // Already shutdown
 		stop = true;
 	}
 	condition.notify_all();
@@ -91,6 +92,7 @@ inline void ThreadPool::shutdown()
 			worker.join();
 		}
 	}
+	workers.clear();
 }
 
 inline void ThreadPool::worker()
@@ -111,11 +113,23 @@ inline void ThreadPool::worker()
 				return;
 			}
 
+			if (this->tasks.empty()) {
+				continue; // Spurious wakeup protection
+			}
+
 			task = std::move(this->tasks.front());
 			this->tasks.pop();
 		}
 
-		task();
+		// Execute task outside of lock to prevent deadlocks
+		try {
+			task();
+		} catch (const std::exception& e) {
+			// Log error but continue processing
+			std::cerr << "[ThreadPool] Task execution failed: " << e.what() << std::endl;
+		} catch (...) {
+			std::cerr << "[ThreadPool] Task execution failed with unknown exception" << std::endl;
+		}
 	}
 }
 
@@ -311,7 +325,7 @@ namespace
 		std::cout << "[INFERENCE] Initializing Tokenizer with shared model and context." << std::endl;
 #endif
 		vocab = llama_model_get_vocab(tokenizer_model);
-		add_bos = llama_add_bos_token(vocab);
+		add_bos = llama_vocab_get_add_bos(vocab);
 
 		chat_templates = common_chat_templates_init(tokenizer_model, params.chat_template);
 		try {
@@ -405,26 +419,38 @@ namespace
 			{
 				std::lock_guard<std::mutex> lock(mtx);
 				for (auto& job : jobs) {
-					std::lock_guard<std::mutex> jobLock(job->mtx);
-					if (!job->isFinished) {
-						job->hasError = true;
-						job->errorMessage = "Service is shutting down";
-						job->isFinished = true;
-						job->cv.notify_all();
-					}
-					if (job->smpl) {
-						common_sampler_free(job->smpl);
-						job->smpl = nullptr;
+					if (job) { // Null check for safety
+						std::lock_guard<std::mutex> jobLock(job->mtx);
+						if (!job->isFinished) {
+							job->hasError = true;
+							job->errorMessage = "Service is shutting down";
+							job->isFinished = true;
+							job->cv.notify_all();
+						}
+						if (job->smpl) {
+							common_sampler_free(job->smpl);
+							job->smpl = nullptr;
+						}
 					}
 				}
 				jobs.clear();
 			}
 
-			llama_free(context);
-			llama_free_model(model);
+			// Safe cleanup of llama resources
+			if (context) {
+				llama_free(context);
+				context = nullptr;
+			}
+			if (model) {
+				llama_model_free(model);
+				model = nullptr;
+			}
 			llama_batch_free(batch);
 
-			ggml_threadpool_free(threadpool);
+			if (threadpool) {
+				ggml_threadpool_free(threadpool);
+				threadpool = nullptr;
+			}
 		}
 
 		void stop() override
@@ -566,11 +592,10 @@ namespace
 							job->cv.notify_all();
 							continue;
 						}
-
-						job->n_matching_session_tokens = matchSessionTokens(job);
-						job->n_past = static_cast<int>(job->n_matching_session_tokens);
-						job->i_prompt = static_cast<int>(job->n_matching_session_tokens);
-						job->n_prompt = job->embd_inp.size();
+				job->n_matching_session_tokens = matchSessionTokens(job);
+				job->n_past = static_cast<int>(job->n_matching_session_tokens);
+				job->i_prompt = static_cast<int>(job->n_matching_session_tokens);
+				job->n_prompt = static_cast<int>(job->embd_inp.size());
 
 						int remaining_prompt_tokens = job->n_prompt - job->i_prompt;
 						int available_batch_space = g_params.n_batch - batch.n_tokens;
@@ -829,7 +854,7 @@ namespace
 			{
 				// Tokenize input with proper parameters for embedding models
 				std::vector<llama_token> tokens = common_tokenize(context, input, 
-					llama_add_bos_token(llama_model_get_vocab(model)), false);
+					llama_vocab_get_add_bos(llama_model_get_vocab(model)), false);
 				
 				if (tokens.empty())
 				{
@@ -847,10 +872,10 @@ namespace
 				}
 
 				// Clear the KV cache for clean embedding generation
-				llama_kv_cache_clear(context);
+				llama_kv_self_clear(context);
 
 				// Create batch for embedding generation
-				llama_batch local_batch = llama_batch_init(tokens.size(), 0, 1);
+				llama_batch local_batch = llama_batch_init(static_cast<int32_t>(tokens.size()), 0, 1);
 				
 				// Add tokens to batch with proper sequence setup
 				for (size_t i = 0; i < tokens.size(); ++i)
@@ -1086,7 +1111,7 @@ namespace
 		bool ensureNonEmptyInput(std::shared_ptr<Job> job) {
 			if (job->embd_inp.empty()) {
 				if (tokenizer->shouldAddBos()) {
-					job->embd_inp.push_back(llama_token_bos(tokenizer->getVocab()));
+					job->embd_inp.push_back(llama_vocab_bos(llama_model_get_vocab(tokenizer->getModel())));
 				}
 				else {
 					return false;
@@ -1109,47 +1134,10 @@ namespace
 			return true;
 		}
 
-		bool sampleNextToken(common_sampler* sampler, int& n_past, int& n_remain, std::vector<llama_token>& session_tokens, std::shared_ptr<Job> job, const std::string& path_session) {
-			llama_token id = common_sampler_sample(sampler, context, -1);
-			common_sampler_accept(sampler, id, true);
-			common_batch_add(batch, id, n_past, { 0 }, true);
-
-			if (llama_vocab_is_eog(tokenizer->getVocab(), id) || id == llama_vocab_eos(tokenizer->getVocab())) {
-				return false; // Stop generation
+		void saveSession(std::shared_ptr<Job> job) {
+			if (!job->path_session.empty()) {
+				llama_state_seq_save_file(context, job->path_session.c_str(), job->seqId, job->session_tokens.data(), job->session_tokens.size());
 			}
-
-			const auto data = llama_perf_context(context);
-			const std::string token_str = tokenizer->decode(id);
-			{
-				std::lock_guard<std::mutex> jobLock(job->mtx);
-				
-				// Record first token timing if this is the first generated token
-				if (job->generatedTokens.empty()) {
-					job->first_token_time = std::chrono::steady_clock::now();
-					job->first_token_generated = true;
-					
-					// Calculate TTFT in milliseconds
-					auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-						job->first_token_time - job->start_time
-					);
-					job->ttft = static_cast<float>(duration.count()) / 1000.0f;
-					
-#ifdef DEBUG
-					std::cout << "[INFERENCE] First token generated. TTFT: " << job->ttft << " ms" << std::endl;
-#endif
-				}
-				
-				job->generatedTokens.push_back(id);
-				job->generatedText += token_str;
-				job->tps = 1e3 / data.t_eval_ms * data.n_eval;
-				job->cv.notify_all();
-			}
-
-			if (!path_session.empty()) {
-				session_tokens.push_back(id);
-			}
-
-			n_remain -= 1;
 		}
 
 		bool sampleNextToken(std::shared_ptr<Job> job) {
@@ -1180,10 +1168,9 @@ namespace
 					std::cout << "[INFERENCE] First token generated. TTFT: " << job->ttft << " ms" << std::endl;
 #endif
 				}
-				
 				job->generatedTokens.push_back(id);
 				job->generatedText += token_str;
-				job->tps = 1e3 / data.t_eval_ms * data.n_eval;
+				job->tps = static_cast<float>(1e3 / data.t_eval_ms * data.n_eval);
 				job->cv.notify_all();
 			}
 
@@ -1195,12 +1182,6 @@ namespace
 			job->batch_pos = batch.n_tokens - 1;
 
 			return true;
-		}
-
-		void saveSession(std::shared_ptr<Job> job) {
-			if (!job->path_session.empty()) {
-				llama_state_seq_save_file(context, job->path_session.c_str(), job->seqId, job->session_tokens.data(), job->session_tokens.size());
-			}
 		}
 
 		bool load_kv_cache(const std::string& path, std::vector<llama_token>& session_tokens, const int jobId)
@@ -1361,7 +1342,7 @@ namespace
 
 				// Remove any "future" tokens that donât match
 				// i.e. we only keep the portion that matched
-				llama_kv_self_seq_rm(context, job->seqId, n_matching_session_tokens, -1 /*up to end*/);
+				llama_kv_self_seq_rm(context, job->seqId, static_cast<llama_pos>(n_matching_session_tokens), -1 /*up to end*/);
 				job->session_tokens.resize(n_matching_session_tokens);
 
 #ifdef DEBUG
@@ -1443,7 +1424,7 @@ namespace
 			llama_detach_threadpool(context);
 			llama_batch_free(batch);
 			llama_free(context);
-			llama_free_model(model);
+			llama_model_free(model);
 			ggml_threadpool_free(threadpool);
 		}
 
@@ -1588,7 +1569,7 @@ namespace
 		{
 			// Clear batch and KV cache
 			common_batch_clear(batch);
-			llama_kv_cache_clear(context);
+			llama_kv_self_clear(context);
 
 			std::vector<std::vector<llama_token>> all_tokens;
 			std::vector<int> job_indices;
@@ -1610,7 +1591,7 @@ namespace
 
 					// Tokenize input
 					std::vector<llama_token> tokens = common_tokenize(context, input, 
-						llama_add_bos_token(llama_model_get_vocab(model)), false);
+						llama_vocab_get_add_bos(llama_model_get_vocab(model)), false);
 					
 					if (tokens.empty())
 					{
@@ -1630,7 +1611,7 @@ namespace
 					}
 
 					all_tokens.push_back(tokens);
-					job_indices.push_back(i);
+					job_indices.push_back(static_cast<int>(i));
 
 				}
 				catch (const std::exception& e)
@@ -1772,6 +1753,7 @@ namespace
 	};
 } // namespace
 
+// Define the Impl struct for the PIMPL pattern
 struct InferenceEngine::Impl
 {
 	std::unique_ptr<InferenceService> inferenceService;
@@ -1783,12 +1765,124 @@ struct InferenceEngine::Impl
 
 	ThreadPool threadPool;
 
-	Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId = 0, bool isEmbeddingModel = false);
+	Impl(const char *modelPath, LoadingParameters lParams, const int mainGpuId = 0, bool isEmbeddingModel = false);
 	~Impl();
 
-	int submitCompletionsJob(const CompletionParameters &params);
-	int submitChatCompletionsJob(const ChatCompletionParameters &params);
-	int submitEmbeddingJob(const EmbeddingParameters &params);
+	// Inline method implementations to avoid scope resolution issues
+	int submitCompletionsJob(const CompletionParameters &params) {
+		int jobId = nextJobId++;
+
+		auto job = std::make_shared<Job>();
+		job->jobId = jobId;
+		job->seqId = params.seqId;
+		job->start_time = std::chrono::steady_clock::now();
+
+		try {
+			threadPool.enqueue([this, params, job]() {
+				try {
+					this->inferenceService->complete(params, job);
+				}
+				catch (const std::exception& e) {
+					std::lock_guard<std::mutex> lock(job->mtx);
+					job->hasError = true;
+					job->errorMessage = e.what();
+				}
+			});
+		}
+		catch (const std::exception& e) {
+			std::cerr << "[INFERENCE] [ERROR] " << e.what() << std::endl;
+			return -1;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(jobsMutex);
+			jobs.emplace(jobId, job);
+		}
+
+		return jobId;
+	}
+
+	int submitChatCompletionsJob(const ChatCompletionParameters &params) {
+		int jobId = nextJobId++;
+
+		auto job = std::make_shared<Job>();
+		job->jobId = jobId;
+		job->seqId = params.seqId;
+		job->start_time = std::chrono::steady_clock::now();
+
+#ifdef DEBUG
+		std::cout << "[INFERENCE] Submitting chat completions job to queue" << std::endl;
+#endif
+
+		try {
+			threadPool.enqueue([this, params, job]() {
+				try {
+#ifdef DEBUG
+					std::cout << "[INFERENCE] Processing completion task to engine" << std::endl;
+#endif
+					this->inferenceService->complete(this->inferenceService->formatChat(params), job);
+				}
+				catch (const std::exception& e) {
+					std::lock_guard<std::mutex> lock(job->mtx);
+					job->hasError = true;
+					job->errorMessage = e.what();
+					std::cerr << "[INFERENCE] [ERROR] [submitChatCompletionsJob] " << e.what() << "\n" << std::endl;
+				}
+			});
+		}
+		catch (const std::exception& e) {
+			std::cerr << "[INFERENCE] [ERROR] [submitChatCompletionsJob] " << e.what() << std::endl;
+			return -1;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(jobsMutex);
+			jobs.emplace(jobId, job);
+		}
+
+		return jobId;
+	}
+
+	int submitEmbeddingJob(const EmbeddingParameters &params) {
+		int jobId = nextJobId++;
+
+		auto job = std::make_shared<Job>();
+		job->jobId = jobId;
+		job->seqId = params.seqId;
+
+#ifdef DEBUG
+		std::cout << "[INFERENCE] Submitting embedding job to queue" << std::endl;
+#endif
+
+		try {
+			threadPool.enqueue([this, params, job]() {
+				try {
+#ifdef DEBUG
+					std::cout << "[INFERENCE] Processing embedding task to engine" << std::endl;
+#endif
+					this->inferenceService->embed(params, job);
+				}
+				catch (const std::exception& e) {
+					std::lock_guard<std::mutex> lock(job->mtx);
+					job->hasError = true;
+					job->errorMessage = e.what();
+					std::cerr << "[INFERENCE] [ERROR] [submitEmbeddingJob] " << e.what() << "\n" << std::endl;
+				} 
+			});
+		}
+		catch (const std::exception& e) {
+			std::cerr << "[INFERENCE] [ERROR] [submitEmbeddingJob] " << e.what() << std::endl;
+			return -1;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(jobsMutex);
+			jobs.emplace(jobId, job);
+		}
+
+		return jobId;
+	}
+
 	void stopJob(int job_id);
 	bool isJobFinished(int job_id);
 	CompletionResult getJobResult(int job_id);
@@ -1878,7 +1972,7 @@ InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lPara
 	{
 		ggml_threadpool_free(threadpool);
 		llama_free(ctx);
-		llama_free_model(model);
+		llama_model_free(model);
 		throw std::runtime_error("[INFERENCE] [ERROR] Failed to create tokenizer.");
 	}
 	// Create the inference service
@@ -1900,139 +1994,16 @@ InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lPara
 	{
 		ggml_threadpool_free(threadpool);
 		llama_free(ctx);
-		llama_free_model(model);
+		llama_model_free(model);
 		throw std::runtime_error("[INFERENCE] [ERROR] Failed to create inference service: " + std::string(e.what()));
 	}
 }
 
-int InferenceEngine::Impl::submitCompletionsJob(const CompletionParameters& params)
-{
-	int jobId = nextJobId++;
 
-	auto job = std::make_shared<Job>();
-	job->jobId = jobId;
-	job->seqId = params.seqId;
-	job->start_time = std::chrono::steady_clock::now(); // Record start time for TTFT calculation
 
-	// Asynchronously execute the job using thread pool
-	try {
-		threadPool.enqueue([this, params, job]() {
-			try {
-				this->inferenceService->complete(params, job);
-			}
-			catch (const std::exception& e) {
-				std::lock_guard<std::mutex> lock(job->mtx);
-				job->hasError = true;
-				job->errorMessage = e.what();
-			}
-			});
-	}
-	catch (const std::exception& e)
-	{
-		std::cerr << "[INFERENCE] [ERROR] " << e.what() << std::endl;
-		return -1;
-	}
 
-	{
-		std::lock_guard<std::mutex> lock(jobsMutex);
-		jobs.emplace(jobId, job);
-	}
 
-	return jobId;
-}
 
-int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParameters& params)
-{
-	int jobId = nextJobId++;
-
-	auto job = std::make_shared<Job>();
-	job->jobId = jobId;
-	job->seqId = params.seqId;
-	job->start_time = std::chrono::steady_clock::now(); // Record start time for TTFT calculation
-
-#ifdef DEBUG
-	std::cout << "[INFERENCE] Submitting chat completions job to queue" << std::endl;
-#endif
-
-	// Asynchronously execute the job using thread pool
-	try
-	{
-		threadPool.enqueue([this, params, job]() {
-			try {
-#ifdef DEBUG
-				std::cout << "[INFERENCE] Processing completion task to engine" << std::endl;
-#endif
-
-				this->inferenceService->complete(this->inferenceService->formatChat(params), job);
-			}
-			catch (const std::exception& e) {
-				std::lock_guard<std::mutex> lock(job->mtx);
-				job->hasError = true;
-				job->errorMessage = e.what();
-
-				std::cerr << "[INFERENCE] [ERROR] [submitChatCompletionsJob] " << e.what() << "\n" << std::endl;
-			}
-			});
-	}
-	catch (const std::exception& e)
-	{
-		std::cerr << "[INFERENCE] [ERROR] [submitChatCompletionsJob] " << e.what() << std::endl;
-		return -1;
-	}
-
-	{
-		std::lock_guard<std::mutex> lock(jobsMutex);
-		jobs.emplace(jobId, job);
-	}
-
-	return jobId;
-}
-
-int InferenceEngine::Impl::submitEmbeddingJob(const EmbeddingParameters &params)
-{
-	int jobId = nextJobId++;
-
-	auto job = std::make_shared<Job>();
-	job->jobId = jobId;
-	job->seqId = params.seqId;
-
-#ifdef DEBUG
-	std::cout << "[INFERENCE] Submitting embedding job to queue" << std::endl;
-#endif
-
-	// Asynchronously execute the job using thread pool
-	try
-	{
-		threadPool.enqueue([this, params, job]()
-						   {
-			try {
-#ifdef DEBUG
-				std::cout << "[INFERENCE] Processing embedding task to engine" << std::endl;
-#endif
-
-				this->inferenceService->embed(params, job);
-			}
-			catch (const std::exception& e) {
-				std::lock_guard<std::mutex> lock(job->mtx);
-				job->hasError = true;
-				job->errorMessage = e.what();
-
-				std::cerr << "[INFERENCE] [ERROR] [submitEmbeddingJob] " << e.what() << "\n" << std::endl;
-			} });
-	}
-	catch (const std::exception &e)
-	{
-		std::cerr << "[INFERENCE] [ERROR] [submitEmbeddingJob] " << e.what() << std::endl;
-		return -1;
-	}
-
-	{
-		std::lock_guard<std::mutex> lock(jobsMutex);
-		jobs.emplace(jobId, job);
-	}
-
-	return jobId;
-}
 
 void InferenceEngine::Impl::stopJob(int job_id)
 {
