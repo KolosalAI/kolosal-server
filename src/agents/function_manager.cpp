@@ -67,4 +67,27 @@ std::string FunctionManager::get_function_description(const std::string& name) c
     return "";
 }
 
+std::string FunctionManager::get_available_tools_summary() const {
+    std::lock_guard<std::mutex> lock(functions_mutex);
+    std::ostringstream summary;
+    summary << "Available Tools/Functions (" << functions.size() << " total):\n";
+    
+    for (const auto& [name, function] : functions) {
+        summary << "- " << name << " (" << function->get_type() << "): " << function->get_description() << "\n";
+    }
+    
+    return summary.str();
+}
+
+std::vector<std::pair<std::string, std::string>> FunctionManager::get_all_functions_with_descriptions() const {
+    std::lock_guard<std::mutex> lock(functions_mutex);
+    std::vector<std::pair<std::string, std::string>> result;
+    
+    for (const auto& [name, function] : functions) {
+        result.emplace_back(name, function->get_description());
+    }
+    
+    return result;
+}
+
 } // namespace kolosal::agents

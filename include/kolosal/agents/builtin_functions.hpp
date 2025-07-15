@@ -182,4 +182,42 @@ public:
     const std::string& get_collection_name() const { return collection_name; }
 };
 
+/**
+ * @brief Tool discovery function that lists available tools and their capabilities
+ */
+class KOLOSAL_SERVER_API ToolDiscoveryFunction : public AgentFunction {
+private:
+    std::shared_ptr<FunctionManager> function_manager;
+    
+public:
+    ToolDiscoveryFunction(std::shared_ptr<FunctionManager> fm);
+    
+    std::string get_name() const override { return "list_tools"; }
+    std::string get_description() const override { return "List all available tools/functions and their descriptions"; }
+    std::string get_type() const override { return "system"; }
+    FunctionResult execute(const AgentData& params) override;
+};
+
+/**
+ * @brief Web search simulation function for when real web search is not available
+ */
+class KOLOSAL_SERVER_API WebSearchFunction : public AgentFunction {
+public:
+    std::string get_name() const override { return "web_search"; }
+    std::string get_description() const override { return "Simulate web search functionality with mock results"; }
+    std::string get_type() const override { return "simulation"; }
+    FunctionResult execute(const AgentData& params) override;
+};
+
+/**
+ * @brief Code generation function for programming tasks
+ */
+class KOLOSAL_SERVER_API CodeGenerationFunction : public AgentFunction {
+public:
+    std::string get_name() const override { return "code_generation"; }
+    std::string get_description() const override { return "Generate code snippets and programming solutions"; }
+    std::string get_type() const override { return "programming"; }
+    FunctionResult execute(const AgentData& params) override;
+};
+
 } // namespace kolosal::agents

@@ -773,4 +773,255 @@ FunctionResult ContextRetrievalFunction::execute(const AgentData& params) {
     }
 }
 
+// ToolDiscoveryFunction implementation
+ToolDiscoveryFunction::ToolDiscoveryFunction(std::shared_ptr<FunctionManager> fm) : function_manager(fm) {}
+
+FunctionResult ToolDiscoveryFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        std::string format = params.get_string("format", "detailed"); // "detailed", "list", or "summary"
+        bool include_descriptions = params.get_bool("include_descriptions", true);
+        
+        FunctionResult result(true);
+        
+        if (format == "summary") {
+            std::string summary = function_manager->get_available_tools_summary();
+            result.result_data.set("tools_summary", summary);
+            result.result_data.set("result", summary);
+        } else if (format == "list") {
+            auto function_names = function_manager->get_function_names();
+            std::string tools_list;
+            for (const auto& name : function_names) {
+                if (!tools_list.empty()) tools_list += ", ";
+                tools_list += name;
+            }
+            result.result_data.set("tools_list", tools_list);
+            result.result_data.set("tool_count", static_cast<int>(function_names.size()));
+            result.result_data.set("result", "Available tools: " + tools_list);
+        } else {
+            // detailed format
+            auto functions_with_desc = function_manager->get_all_functions_with_descriptions();
+            std::ostringstream detailed;
+            detailed << "Available Tools and Functions:\n\n";
+            
+            for (const auto& [name, desc] : functions_with_desc) {
+                detailed << "Tool: " << name << "\n";
+                if (include_descriptions) {
+                    detailed << "Description: " << desc << "\n";
+                }
+                detailed << "\n";
+            }
+            
+            result.result_data.set("tools_detailed", detailed.str());
+            result.result_data.set("tool_count", static_cast<int>(functions_with_desc.size()));
+            result.result_data.set("result", detailed.str());
+        }
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Tool discovery error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        return result;
+    }
+}
+
+// WebSearchFunction implementation
+FunctionResult WebSearchFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        std::string query = params.get_string("query");
+        if (query.empty()) {
+            return FunctionResult(false, "Query parameter is required for web search");
+        }
+        
+        int limit = params.get_int("limit", 5);
+        std::string format = params.get_string("format", "detailed");
+        
+        // Simulate web search results
+        std::vector<std::string> mock_results;
+        std::vector<std::string> mock_urls;
+        std::vector<std::string> mock_snippets;
+        
+        // Generate mock search results based on query
+        for (int i = 1; i <= limit; ++i) {
+            std::string title = "Search Result " + std::to_string(i) + " for '" + query + "'";
+            std::string url = "https://example" + std::to_string(i) + ".com/search-result";
+            std::string snippet = "This is a simulated search result snippet for " + query + 
+                                ". This result contains relevant information about your query.";
+            
+            mock_results.push_back(title);
+            mock_urls.push_back(url);
+            mock_snippets.push_back(snippet);
+        }
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(true);
+        result.result_data.set("query", query);
+        result.result_data.set("results_count", static_cast<int>(mock_results.size()));
+        result.result_data.set("results", mock_results);
+        result.result_data.set("urls", mock_urls);
+        result.result_data.set("snippets", mock_snippets);
+        result.result_data.set("search_type", "simulated");
+        
+        // Create formatted output
+        std::ostringstream formatted_output;
+        formatted_output << "Web Search Results for: " << query << "\n\n";
+        for (size_t i = 0; i < mock_results.size(); ++i) {
+            formatted_output << (i + 1) << ". " << mock_results[i] << "\n";
+            formatted_output << "   URL: " << mock_urls[i] << "\n";
+            formatted_output << "   Snippet: " << mock_snippets[i] << "\n\n";
+        }
+        
+        result.result_data.set("formatted_results", formatted_output.str());
+        result.result_data.set("result", "Found " + std::to_string(mock_results.size()) + " simulated search results for: " + query);
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("WebSearchFunction: Simulated search for '%s' returned %d results", 
+                             query.c_str(), static_cast<int>(mock_results.size()));
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Web search simulation error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        return result;
+    }
+}
+
+// CodeGenerationFunction implementation
+FunctionResult CodeGenerationFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        std::string language = params.get_string("language", "python");
+        std::string task = params.get_string("task", "");
+        std::string description = params.get_string("description", "");
+        
+        if (task.empty() && description.empty()) {
+            return FunctionResult(false, "Either 'task' or 'description' parameter is required");
+        }
+        
+        std::string requirement = task.empty() ? description : task;
+        
+        // Generate mock code based on language and requirement
+        std::string generated_code;
+        std::string explanation;
+        
+        if (language == "python" || language == "py") {
+            generated_code = R"(# Generated Python code for: )" + requirement + R"(
+def solution():
+    """
+    This is a generated function to handle the task: )" + requirement + R"(
+    """
+    # TODO: Implement the actual logic here
+    result = "Task completed: " + ")" + requirement + R"("
+    return result
+
+if __name__ == "__main__":
+    print(solution())
+)";
+            explanation = "Generated Python function with basic structure for: " + requirement;
+            
+        } else if (language == "javascript" || language == "js") {
+            generated_code = R"(// Generated JavaScript code for: )" + requirement + R"(
+function solution() {
+    /**
+     * This function handles the task: )" + requirement + R"(
+     */
+    // TODO: Implement the actual logic here
+    const result = `Task completed: )" + requirement + R"(`;
+    return result;
+}
+
+// Example usage
+console.log(solution());
+)";
+            explanation = "Generated JavaScript function with basic structure for: " + requirement;
+            
+        } else if (language == "cpp" || language == "c++") {
+            generated_code = R"(// Generated C++ code for: )" + requirement + R"(
+#include <iostream>
+#include <string>
+
+class Solution {
+public:
+    /**
+     * This function handles the task: )" + requirement + R"(
+     */
+    std::string solve() {
+        // TODO: Implement the actual logic here
+        return "Task completed: )" + requirement + R"(";
+    }
+};
+
+int main() {
+    Solution solution;
+    std::cout << solution.solve() << std::endl;
+    return 0;
+}
+)";
+            explanation = "Generated C++ class with basic structure for: " + requirement;
+            
+        } else {
+            // Generic code template
+            generated_code = R"(# Generated code for: )" + requirement + R"(
+# Language: )" + language + R"(
+# TODO: Implement the solution for: )" + requirement + R"(
+
+def main():
+    print("Task: )" + requirement + R"(")
+    # Add your implementation here
+    pass
+
+if __name__ == "__main__":
+    main()
+)";
+            explanation = "Generated generic code template for " + language + " - " + requirement;
+        }
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(true);
+        result.result_data.set("language", language);
+        result.result_data.set("task", requirement);
+        result.result_data.set("generated_code", generated_code);
+        result.result_data.set("explanation", explanation);
+        result.result_data.set("lines_of_code", std::count(generated_code.begin(), generated_code.end(), '\n') + 1);
+        result.result_data.set("result", "Generated " + language + " code for: " + requirement);
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("CodeGenerationFunction: Generated %s code for task '%s'", 
+                             language.c_str(), requirement.c_str());
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Code generation error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        return result;
+    }
+}
+
 } // namespace kolosal::agents

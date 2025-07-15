@@ -19,7 +19,7 @@ AgentCore::AgentCore(const std::string& name, const std::string& type)
     function_manager = std::make_shared<FunctionManager>(logger);
     job_manager = std::make_shared<JobManager>(function_manager, logger);
     event_system = std::make_shared<EventSystem>(logger);
-      // Register default functions
+    // Register default functions
     function_manager->register_function(std::make_unique<AddFunction>());
     function_manager->register_function(std::make_unique<EchoFunction>());    
     function_manager->register_function(std::make_unique<DelayFunction>());
@@ -30,6 +30,9 @@ AgentCore::AgentCore(const std::string& name, const std::string& type)
     function_manager->register_function(std::make_unique<InferenceFunction>());
     function_manager->register_function(std::make_unique<RetrievalFunction>());
     function_manager->register_function(std::make_unique<ContextRetrievalFunction>());
+    function_manager->register_function(std::make_unique<ToolDiscoveryFunction>(function_manager));
+    function_manager->register_function(std::make_unique<WebSearchFunction>());
+    function_manager->register_function(std::make_unique<CodeGenerationFunction>());
     
     logger->info("Agent created: " + agent_name + " (ID: " + agent_id.substr(0, 8) + "...)");
 }
