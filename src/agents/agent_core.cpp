@@ -34,6 +34,18 @@ AgentCore::AgentCore(const std::string& name, const std::string& type)
     function_manager->register_function(std::make_unique<WebSearchFunction>());
     function_manager->register_function(std::make_unique<CodeGenerationFunction>());
     
+    // Register document management functions
+    function_manager->register_function(std::make_unique<AddDocumentFunction>());
+    function_manager->register_function(std::make_unique<RemoveDocumentFunction>());
+    
+    // Register document parsing functions
+    function_manager->register_function(std::make_unique<ParsePdfFunction>());
+    function_manager->register_function(std::make_unique<ParseDocxFunction>());
+    
+    // Register embedding and utility functions
+    function_manager->register_function(std::make_unique<GetEmbeddingFunction>());
+    function_manager->register_function(std::make_unique<TestDocumentServiceFunction>());
+    
     logger->info("Agent created: " + agent_name + " (ID: " + agent_id.substr(0, 8) + "...)");
 }
 

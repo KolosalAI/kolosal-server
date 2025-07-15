@@ -5,6 +5,10 @@
 #include "kolosal/logger.hpp"
 #include "kolosal/retrieval/document_service.hpp"
 #include "kolosal/retrieval/retrieve_types.hpp"
+#include "kolosal/retrieval/add_document_types.hpp"
+#include "kolosal/retrieval/remove_document_types.hpp"
+#include "kolosal/retrieval/parse_pdf.hpp"
+#include "kolosal/retrieval/parse_docx.hpp"
 #include "inference_interface.h"
 #include <algorithm>
 #include <cctype>
@@ -1020,6 +1024,465 @@ if __name__ == "__main__":
         FunctionResult result(false, std::string("Code generation error: ") + e.what());
         result.execution_time_ms = duration.count() / 1000.0;
         
+        return result;
+    }
+}
+
+// AddDocumentFunction implementation
+AddDocumentFunction::AddDocumentFunction(const std::string& collection) : collection_name(collection) {}
+
+FunctionResult AddDocumentFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        // Extract parameters - support both single document and multiple documents
+        std::vector<std::string> texts;
+        std::string single_text = params.get_string("text", "");
+        
+        if (!single_text.empty()) {
+            texts.push_back(single_text);
+        } else {
+            texts = params.get_array_string("texts");
+        }
+        
+        if (texts.empty()) {
+            return FunctionResult(false, "Either 'text' or 'texts' parameter is required");
+        }
+        
+        std::string collection = params.get_string("collection_name", collection_name);
+        
+        ServerLogger::logInfo("AddDocumentFunction: Adding %d documents to collection '%s'", 
+                             static_cast<int>(texts.size()), collection.c_str());
+        
+        // Get the document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        auto& documentService = serverAPI.getDocumentService();
+        
+        // Prepare add documents request
+        kolosal::retrieval::AddDocumentsRequest request;
+        request.collection_name = collection;
+        
+        // Build documents
+        for (size_t i = 0; i < texts.size(); ++i) {
+            kolosal::retrieval::Document doc;
+            doc.text = texts[i];
+            
+            // Add metadata if provided
+            if (params.has_key("metadata")) {
+                auto metadata_json = params.get_json("metadata");
+                if (metadata_json.is_object()) {
+                    for (auto& [key, value] : metadata_json.items()) {
+                        doc.metadata[key] = value;
+                    }
+                }
+            }
+            
+            // Add document index as metadata
+            doc.metadata["document_index"] = static_cast<int>(i);
+            doc.metadata["added_timestamp"] = std::chrono::duration_cast<std::chrono::seconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count();
+            
+            request.documents.push_back(std::move(doc));
+        }
+        
+        // Validate request
+        if (!request.validate()) {
+            return FunctionResult(false, "Invalid add documents request parameters");
+        }
+        
+        // Perform document addition
+        auto future_response = documentService.addDocuments(request);
+        auto response = future_response.get();
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        // Build result
+        FunctionResult result(true);
+        result.result_data.set("collection_name", response.collection_name);
+        result.result_data.set("successful_count", response.successful_count);
+        result.result_data.set("failed_count", response.failed_count);
+        result.result_data.set("total_documents", static_cast<int>(request.documents.size()));
+        
+        // Add document IDs of successful additions
+        std::vector<std::string> successful_ids;
+        for (const auto& res : response.results) {
+            if (res.success) {
+                successful_ids.push_back(res.id);
+            }
+        }
+        result.result_data.set("document_ids", successful_ids);
+        
+        std::string message = "Added " + std::to_string(response.successful_count) + 
+                             " documents successfully";
+        if (response.failed_count > 0) {
+            message += ", " + std::to_string(response.failed_count) + " failed";
+        }
+        
+        result.result_data.set("result", message);
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("AddDocumentFunction: Added %d/%d documents successfully in %.2f ms", 
+                             response.successful_count, static_cast<int>(texts.size()), result.execution_time_ms);
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Add document error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logError("AddDocumentFunction error: %s", e.what());
+        return result;
+    }
+}
+
+// RemoveDocumentFunction implementation
+RemoveDocumentFunction::RemoveDocumentFunction(const std::string& collection) : collection_name(collection) {}
+
+FunctionResult RemoveDocumentFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        // Extract parameters - support both single ID and multiple IDs
+        std::vector<std::string> ids;
+        std::string single_id = params.get_string("id", "");
+        
+        if (!single_id.empty()) {
+            ids.push_back(single_id);
+        } else {
+            ids = params.get_array_string("ids");
+        }
+        
+        if (ids.empty()) {
+            return FunctionResult(false, "Either 'id' or 'ids' parameter is required");
+        }
+        
+        std::string collection = params.get_string("collection_name", collection_name);
+        
+        ServerLogger::logInfo("RemoveDocumentFunction: Removing %d documents from collection '%s'", 
+                             static_cast<int>(ids.size()), collection.c_str());
+        
+        // Get the document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        auto& documentService = serverAPI.getDocumentService();
+        
+        // Prepare remove documents request
+        kolosal::retrieval::RemoveDocumentsRequest request;
+        request.collection_name = collection;
+        request.ids = ids;
+        
+        // Validate request
+        if (!request.validate()) {
+            return FunctionResult(false, "Invalid remove documents request parameters");
+        }
+        
+        // Perform document removal
+        auto future_response = documentService.removeDocuments(request);
+        auto response = future_response.get();
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        // Count results by status
+        int removed_count = 0, failed_count = 0, not_found_count = 0;
+        std::vector<std::string> removed_ids, failed_ids, not_found_ids;
+        
+        for (const auto& res : response.results) {
+            if (res.status == "removed") {
+                removed_count++;
+                removed_ids.push_back(res.id);
+            } else if (res.status == "not_found") {
+                not_found_count++;
+                not_found_ids.push_back(res.id);
+            } else {
+                failed_count++;
+                failed_ids.push_back(res.id);
+            }
+        }
+        
+        // Build result
+        FunctionResult result(true);
+        result.result_data.set("collection_name", response.collection_name);
+        result.result_data.set("removed_count", removed_count);
+        result.result_data.set("failed_count", failed_count);
+        result.result_data.set("not_found_count", not_found_count);
+        result.result_data.set("total_requested", static_cast<int>(ids.size()));
+        result.result_data.set("removed_ids", removed_ids);
+        result.result_data.set("failed_ids", failed_ids);
+        result.result_data.set("not_found_ids", not_found_ids);
+        
+        std::string message = "Removed " + std::to_string(removed_count) + " documents";
+        if (not_found_count > 0) {
+            message += ", " + std::to_string(not_found_count) + " not found";
+        }
+        if (failed_count > 0) {
+            message += ", " + std::to_string(failed_count) + " failed";
+        }
+        
+        result.result_data.set("result", message);
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("RemoveDocumentFunction: Removed %d/%d documents in %.2f ms", 
+                             removed_count, static_cast<int>(ids.size()), result.execution_time_ms);
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Remove document error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logError("RemoveDocumentFunction error: %s", e.what());
+        return result;
+    }
+}
+
+// ParsePdfFunction implementation
+FunctionResult ParsePdfFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        std::string file_path = params.get_string("file_path");
+        if (file_path.empty()) {
+            return FunctionResult(false, "file_path parameter is required");
+        }
+        
+        int max_pages = params.get_int("max_pages", -1); // -1 means all pages
+        bool extract_metadata = params.get_bool("extract_metadata", true);
+        
+        ServerLogger::logInfo("ParsePdfFunction: Parsing PDF file '%s'", file_path.c_str());
+        
+        // Call the PDF parsing utility
+        std::string extracted_text = kolosal::retrieval::parse_pdf(file_path, max_pages);
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        // Build result
+        FunctionResult result(true);
+        result.result_data.set("file_path", file_path);
+        result.result_data.set("extracted_text", extracted_text);
+        result.result_data.set("text_length", static_cast<int>(extracted_text.length()));
+        result.result_data.set("word_count", std::count(extracted_text.begin(), extracted_text.end(), ' ') + 1);
+        
+        if (extract_metadata) {
+            // Extract basic metadata
+            result.result_data.set("file_size_bytes", static_cast<int>(extracted_text.length()));
+            result.result_data.set("processing_time_ms", duration.count() / 1000.0);
+        }
+        
+        result.result_data.set("result", "Successfully extracted text from PDF");
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("ParsePdfFunction: Extracted %d characters from PDF in %.2f ms", 
+                             static_cast<int>(extracted_text.length()), result.execution_time_ms);
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("PDF parsing error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logError("ParsePdfFunction error: %s", e.what());
+        return result;
+    }
+}
+
+// ParseDocxFunction implementation
+FunctionResult ParseDocxFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        std::string file_path = params.get_string("file_path");
+        if (file_path.empty()) {
+            return FunctionResult(false, "file_path parameter is required");
+        }
+        
+        bool extract_metadata = params.get_bool("extract_metadata", true);
+        bool preserve_formatting = params.get_bool("preserve_formatting", false);
+        
+        ServerLogger::logInfo("ParseDocxFunction: Parsing DOCX file '%s'", file_path.c_str());
+        
+        // Call the DOCX parsing utility
+        std::string extracted_text = kolosal::retrieval::parse_docx(file_path, preserve_formatting);
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        // Build result
+        FunctionResult result(true);
+        result.result_data.set("file_path", file_path);
+        result.result_data.set("extracted_text", extracted_text);
+        result.result_data.set("text_length", static_cast<int>(extracted_text.length()));
+        result.result_data.set("word_count", std::count(extracted_text.begin(), extracted_text.end(), ' ') + 1);
+        result.result_data.set("preserve_formatting", preserve_formatting);
+        
+        if (extract_metadata) {
+            // Extract basic metadata
+            result.result_data.set("file_size_bytes", static_cast<int>(extracted_text.length()));
+            result.result_data.set("processing_time_ms", duration.count() / 1000.0);
+        }
+        
+        result.result_data.set("result", "Successfully extracted text from DOCX");
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("ParseDocxFunction: Extracted %d characters from DOCX in %.2f ms", 
+                             static_cast<int>(extracted_text.length()), result.execution_time_ms);
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("DOCX parsing error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logError("ParseDocxFunction error: %s", e.what());
+        return result;
+    }
+}
+
+// GetEmbeddingFunction implementation
+GetEmbeddingFunction::GetEmbeddingFunction(const std::string& model) : model_id(model) {}
+
+FunctionResult GetEmbeddingFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        std::string text = params.get_string("text");
+        if (text.empty()) {
+            return FunctionResult(false, "text parameter is required");
+        }
+        
+        std::string model = params.get_string("model_id", model_id);
+        
+        ServerLogger::logInfo("GetEmbeddingFunction: Generating embedding for text (length=%d, model=%s)", 
+                             static_cast<int>(text.length()), model.c_str());
+        
+        // Get the document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        auto& documentService = serverAPI.getDocumentService();
+        
+        // Get embedding
+        auto future_embedding = documentService.getEmbedding(text, model);
+        auto embedding = future_embedding.get();
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        // Build result
+        FunctionResult result(true);
+        result.result_data.set("text", text);
+        result.result_data.set("model_id", model);
+        result.result_data.set("embedding_dimensions", static_cast<int>(embedding.size()));
+        result.result_data.set("text_length", static_cast<int>(text.length()));
+        
+        // Note: We don't return the full embedding vector as it's typically very large
+        // Instead, we provide summary statistics
+        if (!embedding.empty()) {
+            float sum = 0.0f, min_val = embedding[0], max_val = embedding[0];
+            for (float val : embedding) {
+                sum += val;
+                min_val = std::min(min_val, val);
+                max_val = std::max(max_val, val);
+            }
+            float mean = sum / embedding.size();
+            
+            result.result_data.set("embedding_mean", mean);
+            result.result_data.set("embedding_min", min_val);
+            result.result_data.set("embedding_max", max_val);
+        }
+        
+        result.result_data.set("result", "Successfully generated embedding with " + 
+                              std::to_string(embedding.size()) + " dimensions");
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("GetEmbeddingFunction: Generated %d-dimensional embedding in %.2f ms", 
+                             static_cast<int>(embedding.size()), result.execution_time_ms);
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Embedding generation error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logError("GetEmbeddingFunction error: %s", e.what());
+        return result;
+    }
+}
+
+// TestDocumentServiceFunction implementation
+FunctionResult TestDocumentServiceFunction::execute(const AgentData& params) {
+    auto start_time = std::chrono::high_resolution_clock::now();
+    
+    try {
+        bool detailed = params.get_bool("detailed", false);
+        
+        ServerLogger::logInfo("TestDocumentServiceFunction: Testing document service connection");
+        
+        // Get the document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        auto& documentService = serverAPI.getDocumentService();
+        
+        // Test connection
+        auto future_test = documentService.testConnection();
+        bool connection_ok = future_test.get();
+        
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        // Build result
+        FunctionResult result(connection_ok);
+        result.result_data.set("connection_status", connection_ok ? "connected" : "failed");
+        result.result_data.set("test_type", detailed ? "detailed" : "basic");
+        
+        if (connection_ok) {
+            result.result_data.set("result", "Document service is working properly");
+            
+            if (detailed) {
+                // Try to get some basic info
+                try {
+                    // Test embedding generation with a simple text
+                    auto embed_future = documentService.getEmbedding("test", "");
+                    auto embedding = embed_future.get();
+                    result.result_data.set("embedding_test", "success");
+                    result.result_data.set("embedding_dimensions", static_cast<int>(embedding.size()));
+                } catch (...) {
+                    result.result_data.set("embedding_test", "failed");
+                }
+            }
+        } else {
+            result.result_data.set("result", "Document service connection failed");
+            result.error_message = "Could not connect to document service";
+        }
+        
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logInfo("TestDocumentServiceFunction: Connection test %s in %.2f ms", 
+                             connection_ok ? "passed" : "failed", result.execution_time_ms);
+        
+        return result;
+        
+    } catch (const std::exception& e) {
+        auto end_time = std::chrono::high_resolution_clock::now();
+        auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+        
+        FunctionResult result(false, std::string("Document service test error: ") + e.what());
+        result.execution_time_ms = duration.count() / 1000.0;
+        
+        ServerLogger::logError("TestDocumentServiceFunction error: %s", e.what());
         return result;
     }
 }

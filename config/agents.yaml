@@ -107,6 +107,58 @@ functions:
       context_format: "Format for context (detailed/summary)"
       score_threshold: "Minimum similarity score threshold"
     timeout_ms: 30000
+    
+  - name: "add_document"
+    type: "builtin"
+    description: "Add documents to the knowledge base for future retrieval"
+    parameters:
+      text: "Document text content (for single document)"
+      texts: "Array of document texts (for multiple documents)"
+      metadata: "Optional metadata object for the documents"
+      collection_name: "Collection name (optional, defaults to 'documents')"
+    timeout_ms: 60000
+    
+  - name: "remove_document"
+    type: "builtin"
+    description: "Remove documents from the knowledge base using document IDs"
+    parameters:
+      id: "Document ID to remove (for single document)"
+      ids: "Array of document IDs to remove (for multiple documents)"
+      collection_name: "Collection name (optional, defaults to 'documents')"
+    timeout_ms: 30000
+    
+  - name: "parse_pdf"
+    type: "builtin"
+    description: "Parse PDF files to extract text content"
+    parameters:
+      file_path: "Path to the PDF file to parse"
+      max_pages: "Maximum number of pages to process (-1 for all pages)"
+      extract_metadata: "Whether to extract metadata information"
+    timeout_ms: 120000
+    
+  - name: "parse_docx"
+    type: "builtin"
+    description: "Parse DOCX files to extract text content"
+    parameters:
+      file_path: "Path to the DOCX file to parse"
+      extract_metadata: "Whether to extract metadata information"
+      preserve_formatting: "Whether to preserve text formatting"
+    timeout_ms: 60000
+    
+  - name: "get_embedding"
+    type: "builtin"
+    description: "Generate embedding vectors for text content"
+    parameters:
+      text: "Text content to generate embedding for"
+      model_id: "Embedding model ID (optional, uses default if empty)"
+    timeout_ms: 30000
+    
+  - name: "test_document_service"
+    type: "builtin"
+    description: "Test connection to the document service and vector database"
+    parameters:
+      detailed: "Whether to perform detailed testing"
+    timeout_ms: 30000
 
 # Agent definitions
 agents:
@@ -124,14 +176,22 @@ agents:
       - "data_analysis"
       - "information_synthesis"
       - "document_retrieval"
-      - "context_retrieval"    
+      - "context_retrieval"
+      - "document_management"
+      - "document_parsing"
     functions:
       - "inference"
       - "web_search"
       - "text_processing"
       - "data_analysis"
       - "retrieval"
-      - "context_retrieval"    
+      - "context_retrieval"
+      - "add_document"
+      - "remove_document"
+      - "parse_pdf"
+      - "parse_docx"
+      - "get_embedding"
+      - "test_document_service"    
     llm_config:
       model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
@@ -188,11 +248,14 @@ agents:
       - "data_analysis"
       - "statistical_analysis"
       - "data_visualization"
-      - "pattern_recognition"    
+      - "pattern_recognition"
+      - "document_retrieval"
     functions:
       - "inference"
       - "data_analysis"
       - "text_processing"
+      - "retrieval"
+      - "context_retrieval"
     llm_config:
       model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
@@ -207,6 +270,48 @@ agents:
     custom_settings:
       visualization_library: "matplotlib"
       statistical_confidence: 0.95
+      
+  # Document Management Agent
+  - name: "document_manager"
+    type: "document_management"
+    role: "Document processing and knowledge base management specialist"
+    system_prompt: >
+      You are a document management specialist who helps with organizing, processing, and managing
+      knowledge bases. You can parse documents, add them to collections, retrieve relevant information,
+      and maintain document databases. You ensure data quality and provide efficient document workflows.
+    capabilities:
+      - "document_management"
+      - "document_parsing"
+      - "document_retrieval"
+      - "knowledge_base_management"
+      - "text_processing"
+    functions:
+      - "inference"
+      - "add_document"
+      - "remove_document"
+      - "retrieval"
+      - "context_retrieval"
+      - "parse_pdf"
+      - "parse_docx"
+      - "get_embedding"
+      - "test_document_service"
+      - "text_processing"
+    llm_config:
+      model_name: "qwen3-0.6b"
+      api_endpoint: "http://localhost:8080/v1"
+      instruction: "You are a document management specialist. Help organize and manage knowledge bases efficiently."
+      temperature: 0.2
+      max_tokens: 2048
+      timeout_seconds: 120
+      max_retries: 3
+    auto_start: true
+    max_concurrent_jobs: 5
+    heartbeat_interval_seconds: 15
+    custom_settings:
+      default_collection: "documents"
+      batch_processing: true
+      auto_chunking: true
+      quality_validation: "enabled"
       
   # Content Creator Agent
   - name: "content_creator"

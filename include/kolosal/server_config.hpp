@@ -62,6 +62,61 @@ struct DatabaseConfig {
         int connectionTimeout = 5;
     } qdrant;
     
+    /**
+     * @brief Document management configuration
+     */
+    struct DocumentManagementConfig {
+        bool enabled = true;
+        std::string defaultCollection = "documents";
+        
+        struct ProcessingConfig {
+            int maxFileSizeMb = 50;
+            int maxBatchSize = 100;
+            
+            struct PdfParsingConfig {
+                bool enabled = true;
+                int maxPages = 1000;
+                bool extractImages = false;
+                bool extractTables = true;
+            } pdfParsing;
+            
+            struct DocxParsingConfig {
+                bool enabled = true;
+                bool preserveFormatting = false;
+                bool extractImages = false;
+                bool extractTables = true;
+            } docxParsing;
+            
+            struct TextPreprocessingConfig {
+                int minTextLength = 10;
+                int maxChunkSize = 8000;
+                bool removeExtraWhitespace = true;
+                bool normalizeUnicode = true;
+            } textPreprocessing;
+        } processing;
+        
+        struct EmbeddingConfig {
+            int chunkOverlap = 200;
+            int embeddingBatchSize = 10;
+            int maxRetries = 3;
+            int retryDelayMs = 1000;
+        } embedding;
+        
+        struct StorageConfig {
+            bool autoGenerateIds = true;
+            std::string idStrategy = "uuid"; // "uuid", "timestamp", "hash"
+            bool storeMetadata = true;
+            int maxMetadataSize = 4096;
+        } storage;
+        
+        struct SearchConfig {
+            int defaultK = 5;
+            float defaultScoreThreshold = 0.0f;
+            int maxK = 100;
+            bool enableReranking = false;
+        } search;
+    } documentManagement;
+    
     DatabaseConfig() = default;
 };
 

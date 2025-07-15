@@ -470,6 +470,110 @@ namespace kolosal
                     if (qdrant["connection_timeout"])
                         database.qdrant.connectionTimeout = qdrant["connection_timeout"].as<int>();
                 }
+                
+                // Load document management configuration
+                if (databaseConfig["document_management"])
+                {
+                    auto docMgmt = databaseConfig["document_management"];
+                    if (docMgmt["enabled"])
+                        database.documentManagement.enabled = docMgmt["enabled"].as<bool>();
+                    if (docMgmt["default_collection"])
+                        database.documentManagement.defaultCollection = docMgmt["default_collection"].as<std::string>();
+                    
+                    // Processing configuration
+                    if (docMgmt["processing"])
+                    {
+                        auto processing = docMgmt["processing"];
+                        if (processing["max_file_size_mb"])
+                            database.documentManagement.processing.maxFileSizeMb = processing["max_file_size_mb"].as<int>();
+                        if (processing["max_batch_size"])
+                            database.documentManagement.processing.maxBatchSize = processing["max_batch_size"].as<int>();
+                        
+                        // PDF parsing
+                        if (processing["pdf_parsing"])
+                        {
+                            auto pdfParsing = processing["pdf_parsing"];
+                            if (pdfParsing["enabled"])
+                                database.documentManagement.processing.pdfParsing.enabled = pdfParsing["enabled"].as<bool>();
+                            if (pdfParsing["max_pages"])
+                                database.documentManagement.processing.pdfParsing.maxPages = pdfParsing["max_pages"].as<int>();
+                            if (pdfParsing["extract_images"])
+                                database.documentManagement.processing.pdfParsing.extractImages = pdfParsing["extract_images"].as<bool>();
+                            if (pdfParsing["extract_tables"])
+                                database.documentManagement.processing.pdfParsing.extractTables = pdfParsing["extract_tables"].as<bool>();
+                        }
+                        
+                        // DOCX parsing
+                        if (processing["docx_parsing"])
+                        {
+                            auto docxParsing = processing["docx_parsing"];
+                            if (docxParsing["enabled"])
+                                database.documentManagement.processing.docxParsing.enabled = docxParsing["enabled"].as<bool>();
+                            if (docxParsing["preserve_formatting"])
+                                database.documentManagement.processing.docxParsing.preserveFormatting = docxParsing["preserve_formatting"].as<bool>();
+                            if (docxParsing["extract_images"])
+                                database.documentManagement.processing.docxParsing.extractImages = docxParsing["extract_images"].as<bool>();
+                            if (docxParsing["extract_tables"])
+                                database.documentManagement.processing.docxParsing.extractTables = docxParsing["extract_tables"].as<bool>();
+                        }
+                        
+                        // Text preprocessing
+                        if (processing["text_preprocessing"])
+                        {
+                            auto textPreproc = processing["text_preprocessing"];
+                            if (textPreproc["min_text_length"])
+                                database.documentManagement.processing.textPreprocessing.minTextLength = textPreproc["min_text_length"].as<int>();
+                            if (textPreproc["max_chunk_size"])
+                                database.documentManagement.processing.textPreprocessing.maxChunkSize = textPreproc["max_chunk_size"].as<int>();
+                            if (textPreproc["remove_extra_whitespace"])
+                                database.documentManagement.processing.textPreprocessing.removeExtraWhitespace = textPreproc["remove_extra_whitespace"].as<bool>();
+                            if (textPreproc["normalize_unicode"])
+                                database.documentManagement.processing.textPreprocessing.normalizeUnicode = textPreproc["normalize_unicode"].as<bool>();
+                        }
+                    }
+                    
+                    // Embedding configuration
+                    if (docMgmt["embedding"])
+                    {
+                        auto embedding = docMgmt["embedding"];
+                        if (embedding["chunk_overlap"])
+                            database.documentManagement.embedding.chunkOverlap = embedding["chunk_overlap"].as<int>();
+                        if (embedding["embedding_batch_size"])
+                            database.documentManagement.embedding.embeddingBatchSize = embedding["embedding_batch_size"].as<int>();
+                        if (embedding["max_retries"])
+                            database.documentManagement.embedding.maxRetries = embedding["max_retries"].as<int>();
+                        if (embedding["retry_delay_ms"])
+                            database.documentManagement.embedding.retryDelayMs = embedding["retry_delay_ms"].as<int>();
+                    }
+                    
+                    // Storage configuration
+                    if (docMgmt["storage"])
+                    {
+                        auto storage = docMgmt["storage"];
+                        if (storage["auto_generate_ids"])
+                            database.documentManagement.storage.autoGenerateIds = storage["auto_generate_ids"].as<bool>();
+                        if (storage["id_strategy"])
+                            database.documentManagement.storage.idStrategy = storage["id_strategy"].as<std::string>();
+                        if (storage["store_metadata"])
+                            database.documentManagement.storage.storeMetadata = storage["store_metadata"].as<bool>();
+                        if (storage["max_metadata_size"])
+                            database.documentManagement.storage.maxMetadataSize = storage["max_metadata_size"].as<int>();
+                    }
+                    
+                    // Search configuration
+                    if (docMgmt["search"])
+                    {
+                        auto search = docMgmt["search"];
+                        if (search["default_k"])
+                            database.documentManagement.search.defaultK = search["default_k"].as<int>();
+                        if (search["default_score_threshold"])
+                            database.documentManagement.search.defaultScoreThreshold = search["default_score_threshold"].as<float>();
+                        if (search["max_k"])
+                            database.documentManagement.search.maxK = search["max_k"].as<int>();
+                        if (search["enable_reranking"])
+                            database.documentManagement.search.enableReranking = search["enable_reranking"].as<bool>();
+                    }
+                }
             }
 
             // Load models

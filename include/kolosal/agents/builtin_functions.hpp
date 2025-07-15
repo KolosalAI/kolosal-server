@@ -9,6 +9,9 @@
 
 namespace kolosal::agents {
 
+// Forward declarations
+class FunctionManager;
+
 /**
  * @brief Basic arithmetic function
  */
@@ -217,6 +220,114 @@ public:
     std::string get_name() const override { return "code_generation"; }
     std::string get_description() const override { return "Generate code snippets and programming solutions"; }
     std::string get_type() const override { return "programming"; }
+    FunctionResult execute(const AgentData& params) override;
+};
+
+/**
+ * @brief Add documents to the retrieval system
+ * 
+ * This function allows agents to add new documents to the vector database
+ * for future retrieval operations.
+ */
+class KOLOSAL_SERVER_API AddDocumentFunction : public AgentFunction {
+private:
+    std::string collection_name;
+    
+public:
+    AddDocumentFunction(const std::string& collection = "documents");
+    
+    std::string get_name() const override { return "add_document"; }
+    std::string get_description() const override { return "Add documents to the knowledge base for future retrieval"; }
+    std::string get_type() const override { return "document_management"; }
+    FunctionResult execute(const AgentData& params) override;
+    
+    void set_collection_name(const std::string& collection) { collection_name = collection; }
+    const std::string& get_collection_name() const { return collection_name; }
+};
+
+/**
+ * @brief Remove documents from the retrieval system
+ * 
+ * This function allows agents to remove documents from the vector database
+ * using their document IDs.
+ */
+class KOLOSAL_SERVER_API RemoveDocumentFunction : public AgentFunction {
+private:
+    std::string collection_name;
+    
+public:
+    RemoveDocumentFunction(const std::string& collection = "documents");
+    
+    std::string get_name() const override { return "remove_document"; }
+    std::string get_description() const override { return "Remove documents from the knowledge base using document IDs"; }
+    std::string get_type() const override { return "document_management"; }
+    FunctionResult execute(const AgentData& params) override;
+    
+    void set_collection_name(const std::string& collection) { collection_name = collection; }
+    const std::string& get_collection_name() const { return collection_name; }
+};
+
+/**
+ * @brief Parse PDF documents to extract text content
+ * 
+ * This function allows agents to extract text content from PDF files
+ * for processing or adding to the knowledge base.
+ */
+class KOLOSAL_SERVER_API ParsePdfFunction : public AgentFunction {
+public:
+    std::string get_name() const override { return "parse_pdf"; }
+    std::string get_description() const override { return "Parse PDF files to extract text content"; }
+    std::string get_type() const override { return "document_processing"; }
+    FunctionResult execute(const AgentData& params) override;
+};
+
+/**
+ * @brief Parse DOCX documents to extract text content
+ * 
+ * This function allows agents to extract text content from Microsoft Word DOCX files
+ * for processing or adding to the knowledge base.
+ */
+class KOLOSAL_SERVER_API ParseDocxFunction : public AgentFunction {
+public:
+    std::string get_name() const override { return "parse_docx"; }
+    std::string get_description() const override { return "Parse DOCX files to extract text content"; }
+    std::string get_type() const override { return "document_processing"; }
+    FunctionResult execute(const AgentData& params) override;
+};
+
+/**
+ * @brief Get embedding vector for text
+ * 
+ * This function allows agents to generate embedding vectors for text content
+ * using the configured embedding models.
+ */
+class KOLOSAL_SERVER_API GetEmbeddingFunction : public AgentFunction {
+private:
+    std::string model_id;
+    
+public:
+    GetEmbeddingFunction(const std::string& model = "");
+    
+    std::string get_name() const override { return "get_embedding"; }
+    std::string get_description() const override { return "Generate embedding vectors for text content"; }
+    std::string get_type() const override { return "embedding"; }
+    FunctionResult execute(const AgentData& params) override;
+    
+    void set_model_id(const std::string& model) { model_id = model; }
+    const std::string& get_model_id() const { return model_id; }
+};
+
+/**
+ * @brief Test document service connection
+ * 
+ * This function allows agents to test the connection to the document service
+ * and verify that the retrieval system is working properly.
+ */
+class KOLOSAL_SERVER_API TestDocumentServiceFunction : public AgentFunction {
+public:
+    std::string get_name() const override { return "test_document_service"; }
+    std::string get_description() const override { return "Test connection to the document service and vector database"; }
+    std::string get_type() const override { return "system"; }
     FunctionResult execute(const AgentData& params) override;
 };
 
