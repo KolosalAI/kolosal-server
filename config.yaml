@@ -87,6 +87,23 @@ models:
       n_gpu_layers: 100
       n_batch: 512
       n_ubatch: 128
+  - id: gemma-3-1b
+    path: ./models/google_gemma-3-1b-it_q4_k_m.gguf
+    type: llm
+    load_immediately: true
+    main_gpu_id: 0
+    inference_engine: llama-cpu
+    load_params:
+      n_ctx: 32768
+      n_keep: 0
+      use_mmap: true
+      use_mlock: false
+      n_parallel: 1
+      cont_batching: true
+      warmup: false
+      n_gpu_layers: 0
+      n_batch: 512
+      n_ubatch: 128
 inference_engines:
   - name: llama-cpu
     library_path: ./build/Release/llama-cpu.dll

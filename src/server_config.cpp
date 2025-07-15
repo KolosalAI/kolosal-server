@@ -464,6 +464,15 @@ namespace kolosal
                         model.mainGpuId = modelConfig["main_gpu_id"].as<int>();
                     if (modelConfig["inference_engine"])
                         model.inferenceEngine = modelConfig["inference_engine"].as<std::string>();
+                    
+                    // Vision/multimodal support
+                    if (modelConfig["supports_vision"])
+                        model.supportsVision = modelConfig["supports_vision"].as<bool>();
+                    if (modelConfig["vision_model_path"])
+                        model.visionModelPath = modelConfig["vision_model_path"].as<std::string>();
+                    if (modelConfig["vision_use_gpu"])
+                        model.visionUseGpu = modelConfig["vision_use_gpu"].as<bool>();
+                    
                     if (modelConfig["load_params"])
                     {
                         auto params = modelConfig["load_params"];
@@ -487,6 +496,14 @@ namespace kolosal
                             model.loadParams.n_batch = params["n_batch"].as<int>();
                         if (params["n_ubatch"])
                             model.loadParams.n_ubatch = params["n_ubatch"].as<int>();
+                        
+                        // Vision parameters
+                        if (params["supports_vision"])
+                            model.loadParams.supports_vision = params["supports_vision"].as<bool>();
+                        if (params["vision_model_path"])
+                            model.loadParams.vision_model_path = params["vision_model_path"].as<std::string>();
+                        if (params["vision_use_gpu"])
+                            model.loadParams.vision_use_gpu = params["vision_use_gpu"].as<bool>();
                     }
 
                     models.push_back(model);

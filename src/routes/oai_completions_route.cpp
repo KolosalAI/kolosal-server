@@ -8,6 +8,7 @@
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/node_manager.h"
+#include "kolosal/image_utils.hpp"
 
 #include "inference_interface.h"
 #include <json.hpp>
@@ -20,6 +21,7 @@
 #include <mutex>
 #include <memory>
 #include <variant>
+#include <future>
 
 using json = nlohmann::json;
 
@@ -28,6 +30,66 @@ namespace kolosal
     namespace
     {
         /**
+         * @brief Process images from chat messages asynchronously
+         * @param msg The chat message containing potential images
+         * @return Future containing vector of processed ImageData
+         */
+        std::future<std::vector<ImageData>> processImagesAsync(const ChatMessage& msg) {
+            return std::async(std::launch::async, [msg]() {
+                std::vector<ImageData> processedImages;
+                
+                if (!msg.hasImages()) {
+                    return processedImages;
+                }
+                
+                auto imageUrls = msg.getImageUrls();
+                
+                for (const auto& [url, detail] : imageUrls) {
+                    try {
+                        std::vector<unsigned char> imageData;
+                        std::string format;
+                        
+                        if (ImageUtils::isDataUrl(url)) {
+                            // Handle base64 data URLs
+                            auto [data, fmt] = ImageUtils::decodeBase64Image(url);
+                            imageData = data;
+                            format = fmt;
+                        } else if (ImageUtils::isHttpUrl(url)) {
+                            // Handle HTTP(S) URLs - use the async download method
+                            auto future = ImageUtils::downloadImageAsync(url);
+                            auto [data, fmt] = future.get();
+                            imageData = data;
+                            format = fmt;
+                        } else {
+                            // Handle local file paths
+                            auto [data, fmt] = ImageUtils::loadImageFromFile(url);
+                            imageData = data;
+                            format = fmt;
+                        }
+                        
+                        if (!ImageUtils::isSupportedFormat(format)) {
+                            ServerLogger::logWarning("Unsupported image format: %s", format.c_str());
+                            continue;
+                        }
+                        
+                        ImageData imgData(imageData, format, url);
+                        imgData.detail = detail;
+                        processedImages.push_back(imgData);
+                        
+                        ServerLogger::logDebug("Processed image: %s (format: %s, size: %zu bytes)", 
+                                              url.c_str(), format.c_str(), imageData.size());
+                        
+                    } catch (const std::exception& e) {
+                        ServerLogger::logError("Failed to process image %s: %s", url.c_str(), e.what());
+                        // Continue processing other images
+                    }
+                }
+                
+                return processedImages;
+            });
+        }
+        
+        /**
          * @brief Builds ChatCompletionParameters from a ChatCompletionRequest
          * Following the ModelManager pattern from the example
          */
@@ -35,11 +97,33 @@ namespace kolosal
         {
             ChatCompletionParameters params;
 
-            // Convert messages
+            // Convert messages with vision support
             params.messages.clear();
+            std::vector<std::future<std::vector<ImageData>>> imageFutures;
+            
+            // Start async image processing for all messages
             for (const auto &msg : request.messages)
             {
-                params.messages.emplace_back(msg.role, msg.content);
+                imageFutures.push_back(processImagesAsync(msg));
+            }
+            
+            // Process messages and collect results
+            for (size_t i = 0; i < request.messages.size(); ++i)
+            {
+                const auto& msg = request.messages[i];
+                std::string textContent = msg.getTextContent();
+                
+                // Get processed images (this will block until processing is complete)
+                std::vector<ImageData> images;
+                try {
+                    images = imageFutures[i].get();
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Failed to process images for message %zu: %s", i, e.what());
+                    // Continue without images
+                }
+                
+                // Create message with both text and images
+                params.messages.emplace_back(msg.role, textContent, images);
             }
 
             // Set generation parameters
@@ -143,7 +227,7 @@ namespace kolosal
             int totalChars = 0;
             for (const auto &msg : messages)
             {
-                totalChars += static_cast<int>(msg.content.length() + msg.role.length()) + 10; // +10 for formatting
+                totalChars += static_cast<int>(msg.getTextContent().length() + msg.role.length()) + 10; // +10 for formatting
             }
             return totalChars / 4; // Rough approximation: 4 chars per token
         }

@@ -1237,6 +1237,11 @@ namespace kolosal
                 modelConfig.inferenceEngine = inferenceEngine;
                 modelConfig.loadParams = loadParams;
                 
+                // Copy vision parameters from LoadingParameters to ModelConfig
+                modelConfig.supportsVision = loadParams.supports_vision;
+                modelConfig.visionModelPath = loadParams.vision_model_path;
+                modelConfig.visionUseGpu = loadParams.vision_use_gpu;
+                
                 config.models.push_back(modelConfig);
                 ServerLogger::logInfo("Added model '%s' to configuration", engineId.c_str());
             }
@@ -1252,6 +1257,11 @@ namespace kolosal
                         existingModel.mainGpuId = mainGpuId;
                         existingModel.inferenceEngine = inferenceEngine;
                         existingModel.loadParams = loadParams;
+                        
+                        // Update vision parameters
+                        existingModel.supportsVision = loadParams.supports_vision;
+                        existingModel.visionModelPath = loadParams.vision_model_path;
+                        existingModel.visionUseGpu = loadParams.vision_use_gpu;
                         ServerLogger::logInfo("Updated model '%s' in configuration", engineId.c_str());
                         break;
                     }

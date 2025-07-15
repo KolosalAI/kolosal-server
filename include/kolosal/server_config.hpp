@@ -22,6 +22,11 @@ struct ModelConfig {
     bool loadImmediately = true;      // Whether to load immediately (true) vs lazy load on first use (false)
     std::string inferenceEngine = "llama-cpu"; // Inference engine to use (llama-cpu, llama-cuda, llama-vulkan, etc.)
     
+    // Vision/multimodal support
+    bool supportsVision = false;      // Whether this model supports vision/multimodal input
+    std::string visionModelPath = ""; // Path to vision model (mmproj) file for multimodal models
+    bool visionUseGpu = true;         // Whether to use GPU for vision processing
+    
     ModelConfig() = default;
     ModelConfig(const std::string& modelId, const std::string& modelPath, bool load = true)
         : id(modelId), path(modelPath), loadImmediately(load) {}

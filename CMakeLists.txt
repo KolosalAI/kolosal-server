@@ -67,6 +67,7 @@ set(SOURCES
     src/inference_loader.cpp
     src/inference_interface_impl.cpp
     src/gpu_detection.cpp
+    src/image_utils.cpp
 
     # Route files
     src/routes/oai_completions_route.cpp

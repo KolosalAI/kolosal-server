@@ -107,17 +107,43 @@ struct CompletionParameters {
 };
 
 /**
+ * @brief Image data for multimodal messages
+ */
+struct ImageData {
+    std::vector<unsigned char> data;    // Raw image data
+    std::string format;                 // Image format (e.g., "jpeg", "png")
+    std::string url;                    // Original URL (for base64 data URLs)
+    std::string detail = "auto";        // Detail level: "auto", "low", "high"
+    
+    ImageData() = default;
+    ImageData(const std::vector<unsigned char>& imageData, const std::string& fmt, const std::string& originalUrl = "")
+        : data(imageData), format(fmt), url(originalUrl) {}
+};
+
+/**
  * @brief A single message in a chat conversation.
  */
 struct Message {
     std::string role;           // "user", "assistant", "system"
     std::string content;        // Message content
+    std::vector<ImageData> images; // Optional image data for multimodal messages
     
     /**
      * @brief Constructs a message with role and content.
      */
     Message(const std::string& role = "", const std::string& content = "")
         : role(role), content(content) {}
+        
+    /**
+     * @brief Constructs a message with role, content, and images.
+     */
+    Message(const std::string& role, const std::string& content, const std::vector<ImageData>& imgs)
+        : role(role), content(content), images(imgs) {}
+        
+    /**
+     * @brief Check if this message has image data
+     */
+    bool hasImages() const { return !images.empty(); }
 };
 
 /**
@@ -188,6 +214,11 @@ struct LoadingParameters {
     // Batch processing
     int  n_batch            = 2048;    // Batch size
     int  n_ubatch           = 512;     // Micro-batch size
+    
+    // Vision/multimodal support
+    bool supports_vision    = false;   // Whether model supports vision
+    std::string vision_model_path = ""; // Path to vision model (mmproj) file
+    bool vision_use_gpu     = true;    // Use GPU for vision processing
 };
 
 // =============================================================================
