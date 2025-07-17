@@ -211,6 +211,13 @@ endif()
 
 # Link llama.cpp libraries
 set(LLAMA_LINK_LIBRARIES llama common ggml toolcall)
+
+# Add llava examples subdirectory to build mtmd
+add_subdirectory(${LLAMA_CPP_PATH}/examples/llava llava-build)
+
+# Link mtmd library for multimodal support
+list(APPEND LLAMA_LINK_LIBRARIES mtmd_static)
+
 target_link_libraries(${TARGET_NAME} PRIVATE ${LLAMA_LINK_LIBRARIES})
 
 # Link CURL libraries and include directories
@@ -247,6 +254,7 @@ target_include_directories(${TARGET_NAME} PUBLIC
     ${LLAMA_CPP_PATH}/include
     ${LLAMA_CPP_PATH}/common
     ${LLAMA_CPP_PATH}/ggml/include
+    ${LLAMA_CPP_PATH}/examples/llava
 )
 
 # Find and link thread library

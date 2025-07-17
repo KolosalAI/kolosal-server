@@ -528,16 +528,24 @@ namespace kolosal
 							size_t bodyStart = request.find("\r\n\r\n");
 							std::string body;
 
+							ServerLogger::logDebug("[Thread %d] DEBUG: Full request length: %zu", std::this_thread::get_id(), request.length());
+							ServerLogger::logDebug("[Thread %d] DEBUG: Body start position: %zu", std::this_thread::get_id(), bodyStart);
+							ServerLogger::logDebug("[Thread %d] DEBUG: Content-Length: %d", std::this_thread::get_id(), contentLength);
+
 							if (bodyStart != std::string::npos)
 							{
 								// Extract the body we've already read
 								body = request.substr(bodyStart + 4);
+								ServerLogger::logDebug("[Thread %d] DEBUG: Body extracted length: %zu", std::this_thread::get_id(), body.length());
+								ServerLogger::logDebug("[Thread %d] DEBUG: Body content: %s", std::this_thread::get_id(), body.c_str());
 
 								// If Content-Length indicates there's more data to read
 								if (contentLength > 0 && body.length() < static_cast<size_t>(contentLength))
 								{
 									int remaining = static_cast<int>(contentLength - body.length());
 									std::vector<char> bodyBuffer(remaining + 1, 0);
+
+									ServerLogger::logDebug("[Thread %d] DEBUG: Need to read %d more bytes", std::this_thread::get_id(), remaining);
 
 									int totalRead = 0;
 									while (totalRead < remaining)
@@ -559,6 +567,10 @@ namespace kolosal
 									ServerLogger::logDebug("[Thread %d] Read %d additional bytes for body",
 														   std::this_thread::get_id(), totalRead);
 								}
+							}
+							else
+							{
+								ServerLogger::logDebug("[Thread %d] DEBUG: Body start marker not found!", std::this_thread::get_id());
 							} // Route the request
 							bool routeFound = false;
 							for (auto &route : routes)

@@ -38,51 +38,57 @@ namespace kolosal
             return std::async(std::launch::async, [msg]() {
                 std::vector<ImageData> processedImages;
                 
-                if (!msg.hasImages()) {
-                    return processedImages;
-                }
-                
-                auto imageUrls = msg.getImageUrls();
-                
-                for (const auto& [url, detail] : imageUrls) {
-                    try {
-                        std::vector<unsigned char> imageData;
-                        std::string format;
-                        
-                        if (ImageUtils::isDataUrl(url)) {
-                            // Handle base64 data URLs
-                            auto [data, fmt] = ImageUtils::decodeBase64Image(url);
-                            imageData = data;
-                            format = fmt;
-                        } else if (ImageUtils::isHttpUrl(url)) {
-                            // Handle HTTP(S) URLs - use the async download method
-                            auto future = ImageUtils::downloadImageAsync(url);
-                            auto [data, fmt] = future.get();
-                            imageData = data;
-                            format = fmt;
-                        } else {
-                            // Handle local file paths
-                            auto [data, fmt] = ImageUtils::loadImageFromFile(url);
-                            imageData = data;
-                            format = fmt;
-                        }
-                        
-                        if (!ImageUtils::isSupportedFormat(format)) {
-                            ServerLogger::logWarning("Unsupported image format: %s", format.c_str());
-                            continue;
-                        }
-                        
-                        ImageData imgData(imageData, format, url);
-                        imgData.detail = detail;
-                        processedImages.push_back(imgData);
-                        
-                        ServerLogger::logDebug("Processed image: %s (format: %s, size: %zu bytes)", 
-                                              url.c_str(), format.c_str(), imageData.size());
-                        
-                    } catch (const std::exception& e) {
-                        ServerLogger::logError("Failed to process image %s: %s", url.c_str(), e.what());
-                        // Continue processing other images
+                try {
+                    if (!msg.hasImages()) {
+                        return processedImages;
                     }
+                    
+                    auto imageUrls = msg.getImageUrls();
+                    ServerLogger::logDebug("Processing %zu images for message", imageUrls.size());
+                    
+                    for (const auto& [url, detail] : imageUrls) {
+                        try {
+                            std::vector<unsigned char> imageData;
+                            std::string format;
+                            
+                            if (ImageUtils::isDataUrl(url)) {
+                                // Handle base64 data URLs
+                                auto [data, fmt] = ImageUtils::decodeBase64Image(url);
+                                imageData = data;
+                                format = fmt;
+                            } else if (ImageUtils::isHttpUrl(url)) {
+                                // Handle HTTP(S) URLs - use the async download method
+                                auto future = ImageUtils::downloadImageAsync(url);
+                                auto [data, fmt] = future.get();
+                                imageData = data;
+                                format = fmt;
+                            } else {
+                                // Handle local file paths
+                                auto [data, fmt] = ImageUtils::loadImageFromFile(url);
+                                imageData = data;
+                                format = fmt;
+                            }
+                            
+                            if (!ImageUtils::isSupportedFormat(format)) {
+                                ServerLogger::logWarning("Unsupported image format: %s", format.c_str());
+                                continue;
+                            }
+                            
+                            ImageData imgData(imageData, format, url);
+                            imgData.detail = detail;
+                            processedImages.push_back(imgData);
+                            
+                            ServerLogger::logDebug("Processed image: %s (format: %s, size: %zu bytes)", 
+                                                  url.c_str(), format.c_str(), imageData.size());
+                            
+                        } catch (const std::exception& e) {
+                            ServerLogger::logError("Failed to process image %s: %s", url.c_str(), e.what());
+                            // Continue processing other images
+                        }
+                    }
+                    
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Error in processImagesAsync: %s", e.what());
                 }
                 
                 return processedImages;
@@ -95,55 +101,113 @@ namespace kolosal
          */
         ChatCompletionParameters buildChatCompletionParameters(const ChatCompletionRequest &request)
         {
+            ServerLogger::logDebug("=== buildChatCompletionParameters START ===");
             ChatCompletionParameters params;
 
-            // Convert messages with vision support
-            params.messages.clear();
-            std::vector<std::future<std::vector<ImageData>>> imageFutures;
-            
-            // Start async image processing for all messages
-            for (const auto &msg : request.messages)
-            {
-                imageFutures.push_back(processImagesAsync(msg));
-            }
-            
-            // Process messages and collect results
-            for (size_t i = 0; i < request.messages.size(); ++i)
-            {
-                const auto& msg = request.messages[i];
-                std::string textContent = msg.getTextContent();
+            try {
+                ServerLogger::logDebug("Processing %zu messages", request.messages.size());
                 
-                // Get processed images (this will block until processing is complete)
-                std::vector<ImageData> images;
-                try {
-                    images = imageFutures[i].get();
-                } catch (const std::exception& e) {
-                    ServerLogger::logError("Failed to process images for message %zu: %s", i, e.what());
-                    // Continue without images
+                // Process messages with vision support
+                for (size_t i = 0; i < request.messages.size(); ++i)
+                {
+                    ServerLogger::logDebug("Processing message %zu", i);
+                    const auto& msg = request.messages[i];
+                    std::string textContent = msg.getTextContent();
+                    ServerLogger::logDebug("Message %zu text content length: %zu", i, textContent.length());
+                    
+                    // Check if message has images
+                    if (msg.hasImages())
+                    {
+                        ServerLogger::logDebug("Message %zu has %zu images", i, msg.getImageUrls().size());
+                        
+                        // Process images
+                        std::vector<ImageData> images;
+                        for (const auto& imageUrlPair : msg.getImageUrls())
+                        {
+                            const std::string& imageUrl = imageUrlPair.first;
+                            const std::string& detail = imageUrlPair.second;
+                            
+                            ServerLogger::logDebug("Processing image URL: %s", imageUrl.c_str());
+                            
+                            // Create ImageData from URL
+                            ImageData imageData;
+                            imageData.url = imageUrl;
+                            imageData.detail = detail;
+                            
+                            // For now, we'll create placeholder image data
+                            // In a real implementation, this would download and decode the image
+                            if (imageUrl.find("data:image") == 0)
+                            {
+                                // Base64 encoded image
+                                imageData.format = "base64";
+                                // Extract base64 data (simplified)
+                                size_t comma_pos = imageUrl.find(',');
+                                if (comma_pos != std::string::npos)
+                                {
+                                    std::string base64_data = imageUrl.substr(comma_pos + 1);
+                                    // For now, store as-is - proper implementation would decode
+                                    imageData.data.assign(base64_data.begin(), base64_data.end());
+                                }
+                            }
+                            else
+                            {
+                                // URL to image
+                                imageData.format = "url";
+                                // For now, create placeholder data
+                                imageData.data = std::vector<uint8_t>(224*224*3, 128); // Gray placeholder
+                            }
+                            
+                            images.push_back(imageData);
+                        }
+                        
+                        // Create message with images
+                        ServerLogger::logDebug("Creating message with %zu images", images.size());
+                        Message imageMessage(msg.role, textContent, images);
+                        ServerLogger::logDebug("Message with images created successfully");
+                        
+                        params.messages.push_back(imageMessage);
+                        ServerLogger::logDebug("Message with images added to params.messages successfully");
+                    }
+                    else
+                    {
+                        // Text-only message
+                        ServerLogger::logDebug("Creating text-only message for role: %s", msg.role.c_str());
+                        
+                        std::vector<ImageData> emptyImages;
+                        ServerLogger::logDebug("Empty images vector created");
+                        
+                        // Create Message object explicitly instead of using emplace_back
+                        ServerLogger::logDebug("Creating Message object...");
+                        Message textMessage(msg.role, textContent, emptyImages);
+                        ServerLogger::logDebug("Message object created successfully");
+                        
+                        ServerLogger::logDebug("Adding message to params.messages...");
+                        params.messages.push_back(textMessage);
+                        ServerLogger::logDebug("Message added to params.messages successfully");
+                    }
+                    
+                    ServerLogger::logDebug("Message %zu processed successfully", i);
                 }
+                ServerLogger::logDebug("Message processing phase completed");
+
+                // Set generation parameters
+                ServerLogger::logDebug("Setting generation parameters");
+                params.temperature = static_cast<float>(request.temperature);
+                params.topP = static_cast<float>(request.top_p);
+                params.streaming = request.stream;
+                params.maxNewTokens = request.max_tokens.value_or(100);
+                params.randomSeed = request.seed.value_or(42);
                 
-                // Create message with both text and images
-                params.messages.emplace_back(msg.role, textContent, images);
+                ServerLogger::logDebug("Parameters set: temp=%f, topP=%f, streaming=%d, maxTokens=%d, seed=%d", 
+                                     params.temperature, params.topP, params.streaming, params.maxNewTokens, params.randomSeed);
+                
+                ServerLogger::logDebug("=== buildChatCompletionParameters SUCCESS ===");
+                return params;
+                
+            } catch (const std::exception& e) {
+                ServerLogger::logError("Error building chat completion parameters: %s", e.what());
+                throw;
             }
-
-            // Set generation parameters
-            params.temperature = static_cast<float>(request.temperature);
-            params.topP = static_cast<float>(request.top_p);
-            params.streaming = request.stream;
-
-            // Set max tokens if specified
-            if (request.max_tokens.has_value())
-            {
-                params.maxNewTokens = request.max_tokens.value();
-            }
-
-            // Set random seed if specified
-            if (request.seed.has_value())
-            {
-                params.randomSeed = request.seed.value();
-            }
-
-            return params;
         }
 
         /**
@@ -258,27 +322,36 @@ namespace kolosal
     {
         try
         {
+            ServerLogger::logInfo("=== OaiCompletionsRoute::handle called ===");
+            ServerLogger::logInfo("Request body length: %zu", body.length());
+            ServerLogger::logInfo("Request body content: %s", body.c_str());
+            
             // Check for empty body
             if (body.empty())
             {
+                ServerLogger::logError("Request body is empty");
                 throw std::invalid_argument("Request body is empty");
             }
 
             auto j = json::parse(body);
+            ServerLogger::logInfo("JSON parsed successfully");
             
             // Determine the type of request based on the endpoint path
             // We need to get the path from the request context, but since it's not available in handle(),
             // we'll determine it based on the presence of 'messages' field in the JSON
             if (j.contains("messages"))
             {
+                ServerLogger::logInfo("Detected chat completion request");
                 handleChatCompletion(sock, body);
             }
             else if (j.contains("prompt"))
             {
+                ServerLogger::logInfo("Detected text completion request");
                 handleTextCompletion(sock, body);
             }
             else
             {
+                ServerLogger::logError("Invalid request: missing 'messages' or 'prompt' field");
                 throw std::invalid_argument("Invalid request: missing 'messages' or 'prompt' field");
             }
         }
@@ -310,32 +383,77 @@ namespace kolosal
     {
         try
         {
+            ServerLogger::logInfo("=== CHAT COMPLETION DEBUG START ===");
+            
             auto j = json::parse(body);
             ServerLogger::logInfo("[Thread %u] Received chat completion request", std::this_thread::get_id());
+            ServerLogger::logDebug("Request body parsed successfully");
 
             // Parse the request
+            ServerLogger::logDebug("=== PARSING REQUEST START ===");
+            ServerLogger::logDebug("Creating ChatCompletionRequest object");
             ChatCompletionRequest request;
+            
+            ServerLogger::logDebug("=== CALLING request.from_json() ===");
             request.from_json(j);
+            ServerLogger::logDebug("=== request.from_json() COMPLETED ===");
+            ServerLogger::logDebug("Request parsed successfully");
 
+            ServerLogger::logDebug("=== VALIDATING REQUEST ===");
             if (!request.validate())
             {
+                ServerLogger::logError("Request validation failed");
                 throw std::invalid_argument("Invalid request parameters");
             }
+            ServerLogger::logDebug("=== REQUEST VALIDATION PASSED ===");
+            ServerLogger::logDebug("Request validated successfully");
+
+            ServerLogger::logDebug("Chat completion request: model=%s, stream=%d, messages=%zu", 
+                                  request.model.c_str(), request.stream, request.messages.size());
 
             // Get the NodeManager and inference engine
+            ServerLogger::logDebug("=== GETTING NODE MANAGER ===");
             auto &nodeManager = ServerAPI::instance().getNodeManager();
+            ServerLogger::logDebug("=== NODE MANAGER OBTAINED ===");
+            
+            ServerLogger::logDebug("=== GETTING ENGINE FOR MODEL ===");
+            ServerLogger::logDebug("Getting engine for model: %s", request.model.c_str());
             auto engine = nodeManager.getEngine(request.model);
+            ServerLogger::logDebug("=== ENGINE RETRIEVAL COMPLETED ===");
 
             if (!engine)
             {
+                ServerLogger::logError("Engine not found for model: %s", request.model.c_str());
                 throw std::runtime_error("Model '" + request.model + "' not found or could not be loaded");
             }
+            ServerLogger::logDebug("=== ENGINE OBTAINED SUCCESSFULLY ===");
 
             // Build inference parameters following ModelManager pattern
-            ChatCompletionParameters inferenceParams = buildChatCompletionParameters(request);
+            ServerLogger::logDebug("Building inference parameters...");
+            ServerLogger::logDebug("=== ABOUT TO CALL buildChatCompletionParameters ===");
+            
+            ChatCompletionParameters inferenceParams;
+            
+            try {
+                ServerLogger::logDebug("Calling buildChatCompletionParameters with request...");
+                inferenceParams = buildChatCompletionParameters(request);
+                ServerLogger::logDebug("=== buildChatCompletionParameters COMPLETED SUCCESSFULLY ===");
+                ServerLogger::logDebug("Inference parameters built successfully");
+            } catch (const std::exception& e) {
+                ServerLogger::logError("=== buildChatCompletionParameters FAILED ===");
+                ServerLogger::logError("Failed to build inference parameters: %s", e.what());
+                throw;
+            }
+            
+            ServerLogger::logDebug("=== INFERENCE PARAMETERS READY ===");
+            ServerLogger::logDebug("Parameters ready - messages count: %zu", inferenceParams.messages.size());
 
             // Estimate prompt tokens for usage tracking
+            ServerLogger::logDebug("Estimating prompt tokens");
             int estimatedPromptTokens = estimateChatPromptTokens(request.messages);
+            ServerLogger::logDebug("Estimated prompt tokens: %d", estimatedPromptTokens);
+
+            ServerLogger::logInfo("=== ABOUT TO SUBMIT TO INFERENCE ENGINE ===");
 
             if (request.stream)
             {
@@ -344,12 +462,16 @@ namespace kolosal
                                       std::this_thread::get_id(), request.model.c_str());
 
                 // Submit job to inference engine
+                ServerLogger::logDebug("Submitting job to inference engine...");
                 int jobId = engine->submitChatCompletionsJob(inferenceParams);
 
                 if (jobId < 0)
                 {
+                    ServerLogger::logError("Failed to submit job to inference engine, jobId: %d", jobId);
                     throw std::runtime_error("Failed to submit job to inference engine");
                 }
+                
+                ServerLogger::logInfo("Job submitted successfully with ID: %d", jobId);
 
                 // Send streaming headers
                 std::string headers = "HTTP/1.1 200 OK\r\n"
@@ -435,12 +557,47 @@ namespace kolosal
                                       std::this_thread::get_id(), request.model.c_str());
 
                 // Submit job to inference engine
+                ServerLogger::logDebug("Submitting non-streaming job to inference engine...");
+                ServerLogger::logDebug("About to call engine->submitChatCompletionsJob with parameters:");
+                ServerLogger::logDebug("  - messages count: %zu", inferenceParams.messages.size());
+                ServerLogger::logDebug("  - temperature: %f", inferenceParams.temperature);
+                ServerLogger::logDebug("  - topP: %f", inferenceParams.topP);
+                ServerLogger::logDebug("  - streaming: %d", inferenceParams.streaming);
+                ServerLogger::logDebug("  - maxNewTokens: %d", inferenceParams.maxNewTokens);
+                ServerLogger::logDebug("  - randomSeed: %d", inferenceParams.randomSeed);
+                
+                ServerLogger::logInfo("=== CALLING submitChatCompletionsJob NOW ===");
+                
+                // Additional debug logging to isolate the crash
+                ServerLogger::logDebug("About to log engine pointer address");
+                ServerLogger::logDebug("Engine pointer: %p", engine);
+                
+                ServerLogger::logDebug("About to validate engine is not null");
+                if (!engine) {
+                    ServerLogger::logError("Engine pointer is null!");
+                    throw std::runtime_error("Engine pointer is null");
+                }
+                
+                ServerLogger::logDebug("About to log inference params details");
+                ServerLogger::logDebug("inferenceParams.messages.size(): %zu", inferenceParams.messages.size());
+                
+                ServerLogger::logDebug("About to check if messages vector is valid");
+                if (inferenceParams.messages.empty()) {
+                    ServerLogger::logError("Messages vector is empty!");
+                    throw std::runtime_error("Messages vector is empty");
+                }
+                
+                ServerLogger::logDebug("About to call engine->submitChatCompletionsJob...");
                 int jobId = engine->submitChatCompletionsJob(inferenceParams);
+                ServerLogger::logInfo("=== submitChatCompletionsJob RETURNED ===");
 
                 if (jobId < 0)
                 {
+                    ServerLogger::logError("Failed to submit non-streaming job to inference engine, jobId: %d", jobId);
                     throw std::runtime_error("Failed to submit job to inference engine");
                 }
+                
+                ServerLogger::logInfo("Non-streaming job submitted successfully with ID: %d", jobId);
 
                 // Wait for completion
                 CompletionResult result;

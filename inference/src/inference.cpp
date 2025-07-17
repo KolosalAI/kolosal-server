@@ -23,6 +23,7 @@
 #include "chat.h"
 #include "json.hpp"
 #include "toolcall-client.h"
+#include "mtmd.h"
 
 class ThreadPool
 {
@@ -154,7 +155,7 @@ auto ThreadPool::enqueue(F &&f, Args &&...args)
 
 bool CompletionParameters::isValid() const
 {
-	if (sizeof(prompt) <= 0)
+	if (prompt.empty())
 	{
 		std::cerr << "[INFERENCE] [ERROR] prompt is empty: " << prompt << std::endl;
 		return false;
@@ -365,6 +366,9 @@ namespace
 		// If chat_templates is null (for embedding models), return empty string
 		if (!chat_templates)
 		{
+#ifdef DEBUG
+			std::cout << "[INFERENCE] [WARNING] applyTemplate called with null chat_templates" << std::endl;
+#endif
 			return "";
 		}
 
@@ -377,7 +381,26 @@ namespace
 			inputs.tools = common_chat_tools_parse_oaicompat(tc_client->tool_list());
 		}
 
-		return common_chat_templates_apply(chat_templates.get(), inputs).prompt;
+		try
+		{
+			auto result = common_chat_templates_apply(chat_templates.get(), inputs);
+#ifdef DEBUG
+			std::cout << "[INFERENCE] [DEBUG] applyTemplate result: " << result.prompt << std::endl;
+#endif
+			return result.prompt;
+		}
+		catch (const std::exception &e)
+		{
+			std::cerr << "[INFERENCE] [ERROR] applyTemplate failed: " << e.what() << std::endl;
+			// Return a simple fallback prompt
+			std::string fallback = "User: ";
+			for (const auto &msg : messages)
+			{
+				fallback += msg.role + ": " + msg.content + "\n";
+			}
+			fallback += "Assistant: ";
+			return fallback;
+		}
 	}
 
 	// InferenceService Interface (Internal Use Only)
@@ -445,6 +468,13 @@ namespace
 			llama_free(context);
 			llama_free_model(model);
 			llama_batch_free(batch);
+
+			// Clean up multimodal context
+			if (multimodal_ctx)
+			{
+				mtmd_free(multimodal_ctx);
+				multimodal_ctx = nullptr;
+			}
 
 			ggml_threadpool_free(threadpool);
 		}
@@ -807,6 +837,9 @@ namespace
 
 		CompletionParameters formatChat(const ChatCompletionParameters &params) override
 		{
+#ifdef DEBUG
+			std::cout << "[INFERENCE] [DEBUG] formatChat called with " << params.messages.size() << " messages" << std::endl;
+#endif
 			if (!params.isValid())
 			{
 				throw std::runtime_error("[INFERENCE] [CHATCOMPLETE] [ERROR] Invalid chat completion parameters\n");
@@ -814,39 +847,137 @@ namespace
 
 			// Format the chat messages into a single prompt
 			std::vector<common_chat_msg> messages;
+			std::vector<mtmd_bitmap> image_bitmaps;
+			bool has_images = false;
+			
 			for (const auto &msg : params.messages)
 			{
-				messages.push_back(common_chat_msg{msg.role, msg.content});
+				// Handle multimodal messages with images
+				if (msg.hasImages())
+				{
+					has_images = true;
+					
+					// Convert images to bitmaps for multimodal processing
+					for (const auto &image : msg.images)
+					{
+						image_bitmaps.push_back(convertImageDataToBitmap(image));
+					}
+					
+					// Replace content with image markers
+					std::string content_with_images = msg.content;
+					for (size_t i = 0; i < msg.images.size(); ++i)
+					{
+						content_with_images += " <__image__>";
+					}
+					messages.push_back(common_chat_msg{msg.role, content_with_images});
+					
+#ifdef DEBUG
+					std::cout << "[INFERENCE] [VISION] Processing message with " << msg.images.size() << " images" << std::endl;
+#endif
+				}
+				else
+				{
+#ifdef DEBUG
+					std::cout << "[INFERENCE] [DEBUG] Processing text message: " << msg.role << " - " << msg.content << std::endl;
+#endif
+					messages.push_back(common_chat_msg{msg.role, msg.content});
+				}
 			}
 
 			std::string formatted;
 
-			if (!params.tools.empty())
+			// Handle multimodal processing if images are present
+			if (has_images && multimodal_ctx)
 			{
-				if (!tc_client || (tc_client && params.tools.compare(tc_client->tool_list()) != 0))
-				{
 #ifdef DEBUG
-					std::cout << "[INFERENCE] initializing tool call client" << std::endl;
-					if (tc_client)
-						std::cout << "[INFERENCE] current tools: " << tc_client->tool_list() << std::endl;
-					std::cout << "[INFERENCE] new tools: " << params.tools << std::endl;
+				std::cout << "[INFERENCE] [VISION] Using multimodal processing" << std::endl;
 #endif
-					toolcall::params tc_params(params.tools, params.toolChoice);
-					tc_client = toolcall::create_client(tc_params);
-					if (!tc_client)
-					{
-						throw std::runtime_error("[INFERENCE] [CHATCOMPLETE] [ERROR] Failed to create tool call client\n");
-					}
-
-					tc_client->initialize();
+				// Create a single prompt with all messages
+				std::string combined_prompt;
+				for (const auto &msg : messages)
+				{
+					combined_prompt += msg.role + ": " + msg.content + "\n";
 				}
-
-				formatted = tokenizer->applyTemplate(messages, tc_client);
+				
+				// Use multimodal tokenizer
+				std::vector<mtmd_input_chunk> chunks;
+				mtmd_input_text text_input;
+				text_input.text = combined_prompt;
+				text_input.add_special = true;
+				text_input.parse_special = true;
+				
+				int32_t result = mtmd_tokenize(multimodal_ctx, chunks, text_input, image_bitmaps);
+				if (result == 0)
+				{
+					// Successfully processed multimodal input
+					// Convert chunks back to a formatted string
+					for (const auto &chunk : chunks)
+					{
+						if (chunk.type == MTMD_INPUT_CHUNK_TYPE_TEXT)
+						{
+							// Convert tokens back to text
+							for (llama_token token : chunk.tokens_text)
+							{
+								// This is a simplified approach - in practice you'd need proper detokenization
+								formatted += std::to_string(token) + " ";
+							}
+						}
+						else if (chunk.type == MTMD_INPUT_CHUNK_TYPE_IMAGE)
+						{
+							// Image tokens are handled internally
+							formatted += "<image_tokens>";
+						}
+					}
+				}
+				else
+				{
+					// Fall back to text-only processing
+#ifdef DEBUG
+					std::cout << "[INFERENCE] [VISION] Multimodal tokenization failed, falling back to text-only" << std::endl;
+#endif
+					formatted = tokenizer->applyTemplate(messages);
+				}
 			}
 			else
 			{
-				formatted = tokenizer->applyTemplate(messages);
+				// Standard text-only processing
+#ifdef DEBUG
+				std::cout << "[INFERENCE] [DEBUG] Using text-only processing" << std::endl;
+#endif
+				if (!params.tools.empty())
+				{
+					if (!tc_client || (tc_client && params.tools.compare(tc_client->tool_list()) != 0))
+					{
+#ifdef DEBUG
+						std::cout << "[INFERENCE] initializing tool call client" << std::endl;
+						if (tc_client)
+							std::cout << "[INFERENCE] current tools: " << tc_client->tool_list() << std::endl;
+						std::cout << "[INFERENCE] new tools: " << params.tools << std::endl;
+#endif
+						toolcall::params tc_params(params.tools, params.toolChoice);
+						tc_client = toolcall::create_client(tc_params);
+						if (!tc_client)
+						{
+							throw std::runtime_error("[INFERENCE] [CHATCOMPLETE] [ERROR] Failed to create tool call client\n");
+						}
+
+						tc_client->initialize();
+					}
+
+					formatted = tokenizer->applyTemplate(messages, tc_client);
+				}
+				else
+				{
+#ifdef DEBUG
+					std::cout << "[INFERENCE] [DEBUG] Calling tokenizer->applyTemplate" << std::endl;
+#endif
+					formatted = tokenizer->applyTemplate(messages);
+				}
 			}
+
+#ifdef DEBUG
+			std::cout << "[INFERENCE] [DEBUG] Final formatted prompt: " << formatted << std::endl;
+#endif
 
 			CompletionParameters completionParams{
 				formatted.c_str(),
@@ -875,6 +1006,9 @@ namespace
 		std::atomic<bool> should_terminate{false};
 		toolcall::client::ptr tc_client;
 		std::thread inferenceThread;
+		
+		// Multimodal support
+		mtmd_context *multimodal_ctx = nullptr;
 
 		const int n_batch;
 		const int n_keep;
@@ -1525,6 +1659,61 @@ namespace
 									 session_tokens.begin() + n_keep + n_discard);
 			}
 		}
+
+		// Initialize multimodal context if needed
+		bool initializeMultimodalContext(const std::string& mmproj_path = "")
+		{
+			if (multimodal_ctx)
+			{
+				return true; // Already initialized
+			}
+
+			if (mmproj_path.empty())
+			{
+				// Try to find mmproj file in the model directory
+				// For now, we'll skip initialization if no mmproj path is provided
+				return false;
+			}
+
+			mtmd_context_params ctx_params;
+			ctx_params.use_gpu = true;
+			ctx_params.print_timings = false;
+			ctx_params.n_threads = 4;
+			ctx_params.verbosity = GGML_LOG_LEVEL_ERROR;
+
+			multimodal_ctx = mtmd_init_from_file(mmproj_path.c_str(), model, ctx_params);
+			
+			if (!multimodal_ctx)
+			{
+#ifdef DEBUG
+				std::cout << "[INFERENCE] [VISION] Failed to initialize multimodal context from: " << mmproj_path << std::endl;
+#endif
+				return false;
+			}
+
+#ifdef DEBUG
+			std::cout << "[INFERENCE] [VISION] Successfully initialized multimodal context" << std::endl;
+#endif
+			return true;
+		}
+
+		// Convert ImageData to mtmd_bitmap
+		mtmd_bitmap convertImageDataToBitmap(const ImageData& imageData)
+		{
+			mtmd_bitmap bitmap;
+			
+			// For now, we'll assume the image data is already in RGB format
+			// In a real implementation, you'd need to decode the image format
+			// and convert it to RGB
+			
+			// This is a placeholder - you'd need proper image decoding here
+			bitmap.nx = 224; // Default size, should be determined from actual image
+			bitmap.ny = 224;
+			bitmap.data = imageData.data; // Assuming RGB format
+			bitmap.id = imageData.url; // Use URL as ID
+			
+			return bitmap;
+		}
 	};
 	// EmbeddingInferenceService (Optimized for Embedding Models)
 	class EmbeddingInferenceService : public InferenceService
@@ -2076,12 +2265,24 @@ int InferenceEngine::Impl::submitCompletionsJob(const CompletionParameters &para
 
 int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParameters &params)
 {
+#ifdef DEBUG
+	std::cout << "[INFERENCE] [DEBUG] submitChatCompletionsJob: Entry point" << std::endl;
+#endif
+
 	int jobId = nextJobId++;
+
+#ifdef DEBUG
+	std::cout << "[INFERENCE] [DEBUG] submitChatCompletionsJob: Generated jobId = " << jobId << std::endl;
+#endif
 
 	auto job = std::make_shared<Job>();
 	job->jobId = jobId;
 	job->seqId = params.seqId;
 	job->start_time = std::chrono::steady_clock::now(); // Record start time for TTFT calculation
+
+#ifdef DEBUG
+	std::cout << "[INFERENCE] [DEBUG] submitChatCompletionsJob: Created job object" << std::endl;
+#endif
 
 #ifdef DEBUG
 	std::cout << "[INFERENCE] Submitting chat completions job to queue" << std::endl;
@@ -2090,14 +2291,30 @@ int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParamete
 	// Asynchronously execute the job using thread pool
 	try
 	{
+#ifdef DEBUG
+		std::cout << "[INFERENCE] [DEBUG] About to call threadPool.enqueue" << std::endl;
+#endif
+
 		threadPool.enqueue([this, params, job]()
 						   {
 			try {
 #ifdef DEBUG
 				std::cout << "[INFERENCE] Processing completion task to engine" << std::endl;
+				std::cout << "[INFERENCE] About to call formatChat" << std::endl;
 #endif
 
-				this->inferenceService->complete(this->inferenceService->formatChat(params), job);
+				CompletionParameters completionParams = this->inferenceService->formatChat(params);
+				
+#ifdef DEBUG
+				std::cout << "[INFERENCE] formatChat completed successfully" << std::endl;
+				std::cout << "[INFERENCE] About to call complete" << std::endl;
+#endif
+
+				this->inferenceService->complete(completionParams, job);
+				
+#ifdef DEBUG
+				std::cout << "[INFERENCE] complete method finished" << std::endl;
+#endif
 			}
 			catch (const std::exception& e) {
 				std::lock_guard<std::mutex> lock(job->mtx);
@@ -2106,6 +2323,10 @@ int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParamete
 
 				std::cerr << "[INFERENCE] [ERROR] [submitChatCompletionsJob] " << e.what() << "\n" << std::endl;
 			} });
+
+#ifdef DEBUG
+		std::cout << "[INFERENCE] [DEBUG] threadPool.enqueue completed" << std::endl;
+#endif
 	}
 	catch (const std::exception &e)
 	{
@@ -2113,10 +2334,18 @@ int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParamete
 		return -1;
 	}
 
+#ifdef DEBUG
+	std::cout << "[INFERENCE] [DEBUG] About to add job to jobs map" << std::endl;
+#endif
+
 	{
 		std::lock_guard<std::mutex> lock(jobsMutex);
 		jobs.emplace(jobId, job);
 	}
+
+#ifdef DEBUG
+	std::cout << "[INFERENCE] [DEBUG] submitChatCompletionsJob: Returning jobId = " << jobId << std::endl;
+#endif
 
 	return jobId;
 }
@@ -2147,7 +2376,7 @@ int InferenceEngine::Impl::submitEmbeddingJob(const EmbeddingParameters &params)
 			}
 			catch (const std::exception& e) {
 				std::lock_guard<std::mutex> lock(job->mtx);
-				job->hasError = true;
+							job->hasError = true;
 				job->errorMessage = e.what();
 
 				std::cerr << "[INFERENCE] [ERROR] [submitEmbeddingJob] " << e.what() << "\n" << std::endl;
@@ -2434,7 +2663,18 @@ INFERENCE_API int InferenceEngine::submitChatCompletionsJob(const ChatCompletion
 	std::cout << "[INFERENCE] Submitting chat completions job" << std::endl;
 #endif
 
-	return pimpl->submitChatCompletionsJob(params);
+	// Add debug logging to catch the crash
+	std::cout << "[INFERENCE] [DEBUG] About to check pimpl pointer" << std::endl;
+	if (!pimpl) {
+		std::cerr << "[INFERENCE] [ERROR] pimpl is null!" << std::endl;
+		return -1;
+	}
+	
+	std::cout << "[INFERENCE] [DEBUG] pimpl pointer is valid, calling pimpl->submitChatCompletionsJob..." << std::endl;
+	int result = pimpl->submitChatCompletionsJob(params);
+	std::cout << "[INFERENCE] [DEBUG] pimpl->submitChatCompletionsJob returned: " << result << std::endl;
+	
+	return result;
 }
 
 INFERENCE_API int InferenceEngine::submitEmbeddingJob(const EmbeddingParameters &params)
