@@ -2,6 +2,7 @@
 #include "kolosal/agents/function_manager.hpp"
 #include "kolosal/logger.hpp"
 #include <chrono>
+#include <sstream>
 
 namespace kolosal::agents {
 

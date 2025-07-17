@@ -4,8 +4,28 @@ project(InferenceEngine VERSION 1.0.0 LANGUAGES CXX)
 # Include UCM for runtime library management
 include(${CMAKE_SOURCE_DIR}/cmake/ucm.cmake)
 
-# Static link the runtime libraries
-ucm_set_runtime(DYNAMIC)
+# Configure runtime library for consistency with main project
+if(MSVC)
+    # Force Release runtime library to match main project
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # Use Release runtime even in Debug build for compatibility
+        ucm_set_runtime(STATIC)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        # Override to use Release runtime for compatibility
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MD")
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MD")
+        string(REPLACE "/MDd" "/MD" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        string(REPLACE "/MDd" "/MD" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+        string(REPLACE "/MTd" "/MD" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        string(REPLACE "/MTd" "/MD" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+        add_compile_definitions(_ITERATOR_DEBUG_LEVEL=0)
+        message(STATUS "Inference: Using Release runtime (/MD) for Debug build")
+    else()
+        ucm_set_runtime(DYNAMIC)
+    endif()
+else()
+    ucm_set_runtime(DYNAMIC)
+endif()
 
 # Use C++17 for this project (required for std::filesystem)
 set(CMAKE_CXX_STANDARD 17)

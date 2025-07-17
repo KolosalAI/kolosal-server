@@ -9,11 +9,19 @@
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/auth_config_route.hpp"
 #include "kolosal/routes/server_logs_route.hpp"
+#include "kolosal/routes/agents_route.hpp"
+#include "kolosal/routes/orchestration_route.hpp"
+#include "kolosal/routes/sequential_workflow_route.hpp"
+#include "kolosal/routes/agent_monitoring_route.hpp"
 
 #include "kolosal/routes/downloads_route.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
+#include "kolosal/agents/multi_agent_system.hpp"
+#include "kolosal/agents/agent_orchestrator.hpp"
+#include "kolosal/auto_setup_manager.hpp"
+#include "kolosal/retrieval/document_service.hpp"
 #include <memory>
 #include <stdexcept>
 
@@ -24,15 +32,32 @@ namespace kolosal
     {
     public:
         std::unique_ptr<Server> server;
-        std::unique_ptr<NodeManager> nodeManager;
+        std::shared_ptr<NodeManager> nodeManager;
+        std::shared_ptr<kolosal::agents::YAMLConfigurableAgentManager> agentManager;
+        std::shared_ptr<kolosal::agents::AgentOrchestrator> agentOrchestrator;
+        std::unique_ptr<AutoSetupManager> autoSetupManager;
+        std::unique_ptr<retrieval::DocumentService> documentService;
+        ServerConfig config;
 
         Impl()
         {
+            // Services will be initialized later when config is available
+        }
+        
+        void initServices()
+        {
+            // Initialize DocumentService with database config
+            documentService = std::make_unique<retrieval::DocumentService>(config.database);
+            
+            // Initialize AutoSetupManager with required parameters (only if agent manager is available)
+            if (nodeManager && agentManager) {
+                autoSetupManager = std::make_unique<AutoSetupManager>(nodeManager, agentManager);
+            }
         }
         
         void initNodeManager(std::chrono::seconds idleTimeout)
         {
-            nodeManager = std::make_unique<NodeManager>(idleTimeout);
+            nodeManager = std::make_shared<NodeManager>(idleTimeout);
         }
     };
 
@@ -50,19 +75,34 @@ namespace kolosal
     }
     bool ServerAPI::init(const std::string &port, const std::string &host, std::chrono::seconds idleTimeout)
     {
+        // Use default configuration
+        ServerConfig defaultConfig;
+        return init(port, host, idleTimeout, defaultConfig);
+    }
+
+    bool ServerAPI::init(const std::string &port, const std::string &host, std::chrono::seconds idleTimeout, const ServerConfig& config)
+    {
         try
         {
+            // Store the configuration
+            pImpl->config = config;
+            
             ServerLogger::logInfo("Initializing server on %s:%s with idle timeout: %lld seconds", host.c_str(), port.c_str(), idleTimeout.count());
 
             // Initialize NodeManager with configured idle timeout
             pImpl->initNodeManager(idleTimeout);
+
+            // Initialize services now that we have config and node manager
+            pImpl->initServices();
 
             pImpl->server = std::make_unique<Server>(port, host);
             if (!pImpl->server->init())
             {
                 ServerLogger::logError("Failed to initialize server");
                 return false;
-            }            // Register routes
+            }
+            
+            // Register routes
             ServerLogger::logInfo("Registering routes");
             pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
@@ -91,13 +131,6 @@ namespace kolosal
             ServerLogger::logError("Failed to initialize server: %s", ex.what());
             return false;
         }
-    }
-
-    bool ServerAPI::init(const std::string &port, const std::string &host, std::chrono::seconds idleTimeout, const ServerConfig& config)
-    {
-        // Call the main init method - the config parameter is used by main.cpp
-        // but the actual server initialization logic is in the other init method
-        return init(port, host, idleTimeout);
     }
 
     void ServerAPI::enableMetrics()
@@ -164,6 +197,110 @@ namespace kolosal
             throw std::runtime_error("Server not initialized");
         }
         return pImpl->server->getAuthMiddleware();
+    }
+
+    // Agent system methods
+    void ServerAPI::setAgentManager(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager)
+    {
+        pImpl->agentManager = manager;
+        
+        // Register agent routes if manager is available
+        if (pImpl->server && pImpl->agentManager) {
+            auto agentsRoute = routes::AgentsRoute(pImpl->agentManager);
+            agentsRoute.setup_routes(*pImpl->server);
+            pImpl->server->addRoute(std::make_unique<AgentMonitoringRoute>(pImpl->agentManager, pImpl->agentOrchestrator));
+            ServerLogger::logInfo("Agent routes registered");
+        }
+    }
+
+    void ServerAPI::setAgentOrchestrator(std::shared_ptr<agents::AgentOrchestrator> orchestrator)
+    {
+        pImpl->agentOrchestrator = orchestrator;
+        
+        // Register orchestration and workflow routes if available
+        if (pImpl->server && pImpl->agentOrchestrator) {
+            pImpl->server->addRoute(std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator));
+            pImpl->server->addRoute(std::make_unique<routes::SequentialWorkflowRoute>(pImpl->agentManager));
+            ServerLogger::logInfo("Agent orchestration routes registered");
+        }
+        
+        // Update monitoring route if it exists
+        if (pImpl->agentManager) {
+            // The monitoring route will be updated when both manager and orchestrator are available
+            ServerLogger::logInfo("Agent monitoring updated with orchestrator");
+        }
+    }
+
+    agents::YAMLConfigurableAgentManager& ServerAPI::getAgentManager()
+    {
+        if (!pImpl->agentManager)
+        {
+            throw std::runtime_error("Agent manager not initialized");
+        }
+        return *pImpl->agentManager;
+    }
+
+    const agents::YAMLConfigurableAgentManager& ServerAPI::getAgentManager() const
+    {
+        if (!pImpl->agentManager)
+        {
+            throw std::runtime_error("Agent manager not initialized");
+        }
+        return *pImpl->agentManager;
+    }
+
+    agents::AgentOrchestrator& ServerAPI::getAgentOrchestrator()
+    {
+        if (!pImpl->agentOrchestrator)
+        {
+            throw std::runtime_error("Agent orchestrator not initialized");
+        }
+        return *pImpl->agentOrchestrator;
+    }
+
+    const agents::AgentOrchestrator& ServerAPI::getAgentOrchestrator() const
+    {
+        if (!pImpl->agentOrchestrator)
+        {
+            throw std::runtime_error("Agent orchestrator not initialized");
+        }
+        return *pImpl->agentOrchestrator;
+    }
+
+    AutoSetupManager& ServerAPI::getAutoSetupManager()
+    {
+        if (!pImpl->autoSetupManager)
+        {
+            throw std::runtime_error("AutoSetupManager not initialized");
+        }
+        return *pImpl->autoSetupManager;
+    }
+
+    const AutoSetupManager& ServerAPI::getAutoSetupManager() const
+    {
+        if (!pImpl->autoSetupManager)
+        {
+            throw std::runtime_error("AutoSetupManager not initialized");
+        }
+        return *pImpl->autoSetupManager;
+    }
+
+    retrieval::DocumentService& ServerAPI::getDocumentService()
+    {
+        if (!pImpl->documentService)
+        {
+            throw std::runtime_error("DocumentService not initialized");
+        }
+        return *pImpl->documentService;
+    }
+
+    const retrieval::DocumentService& ServerAPI::getDocumentService() const
+    {
+        if (!pImpl->documentService)
+        {
+            throw std::runtime_error("DocumentService not initialized");
+        }
+        return *pImpl->documentService;
     }
 
 } // namespace kolosal

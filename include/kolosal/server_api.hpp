@@ -62,6 +62,10 @@ namespace kolosal {
         
         agents::AgentOrchestrator& getAgentOrchestrator();
         const agents::AgentOrchestrator& getAgentOrchestrator() const;
+        
+        // Agent system setup
+        void setAgentManager(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager);
+        void setAgentOrchestrator(std::shared_ptr<agents::AgentOrchestrator> orchestrator);
 
         // Auto-setup system access
         AutoSetupManager& getAutoSetupManager();

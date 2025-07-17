@@ -48,6 +48,25 @@ struct KOLOSAL_SERVER_API FunctionConfig {
 };
 
 /**
+ * @brief Inference engine configuration
+ */
+struct KOLOSAL_SERVER_API InferenceEngineConfig {
+    std::string name;
+    std::string type = "llama_cpp"; // "llama_cpp", "cuda", "vulkan", etc.
+    std::string model_path;
+    std::map<std::string, std::string> settings;
+    bool auto_load = true;
+    int context_size = 4096;
+    int batch_size = 512;
+    int threads = 4;
+    int gpu_layers = 0;
+    
+    static InferenceEngineConfig from_yaml(const YAML::Node& node);
+    // Add method to convert to YAML
+    YAML::Node to_yaml() const;
+};
+
+/**
  * @brief Agent configuration
  */
 struct KOLOSAL_SERVER_API AgentConfig {
@@ -76,6 +95,7 @@ struct KOLOSAL_SERVER_API AgentConfig {
 struct KOLOSAL_SERVER_API SystemConfig {
     std::vector<AgentConfig> agents;
     std::vector<FunctionConfig> functions;
+    std::vector<InferenceEngineConfig> inference_engines;
     std::map<std::string, std::string> global_settings;
     int worker_threads = 4;
     int health_check_interval_seconds = 10;

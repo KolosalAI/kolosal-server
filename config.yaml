@@ -159,7 +159,7 @@ models:
   - id: "qwen3-0.6b"
     type: "llm"  # llm or embedding
     path: "./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf"
-    load_at_startup: true
+    load_at_startup: false
     main_gpu_id: 0
     preload_context: false
     load_params:

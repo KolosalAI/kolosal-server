@@ -5,6 +5,7 @@
 #include "kolosal/agents/agent_core.hpp"
 #include "kolosal/agents/message_router.hpp"
 #include "kolosal/agents/yaml_config.hpp"
+#include "kolosal/agents/agent_config_validator.hpp"
 #include <mutex>
 #include <chrono>
 #include <thread>
@@ -101,6 +102,104 @@ bool YAMLConfigurableAgentManager::load_configuration(const std::string& yaml_fi
     try {
         system_config = SystemConfig::from_file(yaml_file);
         
+        // Validate configuration before proceeding
+        logger->info("Validating agent system configuration...");
+        
+        auto system_validation = AgentConfigValidator::validate_system_config(system_config);
+        auto engine_validation = AgentConfigValidator::validate_inference_engines(system_config.inference_engines);
+        auto function_validation = AgentConfigValidator::validate_function_configs(system_config.functions);
+        
+        // Log validation results
+        if (!system_validation.is_valid || !engine_validation.is_valid || !function_validation.is_valid) {
+            logger->error("Configuration validation failed:");
+            
+            for (const auto& error : system_validation.errors) {
+                logger->error("System config error: " + error);
+            }
+            for (const auto& error : engine_validation.errors) {
+                logger->error("Engine config error: " + error);
+            }
+            for (const auto& error : function_validation.errors) {
+                logger->error("Function config error: " + error);
+            }
+            
+            return false;
+        }
+        
+        // Log warnings
+        for (const auto& warning : system_validation.warnings) {
+            logger->warn("System config warning: " + warning);
+        }
+        for (const auto& warning : engine_validation.warnings) {
+            logger->warn("Engine config warning: " + warning);
+        }
+        for (const auto& warning : function_validation.warnings) {
+            logger->warn("Function config warning: " + warning);
+        }
+        
+        // Log suggestions
+        for (const auto& suggestion : system_validation.suggestions) {
+            logger->info("System config suggestion: " + suggestion);
+        }
+        for (const auto& suggestion : engine_validation.suggestions) {
+            logger->info("Engine config suggestion: " + suggestion);
+        }
+        for (const auto& suggestion : function_validation.suggestions) {
+            logger->info("Function config suggestion: " + suggestion);
+        }
+        
+        // Validate individual agent configurations
+        int valid_agents = 0;
+        for (const auto& agent_config : system_config.agents) {
+            auto agent_validation = AgentConfigValidator::validate_agent_config(agent_config);
+            if (!agent_validation.is_valid) {
+                logger->error("Agent '" + agent_config.name + "' configuration is invalid:");
+                for (const auto& error : agent_validation.errors) {
+                    logger->error("  " + error);
+                }
+            } else {
+                valid_agents++;
+                
+                // Log warnings for this agent
+                for (const auto& warning : agent_validation.warnings) {
+                    logger->warn("Agent '" + agent_config.name + "': " + warning);
+                }
+            }
+            
+            // Check agent dependencies
+            if (!AgentConfigValidator::validate_agent_dependencies(agent_config, system_config.functions)) {
+                logger->warn("Agent '" + agent_config.name + "' has missing function dependencies");
+            }
+        }
+        
+        if (valid_agents == 0) {
+            logger->error("No valid agent configurations found");
+            return false;
+        }
+        
+        logger->info("Configuration validation completed: " + std::to_string(valid_agents) + "/" + 
+                    std::to_string(system_config.agents.size()) + " agents are valid");
+        
+        // Check inference engine health
+        auto engine_statuses = AgentConfigValidator::check_inference_engine_health();
+        int healthy_engines = 0;
+        for (const auto& status : engine_statuses) {
+            if (status.available && status.healthy) {
+                healthy_engines++;
+                logger->info("Inference engine '" + status.name + "': " + status.status_message);
+            } else if (status.available) {
+                logger->warn("Inference engine '" + status.name + "': " + status.status_message);
+            } else {
+                logger->debug("Inference engine '" + status.name + "': " + status.status_message);
+            }
+        }
+        
+        if (healthy_engines == 0) {
+            logger->warn("No healthy inference engines detected - LLM functions may not work properly");
+        } else {
+            logger->info("Found " + std::to_string(healthy_engines) + " healthy inference engine(s)");
+        }
+        
         // Register function configurations
         for (const auto& func_config : system_config.functions) {
             agent_factory->register_function_config(func_config);
@@ -109,6 +208,7 @@ bool YAMLConfigurableAgentManager::load_configuration(const std::string& yaml_fi
         logger->info("Configuration loaded successfully from: " + yaml_file);
         logger->info("Found " + std::to_string(system_config.agents.size()) + " agent configurations");
         logger->info("Found " + std::to_string(system_config.functions.size()) + " function configurations");
+        logger->info("Found " + std::to_string(system_config.inference_engines.size()) + " inference engine configurations");
         
         return true;
     } catch (const std::exception& e) {

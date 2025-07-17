@@ -4,8 +4,28 @@ project(KolosalServer VERSION 1.0.0 LANGUAGES CXX)
 # Include UCM for runtime library management
 include(${CMAKE_SOURCE_DIR}/cmake/ucm.cmake)
 
-# Static link the runtime libraries
-ucm_set_runtime(DYNAMIC)
+# Configure runtime library for consistency with MuPDF
+if(MSVC)
+    # Force Release runtime library to match MuPDF's library
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        # Use Release runtime even in Debug build to match MuPDF
+        ucm_set_runtime(STATIC)
+        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+        # Override to use Release runtime for compatibility
+        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MD")
+        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MD")
+        string(REPLACE "/MDd" "/MD" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        string(REPLACE "/MDd" "/MD" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+        string(REPLACE "/MTd" "/MD" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+        string(REPLACE "/MTd" "/MD" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+        add_compile_definitions(_ITERATOR_DEBUG_LEVEL=0)
+        message(STATUS "Using Release runtime (/MD) for Debug build to match MuPDF")
+    else()
+        ucm_set_runtime(DYNAMIC)
+    endif()
+else()
+    ucm_set_runtime(DYNAMIC)
+endif()
 
 # Use C++17 for this project (required for std::filesystem)
 set(CMAKE_CXX_STANDARD 17)
@@ -42,6 +62,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inference/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/common)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/ggml/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/pugixml/src)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/thirdparty/zlib/contrib/minizip)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/thirdparty/zlib)
 
 # Define source files.
 set(SOURCES
@@ -54,6 +78,11 @@ set(SOURCES
     src/inference_loader.cpp
     src/inference_interface_impl.cpp
 
+    # Model implementations
+    src/models/embedding_request_model.cpp
+    src/models/embedding_response_model.cpp
+
+    # Basic routes
     src/routes/chat_completion_route.cpp
     src/routes/completion_route.cpp
     src/routes/inference_completion_route.cpp
@@ -63,23 +92,104 @@ set(SOURCES
     src/routes/health_status_route.cpp    
     src/routes/auth_config_route.cpp    
     src/routes/server_logs_route.cpp    
-
     src/routes/downloads_route.cpp
 
+    # Agent-related routes
+    src/routes/agents_route.cpp
+    src/routes/agent_monitoring_route.cpp
+    src/routes/orchestration_route.cpp
+    src/routes/sequential_workflow_route.cpp
+
+    # Document retrieval routes
+    src/routes/retrieve_route.cpp
+    src/routes/parse_pdf_route.cpp
+    src/routes/parse_docx_route.cpp
+    src/routes/embedding_route.cpp
+    src/routes/internet_search_route.cpp
+    src/routes/auto_setup_route.cpp
+
+    # Agent system core
+    src/agents/agent_core.cpp
+    src/agents/agent_data.cpp
+    src/agents/agent_config_validator.cpp
+    src/agents/agent_interfaces.cpp
+    src/agents/agent_orchestrator.cpp
+    src/agents/multi_agent_system.cpp
+    src/agents/sequential_workflow.cpp
+    src/agents/yaml_config.cpp
+    src/agents/message_router.cpp
+    src/agents/function_manager.cpp
+    src/agents/job_manager.cpp
+    src/agents/event_system.cpp
+    src/agents/builtin_functions.cpp
+
+    # Authentication and authorization
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
     src/auth/auth_middleware.cpp
+    
+    # Other core files
     src/node_manager.cpp
+    src/auto_setup_manager.cpp
+    src/qdrant_client.cpp
+
+    # Document retrieval system
+    src/retrieval/document_service.cpp
+    src/retrieval/parse_pdf.cpp
+    src/retrieval/parse_docx.cpp
+    src/retrieval/add_document_types.cpp
+    src/retrieval/remove_document_types.cpp
+    src/retrieval/retrieve_types.cpp
+    src/retrieval/remove_documents_route.cpp
+
+    # External dependencies
+    external/pugixml/src/pugixml.cpp
+    
+    # zlib source files (needed for minizip)
+    external/mupdf/thirdparty/zlib/adler32.c
+    external/mupdf/thirdparty/zlib/compress.c
+    external/mupdf/thirdparty/zlib/crc32.c
+    external/mupdf/thirdparty/zlib/deflate.c
+    external/mupdf/thirdparty/zlib/gzclose.c
+    external/mupdf/thirdparty/zlib/gzlib.c
+    external/mupdf/thirdparty/zlib/gzread.c
+    external/mupdf/thirdparty/zlib/gzwrite.c
+    external/mupdf/thirdparty/zlib/infback.c
+    external/mupdf/thirdparty/zlib/inffast.c
+    external/mupdf/thirdparty/zlib/inflate.c
+    external/mupdf/thirdparty/zlib/inftrees.c
+    external/mupdf/thirdparty/zlib/trees.c
+    external/mupdf/thirdparty/zlib/uncompr.c
+    external/mupdf/thirdparty/zlib/zutil.c
+    
+    # minizip files
+    external/mupdf/thirdparty/zlib/contrib/minizip/unzip.c
+    external/mupdf/thirdparty/zlib/contrib/minizip/ioapi.c
 )
 
 # Create shared library instead of static library.
 add_library(kolosal_server SHARED ${SOURCES})
 target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD)
 
+# Add MSVC-specific compile options to fix PDB file access issues
+if(MSVC)
+    target_compile_options(kolosal_server PRIVATE /FS /bigobj)
+    # Completely disable parallel compilation to prevent PDB conflicts
+    target_compile_options(kolosal_server PRIVATE /MP1)
+    message(STATUS "Added /FS, /bigobj, and /MP1 compile options to kolosal_server target for MSVC")
+endif()
+
 # Create executable
 add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
+
+# Add MSVC-specific compile options to the executable as well
+if(MSVC)
+    target_compile_options(kolosal_server_exe PRIVATE /FS /bigobj)
+    target_compile_options(kolosal_server_exe PRIVATE /MP1)
+    message(STATUS "Added /FS, /bigobj, and /MP1 compile options to kolosal_server_exe target for MSVC")
+endif()
 
 # Function to copy DLLs to executable directory
 function(copy_dll_to_output target_name dll_path)
@@ -122,6 +232,14 @@ if(WIN32)
             break()
         endif()
     endforeach()
+    
+    # Copy inference engine DLL (llama-cpu.dll) to executable directory
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:llama-cpu>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying llama-cpu.dll to executable directory"
+    )
     
     # Copy yaml-cpp DLL if it's built as shared library
     if(BUILD_SHARED_LIBS)
@@ -168,6 +286,53 @@ endif()
 
 # Link the main server library with yaml-cpp only
 target_link_libraries(kolosal_server PUBLIC yaml-cpp)
+
+# Add inference subdirectory and link
+add_subdirectory(inference)
+# Link with the inference library
+target_link_libraries(kolosal_server PRIVATE ${INFERENCE_TARGET_NAME})
+
+# Configure MuPDF library linking
+set(MUPDF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf")
+if(WIN32)
+    # Try different paths for MuPDF libraries
+    set(MUPDF_LIB_PATHS 
+        "${MUPDF_PATH}/platform/win32/x64/Release"
+        "${MUPDF_PATH}/platform/win32/x64/Debug"
+        "${MUPDF_PATH}/platform/win32/Release"
+        "${MUPDF_PATH}/platform/win32/Debug"
+        "${MUPDF_PATH}/build/x64/Release"
+        "${MUPDF_PATH}/build/x64/Debug"
+        "${MUPDF_PATH}/lib"
+    )
+    
+    set(MUPDF_LIB_FOUND FALSE)
+    foreach(MUPDF_LIB_PATH ${MUPDF_LIB_PATHS})
+        if(EXISTS "${MUPDF_LIB_PATH}/libmupdf.lib")
+            target_link_libraries(kolosal_server PRIVATE 
+                "${MUPDF_LIB_PATH}/libmupdf.lib"
+            )
+            # Try to find libthirdparty.lib in the same directory
+            if(EXISTS "${MUPDF_LIB_PATH}/libthirdparty.lib")
+                target_link_libraries(kolosal_server PRIVATE 
+                    "${MUPDF_LIB_PATH}/libthirdparty.lib"
+                )
+            endif()
+            message(STATUS "Linking with MuPDF libraries from ${MUPDF_LIB_PATH}")
+            set(MUPDF_LIB_FOUND TRUE)
+            break()
+        endif()
+    endforeach()
+    
+    if(NOT MUPDF_LIB_FOUND)
+        message(WARNING "MuPDF libraries not found in any of the searched paths")
+        message(STATUS "Searched paths: ${MUPDF_LIB_PATHS}")
+        message(STATUS "PDF parsing features will not be available")
+    endif()
+else()
+    # For Linux, we might need to build MuPDF or use system packages
+    message(STATUS "MuPDF configuration for Linux not yet implemented")
+endif()
 
 # Configure CURL for main server (download utilities need it)
 set(CURL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/curl")
@@ -234,6 +399,17 @@ else()
         # RHEL/CentOS/Fedora specific
         message(STATUS "Detected RedHat-based system")
     endif()
+endif()
+
+# Add MSVC-specific compiler flags to fix PDB file access issues
+if(MSVC)
+    # Add /FS flag to fix "cannot open program database" errors during parallel compilation
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FS /EHsc /bigobj")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /FS /bigobj")
+    # Completely disable multiprocessor compilation to prevent PDB conflicts
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP1")
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP1")
+    message(STATUS "Added /FS, /EHsc, /bigobj, and /MP1 flags for MSVC to handle parallel compilation PDB access")
 endif()
 
 # Add aggressive optimization flags for better performance

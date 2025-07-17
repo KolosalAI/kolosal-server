@@ -32,6 +32,8 @@
 #include "kolosal/auth/auth_middleware.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/download_utils.hpp"
+#include "kolosal/agents/multi_agent_system.hpp"
+#include "kolosal/agents/agent_orchestrator.hpp"
 
 #ifdef KOLOSAL_CLI_ENABLED
 #include "kolosal/cli_interface.hpp"
@@ -309,6 +311,39 @@ int main(int argc, char *argv[])
     // Initialize the server
     ServerAPI &server = ServerAPI::instance();
 
+    // Initialize agent system if agents configuration exists
+    std::shared_ptr<kolosal::agents::YAMLConfigurableAgentManager> agentManager;
+    std::shared_ptr<kolosal::agents::AgentOrchestrator> agentOrchestrator;
+    
+    std::string agentsConfigPath = "config/agents.yaml";
+    if (std::filesystem::exists(agentsConfigPath)) {
+        try {
+            ServerLogger::logInfo("Initializing agent system from: %s", agentsConfigPath.c_str());
+            
+            agentManager = std::make_shared<kolosal::agents::YAMLConfigurableAgentManager>();
+            if (agentManager->load_configuration(agentsConfigPath)) {
+                agentManager->start();
+                
+                // Initialize orchestrator for advanced workflows
+                agentOrchestrator = std::make_shared<kolosal::agents::AgentOrchestrator>(agentManager);
+                agentOrchestrator->start();
+                
+                // Register agent manager with server for route access
+                server.setAgentManager(agentManager);
+                server.setAgentOrchestrator(agentOrchestrator);
+                
+                ServerLogger::logInfo("Agent system initialized successfully");
+            } else {
+                ServerLogger::logError("Failed to load agent configuration - agent system disabled");
+            }
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Failed to initialize agent system: %s", e.what());
+            std::cerr << "Warning: Agent system initialization failed: " << e.what() << std::endl;
+        }
+    } else {
+        ServerLogger::logInfo("No agent configuration found (%s) - agent system disabled", agentsConfigPath.c_str());
+    }
+
     // Determine the actual host to bind to based on public access setting
     std::string bindHost = config.host;
     if (!config.allowPublicAccess && config.host == "0.0.0.0")
@@ -571,6 +606,26 @@ int main(int argc, char *argv[])
     std::cout << "  POST /engines                - Add new engine" << std::endl;
     std::cout << "  GET  /engines/{id}/status    - Engine status" << std::endl;
     std::cout << "  DELETE /engines/{id}         - Remove engine" << std::endl;
+    
+    if (agentManager) {
+        std::cout << "\nAgent System endpoints:" << std::endl;
+        std::cout << "  GET  /agents                 - List all agents" << std::endl;
+        std::cout << "  GET  /agents/{id}            - Get agent details" << std::endl;
+        std::cout << "  POST /agents                 - Create new agent" << std::endl;
+        std::cout << "  GET  /agents/health          - Agent system health check" << std::endl;
+        std::cout << "  GET  /agents/metrics         - Agent system metrics" << std::endl;
+        std::cout << "  GET  /agents/{id}/status     - Individual agent status" << std::endl;
+        std::cout << "  GET  /agents/system-metrics  - Comprehensive system metrics" << std::endl;
+        
+        if (agentOrchestrator) {
+            std::cout << "\nAgent Orchestration endpoints:" << std::endl;
+            std::cout << "  GET  /agents/orchestrator/status     - Orchestrator status" << std::endl;
+            std::cout << "  GET  /agents/workflows/metrics       - Workflow metrics" << std::endl;
+            std::cout << "  POST /orchestration/workflows        - Create workflow" << std::endl;
+            std::cout << "  POST /orchestration/execute          - Execute workflow" << std::endl;
+            std::cout << "  GET  /orchestration/status           - Orchestration status" << std::endl;
+        }
+    }
     if (config.auth.enableAuth)
     {
         std::cout << "\nAuthentication endpoints:" << std::endl;
@@ -597,6 +652,17 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "Shutting down server..." << std::endl;
+    
+    // Shutdown agent system first
+    if (agentOrchestrator) {
+        ServerLogger::logInfo("Stopping agent orchestrator...");
+        agentOrchestrator->stop();
+    }
+    if (agentManager) {
+        ServerLogger::logInfo("Stopping agent manager...");
+        agentManager->stop();
+    }
+    
     server.shutdown();
     std::cout << "Server stopped." << std::endl;
 

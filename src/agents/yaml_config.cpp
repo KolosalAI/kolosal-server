@@ -161,6 +161,45 @@ AgentConfig AgentConfig::from_yaml(const YAML::Node& node) {
     return config;
 }
 
+InferenceEngineConfig InferenceEngineConfig::from_yaml(const YAML::Node& node) {
+    InferenceEngineConfig config;
+    
+    if (!node["name"]) {
+        throw std::runtime_error("Inference engine config missing required 'name' field");
+    }
+    config.name = node["name"].as<std::string>();
+    
+    if (node["type"]) {
+        config.type = node["type"].as<std::string>();
+    }
+    if (node["model_path"]) {
+        config.model_path = node["model_path"].as<std::string>();
+    }
+    if (node["auto_load"]) {
+        config.auto_load = node["auto_load"].as<bool>();
+    }
+    if (node["context_size"]) {
+        config.context_size = node["context_size"].as<int>();
+    }
+    if (node["batch_size"]) {
+        config.batch_size = node["batch_size"].as<int>();
+    }
+    if (node["threads"]) {
+        config.threads = node["threads"].as<int>();
+    }
+    if (node["gpu_layers"]) {
+        config.gpu_layers = node["gpu_layers"].as<int>();
+    }
+    
+    if (node["settings"] && node["settings"].IsMap()) {
+        for (const auto& setting : node["settings"]) {
+            config.settings[setting.first.as<std::string>()] = setting.second.as<std::string>();
+        }
+    }
+    
+    return config;
+}
+
 SystemConfig SystemConfig::from_yaml(const YAML::Node& root) {
     if (!root.IsMap()) {
         throw std::runtime_error("Root YAML node must be a map");
@@ -215,6 +254,15 @@ SystemConfig SystemConfig::from_yaml(const YAML::Node& root) {
         }
         for (const auto& func : root["functions"]) {
             config.functions.push_back(FunctionConfig::from_yaml(func));
+        }
+    }
+    
+    if (root["inference_engines"]) {
+        if (!root["inference_engines"].IsSequence()) {
+            throw std::runtime_error("Inference engines configuration must be a sequence");
+        }
+        for (const auto& engine : root["inference_engines"]) {
+            config.inference_engines.push_back(InferenceEngineConfig::from_yaml(engine));
         }
     }
     
