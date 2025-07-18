@@ -10,6 +10,10 @@ The Kolosal Server Agent System provides a comprehensive multi-agent framework t
 - Load balancing and optimization with automatic resource management
 - Real-time monitoring and performance metrics
 - Hot-reloading configuration without system restart
+- **Retrieval-Augmented Generation (RAG)** with vector search capabilities
+- **Document management** with multi-format support (PDF, DOCX, text)
+- **Semantic search** with configurable similarity thresholds
+- **Context enhancement** for improved AI responses
 
 ## Architecture
 
@@ -37,10 +41,11 @@ The system supports 6 predefined agent types with specialized capabilities:
 
 ### Function Types
 
-- **Builtin Functions** - Native server functions (inference, text_processing, data_analysis)
+- **Builtin Functions** - Native server functions (inference, text_processing, data_analysis, retrieval, context_retrieval, add_document, remove_document)
 - **LLM Functions** - AI-powered functions using language models with configurable prompts
 - **External API Functions** - Integration with external services (web_search, etc.)
 - **Custom Functions** - User-defined function implementations
+- **Retrieval Functions** - Vector search and document retrieval for RAG applications
 
 ## API Endpoints
 
@@ -494,6 +499,110 @@ POST /v1/agents/{agent_id}/generate
 POST /v1/agents/{agent_id}/respond
 ```
 
+### Document & Retrieval Management
+
+#### Retrieve Documents
+```http
+POST /retrieve
+```
+
+**Request Body:**
+```json
+{
+  "query": "machine learning algorithms",
+  "k": 5,
+  "score_threshold": 0.6,
+  "collection_name": "documents"
+}
+```
+
+**Response:**
+```json
+{
+  "documents": [
+    {
+      "id": "doc_123",
+      "text": "Machine learning is a subset of artificial intelligence...",
+      "score": 0.85,
+      "metadata": {
+        "source": "ML_Guide.pdf",
+        "page": 1,
+        "category": "introduction"
+      }
+    }
+  ],
+  "query": "machine learning algorithms",
+  "k": 5,
+  "collection_name": "documents",
+  "total_found": 1,
+  "score_threshold": 0.6
+}
+```
+
+#### Add Documents
+```http
+POST /api/v1/documents
+```
+
+**Request Body:**
+```json
+{
+  "documents": [
+    {
+      "text": "Machine learning is a subset of artificial intelligence...",
+      "metadata": {
+        "source": "ML_Guide.pdf",
+        "page": 1,
+        "category": "introduction"
+      }
+    }
+  ],
+  "collection_name": "documents"
+}
+```
+
+#### Remove Documents
+```http
+DELETE /api/v1/documents
+```
+
+**Request Body:**
+```json
+{
+  "document_ids": ["doc_123", "doc_456"],
+  "collection_name": "documents"
+}
+```
+
+#### Parse PDF Document
+```http
+POST /parse-pdf
+```
+
+**Request Body:**
+```json
+{
+  "pdf_data": "base64_encoded_pdf_content",
+  "method": "fast",
+  "auto_index": true,
+  "collection_name": "documents"
+}
+```
+
+#### Parse DOCX Document
+```http
+POST /parse-docx
+```
+
+**Request Body:**
+```json
+{
+  "docx_data": "base64_encoded_docx_content",
+  "auto_index": true,
+  "collection_name": "documents"
+}
+```
+
 ### System Management
 
 #### Get System Status
@@ -849,6 +958,34 @@ functions:
     model_override:
       temperature: 0.3
       max_tokens: 1500
+      
+  - name: "retrieval"
+    type: "builtin"
+    description: "Search and retrieve relevant documents from knowledge base"
+    parameters:
+      query: "Search query for document retrieval"
+      k: "Number of documents to retrieve (default: 5)"
+      score_threshold: "Minimum similarity score (default: 0.0)"
+      collection_name: "Collection name (optional)"
+    timeout_ms: 60000
+    
+  - name: "context_retrieval"
+    type: "builtin"
+    description: "Retrieve and format documents as context for enhanced responses"
+    parameters:
+      query: "Search query for context retrieval"
+      k: "Number of documents to retrieve (default: 3)"
+      context_format: "Format for context (summary or detailed)"
+      collection_name: "Collection name (optional)"
+    timeout_ms: 60000
+    
+  - name: "add_document"
+    type: "builtin"
+    description: "Add documents to the knowledge base"
+    parameters:
+      documents: "Array of documents to add"
+      collection_name: "Collection name (optional)"
+    timeout_ms: 120000
 ```
 
 ## API Versioning
@@ -1043,6 +1180,97 @@ curl http://localhost:8080/api/v1/orchestration/workflows/workflow_123/status
 
 # 5. Get final results
 curl http://localhost:8080/api/v1/orchestration/workflows/workflow_123/result
+```
+
+### RAG-Enhanced Agent Example
+
+```bash
+# 1. Create RAG-capable agent
+curl -X POST http://localhost:8080/api/v1/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "rag_researcher",
+    "type": "research",
+    "capabilities": ["retrieval", "context_retrieval", "text_processing"],
+    "functions": ["inference", "retrieval", "context_retrieval"],
+    "auto_start": true
+  }'
+
+# 2. Add documents to knowledge base
+curl -X POST http://localhost:8080/api/v1/documents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documents": [
+      {
+        "text": "Machine learning is a subset of artificial intelligence that enables computers to learn and improve from experience without being explicitly programmed.",
+        "metadata": {
+          "source": "ML_Guide.pdf",
+          "page": 1,
+          "category": "introduction"
+        }
+      }
+    ]
+  }'
+
+# 3. Parse and index PDF document
+curl -X POST http://localhost:8080/parse-pdf \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf_data": "base64_encoded_pdf_content",
+    "method": "fast",
+    "auto_index": true
+  }'
+
+# 4. Retrieve relevant documents
+curl -X POST http://localhost:8080/retrieve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "what is machine learning",
+    "k": 3,
+    "score_threshold": 0.5
+  }'
+
+# 5. Use agent with retrieval function
+curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "function": "context_retrieval",
+    "parameters": {
+      "query": "machine learning applications",
+      "k": 5,
+      "context_format": "detailed"
+    }
+  }'
+
+# 6. Create RAG workflow
+curl -X POST http://localhost:8080/api/v1/orchestration/workflows \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "RAG Research Pipeline",
+    "description": "Retrieve context and generate research report",
+    "steps": [
+      {
+        "step_id": "retrieve_context",
+        "agent_id": "rag_researcher",
+        "function_name": "context_retrieval",
+        "parameters": {
+          "query": "AI healthcare applications",
+          "k": 10,
+          "context_format": "detailed"
+        }
+      },
+      {
+        "step_id": "generate_report",
+        "agent_id": "rag_researcher",
+        "function_name": "inference",
+        "parameters": {
+          "prompt": "Based on the retrieved context, write a comprehensive research report about AI in healthcare",
+          "context": "{{retrieve_context.result}}"
+        },
+        "dependencies": ["retrieve_context"]
+      }
+    ]
+  }'
 ```
 
 ### OpenAI Compatible Usage Example

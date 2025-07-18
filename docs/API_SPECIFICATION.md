@@ -11,7 +11,7 @@ This document provides comprehensive API specifications for the Kolosal Server, 
 
 ## API Overview
 
-The Kolosal Server provides OpenAI-compatible endpoints, custom engine management, and comprehensive monitoring:
+The Kolosal Server provides OpenAI-compatible endpoints, custom engine management, comprehensive monitoring, and advanced RAG capabilities:
 
 ```mermaid
 graph TD
@@ -19,13 +19,13 @@ graph TD
         A["/v1/chat/completions<br/>POST - Chat interface"]
         B["/v1/completions<br/>POST - Text completion"]
     end
-      subgraph "Engine Management"
+    
+    subgraph "Engine Management"
         C["/engines<br/>GET - List engines"]
         D["/engines<br/>POST - Add engine"]
         E["/engines/{id}<br/>DELETE - Remove engine"]
         F["/engines/{id}/status<br/>GET - Engine status"]
     end
-<<<<<<< HEAD
     
     subgraph "Agent System"
         AA["/api/v1/agents<br/>GET/POST - Agent management"]
@@ -33,15 +33,24 @@ graph TD
         CC["/api/v1/orchestration/workflows<br/>POST - Workflow creation"]
         DD["/api/v1/agents/messages/send<br/>POST - Agent communication"]
         EE["/v1/agents/{id}/chat/completions<br/>POST - OpenAI compatible"]
-=======
-      subgraph "Monitoring & System"
+    end
+    
+    subgraph "Document & RAG"
+        II["/retrieve<br/>POST - Vector search"]
+        JJ["/api/v1/documents<br/>POST - Add documents"]
+        KK["/api/v1/documents<br/>DELETE - Remove documents"]
+        LL["/parse-pdf<br/>POST - Parse PDF documents"]
+        MM["/parse-docx<br/>POST - Parse DOCX documents"]
+    end
+    
+    subgraph "Monitoring & System"
         G["/v1/health<br/>GET - Health check"]
         M1["/metrics<br/>GET - Combined metrics"]
         M2["/v1/metrics<br/>GET - Combined metrics"]
         M3["/metrics/system<br/>GET - System metrics only"]
-        M4["/v1/metrics/system<br/>GET - System metrics only"]        M5["/metrics/completion<br/>GET - Completion metrics"]
+        M4["/v1/metrics/system<br/>GET - System metrics only"]
+        M5["/metrics/completion<br/>GET - Completion metrics"]
         M6["/v1/metrics/completion<br/>GET - Completion metrics"]
->>>>>>> origin/retrieval
     end
     
     subgraph "System"
@@ -549,6 +558,148 @@ GET /v1/health
       "agent_id": "code_assistant",
       "status": "running",
       "type": "development"
+    }
+  ]
+}
+```
+
+### 5. Document & RAG Endpoints
+
+#### Document Retrieval
+
+```http
+POST /retrieve
+```
+
+**Request Body**:
+```json
+{
+  "query": "machine learning algorithms",
+  "k": 5,
+  "score_threshold": 0.6,
+  "collection_name": "documents"
+}
+```
+
+**Response**:
+```json
+{
+  "documents": [
+    {
+      "id": "doc_123",
+      "text": "Machine learning is a subset of artificial intelligence...",
+      "score": 0.85,
+      "metadata": {
+        "source": "ML_Guide.pdf",
+        "page": 1,
+        "category": "introduction"
+      }
+    }
+  ],
+  "query": "machine learning algorithms",
+  "k": 5,
+  "collection_name": "documents",
+  "total_found": 1,
+  "score_threshold": 0.6
+}
+```
+
+#### Add Documents
+
+```http
+POST /api/v1/documents
+```
+
+**Request Body**:
+```json
+{
+  "documents": [
+    {
+      "text": "Machine learning is a subset of artificial intelligence...",
+      "metadata": {
+        "source": "ML_Guide.pdf",
+        "page": 1,
+        "category": "introduction"
+      }
+    }
+  ],
+  "collection_name": "documents"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "collection_name": "documents",
+  "successful_count": 1,
+  "failed_count": 0,
+  "results": [
+    {
+      "id": "doc_123",
+      "success": true,
+      "error": ""
+    }
+  ]
+}
+```
+
+#### Remove Documents
+
+```http
+DELETE /api/v1/documents
+```
+
+**Request Body**:
+```json
+{
+  "document_ids": ["doc_123", "doc_456"],
+  "collection_name": "documents"
+}
+```
+
+#### Parse PDF Document
+
+```http
+POST /parse-pdf
+```
+
+**Request Body**:
+```json
+{
+  "pdf_data": "base64_encoded_pdf_content",
+  "method": "fast",
+  "auto_index": true,
+  "collection_name": "documents"
+}
+```
+
+**Response**:
+```json
+{
+  "success": true,
+  "extracted_text": "Document content...",
+  "page_count": 10,
+  "method_used": "fast",
+  "indexed": true,
+  "collection_name": "documents"
+}
+```
+
+#### Parse DOCX Document
+
+```http
+POST /parse-docx
+```
+
+**Request Body**:
+```json
+{
+  "docx_data": "base64_encoded_docx_content",
+  "auto_index": true,
+  "collection_name": "documents"
+}
+```
     }
   ]
 }
