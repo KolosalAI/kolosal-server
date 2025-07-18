@@ -180,24 +180,29 @@ bool YAMLConfigurableAgentManager::load_configuration(const std::string& yaml_fi
         logger->info("Configuration validation completed: " + std::to_string(valid_agents) + "/" + 
                     std::to_string(system_config.agents.size()) + " agents are valid");
         
-        // Check inference engine health
-        auto engine_statuses = AgentConfigValidator::check_inference_engine_health();
-        int healthy_engines = 0;
-        for (const auto& status : engine_statuses) {
-            if (status.available && status.healthy) {
-                healthy_engines++;
-                logger->info("Inference engine '" + status.name + "': " + status.status_message);
-            } else if (status.available) {
-                logger->warn("Inference engine '" + status.name + "': " + status.status_message);
-            } else {
-                logger->debug("Inference engine '" + status.name + "': " + status.status_message);
+        // Check inference engine health - wrap in try-catch to prevent failures
+        try {
+            auto engine_statuses = AgentConfigValidator::check_inference_engine_health();
+            int healthy_engines = 0;
+            for (const auto& status : engine_statuses) {
+                if (status.available && status.healthy) {
+                    healthy_engines++;
+                    logger->info("Inference engine '" + status.name + "': " + status.status_message);
+                } else if (status.available) {
+                    logger->warn("Inference engine '" + status.name + "': " + status.status_message);
+                } else {
+                    logger->debug("Inference engine '" + status.name + "': " + status.status_message);
+                }
             }
-        }
-        
-        if (healthy_engines == 0) {
-            logger->warn("No healthy inference engines detected - LLM functions may not work properly");
-        } else {
-            logger->info("Found " + std::to_string(healthy_engines) + " healthy inference engine(s)");
+            
+            if (healthy_engines == 0) {
+                logger->warn("No healthy inference engines detected - LLM functions may not work properly");
+            } else {
+                logger->info("Found " + std::to_string(healthy_engines) + " healthy inference engine(s)");
+            }
+        } catch (const std::exception& e) {
+            logger->warn("Failed to check inference engine health: " + std::string(e.what()));
+            logger->warn("Continuing with configuration loading...");
         }
         
         // Register function configurations
@@ -210,9 +215,11 @@ bool YAMLConfigurableAgentManager::load_configuration(const std::string& yaml_fi
         logger->info("Found " + std::to_string(system_config.functions.size()) + " function configurations");
         logger->info("Found " + std::to_string(system_config.inference_engines.size()) + " inference engine configurations");
         
+        logger->info("DEBUG: About to return true from load_configuration");
         return true;
     } catch (const std::exception& e) {
         logger->error("Failed to load configuration: " + std::string(e.what()));
+        logger->error("DEBUG: About to return false from load_configuration due to exception");
         return false;
     }
 }

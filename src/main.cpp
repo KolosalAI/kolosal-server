@@ -316,33 +316,95 @@ int main(int argc, char *argv[])
     std::shared_ptr<kolosal::agents::AgentOrchestrator> agentOrchestrator;
     
     std::string agentsConfigPath = "config/agents.yaml";
-    if (std::filesystem::exists(agentsConfigPath)) {
+    
+    // Temporarily bypass agent system to test server startup
+    bool bypassAgentSystem = true;
+    
+    if (std::filesystem::exists(agentsConfigPath) && !bypassAgentSystem) {
         try {
             ServerLogger::logInfo("Initializing agent system from: %s", agentsConfigPath.c_str());
             
             agentManager = std::make_shared<kolosal::agents::YAMLConfigurableAgentManager>();
+            std::cout << "DEBUG: Agent manager created" << std::endl;
+            std::cout.flush();
+            
             if (agentManager->load_configuration(agentsConfigPath)) {
-                agentManager->start();
+                std::cout << "DEBUG: Agent configuration loaded successfully" << std::endl;
+                std::cout.flush();
+                
+                ServerLogger::logInfo("Agent configuration loaded successfully, starting agent manager...");
+                try {
+                    ServerLogger::logInfo("DEBUG: About to call agentManager->start()");
+                    std::cout << "DEBUG: About to call agentManager->start()" << std::endl;
+                    std::cout.flush();
+                    
+                    agentManager->start();
+                    
+                    std::cout << "DEBUG: agentManager->start() completed successfully" << std::endl;
+                    std::cout.flush();
+                    
+                    ServerLogger::logInfo("DEBUG: agentManager->start() completed successfully");
+                    ServerLogger::logInfo("Agent manager started successfully");
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Exception starting agent manager: %s", e.what());
+                    std::cerr << "Error starting agent manager: " << e.what() << std::endl;
+                    return 1;
+                }
                 
                 // Initialize orchestrator for advanced workflows
-                agentOrchestrator = std::make_shared<kolosal::agents::AgentOrchestrator>(agentManager);
-                agentOrchestrator->start();
+                ServerLogger::logInfo("Initializing agent orchestrator...");
+                std::cout << "DEBUG: Initializing agent orchestrator..." << std::endl;
+                std::cout.flush();
+                
+                try {
+                    agentOrchestrator = std::make_shared<kolosal::agents::AgentOrchestrator>(agentManager);
+                    std::cout << "DEBUG: Agent orchestrator created" << std::endl;
+                    std::cout.flush();
+                    
+                    agentOrchestrator->start();
+                    std::cout << "DEBUG: Agent orchestrator started" << std::endl;
+                    std::cout.flush();
+                    
+                    ServerLogger::logInfo("Agent orchestrator started successfully");
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Exception starting agent orchestrator: %s", e.what());
+                    std::cerr << "Error starting agent orchestrator: " << e.what() << std::endl;
+                    return 1;
+                }
                 
                 // Register agent manager with server for route access
-                server.setAgentManager(agentManager);
-                server.setAgentOrchestrator(agentOrchestrator);
+                ServerLogger::logInfo("Registering agent manager with server...");
+                try {
+                    server.setAgentManager(agentManager);
+                    server.setAgentOrchestrator(agentOrchestrator);
+                    ServerLogger::logInfo("Agent manager registered with server");
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Exception registering agent manager with server: %s", e.what());
+                    std::cerr << "Error registering agent manager with server: " << e.what() << std::endl;
+                    return 1;
+                }
                 
                 ServerLogger::logInfo("Agent system initialized successfully");
             } else {
                 ServerLogger::logError("Failed to load agent configuration - agent system disabled");
+                std::cerr << "Warning: Failed to load agent configuration - continuing without agent system" << std::endl;
+                // Continue without agent system instead of exiting
             }
         } catch (const std::exception& e) {
             ServerLogger::logError("Failed to initialize agent system: %s", e.what());
             std::cerr << "Warning: Agent system initialization failed: " << e.what() << std::endl;
+            std::cerr << "Continuing without agent system..." << std::endl;
+            // Continue without agent system
         }
     } else {
-        ServerLogger::logInfo("No agent configuration found (%s) - agent system disabled", agentsConfigPath.c_str());
+        ServerLogger::logInfo("Agent system bypassed or configuration not found (%s) - continuing without agent system", agentsConfigPath.c_str());
+        std::cout << "Agent system bypassed - continuing without agent system" << std::endl;
+        std::cout.flush();
     }
+    
+    ServerLogger::logInfo("Agent system initialization complete, proceeding with server setup...");
+    std::cout << "Agent system initialization complete, proceeding with server setup..." << std::endl;
+    std::cout.flush();
 
     // Determine the actual host to bind to based on public access setting
     std::string bindHost = config.host;
@@ -360,11 +422,20 @@ int main(int argc, char *argv[])
         std::cout << "Server will only be accessible from this machine" << std::endl;
     }
 
+    ServerLogger::logInfo("Attempting to initialize server on %s:%s", bindHost.c_str(), config.port.c_str());
+    std::cout << "Attempting to initialize server on " << bindHost << ":" << config.port << std::endl;
+    std::cout.flush();
+    
     if (!server.init(config.port, bindHost, config.idleTimeout, config))
     {
         std::cerr << "Failed to initialize server on " << bindHost << ":" << config.port << std::endl;
+        ServerLogger::logError("Server initialization failed on %s:%s", bindHost.c_str(), config.port.c_str());
         return 1;
-    } // Configure authentication if enabled
+    }
+    
+    ServerLogger::logInfo("Server initialized successfully on %s:%s", bindHost.c_str(), config.port.c_str());
+    std::cout << "Server initialized successfully on " << bindHost << ":" << config.port << std::endl;
+    std::cout.flush(); // Configure authentication if enabled
     if (config.auth.enableAuth)
     {
         try
@@ -507,6 +578,9 @@ int main(int argc, char *argv[])
     }
     std::cout << "\nServer started successfully!" << std::endl;
 
+    // Give the server thread a moment to fully start
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
     // Display appropriate server URLs based on configuration
     if (config.allowPublicAccess && (bindHost == "0.0.0.0" || bindHost == "::"))
     {
@@ -644,6 +718,10 @@ int main(int argc, char *argv[])
         std::cout << "  GET  /v1/completion-metrics  - Completion performance metrics" << std::endl;
     }
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
+    std::cout.flush();
+    
+    // Log that we're entering the main loop
+    ServerLogger::logInfo("Entering main server loop");
 
     // Main server loop
     while (keep_running)
@@ -652,6 +730,7 @@ int main(int argc, char *argv[])
     }
 
     std::cout << "Shutting down server..." << std::endl;
+    ServerLogger::logInfo("Received shutdown signal, stopping server...");
     
     // Shutdown agent system first
     if (agentOrchestrator) {
