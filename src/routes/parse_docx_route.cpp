@@ -139,7 +139,8 @@ namespace kolosal
     }
 
     void ParseDOCXRoute::handle(SocketType sock, const std::string &body)
-    {        try
+    {
+        try
         {
             ServerLogger::logInfo("[Thread %u] Received DOCX parse request", std::this_thread::get_id());
 

@@ -15,6 +15,10 @@
 #include "kolosal/routes/agent_monitoring_route.hpp"
 
 #include "kolosal/routes/downloads_route.hpp"
+#include "kolosal/routes/parse_pdf_route.hpp"
+#include "kolosal/routes/parse_docx_route.hpp"
+#include "kolosal/routes/embedding_route.hpp"
+#include "kolosal/routes/retrieve_route.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -114,6 +118,10 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
             pImpl->server->addRoute(std::make_unique<ServerLogsRoute>());
             pImpl->server->addRoute(std::make_unique<DownloadsRoute>());
+            pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
+            pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());
+            pImpl->server->addRoute(std::make_unique<EmbeddingRoute>());
+            pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
 
             ServerLogger::logInfo("Routes registered successfully");
 

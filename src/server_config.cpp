@@ -15,7 +15,7 @@ namespace kolosal
         // Automatically detect and load configuration files
         // Check for config files in this order: 
         // 1. System-wide installation (/etc/kolosal/config.yaml) - preferred for installed versions
-        // 2. Local working directory (config.yaml, config.json) - for development
+        // 2. Local config directory (config/config.yaml, config/config.json) - for development
         // 3. User home directory (~/.kolosal/config.yaml)
         bool configLoaded = false;
         
@@ -29,25 +29,25 @@ namespace kolosal
             }
         }
         
-        // If no system config found, try config.yaml in working directory (development)
+        // If no system config found, try config.yaml in config directory (development)
         if (!configLoaded) {
-            std::ifstream yamlFile("config.yaml");
+            std::ifstream yamlFile("config/config.yaml");
             if (yamlFile.good()) {
                 yamlFile.close();
-                if (loadFromFile("config.yaml")) {
-                    std::cout << "Loaded configuration from config.yaml" << std::endl;
+                if (loadFromFile("config/config.yaml")) {
+                    std::cout << "Loaded configuration from config/config.yaml" << std::endl;
                     configLoaded = true;
                 }
             }
         }
         
-        // If config.yaml not found, try config.json in working directory
+        // If config.yaml not found, try config.json in config directory
         if (!configLoaded) {
-            std::ifstream jsonFile("config.json");
+            std::ifstream jsonFile("config/config.json");
             if (jsonFile.good()) {
                 jsonFile.close();
-                if (loadFromFile("config.json")) {
-                    std::cout << "Loaded configuration from config.json" << std::endl;
+                if (loadFromFile("config/config.json")) {
+                    std::cout << "Loaded configuration from config/config.json" << std::endl;
                     configLoaded = true;
                 }
             }
