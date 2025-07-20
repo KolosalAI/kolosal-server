@@ -67,8 +67,8 @@ models:
       cont_batching: true
       warmup: false
       n_gpu_layers: 0
-      n_batch: 512
-      n_ubatch: 256
+      n_batch: 2048
+      n_ubatch: 512
   - id: qwen3-0.6b
     path: ./models/Qwen3-0.6B-UD-Q4_K_XL.gguf
     type: llm
@@ -90,7 +90,7 @@ inference_engines:
   - name: llama-cpu
     library_path: ./build/Release/llama-cpu.dll
     version: 1.0.0
-    description: CPU-based LLaMA inference engine
+    description: CPU-based LLaMA inference engine with vision support
     load_on_startup: true
 default_inference_engine: llama-cpu
 features:

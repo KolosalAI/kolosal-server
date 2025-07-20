@@ -35,8 +35,8 @@ models:
       cont_batching: true
       warmup: false
       n_gpu_layers: 0  # Use CPU for testing
-      n_batch: 512
-      n_ubatch: 256
+      n_batch: 2048    # Increased from 512 for better performance
+      n_ubatch: 512    # Increased from 256 for better performance
 
   # Regular text-only model for comparison
   - id: "qwen3-0.6b"
@@ -57,3 +57,28 @@ models:
       n_gpu_layers: 0
       n_batch: 512
       n_ubatch: 256
+
+inference_engines:
+  - name: llama-cpu
+    library_path: ./build/Release/llama-cpu.dll
+    version: 1.0.0
+    description: CPU-based LLaMA inference engine with vision support
+    load_on_startup: true
+
+default_inference_engine: llama-cpu
+
+features:
+  health_check: true
+  metrics: false
+
+search:
+  enabled: false
+  searxng_url: http://localhost:4000
+  timeout: 30
+  max_results: 20
+  default_engine: ""
+  api_key: ""
+  enable_safe_search: true
+  default_format: json
+  default_language: en
+  default_category: general

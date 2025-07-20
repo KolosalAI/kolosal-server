@@ -59,3 +59,8 @@ bool ChatCompletionParameters::isValid() const {
     
     return true;
 }
+
+// Implementation of EmbeddingParameters::isValid()
+bool EmbeddingParameters::isValid() const {
+    return !input.empty();
+}

@@ -28,7 +28,13 @@
 #include <string>
 #include <vector>
 #include <variant>
+#include <memory>
 #include "../../include/kolosal/models/chat_message_model.hpp"
+
+// Forward declarations for multimodal types
+struct mtmd_context;
+struct mtmd_bitmap;
+struct mtmd_input_chunk;
 
 // =============================================================================
 // API Export/Import Macros
@@ -85,6 +91,20 @@ struct EmbeddingResult {
 };
 
 /**
+ * @brief Multimodal data container for vision/image processing.
+ */
+struct MultimodalData {
+    mtmd_context* mtmd_ctx = nullptr;           // Multimodal context
+    std::vector<mtmd_bitmap> bitmaps;           // Image bitmaps
+    std::vector<mtmd_input_chunk> chunks;       // Tokenized multimodal chunks
+    
+    /**
+     * @brief Destructor to clean up resources
+     */
+    ~MultimodalData();
+};
+
+/**
  * @brief Parameters for a completion job.
  */
 struct CompletionParameters {
@@ -104,6 +124,9 @@ struct CompletionParameters {
     // Cache and session management
     std::string kvCacheFilePath = "";
     int         seqId           = -1;
+    
+    // Multimodal data (for vision/image processing)
+    std::shared_ptr<MultimodalData> multimodal_data;
 
     bool isValid() const;
 };

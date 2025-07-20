@@ -79,6 +79,18 @@ if(NOT EXISTS "${LLAMA_CPP_PATH}/CMakeLists.txt")
     message(FATAL_ERROR "llama.cpp not found at ${LLAMA_CPP_PATH}. Please clone it or adjust LLAMA_CPP_PATH.")
 endif()
 
+# Build mtmd library for vision support
+add_library(mtmd OBJECT
+    ${LLAMA_CPP_PATH}/examples/llava/mtmd.cpp
+    ${LLAMA_CPP_PATH}/examples/llava/clip.cpp
+)
+
+target_link_libraries(mtmd PRIVATE ggml llama)
+target_include_directories(mtmd PUBLIC ${LLAMA_CPP_PATH}/examples/llava)
+target_include_directories(mtmd PRIVATE ${LLAMA_CPP_PATH})
+target_include_directories(mtmd PRIVATE ${LLAMA_CPP_PATH}/common)
+target_compile_features(mtmd PRIVATE cxx_std_17)
+
 # Find CURL
 if(WIN32)
     # On Windows, use bundled CURL
@@ -210,7 +222,7 @@ if(CMAKE_POSITION_INDEPENDENT_CODE)
 endif()
 
 # Link llama.cpp libraries
-set(LLAMA_LINK_LIBRARIES llama common ggml toolcall)
+set(LLAMA_LINK_LIBRARIES llama common ggml toolcall mtmd)
 target_link_libraries(${TARGET_NAME} PRIVATE ${LLAMA_LINK_LIBRARIES})
 
 # Link CURL libraries and include directories
@@ -247,6 +259,7 @@ target_include_directories(${TARGET_NAME} PUBLIC
     ${LLAMA_CPP_PATH}/include
     ${LLAMA_CPP_PATH}/common
     ${LLAMA_CPP_PATH}/ggml/include
+    ${LLAMA_CPP_PATH}/examples/llava
 )
 
 # Find and link thread library

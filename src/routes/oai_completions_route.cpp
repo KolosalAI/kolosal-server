@@ -40,23 +40,30 @@ namespace kolosal
             params.messages.clear();
             for (const auto &msg : request.messages)
             {
+                std::cout << "[OAI_ROUTE] Processing message with role: " << msg.role << std::endl;
+                
                 // Handle different content types
                 if (std::holds_alternative<std::string>(msg.content))
                 {
                     // Traditional string content
+                    std::cout << "[OAI_ROUTE] Message has string content" << std::endl;
                     params.messages.emplace_back(msg.role, std::get<std::string>(msg.content));
                 }
                 else
                 {
                     // Multimodal content
+                    std::cout << "[OAI_ROUTE] Message has multimodal content" << std::endl;
                     const auto& items = std::get<std::vector<ContentItem>>(msg.content);
                     std::vector<ContentItem> engineItems;
+                    
+                    std::cout << "[OAI_ROUTE] Processing " << items.size() << " content items" << std::endl;
                     
                     for (const auto& item : items)
                     {
                         if (std::holds_alternative<TextContent>(item))
                         {
                             const auto& textContent = std::get<TextContent>(item);
+                            std::cout << "[OAI_ROUTE] Found text content: " << textContent.text.substr(0, 50) << "..." << std::endl;
                             TextContent engineItem;
                             engineItem.type = textContent.type;
                             engineItem.text = textContent.text;
@@ -65,6 +72,7 @@ namespace kolosal
                         else if (std::holds_alternative<ImageContent>(item))
                         {
                             const auto& imageContent = std::get<ImageContent>(item);
+                            std::cout << "[OAI_ROUTE] Found image content with URL length: " << imageContent.image_url.url.length() << std::endl;
                             ImageContent engineItem;
                             engineItem.type = imageContent.type;
                             engineItem.image_url.url = imageContent.image_url.url;
@@ -74,7 +82,13 @@ namespace kolosal
                     }
                     
                     params.messages.emplace_back(msg.role, engineItems);
+                    std::cout << "[OAI_ROUTE] Created message with " << engineItems.size() << " items" << std::endl;
                 }
+            }
+
+            std::cout << "[OAI_ROUTE] Final params has " << params.messages.size() << " messages" << std::endl;
+            for (size_t i = 0; i < params.messages.size(); ++i) {
+                std::cout << "[OAI_ROUTE] Message " << i << " hasImages: " << (params.messages[i].hasImages() ? "true" : "false") << std::endl;
             }
 
             // Set generation parameters

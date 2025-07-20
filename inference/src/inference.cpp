@@ -18,11 +18,22 @@
 
 #include "llama.h"
 #include "common.h"
+#include "mtmd.h"
 #include "sampling.h"
 #include "inference.h"
 #include "chat.h"
 #include "json.hpp"
 #include "toolcall-client.h"
+
+// Implementation of MultimodalData destructor in inference library
+MultimodalData::~MultimodalData() {
+    // Bitmap resources are automatically cleaned up by std::vector destructors
+    // The mtmd_bitmap struct uses std::vector<unsigned char> for data storage
+    bitmaps.clear();
+    
+    // Note: mtmd_ctx is managed externally, so we don't free it here
+    // It's shared across multiple inference sessions
+}
 
 class ThreadPool
 {
@@ -275,6 +286,49 @@ namespace
 		(void)user_data;
 	}
 
+	// Base64 decoding utility for image data
+	static std::vector<unsigned char> base64_decode(const std::string &encoded_string)
+	{
+		const std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+		std::vector<unsigned char> decoded;
+		int val = 0, valb = -8;
+		for (unsigned char c : encoded_string)
+		{
+			if (std::isalnum(c) || c == '+' || c == '/')
+			{
+				val = (val << 6) + chars.find(c);
+				valb += 6;
+				if (valb >= 0)
+				{
+					decoded.push_back(char((val >> valb) & 0xFF));
+					valb -= 8;
+				}
+			}
+		}
+		return decoded;
+	}
+
+	// Extract base64 data from data URL (e.g., "data:image/png;base64,iVBORw0KGgoAAAA...")
+	static std::vector<unsigned char> extract_image_data_from_url(const std::string &image_url)
+	{
+		const std::string prefix = "data:image/";
+		const std::string base64_marker = ";base64,";
+		
+		if (image_url.substr(0, prefix.length()) != prefix)
+		{
+			throw std::runtime_error("Invalid image URL format - must start with 'data:image/'");
+		}
+		
+		size_t base64_pos = image_url.find(base64_marker);
+		if (base64_pos == std::string::npos)
+		{
+			throw std::runtime_error("Invalid image URL format - missing ';base64,' marker");
+		}
+		
+		std::string base64_data = image_url.substr(base64_pos + base64_marker.length());
+		return base64_decode(base64_data);
+	}
+
 	class Tokenizer
 	{
 	public:
@@ -397,15 +451,37 @@ namespace
 	{
 	public:
 		LlamaInferenceService(std::shared_ptr<Tokenizer> tokenizer, llama_model *model, llama_context *context,
-							  common_params params, ggml_threadpool *threadpool)
+							  common_params params, ggml_threadpool *threadpool, bool vision_support = false, const char *mmproj_path = nullptr)
 			: tokenizer(std::move(tokenizer)), model(model), context(context), g_params(params), threadpool(threadpool),
-			  n_batch(params.n_batch), n_keep(params.n_keep), n_ctx(llama_n_ctx(context)), tc_client(nullptr)
+			  n_batch(params.n_batch), n_keep(params.n_keep), n_ctx(llama_n_ctx(context)), visionSupport(vision_support), mtmd_ctx(nullptr), tc_client(nullptr)
 		{
 #ifdef DEBUG
 			std::cout << "Initializing batch with size of: " << g_params.n_batch << std::endl;
 #endif
 
 			batch = llama_batch_init(params.n_ctx, 0, 1);
+
+			// Initialize multimodal context if vision support is enabled
+			if (visionSupport && mmproj_path && strlen(mmproj_path) > 0)
+			{
+				mtmd_context_params mtmd_params = {};
+				mtmd_params.use_gpu = (params.n_gpu_layers > 0);
+				mtmd_params.n_threads = params.cpuparams.n_threads;
+				mtmd_params.verbosity = GGML_LOG_LEVEL_ERROR; // Keep it quiet in production
+				
+				mtmd_ctx = mtmd_init_from_file(mmproj_path, model, mtmd_params);
+				if (!mtmd_ctx)
+				{
+					std::cerr << "[INFERENCE] [WARNING] Failed to initialize multimodal context from: " << mmproj_path << std::endl;
+					std::cerr << "[INFERENCE] [WARNING] Vision support will be disabled for this session." << std::endl;
+				}
+				else
+				{
+#ifdef DEBUG
+					std::cout << "[INFERENCE] Successfully initialized multimodal context with projection model: " << mmproj_path << std::endl;
+#endif
+				}
+			}
 
 			inferenceThread = std::thread(&LlamaInferenceService::start, this);
 		}
@@ -445,6 +521,13 @@ namespace
 			llama_free(context);
 			llama_free_model(model);
 			llama_batch_free(batch);
+
+			// Free multimodal context if it was initialized
+			if (mtmd_ctx)
+			{
+				mtmd_free(mtmd_ctx);
+				mtmd_ctx = nullptr;
+			}
 
 			ggml_threadpool_free(threadpool);
 		}
@@ -619,11 +702,107 @@ namespace
 						job->i_prompt = static_cast<int>(job->n_matching_session_tokens);
 						job->n_prompt = job->embd_inp.size();
 
+						// Handle multimodal processing if we have chunks
+						if (job->params.multimodal_data && !job->params.multimodal_data->chunks.empty())
+						{
+							std::cout << "[INFERENCE] [MULTIMODAL] Processing multimodal request with " 
+								<< job->params.multimodal_data->chunks.size() << " chunks" << std::endl;
+							
+							// Use mtmd_helper_eval to process the entire multimodal sequence
+							auto& chunks = job->params.multimodal_data->chunks;
+							mtmd_context* mtmd_ctx = job->params.multimodal_data->mtmd_ctx;
+							
+							if (mtmd_ctx)
+							{
+								std::cout << "[INFERENCE] [MULTIMODAL] Using mtmd_helper_eval for vision processing" << std::endl;
+								
+								int result = mtmd_helper_eval(
+									mtmd_ctx,
+									context,
+									chunks,
+									static_cast<llama_pos>(job->n_past),
+									static_cast<llama_seq_id>(job->seqId),
+									g_params.n_batch
+								);
+								
+								if (result == 0)
+								{
+									// Successfully processed multimodal content
+									size_t total_tokens = mtmd_helper_get_n_tokens(chunks);
+									job->n_past += static_cast<int>(total_tokens);
+									job->i_prompt = job->n_prompt;
+									job->isDecodingPrompt = false;
+									
+									std::cout << "[INFERENCE] [MULTIMODAL] Successfully processed " << total_tokens << " tokens" << std::endl;
+									
+									// Update session tokens
+									for (const auto& chunk : chunks)
+									{
+										if (chunk.type == MTMD_INPUT_CHUNK_TYPE_TEXT)
+										{
+											job->session_tokens.insert(job->session_tokens.end(),
+												chunk.tokens_text.begin(), chunk.tokens_text.end());
+										}
+									}
+									
+									// Mark job as ready for generation phase
+									job->isDecodingPrompt = false;
+									job->n_prompt = static_cast<int>(total_tokens);  // Set prompt size correctly
+									job->i_prompt = job->n_prompt;  // Mark all prompt tokens as processed
+									job->batch_pos = batch.n_tokens - 1;  // Set correct batch position for sampling
+									std::cout << "[INFERENCE] [MULTIMODAL] Transitioning to text generation phase" << std::endl;
+									std::cout << "[INFERENCE] [MULTIMODAL] Job state: i_prompt=" << job->i_prompt 
+										<< ", n_prompt=" << job->n_prompt << ", isDecodingPrompt=" << job->isDecodingPrompt 
+										<< ", embd_inp.size()=" << job->embd_inp.size() << ", batch_pos=" << job->batch_pos << std::endl;
+									continue;
+								}
+								else
+								{
+									std::cerr << "[INFERENCE] [MULTIMODAL] mtmd_helper_eval failed with code: " << result << std::endl;
+									std::lock_guard<std::mutex> jobLock(job->mtx);
+									job->hasError = true;
+									job->errorMessage = "Multimodal processing failed";
+									job->isFinished = true;
+									job->cv.notify_all();
+									continue;
+								}
+							}
+							else
+							{
+								std::cerr << "[INFERENCE] [MULTIMODAL] mtmd_ctx is null - cannot process images" << std::endl;
+							}
+						}
+						else
+						{
+							if (job->params.multimodal_data)
+							{
+								std::cout << "[INFERENCE] [MULTIMODAL] multimodal_data exists but chunks are empty (size: " 
+									<< job->params.multimodal_data->chunks.size() << ")" << std::endl;
+							}
+							else
+							{
+								std::cout << "[INFERENCE] [TEXT] Processing text-only request" << std::endl;
+							}
+						}
+
+						std::cout << "[INFERENCE] [DEBUG] Regular token processing section reached" << std::endl;
+						std::cout << "[INFERENCE] [DEBUG] Job state: i_prompt=" << job->i_prompt 
+							<< ", n_prompt=" << job->n_prompt << ", isDecodingPrompt=" << job->isDecodingPrompt 
+							<< ", embd_inp.size()=" << job->embd_inp.size() << std::endl;
+
 						int remaining_prompt_tokens = job->n_prompt - job->i_prompt;
 						int available_batch_space = g_params.n_batch - batch.n_tokens;
 
 						if (available_batch_space <= 0)
 						{
+							break;
+						}
+
+						// Safety check: if embd_inp is empty (e.g., after multimodal processing), skip regular token processing
+						if (job->embd_inp.empty() || job->i_prompt >= static_cast<int>(job->embd_inp.size()))
+						{
+							std::cout << "[INFERENCE] [SAFETY] Skipping token processing - embd_inp empty or i_prompt out of bounds" << std::endl;
+							job->isDecodingPrompt = false;
 							break;
 						}
 
@@ -807,12 +986,85 @@ namespace
 
 		CompletionParameters formatChat(const ChatCompletionParameters &params) override
 		{
+			std::cout << "[INFERENCE] [FORMATCHA] formatChat called" << std::endl;
+			
 			if (!params.isValid())
 			{
 				throw std::runtime_error("[INFERENCE] [CHATCOMPLETE] [ERROR] Invalid chat completion parameters\n");
 			}
 
-			// Format the chat messages into a single prompt
+			// Check if any messages contain images
+			bool hasImages = false;
+			for (const auto &msg : params.messages)
+			{
+				std::cout << "[INFERENCE] [FORMATCHA] Checking message for images..." << std::endl;
+				std::cout << "[INFERENCE] [FORMATCHA] Message content type: " << 
+					(std::holds_alternative<std::string>(msg.content) ? "string" : "vector") << std::endl;
+				
+				if (std::holds_alternative<std::vector<ContentItem>>(msg.content)) {
+					const auto& items = std::get<std::vector<ContentItem>>(msg.content);
+					std::cout << "[INFERENCE] [FORMATCHA] Message has " << items.size() << " content items" << std::endl;
+					
+					for (size_t i = 0; i < items.size(); ++i) {
+						bool isText = std::holds_alternative<TextContent>(items[i]);
+						bool isImage = std::holds_alternative<ImageContent>(items[i]);
+						std::cout << "[INFERENCE] [FORMATCHA] Item " << i << ": isText=" << isText << ", isImage=" << isImage << std::endl;
+						
+						if (isImage) {
+							hasImages = true;
+							std::cout << "[INFERENCE] [FORMATCHA] Found image!" << std::endl;
+						}
+					}
+				}
+				
+				bool msgHasImages = msg.hasImages();
+				std::cout << "[INFERENCE] [FORMATCHA] msg.hasImages() returned: " << msgHasImages << std::endl;
+				
+				if (msgHasImages)
+				{
+					hasImages = true;
+					break;
+				}
+			}
+
+			std::cout << "[INFERENCE] [FORMATCHA] hasImages: " << (hasImages ? "true" : "false") << std::endl;
+			std::cout << "[INFERENCE] [FORMATCHA] visionSupport: " << (visionSupport ? "true" : "false") << std::endl;
+			std::cout << "[INFERENCE] [FORMATCHA] mtmd_ctx: " << (mtmd_ctx ? "not null" : "null") << std::endl;
+
+			// If images are present but vision support is not enabled, provide clear error
+			if (hasImages && !visionSupport)
+			{
+				throw std::runtime_error("[INFERENCE] [CHATCOMPLETE] [ERROR] Images detected in messages but this model was not loaded with vision support. Please ensure:\n"
+					"1. The model supports vision (e.g., LLaVA, Qwen2-VL, etc.)\n"
+					"2. The mm_proj_path is configured in your model configuration\n"
+					"3. The vision projection model file exists\n"
+					"Current model was loaded without multimodal projection support.");
+			}
+
+			// If images are present and vision support is enabled, check if mtmd context is available
+			if (hasImages && visionSupport)
+			{
+				if (!mtmd_ctx)
+				{
+					throw std::runtime_error("[INFERENCE] [CHATCOMPLETE] [ERROR] Vision model configured but multimodal context failed to initialize.\n"
+						"Please check that the mm_proj_path points to a valid projection model file.\n"
+						"Cannot process images without a properly initialized multimodal context.");
+				}
+
+				std::cout << "[INFERENCE] [FORMATCHA] Taking vision path" << std::endl;
+				// Process multimodal messages with full vision support
+				return formatChatWithVision(params);
+			}
+
+			std::cout << "[INFERENCE] [FORMATCHA] Taking text-only path" << std::endl;
+			// Handle text-only messages (no images)
+			return formatChatTextOnly(params);
+		}
+
+		// Helper function for text-only chat formatting
+		CompletionParameters formatChatTextOnly(const ChatCompletionParameters &params)
+		{
+			// Format the chat messages into a single prompt (text-only)
 			std::vector<common_chat_msg> messages;
 			for (const auto &msg : params.messages)
 			{
@@ -862,6 +1114,161 @@ namespace
 			return completionParams;
 		}
 
+		// Helper function for multimodal chat formatting with vision support
+		CompletionParameters formatChatWithVision(const ChatCompletionParameters &params)
+		{
+			std::cout << "[INFERENCE] [VISION] formatChatWithVision called" << std::endl;
+			
+			// Build a formatted chat prompt that includes image markers
+			std::vector<common_chat_msg> messages;
+			std::vector<mtmd_bitmap> bitmaps;
+			
+			for (const auto &msg : params.messages)
+			{
+				std::string text_content = msg.getTextContent();
+				
+				// If this message has images, add image markers and collect image data
+				if (msg.hasImages())
+				{
+					std::cout << "[INFERENCE] [VISION] Message has images" << std::endl;
+					
+					if (std::holds_alternative<std::vector<ContentItem>>(msg.content))
+					{
+						const auto& items = std::get<std::vector<ContentItem>>(msg.content);
+						std::cout << "[INFERENCE] [VISION] Processing " << items.size() << " content items" << std::endl;
+						
+						for (const auto& item : items)
+						{
+							if (std::holds_alternative<ImageContent>(item))
+							{
+								const auto& image_content = std::get<ImageContent>(item);
+								std::cout << "[INFERENCE] [VISION] Found image content" << std::endl;
+								
+								// Add image marker to text
+								text_content += " <__image__>";
+								
+								// Process the image data
+								try
+								{
+									std::vector<unsigned char> image_data = extract_image_data_from_url(image_content.image_url.url);
+									std::cout << "[INFERENCE] [VISION] Extracted image data: " << image_data.size() << " bytes" << std::endl;
+									
+									mtmd_bitmap bitmap;
+									if (mtmd_helper_bitmap_init_from_buf(image_data.data(), image_data.size(), bitmap) != 0)
+									{
+										throw std::runtime_error("Failed to decode image data");
+									}
+									
+									std::cout << "[INFERENCE] [VISION] Created bitmap successfully" << std::endl;
+									bitmaps.push_back(std::move(bitmap));
+								}
+								catch (const std::exception &e)
+								{
+									std::cerr << "[INFERENCE] [VISION] [ERROR] Failed to process image: " << e.what() << std::endl;
+									throw std::runtime_error(std::string("[INFERENCE] [CHATCOMPLETE] [ERROR] Failed to process image: ") + e.what());
+								}
+							}
+						}
+					}
+				}
+				
+				messages.push_back(common_chat_msg{msg.role, text_content});
+			}
+
+			std::cout << "[INFERENCE] [VISION] Total bitmaps created: " << bitmaps.size() << std::endl;
+
+			// Apply chat template to get formatted prompt
+			std::string formatted;
+			if (!params.tools.empty())
+			{
+				if (!tc_client || (tc_client && params.tools.compare(tc_client->tool_list()) != 0))
+				{
+					toolcall::params tc_params(params.tools, params.toolChoice);
+					tc_client = toolcall::create_client(tc_params);
+					if (!tc_client)
+					{
+						throw std::runtime_error("[INFERENCE] [CHATCOMPLETE] [ERROR] Failed to create tool call client\n");
+					}
+					tc_client->initialize();
+				}
+				formatted = tokenizer->applyTemplate(messages, tc_client);
+			}
+			else
+			{
+				formatted = tokenizer->applyTemplate(messages);
+			}
+
+			// Tokenize the text with multimodal embeddings using the correct API
+			std::vector<mtmd_input_chunk> chunks;
+			try 
+			{
+				if (!bitmaps.empty()) 
+				{
+					std::cout << "[INFERENCE] [VISION] Tokenizing with " << bitmaps.size() << " images" << std::endl;
+					
+					// Create mtmd_input_text structure
+					mtmd_input_text input_text;
+					input_text.text = formatted;
+					input_text.add_special = true;
+					input_text.parse_special = true;
+					
+					// Use multimodal tokenization for text with images
+					int result = mtmd_tokenize(mtmd_ctx, chunks, input_text, bitmaps);
+					if (result != 0) {
+						// Bitmap resources are automatically cleaned up by std::vector destructors
+						std::cerr << "[INFERENCE] [VISION] [ERROR] mtmd_tokenize failed with code: " << result << std::endl;
+						throw std::runtime_error("Failed to tokenize multimodal content. Error code: " + std::to_string(result));
+					}
+					
+					std::cout << "[INFERENCE] [VISION] Created " << chunks.size() << " multimodal chunks" << std::endl;
+				} 
+				else 
+				{
+					std::cout << "[INFERENCE] [VISION] No images found, using regular tokenization" << std::endl;
+					
+					// Fallback to regular tokenization if no images
+					std::vector<llama_token> tokens = common_tokenize(context, formatted, true, false);
+					
+					// Create a single text chunk
+					mtmd_input_chunk text_chunk;
+					text_chunk.type = MTMD_INPUT_CHUNK_TYPE_TEXT;
+					text_chunk.tokens_text = std::move(tokens);
+					chunks.push_back(std::move(text_chunk));
+				}
+			} 
+			catch (const std::exception& e) 
+			{
+				// Bitmap resources are automatically cleaned up by std::vector destructors
+				std::cerr << "[INFERENCE] [VISION] [ERROR] Failed to tokenize multimodal content: " << e.what() << std::endl;
+				throw std::runtime_error(std::string("[INFERENCE] [CHATCOMPLETE] [ERROR] Failed to tokenize multimodal content: ") + e.what());
+			}
+
+			// Create completion parameters with the tokenized content
+			CompletionParameters completionParams{
+				formatted.c_str(),
+				params.randomSeed,
+				params.maxNewTokens,
+				params.minLength,
+				params.temperature,
+				params.topP,
+				params.streaming,
+				params.kvCacheFilePath,
+				params.seqId
+			};
+
+			// Store multimodal context and data in the completion params for use during inference
+			// Note: The bitmaps will be managed by the inference engine and freed after use
+			completionParams.multimodal_data = std::make_shared<MultimodalData>();
+			completionParams.multimodal_data->mtmd_ctx = mtmd_ctx;
+			completionParams.multimodal_data->bitmaps = std::move(bitmaps);
+			completionParams.multimodal_data->chunks = std::move(chunks);
+
+			std::cout << "[INFERENCE] [VISION] Created CompletionParameters with " 
+				<< completionParams.multimodal_data->chunks.size() << " chunks" << std::endl;
+
+			return completionParams;
+		}
+
 	private:
 		std::shared_ptr<Tokenizer> tokenizer;
 		struct llama_model *model;
@@ -879,6 +1286,8 @@ namespace
 		const int n_batch;
 		const int n_keep;
 		const int n_ctx;
+		const bool visionSupport; // Whether this model supports vision/multimodal processing
+		mtmd_context *mtmd_ctx; // Multimodal context for vision processing
 		/**
 		 * @brief Generates embeddings for the given input text
 		 * @param input The input text to generate embeddings for
@@ -1160,7 +1569,17 @@ namespace
 		{
 			if (job->session_tokens.empty() || !job->params.prompt.empty())
 			{
-				job->embd_inp = tokenizer->tokenize(job->params.prompt, tokenizer->shouldAddBos());
+				// Check if we have multimodal data (images + text)
+				if (job->params.multimodal_data && !job->params.multimodal_data->chunks.empty())
+				{
+					// For multimodal, leave embd_inp empty - mtmd_helper_eval handles everything
+					job->embd_inp.clear();
+				}
+				else
+				{
+					// Regular text-only tokenization
+					job->embd_inp = tokenizer->tokenize(job->params.prompt, tokenizer->shouldAddBos());
+				}
 			}
 			else
 			{
@@ -1173,6 +1592,12 @@ namespace
 		{
 			if (job->embd_inp.empty())
 			{
+				// For multimodal processing, don't add any tokens - mtmd_helper_eval handles everything
+				if (job->params.multimodal_data && !job->params.multimodal_data->chunks.empty())
+				{
+					return true; // Multimodal processing is OK with empty embd_inp
+				}
+				
 				if (tokenizer->shouldAddBos())
 				{
 					job->embd_inp.push_back(llama_token_bos(tokenizer->getVocab()));
@@ -1251,6 +1676,14 @@ namespace
 
 		bool sampleNextToken(std::shared_ptr<Job> job)
 		{
+			std::cout << "[INFERENCE] [SAMPLE] sampleNextToken called with batch_pos=" << job->batch_pos 
+				<< ", n_past=" << job->n_past << ", smpl=" << (job->smpl ? "valid" : "null") << std::endl;
+			
+			if (!job->smpl) {
+				std::cout << "[INFERENCE] [SAMPLE] ERROR: job->smpl is null!" << std::endl;
+				return false;
+			}
+			
 			llama_token id = common_sampler_sample(job->smpl, context, job->batch_pos);
 			common_sampler_accept(job->smpl, id, false);
 
@@ -2027,7 +2460,7 @@ InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lPara
 		else
 		{
 			// For LLM models, use the regular inference service
-			inferenceService = std::make_unique<LlamaInferenceService>(tokenizer, model, ctx, params, threadpool);
+			inferenceService = std::make_unique<LlamaInferenceService>(tokenizer, model, ctx, params, threadpool, visionSupport, mmProjPath);
 		}
 	}
 	catch (const std::exception &e)
@@ -2078,12 +2511,16 @@ int InferenceEngine::Impl::submitCompletionsJob(const CompletionParameters &para
 
 int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParameters &params)
 {
+	std::cout << "[INFERENCE] [SUBMIT] submitChatCompletionsJob called with " << params.messages.size() << " messages" << std::endl;
+	
 	int jobId = nextJobId++;
 
 	auto job = std::make_shared<Job>();
 	job->jobId = jobId;
 	job->seqId = params.seqId;
 	job->start_time = std::chrono::steady_clock::now(); // Record start time for TTFT calculation
+
+	std::cout << "[INFERENCE] [SUBMIT] Created job with ID " << jobId << std::endl;
 
 #ifdef DEBUG
 	std::cout << "[INFERENCE] Submitting chat completions job to queue" << std::endl;
@@ -2092,14 +2529,22 @@ int InferenceEngine::Impl::submitChatCompletionsJob(const ChatCompletionParamete
 	// Asynchronously execute the job using thread pool
 	try
 	{
+		std::cout << "[INFERENCE] [SUBMIT] About to enqueue job to thread pool" << std::endl;
+		
 		threadPool.enqueue([this, params, job]()
 						   {
 			try {
+				std::cout << "[INFERENCE] [SUBMIT] Thread pool executing job" << std::endl;
+				
 #ifdef DEBUG
 				std::cout << "[INFERENCE] Processing completion task to engine" << std::endl;
 #endif
 
-				this->inferenceService->complete(this->inferenceService->formatChat(params), job);
+				std::cout << "[INFERENCE] [SUBMIT] About to call formatChat" << std::endl;
+				auto completionParams = this->inferenceService->formatChat(params);
+				std::cout << "[INFERENCE] [SUBMIT] formatChat completed, calling complete" << std::endl;
+				
+				this->inferenceService->complete(completionParams, job);
 			}
 			catch (const std::exception& e) {
 				std::lock_guard<std::mutex> lock(job->mtx);
@@ -2448,7 +2893,10 @@ INFERENCE_API int InferenceEngine::submitCompletionsJob(const CompletionParamete
 INFERENCE_API int InferenceEngine::submitChatCompletionsJob(const ChatCompletionParameters &params)
 {
 #ifdef DEBUG
-	std::cout << "[INFERENCE] Submitting chat completions job" << std::endl;
+	std::cout << "[DEBUG] submitChatCompletionsJob called with " << params.messages.size() << " messages" << std::endl;
+	for (size_t i = 0; i < params.messages.size(); ++i) {
+		std::cout << "[DEBUG] Message " << i << " hasImages: " << (params.messages[i].hasImages() ? "true" : "false") << std::endl;
+	}
 #endif
 
 	return pimpl->submitChatCompletionsJob(params);
