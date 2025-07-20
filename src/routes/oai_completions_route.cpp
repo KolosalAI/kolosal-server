@@ -108,6 +108,13 @@ namespace kolosal
                 params.randomSeed = request.seed.value();
             }
 
+            // Set unique sequence ID based on timestamp to ensure proper session isolation
+            // This prevents KV cache pollution between different chat requests
+            auto now = std::chrono::system_clock::now();
+            auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+            static int seqCounter = 0;
+            params.seqId = static_cast<int>(timestamp * 1000 + seqCounter++);
+
             return params;
         }
 

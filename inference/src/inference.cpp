@@ -715,6 +715,19 @@ namespace
 							if (mtmd_ctx)
 							{
 								std::cout << "[INFERENCE] [MULTIMODAL] Using mtmd_helper_eval for vision processing" << std::endl;
+								std::cout << "[INFERENCE] [MULTIMODAL] Processing " << chunks.size() << " chunks with " 
+									<< job->params.multimodal_data->bitmaps.size() << " images" << std::endl;
+								
+								// Debug: Log chunk information before processing
+								for (size_t i = 0; i < chunks.size(); ++i) {
+									const auto& chunk = chunks[i];
+									if (chunk.type == MTMD_INPUT_CHUNK_TYPE_TEXT) {
+										std::cout << "[INFERENCE] [MULTIMODAL] Chunk " << i << ": TEXT with " 
+											<< chunk.tokens_text.size() << " tokens" << std::endl;
+									} else if (chunk.type == MTMD_INPUT_CHUNK_TYPE_IMAGE) {
+										std::cout << "[INFERENCE] [MULTIMODAL] Chunk " << i << ": IMAGE" << std::endl;
+									}
+								}
 								
 								int result = mtmd_helper_eval(
 									mtmd_ctx,
@@ -729,13 +742,66 @@ namespace
 								{
 									// Successfully processed multimodal content
 									size_t total_tokens = mtmd_helper_get_n_tokens(chunks);
+									
+									std::cout << "[INFERENCE] [MULTIMODAL] Successfully processed " << total_tokens << " tokens" << std::endl;
+									std::cout << "[INFERENCE] [MULTIMODAL] Batch state after mtmd_helper_eval: n_tokens=" << batch.n_tokens << std::endl;
+									
+									// Update job state after successful processing
 									job->n_past += static_cast<int>(total_tokens);
 									job->i_prompt = job->n_prompt;
 									job->isDecodingPrompt = false;
 									
-									std::cout << "[INFERENCE] [MULTIMODAL] Successfully processed " << total_tokens << " tokens" << std::endl;
+									std::cout << "[INFERENCE] [MULTIMODAL] Context state - n_past=" << job->n_past << ", seqId=" << job->seqId << std::endl;
 									
-									// Update session tokens
+									// Debug: Check KV cache utilization and token distribution
+									const int n_ctx = llama_n_ctx(context);
+									const int kv_used = llama_get_kv_cache_used_cells(context);
+									std::cout << "[INFERENCE] [MULTIMODAL] KV cache: used=" << kv_used << "/" << n_ctx << " cells" << std::endl;
+									std::cout << "[INFERENCE] [MULTIMODAL] Token breakdown:" << std::endl;
+									
+									int text_tokens = 0, image_tokens = 0;
+									for (const auto& chunk : chunks)
+									{
+										if (chunk.type == MTMD_INPUT_CHUNK_TYPE_TEXT) {
+											text_tokens += chunk.tokens_text.size();
+											std::cout << "[INFERENCE] [MULTIMODAL]   TEXT chunk: " << chunk.tokens_text.size() << " tokens" << std::endl;
+										} else if (chunk.type == MTMD_INPUT_CHUNK_TYPE_IMAGE) {
+											// Image tokens are calculated by mtmd system
+											std::cout << "[INFERENCE] [MULTIMODAL]   IMAGE chunk: tokens handled by mtmd" << std::endl;
+											image_tokens = total_tokens - text_tokens;  // Approximate
+										}
+									}
+									std::cout << "[INFERENCE] [MULTIMODAL] Estimated: " << text_tokens << " text + " << image_tokens << " image = " << total_tokens << " total" << std::endl;
+									
+									// CRITICAL: Check if the context position is correct for generation
+									// The issue might be that mtmd_helper_eval processes tokens but doesn't leave
+									// the context in the right state for immediate sampling
+									
+									// Verify context state by checking if we can get logits
+									float* logits = llama_get_logits_ith(context, -1);
+									if (!logits) {
+										std::cout << "[INFERENCE] [MULTIMODAL] WARNING: No logits immediately available, context may need refresh" << std::endl;
+										
+										// Try to refresh the context by running an empty batch
+										common_batch_clear(batch);
+										// Don't add any tokens, just decode to refresh logits
+										if (llama_decode(context, batch) == 0) {
+											logits = llama_get_logits_ith(context, -1);
+											std::cout << "[INFERENCE] [MULTIMODAL] Context refreshed, logits now " << (logits ? "available" : "still unavailable") << std::endl;
+										}
+									}
+									
+									if (!logits) {
+										std::cerr << "[INFERENCE] [MULTIMODAL] ERROR: Cannot obtain logits from multimodal context" << std::endl;
+										std::lock_guard<std::mutex> jobLock(job->mtx);
+										job->hasError = true;
+										job->errorMessage = "Multimodal context not ready for generation";
+										job->isFinished = true;
+										job->cv.notify_all();
+										continue;
+									}
+									
+									// Update session tokens for text chunks only
 									for (const auto& chunk : chunks)
 									{
 										if (chunk.type == MTMD_INPUT_CHUNK_TYPE_TEXT)
@@ -743,13 +809,26 @@ namespace
 											job->session_tokens.insert(job->session_tokens.end(),
 												chunk.tokens_text.begin(), chunk.tokens_text.end());
 										}
+										else if (chunk.type == MTMD_INPUT_CHUNK_TYPE_IMAGE)
+										{
+											// Image tokens are handled internally by mtmd system
+											std::cout << "[INFERENCE] [MULTIMODAL] Image tokens integrated into KV cache by mtmd" << std::endl;
+										}
 									}
 									
 									// Mark job as ready for generation phase
 									job->isDecodingPrompt = false;
-									job->n_prompt = static_cast<int>(total_tokens);  // Set prompt size correctly
-									job->i_prompt = job->n_prompt;  // Mark all prompt tokens as processed
-									job->batch_pos = batch.n_tokens - 1;  // Set correct batch position for sampling
+									job->n_prompt = static_cast<int>(total_tokens);
+									job->i_prompt = job->n_prompt;
+									
+									// Set batch_pos to -1 for multimodal sampling
+									job->batch_pos = -1;
+									
+									// Clear batch for generation phase
+									common_batch_clear(batch);
+									
+									std::cout << "[INFERENCE] [MULTIMODAL] Context ready for generation with " << total_tokens << " processed tokens" << std::endl;
+									
 									std::cout << "[INFERENCE] [MULTIMODAL] Transitioning to text generation phase" << std::endl;
 									std::cout << "[INFERENCE] [MULTIMODAL] Job state: i_prompt=" << job->i_prompt 
 										<< ", n_prompt=" << job->n_prompt << ", isDecodingPrompt=" << job->isDecodingPrompt 
@@ -1144,8 +1223,8 @@ namespace
 								const auto& image_content = std::get<ImageContent>(item);
 								std::cout << "[INFERENCE] [VISION] Found image content" << std::endl;
 								
-								// Add image marker to text
-								text_content += " <__image__>";
+								// DO NOT add manual image markers - let mtmd_tokenize handle image placement
+								// The chat template and mtmd system will automatically position images correctly
 								
 								// Process the image data
 								try
@@ -1221,6 +1300,17 @@ namespace
 					}
 					
 					std::cout << "[INFERENCE] [VISION] Created " << chunks.size() << " multimodal chunks" << std::endl;
+					
+					// Debug: Log chunk types
+					for (size_t i = 0; i < chunks.size(); ++i) {
+						if (chunks[i].type == MTMD_INPUT_CHUNK_TYPE_TEXT) {
+							std::cout << "[INFERENCE] [VISION] Chunk " << i << ": TEXT (" << chunks[i].tokens_text.size() << " tokens)" << std::endl;
+						} else if (chunks[i].type == MTMD_INPUT_CHUNK_TYPE_IMAGE) {
+							std::cout << "[INFERENCE] [VISION] Chunk " << i << ": IMAGE (" << (chunks[i].tokens_image ? "has image tokens" : "no image tokens") << ")" << std::endl;
+						} else {
+							std::cout << "[INFERENCE] [VISION] Chunk " << i << ": UNKNOWN TYPE " << chunks[i].type << std::endl;
+						}
+					}
 				} 
 				else 
 				{
@@ -1686,6 +1776,10 @@ namespace
 			
 			llama_token id = common_sampler_sample(job->smpl, context, job->batch_pos);
 			common_sampler_accept(job->smpl, id, false);
+			
+			// Debug: show what token was generated
+			const std::string token_str = tokenizer->decode(id);
+			std::cout << "[INFERENCE] [SAMPLE] Generated token: '" << token_str << "' (id=" << id << ")" << std::endl;
 
 			if (llama_vocab_is_eog(tokenizer->getVocab(), id) || id == llama_vocab_eos(tokenizer->getVocab()))
 			{
@@ -1695,7 +1789,6 @@ namespace
 			common_batch_add(batch, id, job->n_past, {job->seqId}, true);
 
 			const auto data = llama_perf_context(context);
-			const std::string token_str = tokenizer->decode(id);
 			{
 				// Record first token timing if this is the first generated token
 				if (job->generatedTokens.empty())

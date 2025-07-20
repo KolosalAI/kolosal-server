@@ -77,6 +77,13 @@ namespace kolosal
             
             if (j.contains("seqId") && j["seqId"].is_number_integer()) {
                 params.seqId = j["seqId"].get<int>();
+            } else {
+                // Set unique sequence ID based on timestamp to ensure proper session isolation
+                // This prevents KV cache pollution between different chat requests
+                auto now = std::chrono::system_clock::now();
+                auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+                static int seqCounter = 0;
+                params.seqId = static_cast<int>(timestamp * 1000 + seqCounter++);
             }
             
             if (j.contains("tools") && j["tools"].is_string()) {
@@ -135,6 +142,13 @@ namespace kolosal
             
             if (j.contains("seqId") && j["seqId"].is_number_integer()) {
                 params.seqId = j["seqId"].get<int>();
+            } else {
+                // Set unique sequence ID based on timestamp to ensure proper session isolation
+                // This prevents KV cache pollution between different completion requests
+                auto now = std::chrono::system_clock::now();
+                auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+                static int seqCounter = 0;
+                params.seqId = static_cast<int>(timestamp * 1000 + seqCounter++);
             }
             
             return params;
