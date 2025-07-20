@@ -17,26 +17,26 @@ auth:
   require_api_key: false
 
 models:
-  # Vision/Multimodal model for testing
+  # Test configuration - use Gemma-specific projection model
   - id: "gemma3-4b-vision"
     type: "llm"
-    path: "./models/google_gemma-3-4b-it_q4_k_m.gguf"
-    vision: true  # Enable vision/multimodal support
-    mm_proj_path: "./models/gemma3-4b-mmproj.gguf"  # Multimodal projection model
+    path: "./models/gemma-3-4b-it-Q4_K_M.gguf"
+    vision: true
+    mm_proj_path: "./models/gemma3-4b-mmproj.gguf"  # Use the correct Gemma 3 projection model
     load_immediately: true
     main_gpu_id: 0
     inference_engine: "llama-cpu"
     load_params:
-      n_ctx: 4096
-      n_keep: 2048
+      n_ctx: 2048  # Reduce context for testing
+      n_keep: 1024
       use_mmap: true
       use_mlock: false
       n_parallel: 1
       cont_batching: true
       warmup: false
-      n_gpu_layers: 0  # Use CPU for testing
-      n_batch: 2048    # Increased from 512 for better performance
-      n_ubatch: 512    # Increased from 256 for better performance
+      n_gpu_layers: 0
+      n_batch: 512   # Reduce batch size
+      n_ubatch: 256
 
   # Regular text-only model for comparison
   - id: "qwen3-0.6b"
