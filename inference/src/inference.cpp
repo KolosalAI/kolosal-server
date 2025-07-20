@@ -1223,8 +1223,8 @@ namespace
 								const auto& image_content = std::get<ImageContent>(item);
 								std::cout << "[INFERENCE] [VISION] Found image content" << std::endl;
 								
-								// DO NOT add manual image markers - let mtmd_tokenize handle image placement
-								// The chat template and mtmd system will automatically position images correctly
+								// Add image marker - this is required for mtmd to process images correctly
+								text_content += " <__image__>";
 								
 								// Process the image data
 								try
