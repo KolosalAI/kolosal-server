@@ -1,5 +1,5 @@
 server:
-  port: 8080
+  port: 8084
   host: 0.0.0.0
   idle_timeout: 300
   allow_public_access: false
@@ -7,16 +7,15 @@ server:
 logging:
   level: INFO
   file: ""
-  access_log: false
+  access_log: true
   quiet_mode: false
   show_request_details: true
 auth:
-  enabled: true
+  enabled: false
   require_api_key: false
   api_key_header: X-API-Key
   api_keys:
-    - your_api_key_here
-    - sk-1234567890abcdef
+    []
   rate_limit:
     enabled: true
     max_requests: 100
@@ -42,8 +41,8 @@ auth:
       - Accept
       - Origin
 search:
-  enabled: true
-  searxng_url: http://localhost:8090
+  enabled: false
+  searxng_url: http://localhost:4000
   timeout: 30
   max_results: 20
   default_engine: ""
@@ -53,8 +52,25 @@ search:
   default_language: en
   default_category: general
 models:
+  - id: gemma3-4b-vision
+    path: ./models/google_gemma-3-4b-it_q4_k_m.gguf
+    type: llm
+    load_immediately: true
+    main_gpu_id: 0
+    inference_engine: llama-cpu
+    load_params:
+      n_ctx: 4096
+      n_keep: 2048
+      use_mmap: true
+      use_mlock: false
+      n_parallel: 1
+      cont_batching: true
+      warmup: false
+      n_gpu_layers: 0
+      n_batch: 512
+      n_ubatch: 256
   - id: qwen3-0.6b
-    path: ./models\Qwen3-0.6B-UD-Q4_K_XL.gguf
+    path: ./models/Qwen3-0.6B-UD-Q4_K_XL.gguf
     type: llm
     load_immediately: true
     main_gpu_id: 0
@@ -67,33 +83,16 @@ models:
       n_parallel: 1
       cont_batching: true
       warmup: false
-      n_gpu_layers: 100
-      n_batch: 2048
-      n_ubatch: 512
-  - id: text-embedding-3-small
-    path: ./models/all-MiniLM-L6-v2-Q4_K_M.gguf
-    type: embedding
-    load_immediately: true
-    main_gpu_id: 0
-    inference_engine: llama-cpu
-    load_params:
-      n_ctx: 512
-      n_keep: 0
-      use_mmap: true
-      use_mlock: false
-      n_parallel: 4
-      cont_batching: true
-      warmup: false
-      n_gpu_layers: 100
+      n_gpu_layers: 0
       n_batch: 512
-      n_ubatch: 128
+      n_ubatch: 256
 inference_engines:
   - name: llama-cpu
     library_path: ./build/Release/llama-cpu.dll
     version: 1.0.0
-    description: CPU-based inference engine for LLaMA models
+    description: CPU-based LLaMA inference engine
     load_on_startup: true
 default_inference_engine: llama-cpu
 features:
   health_check: true
-  metrics: true
+  metrics: false

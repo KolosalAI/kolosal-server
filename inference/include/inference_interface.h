@@ -27,6 +27,8 @@
 
 #include <string>
 #include <vector>
+#include <variant>
+#include "../../include/kolosal/models/chat_message_model.hpp"
 
 // =============================================================================
 // API Export/Import Macros
@@ -111,13 +113,71 @@ struct CompletionParameters {
  */
 struct Message {
     std::string role;           // "user", "assistant", "system"
-    std::string content;        // Message content
+    
+    // Support both string content and multimodal content
+    std::variant<std::string, std::vector<ContentItem>> content;
     
     /**
-     * @brief Constructs a message with role and content.
+     * @brief Constructs a message with role and string content.
      */
     Message(const std::string& role = "", const std::string& content = "")
         : role(role), content(content) {}
+    
+    /**
+     * @brief Constructs a message with role and multimodal content.
+     */
+    Message(const std::string& role, const std::vector<ContentItem>& items)
+        : role(role), content(items) {}
+    
+    /**
+     * @brief Check if message has images
+     */
+    bool hasImages() const {
+        if (std::holds_alternative<std::vector<ContentItem>>(content)) {
+            const auto& items = std::get<std::vector<ContentItem>>(content);
+            for (const auto& item : items) {
+                if (std::holds_alternative<ImageContent>(item)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+    
+    /**
+     * @brief Get text content (concatenated if multimodal)
+     */
+    std::string getTextContent() const {
+        if (std::holds_alternative<std::string>(content)) {
+            return std::get<std::string>(content);
+        } else {
+            std::string result;
+            const auto& items = std::get<std::vector<ContentItem>>(content);
+            for (const auto& item : items) {
+                if (std::holds_alternative<TextContent>(item)) {
+                    if (!result.empty()) result += " ";
+                    result += std::get<TextContent>(item).text;
+                }
+            }
+            return result;
+        }
+    }
+    
+    /**
+     * @brief Get all image URLs from the message
+     */
+    std::vector<std::string> getImageUrls() const {
+        std::vector<std::string> urls;
+        if (std::holds_alternative<std::vector<ContentItem>>(content)) {
+            const auto& items = std::get<std::vector<ContentItem>>(content);
+            for (const auto& item : items) {
+                if (std::holds_alternative<ImageContent>(item)) {
+                    urls.push_back(std::get<ImageContent>(item).image_url.url);
+                }
+            }
+        }
+        return urls;
+    }
 };
 
 /**
@@ -218,11 +278,13 @@ public:
      * @param modelPath Path to the GGUF model file
      * @param lParams Loading parameters configuration
      * @param mainGpuId Primary GPU ID (-1 for auto-select)
+     * @param mmProjPath Optional path to multimodal projection model for vision support
      * @return true if model loaded successfully, false otherwise
      */
     virtual bool loadModel(const char* modelPath, 
                           const LoadingParameters lParams, 
-                          const int mainGpuId = -1) = 0;
+                          const int mainGpuId = -1,
+                          const char* mmProjPath = nullptr) = 0;
 
     /**
      * @brief Loads an embedding model from the specified GGUF file path.
@@ -240,6 +302,12 @@ public:
      * @return true if model unloaded successfully, false otherwise
      */
     virtual bool unloadModel() = 0;
+
+    /**
+     * @brief Checks if the currently loaded model supports vision/multimodal processing.
+     * @return true if model supports vision, false otherwise
+     */
+    virtual bool supportsVision() = 0;
 
     // Job submission
     /**

@@ -13,6 +13,7 @@
 #include <thread>
 #include <chrono>
 #include <mutex>
+#include <variant>
 #include <memory>
 
 using json = nlohmann::json;
@@ -162,7 +163,15 @@ namespace kolosal
             int totalChars = 0;
             for (const auto& msg : messages)
             {
-                totalChars += static_cast<int>(msg.content.length() + msg.role.length()) + 10; // +10 for formatting
+                // Handle variant content type
+                int contentLength = 0;
+                if (std::holds_alternative<std::string>(msg.content)) {
+                    contentLength = static_cast<int>(std::get<std::string>(msg.content).length());
+                } else {
+                    // For multimodal content, estimate based on text content
+                    contentLength = static_cast<int>(msg.getTextContent().length());
+                }
+                totalChars += contentLength + static_cast<int>(msg.role.length()) + 10; // +10 for formatting
             }
             return totalChars / 4; // Rough approximation: 4 chars per token
         }

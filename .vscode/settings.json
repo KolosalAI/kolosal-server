@@ -91,6 +91,7 @@
         "xtr1common": "cpp",
         "xtree": "cpp",
         "xutility": "cpp",
-        "stack": "cpp"
+        "stack": "cpp",
+        "cfenv": "cpp"
     }
 }

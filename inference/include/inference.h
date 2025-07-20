@@ -240,9 +240,10 @@ struct Job {
 class INFERENCE_API InferenceEngine : public IInferenceEngine {
 public:
     explicit InferenceEngine();    // Model management
-    bool loadModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = -1);
+    bool loadModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = -1, const char* mmProjPath = nullptr);
     bool loadEmbeddingModel(const char* modelPath, const LoadingParameters lParams, const int mainGpuId = -1);
     bool unloadModel();
+    bool supportsVision();
 
     // Job submission
     /**

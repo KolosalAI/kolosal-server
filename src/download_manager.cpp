@@ -595,7 +595,7 @@ namespace kolosal
     bool DownloadManager::loadModelAtStartup(const std::string &model_id, const std::string &model_path,
                                              const std::string &model_type, const LoadingParameters &load_params,
                                              int main_gpu_id, bool load_immediately,
-                                             const std::string& inference_engine)
+                                             const std::string& inference_engine, const std::string& mm_proj_path)
     {
         // First check if an engine with this ID already exists
         auto &nodeManager = ServerAPI::instance().getNodeManager();
@@ -645,7 +645,8 @@ namespace kolosal
                         }
                         else
                         {
-                            return node_manager.addEngine(model_id, download_path.c_str(), load_params, main_gpu_id, inference_engine);
+                            const char* mm_proj_c_str = mm_proj_path.empty() ? nullptr : mm_proj_path.c_str();
+                            return node_manager.addEngine(model_id, download_path.c_str(), load_params, main_gpu_id, inference_engine, mm_proj_c_str);
                         }
                     }
                     else
@@ -656,7 +657,8 @@ namespace kolosal
                         }
                         else
                         {
-                            return node_manager.registerEngine(model_id, download_path.c_str(), load_params, main_gpu_id, inference_engine);
+                            const char* mm_proj_c_str = mm_proj_path.empty() ? nullptr : mm_proj_path.c_str();
+                            return node_manager.registerEngine(model_id, download_path.c_str(), load_params, main_gpu_id, inference_engine, mm_proj_c_str);
                         }
                     }
                 }
@@ -688,7 +690,8 @@ namespace kolosal
                 }
                 else
                 {
-                    return node_manager.addEngine(model_id, model_path.c_str(), load_params, main_gpu_id, inference_engine);
+                    const char* mm_proj_c_str = mm_proj_path.empty() ? nullptr : mm_proj_path.c_str();
+                    return node_manager.addEngine(model_id, model_path.c_str(), load_params, main_gpu_id, inference_engine, mm_proj_c_str);
                 }
             }
             else
@@ -699,7 +702,8 @@ namespace kolosal
                 }
                 else
                 {
-                    return node_manager.registerEngine(model_id, model_path.c_str(), load_params, main_gpu_id, inference_engine);
+                    const char* mm_proj_c_str = mm_proj_path.empty() ? nullptr : mm_proj_path.c_str();
+                    return node_manager.registerEngine(model_id, model_path.c_str(), load_params, main_gpu_id, inference_engine, mm_proj_c_str);
                 }
             }
         }

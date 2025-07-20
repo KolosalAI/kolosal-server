@@ -400,7 +400,8 @@ int main(int argc, char *argv[])
                                                               modelConfig.loadParams,
                                                               modelConfig.mainGpuId,
                                                               modelConfig.loadImmediately,
-                                                              modelConfig.inferenceEngine);
+                                                              modelConfig.inferenceEngine,
+                                                              modelConfig.mmProjPath);
 
             if (success)
             {

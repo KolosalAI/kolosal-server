@@ -5,6 +5,7 @@
 #include "kolosal/models/completion_request_model.hpp"
 #include "kolosal/models/completion_response_model.hpp"
 #include "kolosal/models/completion_response_chunk_model.hpp"
+#include "kolosal/models/chat_message_model.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/node_manager.h"
@@ -39,7 +40,41 @@ namespace kolosal
             params.messages.clear();
             for (const auto &msg : request.messages)
             {
-                params.messages.emplace_back(msg.role, msg.content);
+                // Handle different content types
+                if (std::holds_alternative<std::string>(msg.content))
+                {
+                    // Traditional string content
+                    params.messages.emplace_back(msg.role, std::get<std::string>(msg.content));
+                }
+                else
+                {
+                    // Multimodal content
+                    const auto& items = std::get<std::vector<ContentItem>>(msg.content);
+                    std::vector<ContentItem> engineItems;
+                    
+                    for (const auto& item : items)
+                    {
+                        if (std::holds_alternative<TextContent>(item))
+                        {
+                            const auto& textContent = std::get<TextContent>(item);
+                            TextContent engineItem;
+                            engineItem.type = textContent.type;
+                            engineItem.text = textContent.text;
+                            engineItems.emplace_back(engineItem);
+                        }
+                        else if (std::holds_alternative<ImageContent>(item))
+                        {
+                            const auto& imageContent = std::get<ImageContent>(item);
+                            ImageContent engineItem;
+                            engineItem.type = imageContent.type;
+                            engineItem.image_url.url = imageContent.image_url.url;
+                            engineItem.image_url.detail = imageContent.image_url.detail;
+                            engineItems.emplace_back(engineItem);
+                        }
+                    }
+                    
+                    params.messages.emplace_back(msg.role, engineItems);
+                }
             }
 
             // Set generation parameters
@@ -143,7 +178,16 @@ namespace kolosal
             int totalChars = 0;
             for (const auto &msg : messages)
             {
-                totalChars += static_cast<int>(msg.content.length() + msg.role.length()) + 10; // +10 for formatting
+                // Get text content and add role length
+                std::string textContent = msg.getTextContent();
+                totalChars += static_cast<int>(textContent.length() + msg.role.length()) + 10; // +10 for formatting
+                
+                // Add extra tokens for images (rough estimate)
+                if (msg.hasImages())
+                {
+                    auto imageUrls = msg.getImageUrls();
+                    totalChars += static_cast<int>(imageUrls.size()) * 800; // ~200 tokens per image
+                }
             }
             return totalChars / 4; // Rough approximation: 4 chars per token
         }
@@ -245,6 +289,22 @@ namespace kolosal
             if (!engine)
             {
                 throw std::runtime_error("Model '" + request.model + "' not found or could not be loaded");
+            }
+
+            // Check for vision requirements
+            bool requiresVision = false;
+            for (const auto &msg : request.messages)
+            {
+                if (msg.hasImages())
+                {
+                    requiresVision = true;
+                    break;
+                }
+            }
+
+            if (requiresVision && !engine->supportsVision())
+            {
+                throw std::runtime_error("Model '" + request.model + "' does not support vision/image inputs. Please use a vision-capable model.");
             }
 
             // Build inference parameters following ModelManager pattern

@@ -146,6 +146,9 @@ namespace kolosal
             auto &nodeManager = ServerAPI::instance().getNodeManager();
             auto engineIds = nodeManager.listEngineIds();
 
+            // Get server config to access model configurations
+            auto &config = ServerConfig::getInstance();
+
             json modelsList = json::array();
             for (const auto &engineId : engineIds)
             {
@@ -157,6 +160,21 @@ namespace kolosal
                     {"status", isLoaded ? "loaded" : "unloaded"},
                     {"last_accessed", "recently"} // Could be enhanced with actual timestamps
                 };
+
+                // Add vision capability information from config
+                for (const auto &modelConfig : config.models)
+                {
+                    if (modelConfig.id == engineId)
+                    {
+                        modelInfo["vision"] = modelConfig.vision;
+                        modelInfo["type"] = modelConfig.type;
+                        if (!modelConfig.mmProjPath.empty())
+                        {
+                            modelInfo["mm_proj_path"] = modelConfig.mmProjPath;
+                        }
+                        break;
+                    }
+                }
 
                 modelsList.push_back(modelInfo);
             }

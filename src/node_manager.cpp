@@ -158,7 +158,7 @@ namespace kolosal
         ServerLogger::logInfo("All engines unloaded and NodeManager shut down complete.");
     }
 
-    bool NodeManager::addEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId, const std::string &engineType)
+    bool NodeManager::addEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId, const std::string &engineType, const char *mmProjPath)
     {
         // First check if engine already exists (read lock)
         {
@@ -221,10 +221,14 @@ namespace kolosal
 
             // Load the model with safety handling
             ServerLogger::logInfo("Loading model for engine '%s' from path: %s", engineId.c_str(), actualModelPath.c_str());
+            if (mmProjPath && strlen(mmProjPath) > 0)
+            {
+                ServerLogger::logInfo("Using multimodal projection model: %s", mmProjPath);
+            }
             bool loadSuccess = false;
             try
             {
-                loadSuccess = engineInstance->loadModel(actualModelPath.c_str(), loadParams, mainGpuId);
+                loadSuccess = engineInstance->loadModel(actualModelPath.c_str(), loadParams, mainGpuId, mmProjPath);
             }
             catch (const std::exception &e)
             {
@@ -273,6 +277,7 @@ namespace kolosal
         auto recordPtr = std::make_shared<EngineRecord>();
         recordPtr->engine = enginePtr;
         recordPtr->modelPath = actualModelPath;
+        recordPtr->mmProjPath = mmProjPath ? mmProjPath : "";
         recordPtr->engineType = engineType;
         recordPtr->loadParams = loadParams;
         recordPtr->mainGpuId = mainGpuId;
@@ -553,7 +558,8 @@ namespace kolosal
                     }
                     else
                     {
-                        loadSuccess = newEngineInstance->loadModel(recordPtr->modelPath.c_str(), recordPtr->loadParams, recordPtr->mainGpuId);
+                        loadSuccess = newEngineInstance->loadModel(recordPtr->modelPath.c_str(), recordPtr->loadParams, recordPtr->mainGpuId, 
+                                                                 recordPtr->mmProjPath.empty() ? nullptr : recordPtr->mmProjPath.c_str());
                     }
                 }
                 catch (const std::exception &e)
@@ -939,7 +945,7 @@ namespace kolosal
         ServerLogger::logInfo("Autoscaling thread finished.");
     }
 
-    bool NodeManager::registerEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId, const std::string &engineType)
+    bool NodeManager::registerEngine(const std::string &engineId, const char *modelPath, const LoadingParameters &loadParams, int mainGpuId, const std::string &engineType, const char *mmProjPath)
     {
         // First check if engine already exists (read lock)
         {
@@ -974,6 +980,7 @@ namespace kolosal
         auto recordPtr = std::make_shared<EngineRecord>();
         recordPtr->engine = nullptr;            // No engine instance yet
         recordPtr->modelPath = actualModelPath; // Store the actual local path
+        recordPtr->mmProjPath = mmProjPath ? mmProjPath : "";
         recordPtr->engineType = engineType;     // Store the engine type
         recordPtr->loadParams = loadParams;
         recordPtr->mainGpuId = mainGpuId;

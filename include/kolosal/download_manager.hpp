@@ -96,12 +96,14 @@ namespace kolosal {    // Structure to hold engine creation parameters
          * @param main_gpu_id The main GPU ID to use
          * @param load_immediately Whether to load immediately or register for lazy loading
          * @param inference_engine Inference engine to use (llama-cpu, llama-cuda, llama-vulkan, etc.)
+         * @param mm_proj_path Path to multimodal projection model for vision support (optional)
          * @return True if the model was successfully processed, false otherwise
          */
         bool loadModelAtStartup(const std::string& model_id, const std::string& model_path, 
                                const std::string& model_type, const LoadingParameters& load_params, 
                                int main_gpu_id, bool load_immediately,
-                               const std::string& inference_engine = "llama-cpu");
+                               const std::string& inference_engine = "llama-cpu",
+                               const std::string& mm_proj_path = "");
 
     private:
         DownloadManager() = default;

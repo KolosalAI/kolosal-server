@@ -464,6 +464,10 @@ namespace kolosal
                         model.mainGpuId = modelConfig["main_gpu_id"].as<int>();
                     if (modelConfig["inference_engine"])
                         model.inferenceEngine = modelConfig["inference_engine"].as<std::string>();
+                    if (modelConfig["vision"])
+                        model.vision = modelConfig["vision"].as<bool>();
+                    if (modelConfig["mm_proj_path"])
+                        model.mmProjPath = modelConfig["mm_proj_path"].as<std::string>();
                     if (modelConfig["load_params"])
                     {
                         auto params = modelConfig["load_params"];

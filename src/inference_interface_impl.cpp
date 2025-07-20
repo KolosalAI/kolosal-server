@@ -1,5 +1,6 @@
 #include "inference_interface.h"
 #include <algorithm>
+#include <variant>
 
 // Implementation of CompletionParameters::isValid()
 bool CompletionParameters::isValid() const {
@@ -29,7 +30,15 @@ bool ChatCompletionParameters::isValid() const {
     
     // Check that all messages have valid roles and content
     for (const auto& message : messages) {
-        if (message.role.empty() || message.content.empty()) {
+        // Check if content is empty based on variant type
+        bool contentEmpty = false;
+        if (std::holds_alternative<std::string>(message.content)) {
+            contentEmpty = std::get<std::string>(message.content).empty();
+        } else {
+            contentEmpty = std::get<std::vector<ContentItem>>(message.content).empty();
+        }
+        
+        if (message.role.empty() || contentEmpty) {
             return false;
         }
         

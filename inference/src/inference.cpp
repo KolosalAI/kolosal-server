@@ -816,7 +816,7 @@ namespace
 			std::vector<common_chat_msg> messages;
 			for (const auto &msg : params.messages)
 			{
-				messages.push_back(common_chat_msg{msg.role, msg.content});
+				messages.push_back(common_chat_msg{msg.role, msg.getTextContent()});
 			}
 
 			std::string formatted;
@@ -1908,8 +1908,9 @@ struct InferenceEngine::Impl
 	std::mutex jobsMutex;
 
 	ThreadPool threadPool;
+	bool visionSupport = false; // Track if vision/multimodal support is enabled
 
-	Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId = 0, bool isEmbeddingModel = false);
+	Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId = 0, bool isEmbeddingModel = false, const char *mmProjPath = nullptr);
 	~Impl();
 
 	int submitCompletionsJob(const CompletionParameters &params);
@@ -1923,10 +1924,11 @@ struct InferenceEngine::Impl
 	bool hasJobError(int job_id);
 	std::string getJobError(int job_id);
 	bool hasActiveJobs();
+	bool hasVisionSupport() const { return visionSupport; }
 };
 
-InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId, bool isEmbeddingModel)
-	: threadPool(lParams.n_parallel)
+InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lParams, const int mainGpuId, bool isEmbeddingModel, const char *mmProjPath)
+	: threadPool(lParams.n_parallel), visionSupport(mmProjPath && strlen(mmProjPath) > 0)
 {
 #ifndef DEBUG
 	llama_log_set(llama_log_callback_null, NULL);
@@ -2366,16 +2368,20 @@ INFERENCE_API InferenceEngine::InferenceEngine()
 {
 }
 
-INFERENCE_API bool InferenceEngine::loadModel(const char *modelPath, const LoadingParameters lParams, const int mainGpuId)
+INFERENCE_API bool InferenceEngine::loadModel(const char *modelPath, const LoadingParameters lParams, const int mainGpuId, const char *mmProjPath)
 {
 #ifdef DEBUG
 	std::cout << "[INFERENCE] Loading LLM model from " << modelPath << std::endl;
+	if (mmProjPath && strlen(mmProjPath) > 0)
+	{
+		std::cout << "[INFERENCE] Using multimodal projection model: " << mmProjPath << std::endl;
+	}
 #endif
 	this->pimpl.reset();
 
 	try
 	{
-		this->pimpl = std::make_unique<Impl>(modelPath, lParams, mainGpuId, false);
+		this->pimpl = std::make_unique<Impl>(modelPath, lParams, mainGpuId, false, mmProjPath);
 	}
 	catch (const std::exception &e)
 	{
@@ -2395,7 +2401,7 @@ INFERENCE_API bool InferenceEngine::loadEmbeddingModel(const char *modelPath, co
 
 	try
 	{
-		this->pimpl = std::make_unique<Impl>(modelPath, lParams, mainGpuId, true);
+		this->pimpl = std::make_unique<Impl>(modelPath, lParams, mainGpuId, true, nullptr);
 	}
 	catch (const std::exception &e)
 	{
@@ -2417,6 +2423,17 @@ INFERENCE_API bool InferenceEngine::unloadModel()
 
 	this->pimpl.reset();
 	return true;
+}
+
+INFERENCE_API bool InferenceEngine::supportsVision()
+{
+	if (!this->pimpl)
+	{
+		return false;
+	}
+	
+	// Check if this model instance was loaded with multimodal projection support
+	return this->pimpl->hasVisionSupport();
 }
 
 INFERENCE_API int InferenceEngine::submitCompletionsJob(const CompletionParameters &params)

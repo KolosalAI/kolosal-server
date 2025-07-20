@@ -55,9 +55,10 @@ public:
      * @param loadParams Parameters for loading the model.
      * @param mainGpuId The main GPU ID to use for this engine.
      * @param engineType Type of engine to load ("cpu", "cuda", "vulkan")
+     * @param mmProjPath Path to multimodal projection model for vision support (optional)
      * @return True if the engine was loaded successfully, false otherwise.
      */
-    bool addEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0, const std::string& engineType = "llama-cpu");
+    bool addEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0, const std::string& engineType = "llama-cpu", const char* mmProjPath = nullptr);
 
     /**
      * @brief Loads a new embedding engine with the given model and parameters.
@@ -77,9 +78,10 @@ public:
      * @param loadParams Parameters for loading the model.
      * @param mainGpuId The main GPU ID to use for this engine.
      * @param engineType Type of engine to load ("cpu", "cuda", "vulkan")
+     * @param mmProjPath Path to multimodal projection model for vision support (optional)
      * @return True if the model was validated and registered successfully, false otherwise.
      */
-    bool registerEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0, const std::string& engineType = "llama-cpu");
+    bool registerEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId = 0, const std::string& engineType = "llama-cpu", const char* mmProjPath = nullptr);
 
     /**
      * @brief Registers an embedding model for lazy loading without immediately loading it.
@@ -196,6 +198,7 @@ private:
     struct EngineRecord {
         std::shared_ptr<IInferenceEngine> engine;
         std::string modelPath;
+        std::string mmProjPath;  // Multimodal projection model path for vision
         std::string engineType;  // "cpu", "cuda", "vulkan"
         LoadingParameters loadParams;
         int mainGpuId;

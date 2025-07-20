@@ -107,6 +107,36 @@ models:
       n_gpu_layers: 100
       n_batch: 2048
       n_ubatch: 512
+  
+  # Vision/Multimodal model example
+  - id: "gemma3-4b-vision"
+    type: "llm"
+    path: "./models/gemma3-4b-mmproj.gguf"
+    vision: true  # Enable vision/multimodal support
+    mm_proj_path: "./models/gemma3-4b-mmproj.gguf"  # Multimodal projection model
+    load_immediately: true
+    main_gpu_id: 0
+    inference_engine: "llama-cpu"
+    load_params:
+      n_ctx: 4096
+      n_keep: 2048
+      use_mmap: true
+      use_mlock: false
+      n_parallel: 1
+      cont_batching: true
+      warmup: false
+      n_gpu_layers: 100
+      n_batch: 2048
+      n_ubatch: 512
+      n_keep: 2048
+      use_mmap: true
+      use_mlock: false
+      n_parallel: 1
+      cont_batching: true
+      warmup: false
+      n_gpu_layers: 100
+      n_batch: 2048
+      n_ubatch: 512
   - id: "text-embedding-3-small"
     type: "embedding"
     path: "./models/all-MiniLM-L6-v2-Q4_K_M.gguf"
