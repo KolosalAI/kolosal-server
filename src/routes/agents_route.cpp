@@ -22,7 +22,7 @@ public:
         : agent_manager(manager), parent(p) {}
     
     bool match(const std::string& method, const std::string& path) override {
-        return (method == "GET" && (path == "/api/v1/agents" || path == "/v1/agents"));
+        return (method == "GET" && (path == "/api/v1/agents" || path == "/v1/agents" || path == "/agents"));
     }
     
     void handle(SocketType sock, const std::string& body) override {
@@ -110,7 +110,7 @@ public:
         : agent_manager(manager), parent(p) {}
     
     bool match(const std::string& method, const std::string& path) override {
-        return (method == "POST" && (path == "/api/v1/agents" || path == "/v1/agents"));
+        return (method == "POST" && (path == "/api/v1/agents" || path == "/v1/agents" || path == "/agents"));
     }
     
     void handle(SocketType sock, const std::string& body) override {
@@ -364,7 +364,7 @@ public:
         : agent_manager(manager), parent(p) {}
     
     bool match(const std::string& method, const std::string& path) override {
-        return (method == "GET" && (path == "/api/v1/agents/system/status" || path == "/v1/agents/system/status"));
+        return (method == "GET" && (path == "/api/v1/agents/system/status" || path == "/v1/agents/system/status" || path == "/agents/system/status"));
     }
     
     void handle(SocketType sock, const std::string& body) override {

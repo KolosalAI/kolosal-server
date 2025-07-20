@@ -102,11 +102,16 @@ set(SOURCES
 
     # Document retrieval routes
     src/routes/retrieve_route.cpp
+    src/routes/add_documents_route.cpp
     src/routes/parse_pdf_route.cpp
     src/routes/parse_docx_route.cpp
     src/routes/embedding_route.cpp
     src/routes/internet_search_route.cpp
     src/routes/auto_setup_route.cpp
+    src/routes/documents_route.cpp
+    src/routes/collections_route.cpp
+    src/routes/context_retrieval_route.cpp
+    src/routes/vector_search_route.cpp
 
     # Agent system core
     src/agents/agent_core.cpp

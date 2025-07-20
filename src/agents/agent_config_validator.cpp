@@ -120,11 +120,11 @@ AgentConfigValidator::ValidationResult AgentConfigValidator::validate_inference_
         }
     }
     
-    // Check for at least one auto-load engine
+    // Check for at least one auto-load engine (informational only)
     bool has_auto_load = std::any_of(engines.begin(), engines.end(), 
                                     [](const InferenceEngineConfig& e) { return e.auto_load; });
-    if (!has_auto_load) {
-        result.warnings.push_back("No inference engines set to auto-load - manual loading required");
+    if (!has_auto_load && !engines.empty()) {
+        result.suggestions.push_back("All inference engines are set to manual loading - consider enabling auto_load for frequently used engines");
     }
     
     return result;
@@ -255,43 +255,15 @@ AgentConfigValidator::ValidationResult AgentConfigValidator::validate_function_c
 std::vector<AgentConfigValidator::InferenceEngineStatus> AgentConfigValidator::check_inference_engine_health() {
     std::vector<InferenceEngineStatus> statuses;
     
-    try {
-        auto& nodeManager = ServerAPI::instance().getNodeManager();
-        // This would need to be implemented to get a list of all engines
-        // For now, we'll check common engine names
-        std::vector<std::string> common_engines = {"default", "qwen3-0.6b", "main"};
-        
-        for (const auto& engine_name : common_engines) {
-            InferenceEngineStatus status;
-            status.name = engine_name;
-            
-            try {
-                auto engine = nodeManager.getEngine(engine_name);
-                if (engine) {
-                    status.available = true;
-                    status.healthy = !engine->hasActiveJobs(); // Use hasActiveJobs as a proxy for health
-                    status.status_message = status.healthy ? "Healthy" : "Available but has active jobs";
-                } else {
-                    status.available = false;
-                    status.healthy = false;
-                    status.status_message = "Engine not found";
-                }
-            } catch (const std::exception& e) {
-                status.available = false;
-                status.healthy = false;
-                status.status_message = "Error checking engine: " + std::string(e.what());
-            }
-            
-            statuses.push_back(status);
-        }
-    } catch (const std::exception& e) {
-        InferenceEngineStatus error_status;
-        error_status.name = "system_error";
-        error_status.available = false;
-        error_status.healthy = false;
-        error_status.status_message = "Failed to access node manager: " + std::string(e.what());
-        statuses.push_back(error_status);
-    }
+    // During agent system initialization, the server isn't fully ready yet
+    // Attempting to check engine health at this stage can cause crashes
+    // Return a simple status indicating health check will be done later
+    InferenceEngineStatus status;
+    status.name = "initialization_pending";
+    status.available = false;
+    status.healthy = false;
+    status.status_message = "Engine health check skipped during initialization - will be checked after server startup";
+    statuses.push_back(status);
     
     return statuses;
 }

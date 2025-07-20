@@ -152,8 +152,10 @@ namespace kolosal
                 }
 
                 // Create a persistent ID for this completion
-                std::string completionId = "chatcmpl-" + std::to_string(std::time(nullptr)) + "-" + std::to_string(jobId); // Start the streaming response with proper SSE headers
-                begin_streaming_response(sock, 200, {{"Content-Type", "text/event-stream"}, {"Cache-Control", "no-cache"}});
+                std::string completionId = "chatcmpl-" + std::to_string(std::time(nullptr)) + "-" + std::to_string(jobId); 
+                
+                // Start the streaming response with proper SSE headers
+                begin_streaming_response(sock, 200, {{"Content-Type", "text/event-stream"}, {"Cache-Control", "no-cache"}, {"Connection", "keep-alive"}});
 
                 bool sentFirstChunk = false;
                 bool firstTokenRecorded = false;
@@ -254,9 +256,6 @@ namespace kolosal
                     send_stream_chunk(sock, StreamChunk(sseData, false));
                 } // Send the final [DONE] marker required by OpenAI client
                 send_stream_chunk(sock, StreamChunk("data: [DONE]\n\n", false));
-
-                // Then terminate the stream
-                send_stream_chunk(sock, StreamChunk("", true));
 
                 if (engine->hasJobError(jobId))
                 {

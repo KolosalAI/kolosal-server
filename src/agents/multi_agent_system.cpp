@@ -182,7 +182,10 @@ bool YAMLConfigurableAgentManager::load_configuration(const std::string& yaml_fi
         
         // Check inference engine health - wrap in try-catch to prevent failures
         try {
+            logger->info("DEBUG: About to check inference engine health");
             auto engine_statuses = AgentConfigValidator::check_inference_engine_health();
+            logger->info("DEBUG: Inference engine health check completed successfully");
+            
             int healthy_engines = 0;
             for (const auto& status : engine_statuses) {
                 if (status.available && status.healthy) {
@@ -203,11 +206,22 @@ bool YAMLConfigurableAgentManager::load_configuration(const std::string& yaml_fi
         } catch (const std::exception& e) {
             logger->warn("Failed to check inference engine health: " + std::string(e.what()));
             logger->warn("Continuing with configuration loading...");
+        } catch (...) {
+            logger->warn("Unknown exception while checking inference engine health");
+            logger->warn("Continuing with configuration loading...");
         }
         
         // Register function configurations
-        for (const auto& func_config : system_config.functions) {
-            agent_factory->register_function_config(func_config);
+        logger->info("DEBUG: About to register function configurations");
+        try {
+            for (const auto& func_config : system_config.functions) {
+                logger->debug("Registering function: " + func_config.name);
+                agent_factory->register_function_config(func_config);
+            }
+            logger->info("DEBUG: Function configurations registered successfully");
+        } catch (const std::exception& e) {
+            logger->error("Exception registering function configurations: " + std::string(e.what()));
+            throw;
         }
         
         logger->info("Configuration loaded successfully from: " + yaml_file);

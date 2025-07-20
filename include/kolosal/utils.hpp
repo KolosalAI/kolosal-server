@@ -84,8 +84,7 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
     std::ostringstream headerStream;
     headerStream << "HTTP/1.1 " << status_code << " " << get_status_text(status_code) << "\r\n";
 
-    // Default headers for streaming
-    headerStream << "Transfer-Encoding: chunked\r\n";
+    // Default headers for SSE streaming - DO NOT use chunked encoding for SSE
     headerStream << "Connection: keep-alive\r\n";
     headerStream << "Cache-Control: no-cache\r\n";
     headerStream << "Access-Control-Allow-Origin: *\r\n";
@@ -106,10 +105,10 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
         }
     }
 
-    // Default to text/plain for streaming if no Content-Type provided
+    // Default to text/event-stream for SSE streaming if no Content-Type provided
     // This is important for OpenAI API compatibility with streaming responses
     if (!hasContentType) {
-        headerStream << "Content-Type: text/plain; charset=utf-8\r\n";
+        headerStream << "Content-Type: text/event-stream; charset=utf-8\r\n";
     }
 
     // End of headers
@@ -119,25 +118,13 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
     send(sock, headerString.c_str(), static_cast<int>(headerString.size()), 0);
 }
 
-// Function to send a single stream chunk - modified to handle SSE format better
+// Function to send a single stream chunk - for SSE streaming without chunked encoding
 inline KOLOSAL_SERVER_API void send_stream_chunk(SocketType sock, const StreamChunk& chunk) {
-    // Only send non-empty chunks
+    // For SSE, send data directly without HTTP chunked encoding
     if (!chunk.data.empty()) {
-        // Format the chunk according to HTTP chunked encoding
-        std::stringstream ss;
-        ss << std::hex << chunk.data.size();
-        std::string hex_length = ss.str();
-
-        std::string chunk_header = hex_length + "\r\n";
-        std::string chunk_data = chunk.data + "\r\n";
-
-        send(sock, chunk_header.c_str(), static_cast<int>(chunk_header.size()), 0);
-        send(sock, chunk_data.c_str(), static_cast<int>(chunk_data.size()), 0);
+        send(sock, chunk.data.c_str(), static_cast<int>(chunk.data.size()), 0);
     }
 
-    // If this is the final chunk, send the terminating empty chunk
-    if (chunk.isComplete) {
-        const char* end_chunk = "0\r\n\r\n";
-        send(sock, end_chunk, static_cast<int>(strlen(end_chunk)), 0);
-    }
+    // Note: For SSE streams, we don't need to send terminating chunks like in HTTP chunked encoding
+    // The connection is simply closed when the stream ends
 }

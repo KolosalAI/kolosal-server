@@ -37,7 +37,7 @@ AddDocumentsRoute::~AddDocumentsRoute() = default;
 
 bool AddDocumentsRoute::match(const std::string& method, const std::string& path)
 {
-    return method == "POST" && path == "/add_documents";
+    return method == "POST" && (path == "/add_documents" || path == "/ingest");
 }
 
 void AddDocumentsRoute::handle(SocketType sock, const std::string& body)

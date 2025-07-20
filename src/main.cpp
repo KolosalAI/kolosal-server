@@ -317,10 +317,7 @@ int main(int argc, char *argv[])
     
     std::string agentsConfigPath = "config/agents.yaml";
     
-    // Temporarily bypass agent system to test server startup
-    bool bypassAgentSystem = true;
-    
-    if (std::filesystem::exists(agentsConfigPath) && !bypassAgentSystem) {
+    if (std::filesystem::exists(agentsConfigPath)) {
         try {
             ServerLogger::logInfo("Initializing agent system from: %s", agentsConfigPath.c_str());
             
@@ -328,7 +325,29 @@ int main(int argc, char *argv[])
             std::cout << "DEBUG: Agent manager created" << std::endl;
             std::cout.flush();
             
-            if (agentManager->load_configuration(agentsConfigPath)) {
+            std::cout << "DEBUG: About to call load_configuration" << std::endl;
+            std::cout.flush();
+            
+            bool configLoaded = false;
+            try {
+                configLoaded = agentManager->load_configuration(agentsConfigPath);
+                std::cout << "DEBUG: load_configuration returned: " << (configLoaded ? "true" : "false") << std::endl;
+                std::cout.flush();
+            } catch (const std::exception& e) {
+                std::cout << "DEBUG: Exception in load_configuration: " << e.what() << std::endl;
+                std::cout.flush();
+                ServerLogger::logError("Exception loading agent configuration: %s", e.what());
+                std::cerr << "Error loading agent configuration: " << e.what() << std::endl;
+                return 1;
+            } catch (...) {
+                std::cout << "DEBUG: Unknown exception in load_configuration" << std::endl;
+                std::cout.flush();
+                ServerLogger::logError("Unknown exception loading agent configuration");
+                std::cerr << "Unknown error loading agent configuration" << std::endl;
+                return 1;
+            }
+            
+            if (configLoaded) {
                 std::cout << "DEBUG: Agent configuration loaded successfully" << std::endl;
                 std::cout.flush();
                 
@@ -348,6 +367,14 @@ int main(int argc, char *argv[])
                 } catch (const std::exception& e) {
                     ServerLogger::logError("Exception starting agent manager: %s", e.what());
                     std::cerr << "Error starting agent manager: " << e.what() << std::endl;
+                    std::cout << "DEBUG: Exception in agentManager->start(): " << e.what() << std::endl;
+                    std::cout.flush();
+                    return 1;
+                } catch (...) {
+                    ServerLogger::logError("Unknown exception starting agent manager");
+                    std::cerr << "Unknown error starting agent manager" << std::endl;
+                    std::cout << "DEBUG: Unknown exception in agentManager->start()" << std::endl;
+                    std::cout.flush();
                     return 1;
                 }
                 
@@ -670,52 +697,78 @@ int main(int argc, char *argv[])
         std::cout << "   Use --public flag or set allow_public_access: true in config to enable external access" << std::endl;
         std::cout << "   Use --internet flag or set allow_internet_access: true in config to enable internet access" << std::endl;
     }
-    std::cout << "\nAvailable endpoints:" << std::endl;
-    std::cout << "  GET  /health                 - Health status" << std::endl;
-    std::cout << "  GET  /models                 - List available models" << std::endl;
-    std::cout << "  POST /v1/chat/completions    - Chat completions (OpenAI compatible)" << std::endl;
-    std::cout << "  POST /v1/completions         - Text completions (OpenAI compatible)" << std::endl;
-    std::cout << "  POST /v1/embeddings          - Text embeddings (OpenAI compatible)" << std::endl;
-    std::cout << "  GET  /engines                - List engines" << std::endl;
-    std::cout << "  POST /engines                - Add new engine" << std::endl;
-    std::cout << "  GET  /engines/{id}/status    - Engine status" << std::endl;
-    std::cout << "  DELETE /engines/{id}         - Remove engine" << std::endl;
+
+    ServerLogger::logInfo("\nCore endpoints:");
+    ServerLogger::logInfo("  GET  /health                 - Health status");
+    ServerLogger::logInfo("  GET  /models                 - List available models");
+    ServerLogger::logInfo("  POST /v1/chat/completions    - Chat completions (OpenAI compatible)");
+    ServerLogger::logInfo("  POST /v1/completions         - Text completions (OpenAI compatible)");
+    ServerLogger::logInfo("  POST /v1/embeddings          - Text embeddings (OpenAI compatible)");
+    ServerLogger::logInfo("  GET  /engines                - List engines");
+    ServerLogger::logInfo("  POST /engines                - Add new engine");
+    ServerLogger::logInfo("  GET  /engines/{id}/status    - Engine status");
+    ServerLogger::logInfo("  DELETE /engines/{id}         - Remove engine");
+
+    ServerLogger::logInfo("\nVector & Document endpoints:");
+    ServerLogger::logInfo("  POST /vector-search          - Direct vector similarity search endpoint");
+    ServerLogger::logInfo("  POST /retrieve               - Document retrieval endpoint");
+    ServerLogger::logInfo("  POST /parse-pdf              - PDF parse endpoint");
+    ServerLogger::logInfo("  POST /parse-docx             - DOCX parse endpoint");
+
+    ServerLogger::logInfo("\nWorkflow endpoints:");
+    ServerLogger::logInfo("  POST /sequential-workflows   - Create sequential workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows   - List sequential workflows");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id} - Get workflow details");
+    ServerLogger::logInfo("  POST /sequential-workflows/{id}/execute - Execute workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id}/result - Get workflow result");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id}/status - Get workflow status");
+    ServerLogger::logInfo("  POST /sequential-workflows/{id}/cancel - Cancel workflow");
+    ServerLogger::logInfo("  DELETE /sequential-workflows/{id} - Delete workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows/metrics - Workflow executor metrics");
+    ServerLogger::logInfo("  POST /sequential-workflows/from-template - Create workflow from template");
+
+    ServerLogger::logInfo("\nOrchestration endpoints:");
+    ServerLogger::logInfo("  POST /orchestration/workflows        - Create orchestration workflow");
+    ServerLogger::logInfo("  POST /orchestration/execute          - Execute orchestration workflow");
+    ServerLogger::logInfo("  GET  /orchestration/status           - Orchestration status");
+
+    ServerLogger::logInfo("\nServer endpoints:");
+    ServerLogger::logInfo("  GET  /server-logs            - Retrieve server logs");
     
     if (agentManager) {
-        std::cout << "\nAgent System endpoints:" << std::endl;
-        std::cout << "  GET  /agents                 - List all agents" << std::endl;
-        std::cout << "  GET  /agents/{id}            - Get agent details" << std::endl;
-        std::cout << "  POST /agents                 - Create new agent" << std::endl;
-        std::cout << "  GET  /agents/health          - Agent system health check" << std::endl;
-        std::cout << "  GET  /agents/metrics         - Agent system metrics" << std::endl;
-        std::cout << "  GET  /agents/{id}/status     - Individual agent status" << std::endl;
-        std::cout << "  GET  /agents/system-metrics  - Comprehensive system metrics" << std::endl;
-        
+        ServerLogger::logInfo("\nAgent System endpoints:");
+        ServerLogger::logInfo("  GET  /agents                 - List all agents");
+        ServerLogger::logInfo("  GET  /agents/{id}            - Get agent details");
+        ServerLogger::logInfo("  POST /agents                 - Create new agent");
+        ServerLogger::logInfo("  GET  /agents/health          - Agent system health check");
+        ServerLogger::logInfo("  GET  /agents/metrics         - Agent system metrics");
+        ServerLogger::logInfo("  GET  /agents/{id}/status     - Individual agent status");
+        ServerLogger::logInfo("  GET  /agents/system-metrics  - Comprehensive system metrics");
         if (agentOrchestrator) {
-            std::cout << "\nAgent Orchestration endpoints:" << std::endl;
-            std::cout << "  GET  /agents/orchestrator/status     - Orchestrator status" << std::endl;
-            std::cout << "  GET  /agents/workflows/metrics       - Workflow metrics" << std::endl;
-            std::cout << "  POST /orchestration/workflows        - Create workflow" << std::endl;
-            std::cout << "  POST /orchestration/execute          - Execute workflow" << std::endl;
-            std::cout << "  GET  /orchestration/status           - Orchestration status" << std::endl;
+            ServerLogger::logInfo("\nAgent Orchestration endpoints:");
+            ServerLogger::logInfo("  GET  /agents/orchestrator/status     - Orchestrator status");
+            ServerLogger::logInfo("  GET  /agents/workflows/metrics       - Workflow metrics");
+            ServerLogger::logInfo("  POST /orchestration/workflows        - Create workflow");
+            ServerLogger::logInfo("  POST /orchestration/execute          - Execute workflow");
+            ServerLogger::logInfo("  GET  /orchestration/status           - Orchestration status");
         }
     }
     if (config.auth.enableAuth)
     {
-        std::cout << "\nAuthentication endpoints:" << std::endl;
-        std::cout << "  GET  /v1/auth/config         - Get authentication configuration" << std::endl;
-        std::cout << "  PUT  /v1/auth/config         - Update authentication configuration" << std::endl;
-        std::cout << "  GET  /v1/auth/stats          - Get authentication statistics" << std::endl;
-        std::cout << "  POST /v1/auth/clear          - Clear rate limit data" << std::endl;
+        ServerLogger::logInfo("\nAuthentication endpoints:");
+        ServerLogger::logInfo("  GET  /v1/auth/config         - Get authentication configuration");
+        ServerLogger::logInfo("  PUT  /v1/auth/config         - Update authentication configuration");
+        ServerLogger::logInfo("  GET  /v1/auth/stats          - Get authentication statistics");
+        ServerLogger::logInfo("  POST /v1/auth/clear          - Clear rate limit data");
     }
     if (config.enableMetrics)
     {
-        std::cout << "\nMetrics endpoints:" << std::endl;
-        std::cout << "  GET  /metrics                - System monitoring metrics" << std::endl;
-        std::cout << "  GET  /v1/metrics             - System monitoring metrics" << std::endl;
-        std::cout << "  GET  /system/metrics         - System monitoring metrics" << std::endl;
-        std::cout << "  GET  /completion-metrics     - Completion performance metrics" << std::endl;
-        std::cout << "  GET  /v1/completion-metrics  - Completion performance metrics" << std::endl;
+        ServerLogger::logInfo("\nMetrics endpoints:");
+        ServerLogger::logInfo("  GET  /metrics                - System monitoring metrics");
+        ServerLogger::logInfo("  GET  /v1/metrics             - System monitoring metrics");
+        ServerLogger::logInfo("  GET  /system/metrics         - System monitoring metrics");
+        ServerLogger::logInfo("  GET  /completion-metrics     - Completion performance metrics");
+        ServerLogger::logInfo("  GET  /v1/completion-metrics  - Completion performance metrics");
     }
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
     std::cout.flush();

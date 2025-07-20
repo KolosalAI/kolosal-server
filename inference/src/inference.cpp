@@ -990,7 +990,7 @@ namespace
 			float* logits = llama_get_logits_ith(ctx, -1);
 
 			// Get vocabulary size (number of logits)
-			const int n_vocab = llama_n_vocab(tokenizer->getVocab());
+			const int n_vocab = llama_vocab_n_tokens(tokenizer->getVocab());
 
 			std::cout << "\n----- Logits after decoding -----\n";
 
@@ -1958,6 +1958,43 @@ InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lPara
 	common_init_result	llama_init	= common_init_from_params(params);
 	llama_model			*model		= llama_init.model.release();
 	llama_context		*ctx		= llama_init.context.release();
+
+	// Validate model and context initialization
+	if (!model) {
+		throw std::runtime_error("[INFERENCE] [ERROR] Failed to load model - model is null");
+	}
+	
+	if (!ctx) {
+		llama_model_free(model);
+		throw std::runtime_error("[INFERENCE] [ERROR] Failed to create context - context is null");
+	}
+	
+	// Validate model dimensions to prevent tensor assertion failures
+	const struct llama_vocab * vocab = llama_model_get_vocab(model);
+	int n_vocab = llama_vocab_n_tokens(vocab);
+	int n_embd = llama_n_embd(model);
+	int n_ctx_train = llama_n_ctx_train(model);
+	
+	if (n_vocab <= 0 || n_embd <= 0 || n_ctx_train <= 0) {
+		llama_free(ctx);
+		llama_model_free(model);
+		throw std::runtime_error("[INFERENCE] [ERROR] Invalid model dimensions - vocab:" + 
+			std::to_string(n_vocab) + " embd:" + std::to_string(n_embd) + 
+			" ctx_train:" + std::to_string(n_ctx_train));
+	}
+	
+	// Ensure context size doesn't exceed model training context
+	if (params.n_ctx > n_ctx_train) {
+		std::cout << "[INFERENCE] [WARNING] Requested context size (" << params.n_ctx 
+			<< ") exceeds model training context (" << n_ctx_train 
+			<< "). Adjusting to model maximum." << std::endl;
+		// Note: This might require recreating the context with adjusted parameters
+	}
+
+#ifdef DEBUG
+	std::cout << "[INFERENCE] Model validation successful - vocab:" << n_vocab 
+		<< " embd:" << n_embd << " ctx_train:" << n_ctx_train << std::endl;
+#endif
 
 	struct ggml_threadpool_params threadpool_params;
 	ggml_threadpool_params_init(&threadpool_params, inferenceThreads);

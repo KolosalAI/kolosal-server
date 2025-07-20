@@ -54,6 +54,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         try
         {
             j = json::parse(body);
+            ServerLogger::logDebug("[Thread %u] Parsed JSON body: %s", std::this_thread::get_id(), j.dump().c_str());
         }
         catch (const json::parse_error& ex)
         {
@@ -69,6 +70,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         }
         catch (const std::runtime_error& ex)
         {
+            ServerLogger::logError("[Thread %u] Error parsing embedding request: %s", std::this_thread::get_id(), ex.what());
             sendErrorResponse(sock, 400, ex.what());
             return;
         }

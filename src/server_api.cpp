@@ -18,7 +18,14 @@
 #include "kolosal/routes/parse_pdf_route.hpp"
 #include "kolosal/routes/parse_docx_route.hpp"
 #include "kolosal/routes/embedding_route.hpp"
+#include "kolosal/routes/add_documents_route.hpp"
 #include "kolosal/routes/retrieve_route.hpp"
+#include "kolosal/retrieval/remove_documents_route.hpp"
+#include "kolosal/routes/auto_setup_route.hpp"
+#include "kolosal/routes/documents_route.hpp"
+#include "kolosal/routes/collections_route.hpp"
+#include "kolosal/routes/context_retrieval_route.hpp"
+#include "kolosal/routes/vector_search_route.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -52,6 +59,23 @@ namespace kolosal
         {
             // Initialize DocumentService with database config
             documentService = std::make_unique<retrieval::DocumentService>(config.database);
+            
+            // Initialize the DocumentService (test connections, etc.)
+            if (documentService) {
+                ServerLogger::logInfo("Initializing DocumentService with Qdrant enabled: %s, host: %s, port: %d", 
+                                     config.database.qdrant.enabled ? "true" : "false",
+                                     config.database.qdrant.host.c_str(),
+                                     config.database.qdrant.port);
+                
+                auto init_future = documentService->initialize();
+                bool initialized = init_future.get();
+                if (!initialized) {
+                    ServerLogger::logError("Failed to initialize DocumentService - check if Qdrant is running on %s:%d", 
+                                         config.database.qdrant.host.c_str(), config.database.qdrant.port);
+                } else {
+                    ServerLogger::logInfo("DocumentService initialized successfully");
+                }
+            }
             
             // Initialize AutoSetupManager with required parameters (only if agent manager is available)
             if (nodeManager && agentManager) {
@@ -121,7 +145,18 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
             pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());
             pImpl->server->addRoute(std::make_unique<EmbeddingRoute>());
+            pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
             pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
+            pImpl->server->addRoute(std::make_unique<retrieval::RemoveDocumentsRoute>());
+            
+            // Register new API v1 routes
+            pImpl->server->addRoute(std::make_unique<routes::DocumentsRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::CollectionsRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::ContextRetrievalRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::VectorSearchRoute>());
+            
+            // Register Auto-Setup routes
+            pImpl->server->addRoute(std::make_unique<routes::AutoSetupRoute>());
 
             ServerLogger::logInfo("Routes registered successfully");
 

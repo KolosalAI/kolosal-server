@@ -55,7 +55,7 @@ struct DatabaseConfig {
         std::string host = "localhost";
         int port = 6333;
         std::string collectionName = "documents";
-        std::string defaultEmbeddingModel = "text-embedding-3-small";
+        std::string defaultEmbeddingModel = "text-embedding-3-large";
         int timeout = 30;
         std::string apiKey = "";
         int maxConnections = 10;

@@ -261,9 +261,6 @@ namespace kolosal
                 // Send the final [DONE] marker required by OpenAI client
                 send_stream_chunk(sock, StreamChunk("data: [DONE]\n\n", false));
 
-                // Then terminate the stream
-                send_stream_chunk(sock, StreamChunk("", true));
-
                 if (engine->hasJobError(jobId))
                 {
                 }
