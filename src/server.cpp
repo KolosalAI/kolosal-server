@@ -384,7 +384,7 @@ namespace kolosal
 							
 							// Set socket timeout to prevent hanging
 							struct timeval timeout;
-							timeout.tv_sec = 30;  // 30 second timeout
+							timeout.tv_sec = 120;  // 120 second timeout to handle longer operations
 							timeout.tv_usec = 0;
 							if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) < 0) {
 								ServerLogger::logWarning("[Thread %d] Failed to set socket timeout", std::this_thread::get_id());

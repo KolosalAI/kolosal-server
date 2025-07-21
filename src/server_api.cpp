@@ -13,10 +13,14 @@
 #include "kolosal/routes/orchestration_route.hpp"
 #include "kolosal/routes/sequential_workflow_route.hpp"
 #include "kolosal/routes/agent_monitoring_route.hpp"
+#include "kolosal/routes/function_execution_route.hpp"
+#include "kolosal/routes/collaboration_route.hpp"
 
 #include "kolosal/routes/downloads_route.hpp"
 #include "kolosal/routes/parse_pdf_route.hpp"
 #include "kolosal/routes/parse_docx_route.hpp"
+#include "kolosal/routes/parse_pdf_file_route.hpp"
+#include "kolosal/routes/parse_docx_file_route.hpp"
 #include "kolosal/routes/embedding_route.hpp"
 #include "kolosal/routes/add_documents_route.hpp"
 #include "kolosal/routes/retrieve_route.hpp"
@@ -26,6 +30,7 @@
 #include "kolosal/routes/collections_route.hpp"
 #include "kolosal/routes/context_retrieval_route.hpp"
 #include "kolosal/routes/vector_search_route.hpp"
+#include "kolosal/routes/qdrant_route.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -48,6 +53,8 @@ namespace kolosal
         std::shared_ptr<kolosal::agents::AgentOrchestrator> agentOrchestrator;
         std::unique_ptr<AutoSetupManager> autoSetupManager;
         std::unique_ptr<retrieval::DocumentService> documentService;
+        std::unique_ptr<routes::AgentsRoute> agentsRoute;
+        std::unique_ptr<routes::OrchestrationRoute> orchestrationRoute;
         ServerConfig config;
 
         Impl()
@@ -58,23 +65,35 @@ namespace kolosal
         void initServices()
         {
             // Initialize DocumentService with database config
-            documentService = std::make_unique<retrieval::DocumentService>(config.database);
-            
-            // Initialize the DocumentService (test connections, etc.)
-            if (documentService) {
-                ServerLogger::logInfo("Initializing DocumentService with Qdrant enabled: %s, host: %s, port: %d", 
-                                     config.database.qdrant.enabled ? "true" : "false",
-                                     config.database.qdrant.host.c_str(),
-                                     config.database.qdrant.port);
+            try {
+                documentService = std::make_unique<retrieval::DocumentService>(config.database);
                 
-                auto init_future = documentService->initialize();
-                bool initialized = init_future.get();
-                if (!initialized) {
-                    ServerLogger::logError("Failed to initialize DocumentService - check if Qdrant is running on %s:%d", 
-                                         config.database.qdrant.host.c_str(), config.database.qdrant.port);
-                } else {
-                    ServerLogger::logInfo("DocumentService initialized successfully");
+                // Initialize the DocumentService (test connections, etc.)
+                if (documentService) {
+                    ServerLogger::logInfo("Initializing DocumentService with Qdrant enabled: %s, host: %s, port: %d", 
+                                         config.database.qdrant.enabled ? "true" : "false",
+                                         config.database.qdrant.host.c_str(),
+                                         config.database.qdrant.port);
+                    
+                    if (config.database.qdrant.enabled) {
+                        auto init_future = documentService->initialize();
+                        bool initialized = init_future.get();
+                        if (!initialized) {
+                            ServerLogger::logError("Failed to initialize DocumentService - check if Qdrant is running on %s:%d", 
+                                                 config.database.qdrant.host.c_str(), config.database.qdrant.port);
+                            ServerLogger::logWarning("DocumentService will be disabled. Document ingestion and retrieval features will not be available.");
+                            // Keep the documentService but mark it as failed
+                        } else {
+                            ServerLogger::logInfo("DocumentService initialized successfully");
+                        }
+                    } else {
+                        ServerLogger::logInfo("DocumentService created but Qdrant is disabled in configuration");
+                    }
                 }
+            } catch (const std::exception& e) {
+                ServerLogger::logError("Exception during DocumentService initialization: %s", e.what());
+                ServerLogger::logWarning("DocumentService will be disabled. Document ingestion and retrieval features will not be available.");
+                // documentService remains null
             }
             
             // Initialize AutoSetupManager with required parameters (only if agent manager is available)
@@ -144,6 +163,8 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<DownloadsRoute>());
             pImpl->server->addRoute(std::make_unique<ParsePDFRoute>());
             pImpl->server->addRoute(std::make_unique<ParseDOCXRoute>());
+            pImpl->server->addRoute(std::make_unique<ParsePDFFileRoute>());
+            pImpl->server->addRoute(std::make_unique<ParseDOCXFileRoute>());
             pImpl->server->addRoute(std::make_unique<EmbeddingRoute>());
             pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
             pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
@@ -154,6 +175,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<routes::CollectionsRoute>());
             pImpl->server->addRoute(std::make_unique<routes::ContextRetrievalRoute>());
             pImpl->server->addRoute(std::make_unique<routes::VectorSearchRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::QdrantRoute>());
             
             // Register Auto-Setup routes
             pImpl->server->addRoute(std::make_unique<routes::AutoSetupRoute>());
@@ -246,13 +268,43 @@ namespace kolosal
     void ServerAPI::setAgentManager(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager)
     {
         pImpl->agentManager = manager;
+        ServerLogger::logInfo("setAgentManager called with manager: %s", manager ? "valid" : "null");
         
         // Register agent routes if manager is available
         if (pImpl->server && pImpl->agentManager) {
-            auto agentsRoute = routes::AgentsRoute(pImpl->agentManager);
-            agentsRoute.setup_routes(*pImpl->server);
-            pImpl->server->addRoute(std::make_unique<AgentMonitoringRoute>(pImpl->agentManager, pImpl->agentOrchestrator));
-            ServerLogger::logInfo("Agent routes registered");
+            try {
+                ServerLogger::logInfo("Creating AgentsRoute object...");
+                
+                // Create persistent AgentsRoute object
+                pImpl->agentsRoute = std::make_unique<routes::AgentsRoute>(pImpl->agentManager);
+                ServerLogger::logInfo("AgentsRoute object created successfully");
+                
+                ServerLogger::logInfo("Setting up agent routes...");
+                pImpl->agentsRoute->setup_routes(*pImpl->server);
+                ServerLogger::logInfo("Agent routes setup completed");
+                
+                ServerLogger::logInfo("Adding AgentMonitoringRoute...");
+                pImpl->server->addRoute(std::make_unique<AgentMonitoringRoute>(pImpl->agentManager, pImpl->agentOrchestrator));
+                ServerLogger::logInfo("AgentMonitoringRoute added");
+                
+                // Add Function Execution Route with agent manager
+                ServerLogger::logInfo("Adding FunctionExecutionRoute...");
+                pImpl->server->addRoute(std::make_unique<routes::FunctionExecutionRoute>(pImpl->agentManager));
+                ServerLogger::logInfo("FunctionExecutionRoute added");
+                
+                // Add Collaboration Route with agent manager
+                ServerLogger::logInfo("Adding CollaborationRoute...");
+                pImpl->server->addRoute(std::make_unique<routes::CollaborationRoute>(pImpl->agentManager));
+                ServerLogger::logInfo("CollaborationRoute added");
+                
+                ServerLogger::logInfo("Agent routes registered successfully");
+            } catch (const std::exception& e) {
+                ServerLogger::logError("Exception registering agent routes: %s", e.what());
+            }
+        } else {
+            ServerLogger::logError("Cannot register agent routes - server: %s, manager: %s", 
+                                 pImpl->server ? "valid" : "null", 
+                                 pImpl->agentManager ? "valid" : "null");
         }
     }
 
@@ -262,8 +314,13 @@ namespace kolosal
         
         // Register orchestration and workflow routes if available
         if (pImpl->server && pImpl->agentOrchestrator) {
-            pImpl->server->addRoute(std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator));
+            // Create persistent route objects
+            pImpl->orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator);
+            pImpl->orchestrationRoute->setup_routes(*pImpl->server);
+            
+            // SequentialWorkflowRoute doesn't have setup_routes, so add it normally
             pImpl->server->addRoute(std::make_unique<routes::SequentialWorkflowRoute>(pImpl->agentManager));
+            
             ServerLogger::logInfo("Agent orchestration routes registered");
         }
         
@@ -332,7 +389,7 @@ namespace kolosal
     {
         if (!pImpl->documentService)
         {
-            throw std::runtime_error("DocumentService not initialized");
+            throw std::runtime_error("DocumentService not initialized - check if Qdrant is running and properly configured");
         }
         return *pImpl->documentService;
     }
@@ -341,7 +398,7 @@ namespace kolosal
     {
         if (!pImpl->documentService)
         {
-            throw std::runtime_error("DocumentService not initialized");
+            throw std::runtime_error("DocumentService not initialized - check if Qdrant is running and properly configured");
         }
         return *pImpl->documentService;
     }

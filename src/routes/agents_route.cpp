@@ -27,6 +27,11 @@ public:
     
     void handle(SocketType sock, const std::string& body) override {
         try {
+            if (!agent_manager) {
+                send_response(sock, 500, parent->format_error_response("Agent manager not available", 500));
+                return;
+            }
+            
             auto agent_ids = agent_manager->list_agents();
             json agents_json = json::array();
               for (const auto& agent_id : agent_ids) {
@@ -37,7 +42,16 @@ public:
                     agent_info["id"] = agent->get_agent_id();          // Keep existing id field for compatibility
                     agent_info["name"] = agent->get_agent_name();      // Human-readable name
                     agent_info["type"] = agent->get_agent_type();
-                    agent_info["capabilities"] = agent->get_capabilities();
+                    
+                    // Safely get capabilities
+                    try {
+                        auto capabilities = agent->get_capabilities();
+                        agent_info["capabilities"] = capabilities;
+                    } catch (const std::exception& e) {
+                        ServerLogger::logError("Error getting capabilities for agent %s: %s", agent_id.c_str(), e.what());
+                        agent_info["capabilities"] = json::array(); // Empty array as fallback
+                    }
+                    
                     agent_info["running"] = agent->is_running();
                     agents_json.push_back(agent_info);
                 }
@@ -79,6 +93,11 @@ public:
     
     void handle(SocketType sock, const std::string& body) override {
         try {
+            if (!agent_manager) {
+                send_response(sock, 500, parent->format_error_response("Agent manager not available", 500));
+                return;
+            }
+            
             auto agent = agent_manager->get_agent(matched_agent_id);
             
             if (!agent) {
@@ -90,7 +109,16 @@ public:
             agent_info["id"] = agent->get_agent_id();          // Keep existing id field for compatibility
             agent_info["name"] = agent->get_agent_name();      // Human-readable name
             agent_info["type"] = agent->get_agent_type();
-            agent_info["capabilities"] = agent->get_capabilities();
+            
+            // Safely get capabilities
+            try {
+                auto capabilities = agent->get_capabilities();
+                agent_info["capabilities"] = capabilities;
+            } catch (const std::exception& e) {
+                ServerLogger::logError("Error getting capabilities for agent %s: %s", matched_agent_id.c_str(), e.what());
+                agent_info["capabilities"] = json::array(); // Empty array as fallback
+            }
+            
             agent_info["running"] = agent->is_running();
             
             send_response(sock, 200, parent->format_success_response(agent_info));

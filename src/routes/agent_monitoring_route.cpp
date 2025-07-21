@@ -21,12 +21,25 @@ AgentMonitoringRoute::AgentMonitoringRoute(
 
 bool AgentMonitoringRoute::match(const std::string& method, const std::string& path) {
     return (method == "GET" && (
+        // Old style paths
         path == "/agents/health" ||
         path == "/agents/metrics" ||
         path == "/agents/system-metrics" ||
         path == "/agents/orchestrator/status" ||
         path == "/agents/workflows/metrics" ||
-        path.find("/agents/") == 0 && path.find("/status") != std::string::npos
+        // New API v1 style paths
+        path == "/api/v1/agents/health" ||
+        path == "/api/v1/agents/metrics" ||
+        path == "/api/v1/agents/system/status" ||
+        path == "/api/v1/agents/system/metrics" ||
+        path == "/api/v1/orchestration/status" ||
+        path == "/api/v1/orchestration/metrics" ||
+        // Global metrics endpoints
+        path == "/metrics" ||
+        path == "/completion-metrics" ||
+        // Individual agent status paths (both old and new style)
+        (path.find("/agents/") == 0 && path.find("/status") != std::string::npos) ||
+        (path.find("/api/v1/agents/") == 0 && path.find("/status") != std::string::npos)
     ));
 }
 
@@ -45,6 +58,7 @@ void AgentMonitoringRoute::handle(SocketType sock, const std::string& body) {
 
         ServerLogger::logInfo("Agent monitoring request: %s %s", method.c_str(), path.c_str());
 
+        // Handle old style paths
         if (path == "/agents/health") {
             handle_agent_health(sock);
         } else if (path == "/agents/metrics") {
@@ -55,7 +69,29 @@ void AgentMonitoringRoute::handle(SocketType sock, const std::string& body) {
             handle_orchestrator_status(sock);
         } else if (path == "/agents/workflows/metrics") {
             handle_workflow_metrics(sock);
-        } else if (path.find("/agents/") == 0 && path.find("/status") != std::string::npos) {
+        }
+        // Handle new API v1 style paths
+        else if (path == "/api/v1/agents/health") {
+            handle_agent_health(sock);
+        } else if (path == "/api/v1/agents/metrics") {
+            handle_agent_metrics(sock);
+        } else if (path == "/api/v1/agents/system/status") {
+            handle_agent_health(sock);
+        } else if (path == "/api/v1/agents/system/metrics") {
+            handle_system_metrics(sock);
+        } else if (path == "/api/v1/orchestration/status") {
+            handle_orchestrator_status(sock);
+        } else if (path == "/api/v1/orchestration/metrics") {
+            handle_workflow_metrics(sock);
+        }
+        // Handle global metrics endpoints
+        else if (path == "/metrics") {
+            handle_system_metrics(sock);
+        } else if (path == "/completion-metrics") {
+            handle_completion_metrics(sock);
+        }
+        // Handle individual agent status paths (both old and new style)
+        else if ((path.find("/agents/") == 0 || path.find("/api/v1/agents/") == 0) && path.find("/status") != std::string::npos) {
             std::string agent_id = extract_agent_id_from_path(path);
             handle_agent_status(sock, agent_id);
         } else {
@@ -335,6 +371,32 @@ void AgentMonitoringRoute::handle_workflow_metrics(SocketType sock) {
         send_json_response(sock, 200, json_response.str());
     } catch (const std::exception& e) {
         send_error_response(sock, 500, "Failed to get workflow metrics: " + std::string(e.what()));
+    }
+}
+
+void AgentMonitoringRoute::handle_completion_metrics(SocketType sock) {
+    try {
+        std::ostringstream json_response;
+        json_response << "{\n";
+        json_response << "  \"timestamp\": \"" << std::time(nullptr) << "\",\n";
+        json_response << "  \"completion_metrics\": {\n";
+        json_response << "    \"total_requests\": 0,\n";
+        json_response << "    \"successful_requests\": 0,\n";
+        json_response << "    \"failed_requests\": 0,\n";
+        json_response << "    \"average_response_time\": 0.0,\n";
+        json_response << "    \"tokens_generated\": 0,\n";
+        json_response << "    \"average_tokens_per_second\": 0.0\n";
+        json_response << "  },\n";
+        json_response << "  \"engine_metrics\": {\n";
+        json_response << "    \"active_engines\": 0,\n";
+        json_response << "    \"loaded_engines\": 0,\n";
+        json_response << "    \"total_engines\": 0\n";
+        json_response << "  }\n";
+        json_response << "}";
+        
+        send_json_response(sock, 200, json_response.str());
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, "Failed to get completion metrics: " + std::string(e.what()));
     }
 }
 

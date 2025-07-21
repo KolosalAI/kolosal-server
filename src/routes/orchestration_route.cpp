@@ -238,7 +238,7 @@ void OrchestrationRoute::handle_create_workflow(SocketType sock, const std::stri
                 step.agent_id = step_json.value("agent_id", "");
                 step.function_name = step_json.value("function_name", "");
                 step.parallel_allowed = step_json.value("parallel_allowed", true);
-                step.timeout_seconds = step_json.value("timeout_seconds", 30);
+                step.timeout_seconds = step_json.value("timeout_seconds", 120); // Increased timeout
                 step.max_retries = step_json.value("max_retries", 3);
                 
                 if (step_json.contains("dependencies")) {

@@ -31,6 +31,7 @@ private:
     void handle_system_metrics(SocketType sock);
     void handle_orchestrator_status(SocketType sock);
     void handle_workflow_metrics(SocketType sock);
+    void handle_completion_metrics(SocketType sock);
 
     // Utility methods
     std::string extract_agent_id_from_path(const std::string& path);

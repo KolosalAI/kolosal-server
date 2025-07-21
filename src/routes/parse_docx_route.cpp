@@ -135,7 +135,7 @@ namespace kolosal
 
     bool ParseDOCXRoute::match(const std::string &method, const std::string &path)
     {
-        return (method == "POST" && path == "/parse_docx");
+        return (method == "POST" && (path == "/parse_docx" || path == "/parse-docx"));
     }
 
     void ParseDOCXRoute::handle(SocketType sock, const std::string &body)

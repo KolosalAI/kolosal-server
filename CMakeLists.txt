@@ -99,12 +99,16 @@ set(SOURCES
     src/routes/agent_monitoring_route.cpp
     src/routes/orchestration_route.cpp
     src/routes/sequential_workflow_route.cpp
+    src/routes/function_execution_route.cpp
+    src/routes/collaboration_route.cpp
 
     # Document retrieval routes
     src/routes/retrieve_route.cpp
     src/routes/add_documents_route.cpp
     src/routes/parse_pdf_route.cpp
     src/routes/parse_docx_route.cpp
+    src/routes/parse_pdf_file_route.cpp
+    src/routes/parse_docx_file_route.cpp
     src/routes/embedding_route.cpp
     src/routes/internet_search_route.cpp
     src/routes/auto_setup_route.cpp
@@ -112,6 +116,7 @@ set(SOURCES
     src/routes/collections_route.cpp
     src/routes/context_retrieval_route.cpp
     src/routes/vector_search_route.cpp
+    src/routes/qdrant_route.cpp
 
     # Agent system core
     src/agents/agent_core.cpp

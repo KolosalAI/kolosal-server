@@ -80,6 +80,18 @@ std::unique_ptr<AgentFunction> ConfigurableAgentFactory::create_builtin_function
         return std::make_unique<RetrievalFunction>();
     } else if (config.name == "context_retrieval") {
         return std::make_unique<ContextRetrievalFunction>();
+    } else if (config.name == "add_document") {
+        return std::make_unique<AddDocumentFunction>();
+    } else if (config.name == "remove_document") {
+        return std::make_unique<RemoveDocumentFunction>();
+    } else if (config.name == "parse_pdf") {
+        return std::make_unique<ParsePdfFunction>();
+    } else if (config.name == "parse_docx") {
+        return std::make_unique<ParseDocxFunction>();
+    } else if (config.name == "get_embedding") {
+        return std::make_unique<GetEmbeddingFunction>();
+    } else if (config.name == "test_document_service") {
+        return std::make_unique<TestDocumentServiceFunction>();
     }
     
     logger->warn("Unknown builtin function: " + config.name);

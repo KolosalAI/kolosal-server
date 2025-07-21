@@ -399,18 +399,6 @@ int main(int argc, char *argv[])
                     return 1;
                 }
                 
-                // Register agent manager with server for route access
-                ServerLogger::logInfo("Registering agent manager with server...");
-                try {
-                    server.setAgentManager(agentManager);
-                    server.setAgentOrchestrator(agentOrchestrator);
-                    ServerLogger::logInfo("Agent manager registered with server");
-                } catch (const std::exception& e) {
-                    ServerLogger::logError("Exception registering agent manager with server: %s", e.what());
-                    std::cerr << "Error registering agent manager with server: " << e.what() << std::endl;
-                    return 1;
-                }
-                
                 ServerLogger::logInfo("Agent system initialized successfully");
             } else {
                 ServerLogger::logError("Failed to load agent configuration - agent system disabled");
@@ -528,7 +516,25 @@ int main(int argc, char *argv[])
             std::cerr << "Failed to enable internet search: " << e.what() << std::endl;
             return 1;
         }
-    } // Load models if specified
+    }
+
+    // Register agent manager with server for route access (after server init)
+    if (agentManager) {
+        ServerLogger::logInfo("Registering agent manager with server...");
+        try {
+            server.setAgentManager(agentManager);
+            if (agentOrchestrator) {
+                server.setAgentOrchestrator(agentOrchestrator);
+            }
+            ServerLogger::logInfo("Agent manager registered with server");
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Exception registering agent manager with server: %s", e.what());
+            std::cerr << "Error registering agent manager with server: " << e.what() << std::endl;
+            return 1;
+        }
+    }
+    
+    // Load models if specified
     if (!config.models.empty())
     {
         auto &downloadManager = DownloadManager::getInstance();
@@ -699,7 +705,7 @@ int main(int argc, char *argv[])
     }
 
     ServerLogger::logInfo("\nCore endpoints:");
-    ServerLogger::logInfo("  GET  /health                 - Health status");
+    ServerLogger::logInfo("  GET  /v1/health              - Health status");
     ServerLogger::logInfo("  GET  /models                 - List available models");
     ServerLogger::logInfo("  POST /v1/chat/completions    - Chat completions (OpenAI compatible)");
     ServerLogger::logInfo("  POST /v1/completions         - Text completions (OpenAI compatible)");
@@ -709,9 +715,18 @@ int main(int argc, char *argv[])
     ServerLogger::logInfo("  GET  /engines/{id}/status    - Engine status");
     ServerLogger::logInfo("  DELETE /engines/{id}         - Remove engine");
 
-    ServerLogger::logInfo("\nVector & Document endpoints:");
-    ServerLogger::logInfo("  POST /vector-search          - Direct vector similarity search endpoint");
+    ServerLogger::logInfo("\nDownload endpoints:");
+    ServerLogger::logInfo("  GET  /downloads              - List all downloads status");
+    ServerLogger::logInfo("  GET  /downloads/{model_id}   - Get specific download progress");
+    ServerLogger::logInfo("  DELETE /downloads/{model_id} - Cancel specific download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/cancel - Cancel download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/pause  - Pause download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/resume - Resume download");
+
+    ServerLogger::logInfo("\nDocument & RAG endpoints:");
     ServerLogger::logInfo("  POST /retrieve               - Document retrieval endpoint");
+    ServerLogger::logInfo("  POST /api/v1/documents       - Add documents to collection");
+    ServerLogger::logInfo("  DELETE /api/v1/documents     - Remove documents from collection");
     ServerLogger::logInfo("  POST /parse-pdf              - PDF parse endpoint");
     ServerLogger::logInfo("  POST /parse-docx             - DOCX parse endpoint");
 
@@ -735,22 +750,42 @@ int main(int argc, char *argv[])
     ServerLogger::logInfo("\nServer endpoints:");
     ServerLogger::logInfo("  GET  /server-logs            - Retrieve server logs");
     
+    if (config.search.enabled)
+    {
+        ServerLogger::logInfo("\nSearch endpoints:");
+        ServerLogger::logInfo("  POST /search                 - Internet search endpoint");
+    }
+    
     if (agentManager) {
         ServerLogger::logInfo("\nAgent System endpoints:");
-        ServerLogger::logInfo("  GET  /agents                 - List all agents");
-        ServerLogger::logInfo("  GET  /agents/{id}            - Get agent details");
-        ServerLogger::logInfo("  POST /agents                 - Create new agent");
-        ServerLogger::logInfo("  GET  /agents/health          - Agent system health check");
-        ServerLogger::logInfo("  GET  /agents/metrics         - Agent system metrics");
-        ServerLogger::logInfo("  GET  /agents/{id}/status     - Individual agent status");
-        ServerLogger::logInfo("  GET  /agents/system-metrics  - Comprehensive system metrics");
+        ServerLogger::logInfo("  GET  /api/v1/agents          - List all agents");
+        ServerLogger::logInfo("  POST /api/v1/agents          - Create new agent");
+        ServerLogger::logInfo("  GET  /api/v1/agents/{id}     - Get agent details");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/start    - Start agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/stop     - Stop agent");
+        ServerLogger::logInfo("  DELETE /api/v1/agents/{id}        - Delete agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/execute  - Execute agent function");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/execute-async - Execute agent function async");
+        ServerLogger::logInfo("  GET  /api/v1/agents/jobs/{job_id}/status - Get async job status");
+        ServerLogger::logInfo("  GET  /api/v1/agents/jobs/{job_id}/result - Get async job result");
+        ServerLogger::logInfo("  POST /api/v1/agents/messages/send - Send message to agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/messages/broadcast - Broadcast message");
+        ServerLogger::logInfo("  POST /v1/agents/{id}/chat/completions - OpenAI compatible agent chat");
+        ServerLogger::logInfo("  GET  /api/v1/agents/system/status  - Agent system status");
+        ServerLogger::logInfo("  GET  /api/v1/agents/system/metrics - Agent system metrics");
         if (agentOrchestrator) {
             ServerLogger::logInfo("\nAgent Orchestration endpoints:");
-            ServerLogger::logInfo("  GET  /agents/orchestrator/status     - Orchestrator status");
-            ServerLogger::logInfo("  GET  /agents/workflows/metrics       - Workflow metrics");
-            ServerLogger::logInfo("  POST /orchestration/workflows        - Create workflow");
-            ServerLogger::logInfo("  POST /orchestration/execute          - Execute workflow");
-            ServerLogger::logInfo("  GET  /orchestration/status           - Orchestration status");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/workflows     - Create workflow");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows     - List workflows");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/workflows/{id}/execute - Execute workflow");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/workflows/{id}/execute-async - Execute workflow async");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows/{id}/status - Get workflow status");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows/{id}/result - Get workflow result");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/collaboration-groups - Create collaboration group");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/collaboration-groups/{id}/execute - Execute group");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/status        - Orchestration status");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/metrics       - Orchestration metrics");
+            ServerLogger::logInfo("  POST /api/v1/agents/system/reload        - Reload agent system");
         }
     }
     if (config.auth.enableAuth)
@@ -764,11 +799,13 @@ int main(int argc, char *argv[])
     if (config.enableMetrics)
     {
         ServerLogger::logInfo("\nMetrics endpoints:");
-        ServerLogger::logInfo("  GET  /metrics                - System monitoring metrics");
-        ServerLogger::logInfo("  GET  /v1/metrics             - System monitoring metrics");
-        ServerLogger::logInfo("  GET  /system/metrics         - System monitoring metrics");
-        ServerLogger::logInfo("  GET  /completion-metrics     - Completion performance metrics");
-        ServerLogger::logInfo("  GET  /v1/completion-metrics  - Completion performance metrics");
+        ServerLogger::logInfo("  GET  /metrics                - Combined system and completion metrics");
+        ServerLogger::logInfo("  GET  /v1/metrics             - Combined system and completion metrics");
+        ServerLogger::logInfo("  GET  /metrics/system         - System monitoring metrics only");
+        ServerLogger::logInfo("  GET  /v1/metrics/system      - System monitoring metrics only");
+        ServerLogger::logInfo("  GET  /metrics/completion     - Completion performance metrics only");
+        ServerLogger::logInfo("  GET  /v1/metrics/completion  - Completion performance metrics only");
+        ServerLogger::logInfo("  GET  /metrics/completion/{engine_id} - Engine-specific completion metrics");
     }
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
     std::cout.flush();
