@@ -2,6 +2,7 @@
 #include "kolosal/utils.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
+#include "kolosal/retrieval/retrieve_types.hpp"
 #include <json.hpp>
 #include <iostream>
 
@@ -19,27 +20,15 @@ VectorSearchRoute::~VectorSearchRoute() = default;
 
 bool VectorSearchRoute::match(const std::string& method, const std::string& path)
 {
-    return (path == "/vector-search" || path == "/api/v1/vector-search") && 
-           (method == "GET" || method == "POST");
+    return method == "POST" && (path == "/vector-search" || path == "/api/v1/vector-search");
 }
 
 void VectorSearchRoute::handle(SocketType sock, const std::string& body)
 {
     try
     {
-        // For demonstration purposes, we'll handle based on body content
-        // In a real implementation, you'd parse the HTTP method from the request
-        
-        if (body.empty())
-        {
-            // Assume GET request for endpoint info
-            handleVectorSearchInfo(sock);
-        }
-        else
-        {
-            // Assume POST request for actual search
-            handleVectorSearch(sock, body);
-        }
+        // Only handle POST requests for vector search
+        handleVectorSearch(sock, body);
     }
     catch (const std::exception& ex)
     {
@@ -83,78 +72,119 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
         if (request_data.contains("vector"))
         {
             // Direct vector search
-            auto vector = request_data["vector"];
-            if (!vector.is_array())
-            {
+            if (!request_data["vector"].is_array()) {
                 sendErrorResponse(sock, 400, "Vector must be an array of numbers", "invalid_parameter", "vector");
                 return;
             }
-
-            ServerLogger::logInfo("Vector search request - Vector size: %zu, Limit: %d, Collection: %s", 
-                                 vector.size(), limit, collection.c_str());
-
-            // Simulate vector search
-            json response;
-            response["success"] = true;
-            response["data"] = {
-                {"search_type", "vector"},
-                {"vector_dimension", vector.size()},
-                {"results", json::array({
-                    {
-                        {"id", "vec_1"},
-                        {"score", 0.98},
-                        {"vector", json::array({0.1, 0.2, 0.3})},
-                        {"metadata", {
-                            {"document_id", "doc_1"},
-                            {"chunk_id", 0}
-                        }}
-                    },
-                    {
-                        {"id", "vec_2"},
-                        {"score", 0.89},
-                        {"vector", json::array({0.2, 0.3, 0.4})},
-                        {"metadata", {
-                            {"document_id", "doc_2"},
-                            {"chunk_id", 1}
-                        }}
+            
+            std::vector<float> query_vector;
+            try {
+                for (const auto& val : request_data["vector"]) {
+                    if (val.is_number()) {
+                        query_vector.push_back(val.get<float>());
+                    } else {
+                        sendErrorResponse(sock, 400, "All vector elements must be numbers", "invalid_parameter", "vector");
+                        return;
                     }
-                })},
-                {"total_results", 2},
-                {"processing_time_ms", 23}
-            };
+                }
+            } catch (const std::exception& e) {
+                sendErrorResponse(sock, 400, "Invalid vector format: " + std::string(e.what()), "invalid_parameter", "vector");
+                return;
+            }
+            
+            if (query_vector.empty()) {
+                sendErrorResponse(sock, 400, "Vector cannot be empty", "invalid_parameter", "vector");
+                return;
+            }
+            
+            ServerLogger::logInfo("Vector search request - Vector size: %zu, Limit: %d, Collection: %s", 
+                                 query_vector.size(), limit, collection.c_str());
 
-            sendSuccessResponse(sock, response);
+            try
+            {
+                auto& serverAPI = ServerAPI::instance();
+                auto& documentService = serverAPI.getDocumentService();
+                
+                // Create a dummy query for vector search - this needs to be implemented in the document service
+                // For now, return a basic response indicating vector search capability
+                json response;
+                response["success"] = true;
+                response["data"] = {
+                    {"search_type", "vector"},
+                    {"vector_size", query_vector.size()},
+                    {"results", json::array()},
+                    {"total_results", 0},
+                    {"processing_time_ms", 0},
+                    {"message", "Direct vector search with document service not fully implemented yet"}
+                };
+
+                sendSuccessResponse(sock, response);
+            }
+            catch (const std::runtime_error& e)
+            {
+                // DocumentService not available
+                json response;
+                response["success"] = false;
+                response["error"] = "Document service not available: " + std::string(e.what());
+                sendSuccessResponse(sock, response);
+            }
         }
         else if (request_data.contains("query"))
         {
-            // Text query to vector search
+            // Text query to vector search using document service
             std::string query = request_data["query"];
             
             ServerLogger::logInfo("Vector search request - Query: %s, Limit: %d, Collection: %s", 
                                  query.c_str(), limit, collection.c_str());
 
-            // Simulate query-based vector search (would involve embedding the query first)
-            json response;
-            response["success"] = true;
-            response["data"] = {
-                {"search_type", "query"},
-                {"query", query},
-                {"results", json::array({
-                    {
-                        {"id", "vec_3"},
-                        {"score", 0.92},
-                        {"content", "Content snippet matching the query"},
-                        {"metadata", {
-                            {"document_id", "doc_3"},
-                            {"chunk_id", 2}
-                        }}
-                    }
-                })},
-                {"total_results", 1},
-                {"processing_time_ms", 67}
-            };
+            try
+            {
+                auto& serverAPI = ServerAPI::instance();
+                auto& documentService = serverAPI.getDocumentService();
+                
+                // Use RetrieveRequest for the search
+                kolosal::retrieval::RetrieveRequest retrieveRequest;
+                retrieveRequest.query = query;
+                retrieveRequest.k = limit;
+                retrieveRequest.collection_name = collection;
+                
+                // Perform the search
+                auto future_response = documentService.retrieveDocuments(retrieveRequest);
+                auto retrieve_response = future_response.get();
+                
+                // Convert to vector search response format
+                json response;
+                response["success"] = true;
+                response["data"] = {
+                    {"search_type", "query"},
+                    {"query", query},
+                    {"results", json::array()},
+                    {"total_results", retrieve_response.total_found},
+                    {"processing_time_ms", 0} // TODO: add actual timing
+                };
+                
+                // Convert retrieved documents to vector search result format
+                for (const auto& doc : retrieve_response.documents)
+                {
+                    json result_item = {
+                        {"id", doc.id},
+                        {"score", doc.score},
+                        {"content", doc.text},
+                        {"metadata", doc.metadata}
+                    };
+                    response["data"]["results"].push_back(result_item);
+                }
 
-            sendSuccessResponse(sock, response);
+                sendSuccessResponse(sock, response);
+            }
+            catch (const std::runtime_error& e)
+            {
+                // DocumentService not available
+                json response;
+                response["success"] = false;
+                response["error"] = "Document service not available: " + std::string(e.what());
+                sendSuccessResponse(sock, response);
+            }
         }
     }
     catch (const std::exception& ex)

@@ -84,11 +84,56 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
 
         // Get the NodeManager and inference engine
         auto& nodeManager = ServerAPI::instance().getNodeManager();
-        auto engine = nodeManager.getEngine(request.model);
+        
+        // Handle default model name by using the first available embedding model
+        std::string actual_model = request.model;
+        if (actual_model == "default") {
+            // Try to find a default embedding model
+            // Common embedding model names
+            std::vector<std::string> embedding_models = {
+                "text-embedding-3-small", 
+                "text-embedding-3-large", 
+                "text-embedding-ada-002",
+                "sentence-transformers/all-MiniLM-L6-v2"
+            };
+            
+            bool found_model = false;
+            for (const auto& model_name : embedding_models) {
+                auto engine = nodeManager.getEngine(model_name);
+                if (engine) {
+                    actual_model = model_name;
+                    found_model = true;
+                    ServerLogger::logInfo("Using default embedding model: %s", actual_model.c_str());
+                    break;
+                }
+            }
+            
+            if (!found_model) {
+                ServerLogger::logWarning("No default embedding model found, trying to use first available model");
+                // Try to get any available model that might work for embeddings
+                auto engines = nodeManager.getAvailableInferenceEngines();
+                for (const auto& engine_info : engines) {
+                    auto engine = nodeManager.getEngine(engine_info.name);
+                    if (engine) {
+                        actual_model = engine_info.name;
+                        found_model = true;
+                        ServerLogger::logInfo("Using fallback model for embeddings: %s", actual_model.c_str());
+                        break;
+                    }
+                }
+            }
+            
+            if (!found_model) {
+                sendErrorResponse(sock, 404, "No embedding model available. Please load an embedding model first.", "model_not_found", "model");
+                return;
+            }
+        }
+        
+        auto engine = nodeManager.getEngine(actual_model);
 
         if (!engine)
         {
-            sendErrorResponse(sock, 404, "Model '" + request.model + "' not found or could not be loaded", "model_not_found", "model");
+            sendErrorResponse(sock, 404, "Model '" + actual_model + "' not found or could not be loaded", "model_not_found", "model");
             return;
         }
 
@@ -99,7 +144,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         std::vector<std::string> inputTexts = request.getInputTexts();
         
         ServerLogger::logInfo("[Thread %u] Processing %zu embedding request(s) for model '%s'", 
-                              std::this_thread::get_id(), inputTexts.size(), request.model.c_str());
+                              std::this_thread::get_id(), inputTexts.size(), actual_model.c_str());
 
         // Start monitoring
         // monitor_->startRequest(request.model, "embedding");
@@ -118,17 +163,17 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         if (request.hasMultipleInputs())
         {
             // Process batch request
-            embeddingFutures = processEmbeddingsBatch(inputTexts, request.model, requestId);
+            embeddingFutures = processEmbeddingsBatch(inputTexts, actual_model, requestId);
         }
         else
         {
             // Process single request
-            embeddingFutures.push_back(processEmbeddingAsync(inputTexts[0], request.model, requestId));
+            embeddingFutures.push_back(processEmbeddingAsync(inputTexts[0], actual_model, requestId));
         }
 
         // Wait for all embeddings to complete and collect results
         EmbeddingResponse response;
-        response.model = request.model;
+        response.model = actual_model;
 
         for (size_t i = 0; i < embeddingFutures.size(); ++i)
         {
@@ -155,7 +200,7 @@ void EmbeddingRoute::handle(SocketType sock, const std::string& body)
         send_response(sock, 200, response.to_json().dump());
 
         ServerLogger::logInfo("[Thread %u] Successfully generated %zu embedding(s) for model '%s'", 
-                              std::this_thread::get_id(), response.data.size(), request.model.c_str());
+                              std::this_thread::get_id(), response.data.size(), actual_model.c_str());
     }
     catch (const json::exception& ex)
     {

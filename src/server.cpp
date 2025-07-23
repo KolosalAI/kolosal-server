@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <chrono>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -26,6 +27,66 @@
 
 namespace kolosal
 {
+	// Helper: check if a UTF-8 sequence is complete and fix incomplete sequences
+	static std::string fixIncompleteUtf8(const std::string& data) {
+		if (data.empty()) return data;
+		
+		// Validate and fix UTF-8 encoding
+		std::string result;
+		result.reserve(data.length());
+		
+		for (size_t i = 0; i < data.length(); ) {
+			unsigned char c = static_cast<unsigned char>(data[i]);
+			
+			// ASCII character (0xxxxxxx)
+			if ((c & 0x80) == 0) {
+				result += c;
+				i++;
+				continue;
+			}
+			
+			// Multi-byte UTF-8 sequence
+			size_t seqLen = 0;
+			if ((c & 0xE0) == 0xC0) {
+				seqLen = 2;  // 110xxxxx
+			} else if ((c & 0xF0) == 0xE0) {
+				seqLen = 3;  // 1110xxxx
+			} else if ((c & 0xF8) == 0xF0) {
+				seqLen = 4;  // 11110xxx
+			} else {
+				// Invalid start byte, skip it
+				i++;
+				continue;
+			}
+			
+			// Check if we have enough bytes
+			if (i + seqLen > data.length()) {
+				// Incomplete sequence at end, truncate here
+				break;
+			}
+			
+			// Validate continuation bytes
+			bool valid = true;
+			for (size_t j = 1; j < seqLen; j++) {
+				unsigned char cont = static_cast<unsigned char>(data[i + j]);
+				if ((cont & 0xC0) != 0x80) {
+					valid = false;
+					break;
+				}
+			}
+			
+			if (valid) {
+				// Valid UTF-8 sequence, copy it
+				result.append(data, i, seqLen);
+				i += seqLen;
+			} else {
+				// Invalid sequence, skip the start byte
+				i++;
+			}
+		}
+		
+		return result;
+	}
 
 	// Helper: extract client IP from socket address
 	static std::string extractClientIP(const struct sockaddr_storage &client_addr)
@@ -304,40 +365,41 @@ namespace kolosal
 
 		while (running)
 		{
-			struct sockaddr_storage client_addr;
+			try {
+				struct sockaddr_storage client_addr;
 #ifdef _WIN32
-			int sin_size = sizeof(client_addr);
+				int sin_size = sizeof(client_addr);
 #else
-			socklen_t sin_size = sizeof(client_addr);
+				socklen_t sin_size = sizeof(client_addr);
 #endif
 
-			// Setup select for timeout to check running flag periodically
-			fd_set readfds;
-			FD_ZERO(&readfds);
-			FD_SET(listen_sock, &readfds);
+				// Setup select for timeout to check running flag periodically
+				fd_set readfds;
+				FD_ZERO(&readfds);
+				FD_SET(listen_sock, &readfds);
 
-			struct timeval tv;
-			tv.tv_sec = 1; // 1 second timeout
-			tv.tv_usec = 0;
+				struct timeval tv;
+				tv.tv_sec = 1; // 1 second timeout
+				tv.tv_usec = 0;
 
-			int select_result = select(static_cast<int>(listen_sock) + 1, &readfds, NULL, NULL, &tv);
+				int select_result = select(static_cast<int>(listen_sock) + 1, &readfds, NULL, NULL, &tv);
 
-			if (select_result == -1)
-			{
-				ServerLogger::logError("Select failed");
-				break;
-			}
+				if (select_result == -1)
+				{
+					ServerLogger::logError("Select failed - server loop will exit");
+					break;
+				}
 
-			if (select_result == 0)
-			{
-				// Timeout occurred, check if we should continue running
-				continue;
-			}
+				if (select_result == 0)
+				{
+					// Timeout occurred, check if we should continue running
+					continue;
+				}
 
-			if (!FD_ISSET(listen_sock, &readfds))
-			{
-				continue;
-			}
+				if (!FD_ISSET(listen_sock, &readfds))
+				{
+					continue;
+				}
 
 			SocketType client_sock = accept(listen_sock,
 											reinterpret_cast<struct sockaddr *>(&client_addr),
@@ -618,6 +680,9 @@ namespace kolosal
 					}
 				}
 
+				// Fix any incomplete UTF-8 sequences in the body
+				body = fixIncompleteUtf8(body);
+
 				// Extract body (if any) for route processing
 				bool routeFound = false;
 				for (const auto &route : routes)
@@ -630,17 +695,20 @@ namespace kolosal
 					}
 				}
 
+				// Note: We no longer need explicit 404 handling here since NotFoundRoute
+				// is added as the last route and will match any unmatched requests
 				if (!routeFound) {
-					ServerLogger::logWarning("[Thread %d] No route found for %s %s",
+					// This should not happen if NotFoundRoute is properly registered
+					ServerLogger::logError("[Thread %d] No route matched for %s %s - NotFoundRoute may not be registered",
 						std::this_thread::get_id(), method.c_str(), path.c_str());
 
 					nlohmann::json jError = { {"error", {
-					  {"message", "Not found"},
-					  {"type", "invalid_request_error"},
+					  {"message", "Internal routing error"},
+					  {"type", "server_error"},
 					  {"param", nullptr},
 					  {"code", nullptr}
 					}} };
-					send_response(client_sock, 404, jError.dump(), responseHeaders);
+					send_response(client_sock, 500, jError.dump(), responseHeaders);
 				}
 
 				ServerLogger::logInfo("[Thread %d] Completed request for %s",
@@ -652,8 +720,19 @@ namespace kolosal
 				close(client_sock);
 #endif
 			}).detach(); // Detach the thread to handle the request independently
+			
+			} catch (const std::exception& e) {
+				ServerLogger::logError("Exception in server main loop: %s", e.what());
+				// Continue running unless it's a critical error
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			} catch (...) {
+				ServerLogger::logError("Unknown exception in server main loop");
+				// Continue running unless it's a critical error
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
 		}
-
+		
+		ServerLogger::logInfo("Server main loop exited");
 	}
 
 	void Server::stop()

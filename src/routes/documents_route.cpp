@@ -20,41 +20,17 @@ DocumentsRoute::~DocumentsRoute() = default;
 
 bool DocumentsRoute::match(const std::string& method, const std::string& path)
 {
-    // Match /api/v1/documents and /api/v1/documents/{id}
-    std::regex documents_pattern(R"(^/api/v1/documents(?:/([^/]+))?$)");
-    return std::regex_match(path, documents_pattern) && 
-           (method == "GET" || method == "POST" || method == "PUT" || method == "DELETE");
+    // Match POST /documents for document creation
+    std::regex documents_pattern(R"(^(?:/api)?(?:/v1)?/documents$)");
+    return method == "POST" && std::regex_match(path, documents_pattern);
 }
 
 void DocumentsRoute::handle(SocketType sock, const std::string& body)
 {
     try
     {
-        // Get the request info from the socket (this would normally be passed in)
-        // For now, we'll assume the path is available somehow
-        std::string method = "GET"; // This should come from the request
-        std::string path = "/api/v1/documents"; // This should come from the request
-        
-        if (method == "GET")
-        {
-            handleGetDocuments(sock, path);
-        }
-        else if (method == "POST")
-        {
-            handlePostDocuments(sock, body);
-        }
-        else if (method == "PUT")
-        {
-            handlePutDocuments(sock, path, body);
-        }
-        else if (method == "DELETE")
-        {
-            handleDeleteDocuments(sock, path);
-        }
-        else
-        {
-            sendErrorResponse(sock, 405, "Method not allowed");
-        }
+        // Only handle POST requests for document creation
+        handlePostDocuments(sock, body);
     }
     catch (const std::exception& ex)
     {
@@ -82,11 +58,12 @@ void DocumentsRoute::handleGetDocuments(SocketType sock, const std::string& path
         }
         else
         {
-            // List all documents
+            // List all documents - for now return empty array with success
+            // In a real implementation, this would query the document database
             json response;
             response["success"] = true;
             response["data"] = json::array();
-            response["message"] = "Document list would be here";
+            response["message"] = "Document listing endpoint - empty for now";
             sendSuccessResponse(sock, response);
         }
     }
@@ -118,14 +95,40 @@ void DocumentsRoute::handlePostDocuments(SocketType sock, const std::string& bod
             return;
         }
 
-        // Process document creation
-        json response;
-        response["success"] = true;
-        response["data"] = {
-            {"id", "new_document_id"},
-            {"message", "Document created successfully"}
-        };
-        sendSuccessResponse(sock, response);
+        // Process document creation using document service
+        try
+        {
+            auto& serverAPI = ServerAPI::instance();
+            auto& documentService = serverAPI.getDocumentService();
+            
+            // Parse request as AddDocumentsRequest
+            kolosal::retrieval::AddDocumentsRequest addRequest;
+            addRequest.from_json(request_data);
+            
+            if (!addRequest.validate())
+            {
+                sendErrorResponse(sock, 400, "Invalid document data");
+                return;
+            }
+            
+            // Submit to document service
+            auto future_response = documentService.addDocuments(addRequest);
+            auto add_response = future_response.get();
+            
+            // Convert to success response format
+            json response;
+            response["success"] = true;
+            response["data"] = add_response.to_json();
+            sendSuccessResponse(sock, response);
+        }
+        catch (const std::runtime_error& e)
+        {
+            // DocumentService not available
+            json response;
+            response["success"] = false;
+            response["error"] = "Document service not available: " + std::string(e.what());
+            sendSuccessResponse(sock, response);
+        }
     }
     catch (const std::exception& ex)
     {

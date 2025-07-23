@@ -6,6 +6,7 @@
 #include "../agents/multi_agent_system.hpp"
 #include <memory>
 #include <string>
+#include <json.hpp>
 
 namespace kolosal::routes {
 

@@ -109,6 +109,19 @@ namespace kolosal
                 throw std::invalid_argument("Request body is empty");
             }
 
+            // Validate UTF-8 encoding before parsing
+            if (!body.empty() && (body.back() & 0x80) != 0) {
+                // Check if the last character might be part of an incomplete UTF-8 sequence
+                size_t pos = body.length() - 1;
+                unsigned char c = static_cast<unsigned char>(body[pos]);
+                
+                // If this looks like a truncated multibyte sequence, log a warning
+                if ((c & 0xC0) == 0x80 || (c & 0xE0) == 0xC0 || (c & 0xF0) == 0xE0 || (c & 0xF8) == 0xF0) {
+                    ServerLogger::logWarning("[Thread %u] Potentially truncated UTF-8 sequence detected in request body", 
+                                           std::this_thread::get_id());
+                }
+            }
+
             auto j = json::parse(body);
             ServerLogger::logInfo("[Thread %u] Received chat completion request", std::this_thread::get_id());
 
@@ -333,6 +346,11 @@ namespace kolosal
             // Specifically handle JSON parsing errors
             ServerLogger::logError("[Thread %u] JSON parsing error: %s",
                                    std::this_thread::get_id(), ex.what());
+                                   
+            // Log the first 100 characters of the body for debugging (without sensitive data)
+            std::string debugBody = body.length() > 100 ? body.substr(0, 100) + "..." : body;
+            ServerLogger::logDebug("[Thread %u] Request body preview: %s",
+                                  std::this_thread::get_id(), debugBody.c_str());
 
             json jError = {{"error", {{"message", std::string("Invalid JSON: ") + ex.what()}, {"type", "invalid_request_error"}, {"param", nullptr}, {"code", nullptr}}}};
 

@@ -84,7 +84,7 @@ private:
 	std::ofstream logFile;
 	std::string logFilePath;
 #pragma warning(pop)
-	std::mutex logMutex;
+	std::timed_mutex logMutex;
 	
 	// Quiet mode settings
 	bool quietMode;

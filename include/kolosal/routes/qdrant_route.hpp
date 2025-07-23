@@ -3,7 +3,6 @@
 #include "route_interface.hpp"
 #include "../export.hpp"
 #include <string>
-#include <json.hpp>
 
 namespace kolosal::routes {
 
@@ -21,7 +20,7 @@ private:
     void handle_status(SocketType sock, const std::string& method);
     void handle_collections(SocketType sock, const std::string& method);
     
-    void send_json_response(SocketType sock, int status_code, const nlohmann::json& data);
+    void send_json_response(SocketType sock, int status_code, const std::string& data);
     void send_error_response(SocketType sock, int status_code, const std::string& error);
 };
 

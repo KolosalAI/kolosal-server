@@ -401,6 +401,120 @@ std::future<bool> DocumentService::testConnection()
     });
 }
 
+std::future<nlohmann::json> DocumentService::getHealthStatus()
+{
+    return std::async(std::launch::async, [this]() -> nlohmann::json {
+        nlohmann::json health;
+        health["timestamp"] = std::chrono::duration_cast<std::chrono::seconds>(
+            std::chrono::system_clock::now().time_since_epoch()).count();
+        
+        // Basic service status
+        health["service_initialized"] = pImpl->initialized_;
+        health["qdrant_enabled"] = pImpl->config_.qdrant.enabled;
+        
+        // Connection status
+        bool connection_ok = false;
+        std::string connection_error = "";
+        try 
+        {
+            if (pImpl->config_.qdrant.enabled && pImpl->qdrant_client_)
+            {
+                auto result = pImpl->qdrant_client_->testConnection().get();
+                connection_ok = result.success;
+                if (!result.success)
+                {
+                    connection_error = result.error_message;
+                }
+            }
+            else
+            {
+                connection_error = "Qdrant disabled or client not initialized";
+            }
+        }
+        catch (const std::exception& ex)
+        {
+            connection_error = ex.what();
+        }
+        
+        health["qdrant_connection"] = connection_ok;
+        if (!connection_error.empty())
+        {
+            health["connection_error"] = connection_error;
+        }
+        
+        // Collection status
+        std::string collection_name = "documents";
+        bool collection_exists = false;
+        std::string collection_error = "";
+        
+        try
+        {
+            if (connection_ok)
+            {
+                auto exists_result = pImpl->qdrant_client_->collectionExists(collection_name).get();
+                collection_exists = exists_result.success;
+                if (!exists_result.success)
+                {
+                    collection_error = exists_result.error_message;
+                }
+            }
+            else
+            {
+                collection_error = "Cannot check collection - no database connection";
+            }
+        }
+        catch (const std::exception& ex)
+        {
+            collection_error = ex.what();
+        }
+        
+        health["collection_exists"] = collection_exists;
+        health["collection_name"] = collection_name;
+        if (!collection_error.empty())
+        {
+            health["collection_error"] = collection_error;
+        }
+        
+        // Configuration info
+        nlohmann::json config_info;
+        config_info["host"] = pImpl->config_.qdrant.host;
+        config_info["port"] = pImpl->config_.qdrant.port;
+        config_info["timeout"] = pImpl->config_.qdrant.timeout;
+        config_info["default_embedding_model"] = pImpl->config_.qdrant.defaultEmbeddingModel;
+        health["configuration"] = config_info;
+        
+        // Overall status
+        health["status"] = (pImpl->initialized_ && connection_ok && collection_exists) ? "healthy" : "unhealthy";
+        
+        // Recommendations
+        nlohmann::json recommendations = nlohmann::json::array();
+        if (!pImpl->initialized_)
+        {
+            recommendations.push_back("Initialize the DocumentService");
+        }
+        if (!pImpl->config_.qdrant.enabled)
+        {
+            recommendations.push_back("Enable Qdrant in configuration");
+        }
+        if (!connection_ok)
+        {
+            recommendations.push_back("Check Qdrant server is running and accessible at " + 
+                                    pImpl->config_.qdrant.host + ":" + std::to_string(pImpl->config_.qdrant.port));
+        }
+        if (!collection_exists && connection_ok)
+        {
+            recommendations.push_back("Index some documents to create the '" + collection_name + "' collection");
+        }
+        
+        if (!recommendations.empty())
+        {
+            health["recommendations"] = recommendations;
+        }
+        
+        return health;
+    });
+}
+
 std::future<std::vector<float>> DocumentService::getEmbedding(const std::string& text, const std::string& model_id)
 {
     return pImpl->generateEmbedding(text, model_id);
@@ -415,12 +529,12 @@ std::future<RetrieveResponse> DocumentService::retrieveDocuments(const RetrieveR
         {
             if (!pImpl->initialized_)
             {
-                throw std::runtime_error("DocumentService not initialized");
+                throw std::runtime_error("DocumentService not initialized - please ensure the service is properly started");
             }
             
             if (!pImpl->config_.qdrant.enabled)
             {
-                throw std::runtime_error("Qdrant is disabled in configuration");
+                throw std::runtime_error("Qdrant is disabled in configuration - enable Qdrant to use document retrieval");
             }
             
             std::string collection_name = "documents"; // Always use "documents" collection
@@ -430,21 +544,44 @@ std::future<RetrieveResponse> DocumentService::retrieveDocuments(const RetrieveR
             response.collection_name = collection_name;
             response.score_threshold = request.score_threshold;
             
-            ServerLogger::logInfo("Retrieving documents for query: '%s' (k=%d, collection='%s')", 
-                                  request.query.c_str(), request.k, collection_name.c_str());
+            ServerLogger::logInfo("Retrieving documents for query: '%s' (k=%d, collection='%s', threshold=%.3f)", 
+                                  request.query.c_str(), request.k, collection_name.c_str(), request.score_threshold);
+            
+            // Check if collection exists before proceeding
+            auto collection_exists_result = pImpl->qdrant_client_->collectionExists(collection_name).get();
+            if (!collection_exists_result.success)
+            {
+                ServerLogger::logWarning("Collection '%s' does not exist - no documents have been indexed yet", 
+                                       collection_name.c_str());
+                // Return empty response with helpful message
+                ServerLogger::logInfo("No documents found - collection '%s' is empty or doesn't exist", collection_name.c_str());
+                return response;
+            }
             
             // Generate embedding for the query
+            ServerLogger::logDebug("Generating embedding for query: '%s'", request.query.c_str());
             auto query_embedding_future = pImpl->generateEmbedding(request.query, "");
-            std::vector<float> query_embedding = query_embedding_future.get();
+            std::vector<float> query_embedding;
+            
+            try 
+            {
+                query_embedding = query_embedding_future.get();
+            }
+            catch (const std::exception& ex)
+            {
+                throw std::runtime_error("Failed to generate embedding for query: " + std::string(ex.what()) + 
+                                       " - check if the embedding model is available and properly configured");
+            }
             
             if (query_embedding.empty())
             {
-                throw std::runtime_error("Failed to generate embedding for query");
+                throw std::runtime_error("Generated embedding is empty - this may indicate an issue with the embedding model");
             }
             
             ServerLogger::logDebug("Generated query embedding with %zu dimensions", query_embedding.size());
             
             // Perform vector search
+            ServerLogger::logDebug("Performing vector search in collection '%s'", collection_name.c_str());
             auto search_result = pImpl->qdrant_client_->search(
                 collection_name, 
                 query_embedding, 
@@ -454,51 +591,120 @@ std::future<RetrieveResponse> DocumentService::retrieveDocuments(const RetrieveR
             
             if (!search_result.success)
             {
-                throw std::runtime_error("Vector search failed: " + search_result.error_message);
+                // Provide more specific error information
+                std::string detailed_error = "Vector search failed: " + search_result.error_message;
+                if (search_result.status_code == 404)
+                {
+                    detailed_error += " - Collection may not exist or may be empty";
+                }
+                else if (search_result.status_code >= 500)
+                {
+                    detailed_error += " - Qdrant server error, check if Qdrant is running and accessible";
+                }
+                throw std::runtime_error(detailed_error);
             }
             
             // Parse search results
+            int documents_parsed = 0;
             if (search_result.response_data.contains("result") && search_result.response_data["result"].is_array())
             {
                 auto results = search_result.response_data["result"];
+                ServerLogger::logDebug("Search returned %zu potential results", results.size());
                 
                 for (const auto& result_item : results)
                 {
-                    if (result_item.contains("id") && result_item.contains("score") && 
-                        result_item.contains("payload"))
+                    try
                     {
-                        RetrievedDocument doc;
-                        doc.id = result_item["id"].get<std::string>();
-                        doc.score = result_item["score"].get<float>();
-                        
-                        // Extract text from payload
-                        auto payload = result_item["payload"];
-                        if (payload.contains("text"))
+                        if (result_item.contains("id") && result_item.contains("score") && 
+                            result_item.contains("payload"))
                         {
-                            doc.text = payload["text"].get<std::string>();
-                        }
-                        
-                        // Extract metadata (exclude text field)
-                        for (auto& [key, value] : payload.items())
-                        {
-                            if (key != "text")
+                            RetrievedDocument doc;
+                            doc.id = result_item["id"].get<std::string>();
+                            doc.score = result_item["score"].get<float>();
+                            
+                            // Extract text from payload
+                            auto payload = result_item["payload"];
+                            if (payload.contains("text"))
                             {
-                                doc.metadata[key] = value;
+                                doc.text = payload["text"].get<std::string>();
                             }
+                            else
+                            {
+                                ServerLogger::logWarning("Document %s missing 'text' field in payload", doc.id.c_str());
+                                doc.text = ""; // Set empty text rather than skip the document
+                            }
+                            
+                            // Extract metadata (exclude text field)
+                            for (auto& [key, value] : payload.items())
+                            {
+                                if (key != "text")
+                                {
+                                    doc.metadata[key] = value;
+                                }
+                            }
+                            
+                            response.addDocument(doc);
+                            documents_parsed++;
+                            
+                            ServerLogger::logDebug("Added document %s with score %.3f", 
+                                                 doc.id.c_str(), doc.score);
                         }
-                        
-                        response.addDocument(doc);
+                        else
+                        {
+                            ServerLogger::logWarning("Skipping malformed search result item (missing id, score, or payload)");
+                        }
+                    }
+                    catch (const std::exception& ex)
+                    {
+                        ServerLogger::logError("Error parsing search result item: %s", ex.what());
+                        // Continue processing other results
                     }
                 }
             }
+            else
+            {
+                ServerLogger::logWarning("Search response does not contain valid 'result' array");
+            }
             
-            ServerLogger::logInfo("Successfully retrieved %d documents for query", response.total_found);
+            // Log final results
+            if (response.total_found == 0)
+            {
+                if (documents_parsed == 0 && search_result.response_data.contains("result"))
+                {
+                    auto results = search_result.response_data["result"];
+                    if (results.is_array() && results.size() == 0)
+                    {
+                        ServerLogger::logInfo("No documents found matching query '%s' with score threshold %.3f", 
+                                            request.query.c_str(), request.score_threshold);
+                    }
+                    else
+                    {
+                        ServerLogger::logWarning("Search returned results but none could be parsed successfully");
+                    }
+                }
+                else
+                {
+                    ServerLogger::logInfo("No documents found - this could be due to: empty collection, high score threshold (%.3f), or query not matching indexed content", 
+                                        request.score_threshold);
+                }
+            }
+            else
+            {
+                ServerLogger::logInfo("Successfully retrieved %d documents for query (score threshold: %.3f)", 
+                                    response.total_found, request.score_threshold);
+            }
             
             return response;
         }
         catch (const std::exception& ex)
         {
-            ServerLogger::logError("Error retrieving documents: %s", ex.what());
+            ServerLogger::logError("Error retrieving documents for query '%s': %s", 
+                                 request.query.c_str(), ex.what());
+            
+            // Provide helpful debugging information
+            ServerLogger::logDebug("Retrieval error details - Collection: %s, K: %d, Threshold: %.3f", 
+                                 response.collection_name.c_str(), request.k, request.score_threshold);
+            
             throw;
         }
     });

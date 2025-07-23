@@ -67,7 +67,7 @@ void QdrantRoute::handle_status(SocketType sock, const std::string& method) {
             response["message"] = "Qdrant service is not accessible";
         }
         
-        send_json_response(sock, is_connected ? 200 : 503, response);
+        send_json_response(sock, is_connected ? 200 : 503, response.dump());
         
     } catch (const std::exception& e) {
         json response;
@@ -77,7 +77,7 @@ void QdrantRoute::handle_status(SocketType sock, const std::string& method) {
         response["error"] = e.what();
         response["timestamp"] = std::time(nullptr);
         
-        send_json_response(sock, 503, response);
+        send_json_response(sock, 503, response.dump());
     }
 }
 
@@ -99,7 +99,7 @@ void QdrantRoute::handle_collections(SocketType sock, const std::string& method)
             json response;
             response["error"] = "Qdrant service is not accessible";
             response["collections"] = json::array();
-            send_json_response(sock, 503, response);
+            send_json_response(sock, 503, response.dump());
             return;
         }
         
@@ -109,25 +109,25 @@ void QdrantRoute::handle_collections(SocketType sock, const std::string& method)
         response["status"] = "success";
         response["message"] = "Collection listing not yet implemented";
         
-        send_json_response(sock, 200, response);
+        send_json_response(sock, 200, response.dump());
         
     } catch (const std::exception& e) {
         json response;
         response["error"] = e.what();
         response["collections"] = json::array();
-        send_json_response(sock, 500, response);
+        send_json_response(sock, 500, response.dump());
     }
 }
 
-void QdrantRoute::send_json_response(SocketType sock, int status_code, const json& data) {
-    send_response(sock, status_code, data.dump());
+void QdrantRoute::send_json_response(SocketType sock, int status_code, const std::string& data) {
+    send_response(sock, status_code, data);
 }
 
 void QdrantRoute::send_error_response(SocketType sock, int status_code, const std::string& error) {
     json response;
     response["error"] = error;
     response["status"] = "error";
-    send_json_response(sock, status_code, response);
+    send_json_response(sock, status_code, response.dump());
 }
 
 } // namespace kolosal::routes

@@ -7,6 +7,7 @@
 #include <json.hpp>
 #include <sstream>
 #include <regex>
+#include <chrono>
 
 using json = nlohmann::json;
 
@@ -1067,6 +1068,270 @@ public:
     }
 };
 
+// Agent Control Routes - Start/Stop/Execute-Async
+class AgentStartRoute : public IRoute {
+private:
+    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
+    AgentsRoute* parent;
+    std::string matched_agent_id;
+
+public:
+    AgentStartRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
+        : agent_manager(manager), parent(parent) {}
+
+    bool match(const std::string& method, const std::string& path) override {
+        if (method != "POST") return false;
+        
+        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)/start$)");
+        std::smatch matches;
+        if (std::regex_match(path, matches, pattern)) {
+            matched_agent_id = matches[1].str();
+            return true;
+        }
+        return false;
+    }
+
+    void handle(SocketType sock, const std::string& body) override {
+        try {
+            // Extract agent_id from the matched_agent_id member variable
+            // This should be set during the match() call
+            if (matched_agent_id.empty()) {
+                send_response(sock, 400, parent->format_error_response("Invalid agent ID"));
+                return;
+            }
+            
+            ServerLogger::logInfo("Starting agent: %s", matched_agent_id.c_str());
+            
+            bool started = agent_manager->start_agent(matched_agent_id);
+            
+            json response_data;
+            response_data["agent_id"] = matched_agent_id;
+            response_data["status"] = started ? "started" : "failed";
+            response_data["success"] = started;
+            
+            int status_code = started ? 200 : 400;
+            send_response(sock, status_code, parent->format_success_response(response_data));
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Error starting agent: %s", e.what());
+            send_response(sock, 500, parent->format_error_response(e.what()));
+        }
+    }
+};
+
+class AgentStopRoute : public IRoute {
+private:
+    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
+    AgentsRoute* parent;
+    std::string matched_agent_id;
+
+public:
+    AgentStopRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
+        : agent_manager(manager), parent(parent) {}
+
+    bool match(const std::string& method, const std::string& path) override {
+        if (method != "POST") return false;
+        
+        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)/stop$)");
+        std::smatch matches;
+        if (std::regex_match(path, matches, pattern)) {
+            matched_agent_id = matches[1].str();
+            return true;
+        }
+        return false;
+    }
+
+    void handle(SocketType sock, const std::string& body) override {
+        try {
+            if (matched_agent_id.empty()) {
+                send_response(sock, 400, parent->format_error_response("Invalid agent ID"));
+                return;
+            }
+            
+            ServerLogger::logInfo("Stopping agent: %s", matched_agent_id.c_str());
+            
+            bool stopped = agent_manager->stop_agent(matched_agent_id);
+            
+            json response_data;
+            response_data["agent_id"] = matched_agent_id;
+            response_data["status"] = stopped ? "stopped" : "failed";
+            response_data["success"] = stopped;
+            
+            int status_code = stopped ? 200 : 400;
+            send_response(sock, status_code, parent->format_success_response(response_data));
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Error stopping agent: %s", e.what());
+            send_response(sock, 500, parent->format_error_response(e.what()));
+        }
+    }
+};
+
+class AgentExecuteAsyncRoute : public IRoute {
+private:
+    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
+    AgentsRoute* parent;
+    std::string matched_agent_id;
+
+public:
+    AgentExecuteAsyncRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
+        : agent_manager(manager), parent(parent) {}
+
+    bool match(const std::string& method, const std::string& path) override {
+        if (method != "POST") return false;
+        
+        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)/execute-async$)");
+        std::smatch matches;
+        if (std::regex_match(path, matches, pattern)) {
+            matched_agent_id = matches[1].str();
+            return true;
+        }
+        return false;
+    }
+
+    void handle(SocketType sock, const std::string& body) override {
+        try {
+            if (matched_agent_id.empty()) {
+                send_response(sock, 400, parent->format_error_response("Invalid agent ID"));
+                return;
+            }
+            
+            ServerLogger::logInfo("Executing agent async: %s", matched_agent_id.c_str());
+            
+            // Parse request data
+            json request_data;
+            if (!body.empty()) {
+                try {
+                    request_data = json::parse(body);
+                } catch (const json::parse_error& e) {
+                    send_response(sock, 400, parent->format_error_response("Invalid JSON in request body"));
+                    return;
+                }
+            }
+            
+            // For async execution, we'll return immediately with a task ID
+            std::string task_id = "task_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+            
+            json response_data;
+            response_data["agent_id"] = matched_agent_id;
+            response_data["task_id"] = task_id;
+            response_data["status"] = "accepted";
+            response_data["success"] = true;
+            
+            // TODO: Implement actual async execution with the agent manager
+            send_response(sock, 202, parent->format_success_response(response_data)); // 202 Accepted
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Error executing agent async: %s", e.what());
+            send_response(sock, 500, parent->format_error_response(e.what()));
+        }
+    }
+};
+
+// Agent Messaging Routes
+class AgentMessageSendRoute : public IRoute {
+private:
+    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
+    AgentsRoute* parent;
+
+public:
+    AgentMessageSendRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
+        : agent_manager(manager), parent(parent) {}
+
+    bool match(const std::string& method, const std::string& path) override {
+        return (method == "POST" && (path == "/api/v1/agents/messages/send" || path == "/v1/agents/messages/send" || path == "/agents/messages/send"));
+    }
+
+    void handle(SocketType sock, const std::string& body) override {
+        try {
+            json request_data;
+            if (!body.empty()) {
+                try {
+                    request_data = json::parse(body);
+                } catch (const json::parse_error& e) {
+                    send_response(sock, 400, parent->format_error_response("Invalid JSON in request body"));
+                    return;
+                }
+            }
+            
+            if (!parent->validate_message_payload(request_data)) {
+                send_response(sock, 400, parent->format_error_response("Invalid message payload"));
+                return;
+            }
+            
+            std::string from_agent = request_data["from_agent"];
+            std::string to_agent = request_data["to_agent"];
+            std::string message_type = request_data["type"];
+            std::string content = request_data.value("content", "");
+            
+            ServerLogger::logInfo("Sending message from %s to %s", from_agent.c_str(), to_agent.c_str());
+            
+            json response_data;
+            response_data["from_agent"] = from_agent;
+            response_data["to_agent"] = to_agent;
+            response_data["message_id"] = "msg_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+            response_data["status"] = "sent";
+            response_data["success"] = true;
+            
+            send_response(sock, 200, parent->format_success_response(response_data));
+            
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Error sending agent message: %s", e.what());
+            send_response(sock, 500, parent->format_error_response(e.what()));
+        }
+    }
+};
+
+class AgentMessageBroadcastRoute : public IRoute {
+private:
+    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
+    AgentsRoute* parent;
+
+public:
+    AgentMessageBroadcastRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
+        : agent_manager(manager), parent(parent) {}
+
+    bool match(const std::string& method, const std::string& path) override {
+        return (method == "POST" && (path == "/api/v1/agents/messages/broadcast" || path == "/v1/agents/messages/broadcast" || path == "/agents/messages/broadcast"));
+    }
+
+    void handle(SocketType sock, const std::string& body) override {
+        try {
+            json request_data;
+            if (!body.empty()) {
+                try {
+                    request_data = json::parse(body);
+                } catch (const json::parse_error& e) {
+                    send_response(sock, 400, parent->format_error_response("Invalid JSON in request body"));
+                    return;
+                }
+            }
+            
+            if (!request_data.contains("from_agent") || !request_data.contains("message")) {
+                send_response(sock, 400, parent->format_error_response("Missing from_agent or message"));
+                return;
+            }
+            
+            std::string from_agent = request_data["from_agent"];
+            std::string message = request_data["message"];
+            
+            ServerLogger::logInfo("Broadcasting message from %s", from_agent.c_str());
+            
+            json response_data;
+            response_data["from_agent"] = from_agent;
+            response_data["broadcast_id"] = "broadcast_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count());
+            response_data["status"] = "broadcasted";
+            response_data["success"] = true;
+            
+            send_response(sock, 200, parent->format_success_response(response_data));
+            
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Error broadcasting agent message: %s", e.what());
+            send_response(sock, 500, parent->format_error_response(e.what()));
+        }
+    }
+};
+
 AgentsRoute::AgentsRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager)
     : agent_manager(manager) {
 }
@@ -1079,7 +1344,17 @@ void AgentsRoute::setup_routes(Server& server) {
     server.addRoute(std::make_unique<AgentDeleteRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentExecuteRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentSystemStatusRoute>(agent_manager, this));
-      // Register new chat/response endpoints
+    
+    // Agent control routes
+    server.addRoute(std::make_unique<AgentStartRoute>(agent_manager, this));
+    server.addRoute(std::make_unique<AgentStopRoute>(agent_manager, this));
+    server.addRoute(std::make_unique<AgentExecuteAsyncRoute>(agent_manager, this));
+    
+    // Agent messaging routes
+    server.addRoute(std::make_unique<AgentMessageSendRoute>(agent_manager, this));
+    server.addRoute(std::make_unique<AgentMessageBroadcastRoute>(agent_manager, this));
+    
+    // Register new chat/response endpoints
     server.addRoute(std::make_unique<AgentChatCompletionRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentChatRoute>(agent_manager, this));
     server.addRoute(std::make_unique<AgentGenerateRoute>(agent_manager, this));

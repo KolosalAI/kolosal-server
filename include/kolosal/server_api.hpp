@@ -40,6 +40,10 @@ namespace kolosal {
         bool init(const std::string &port, const std::string &host, std::chrono::seconds idleTimeout, const ServerConfig& config);
         void shutdown();
         
+        // Server status checking
+        bool isServerThreadRunning() const;
+        void checkServerThread(); // Throws exception if server thread died
+        
         // Feature management
         void enableMetrics();
         void enableSearch(const SearchConfig& config);

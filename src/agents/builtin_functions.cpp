@@ -676,6 +676,32 @@ FunctionResult RetrievalFunction::execute(const AgentData& params) {
         
         // Get the document service from ServerAPI
         auto& serverAPI = ServerAPI::instance();
+        
+        // Check if document service is available
+        try {
+            auto& documentService = serverAPI.getDocumentService();
+        } catch (const std::runtime_error& e) {
+            // DocumentService not available (Qdrant not running)
+            ServerLogger::logWarning("DocumentService not available for retrieval: %s", e.what());
+            
+            FunctionResult result(true);
+            result.result_data.set("query", query);
+            result.result_data.set("total_found", 0);
+            result.result_data.set("k_requested", k);
+            result.result_data.set("collection_name", collection);
+            result.result_data.set("document_count", 0);
+            result.result_data.set("documents", std::vector<std::string>());
+            result.result_data.set("document_ids", std::vector<std::string>());
+            result.result_data.set("summary", "No documents retrieved - DocumentService not available (Qdrant may not be running)");
+            result.result_data.set("result", "DocumentService not available - 0 documents retrieved");
+            
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+            result.execution_time_ms = duration.count() / 1000.0;
+            
+            return result;
+        }
+        
         auto& documentService = serverAPI.getDocumentService();
         
         // Prepare retrieval request
@@ -771,6 +797,30 @@ FunctionResult ContextRetrievalFunction::execute(const AgentData& params) {
         
         // Get the document service from ServerAPI
         auto& serverAPI = ServerAPI::instance();
+        
+        // Check if document service is available
+        try {
+            auto& documentService = serverAPI.getDocumentService();
+        } catch (const std::runtime_error& e) {
+            // DocumentService not available (Qdrant not running)
+            ServerLogger::logWarning("DocumentService not available for context retrieval: %s", e.what());
+            
+            FunctionResult result(true);
+            result.result_data.set("query", query);
+            result.result_data.set("context", "");
+            result.result_data.set("context_format", context_format);
+            result.result_data.set("total_found", 0);
+            result.result_data.set("k_requested", k);
+            result.result_data.set("collection_name", collection);
+            result.result_data.set("result", "DocumentService not available - no context retrieved");
+            
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+            result.execution_time_ms = duration.count() / 1000.0;
+            
+            return result;
+        }
+        
         auto& documentService = serverAPI.getDocumentService();
         
         // Prepare retrieval request
@@ -1138,6 +1188,28 @@ FunctionResult AddDocumentFunction::execute(const AgentData& params) {
         
         // Get the document service from ServerAPI
         auto& serverAPI = ServerAPI::instance();
+        
+        // Check if document service is available
+        try {
+            auto& documentService = serverAPI.getDocumentService();
+        } catch (const std::runtime_error& e) {
+            // DocumentService not available (Qdrant not running)
+            ServerLogger::logWarning("DocumentService not available for document addition: %s", e.what());
+            
+            FunctionResult result(false, std::string("DocumentService not available: ") + e.what());
+            result.result_data.set("collection_name", collection);
+            result.result_data.set("requested_count", static_cast<int>(texts.size()));
+            result.result_data.set("added_count", 0);
+            result.result_data.set("failed_count", static_cast<int>(texts.size()));
+            result.result_data.set("result", "Failed to add documents - DocumentService not available");
+            
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+            result.execution_time_ms = duration.count() / 1000.0;
+            
+            return result;
+        }
+        
         auto& documentService = serverAPI.getDocumentService();
         
         // Prepare add documents request
@@ -1242,6 +1314,28 @@ FunctionResult RemoveDocumentFunction::execute(const AgentData& params) {
         
         // Get the document service from ServerAPI
         auto& serverAPI = ServerAPI::instance();
+        
+        // Check if document service is available
+        try {
+            auto& documentService = serverAPI.getDocumentService();
+        } catch (const std::runtime_error& e) {
+            // DocumentService not available (Qdrant not running)
+            ServerLogger::logWarning("DocumentService not available for document removal: %s", e.what());
+            
+            FunctionResult result(false, std::string("DocumentService not available: ") + e.what());
+            result.result_data.set("collection_name", collection);
+            result.result_data.set("requested_count", static_cast<int>(ids.size()));
+            result.result_data.set("removed_count", 0);
+            result.result_data.set("failed_count", static_cast<int>(ids.size()));
+            result.result_data.set("result", "Failed to remove documents - DocumentService not available");
+            
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+            result.execution_time_ms = duration.count() / 1000.0;
+            
+            return result;
+        }
+        
         auto& documentService = serverAPI.getDocumentService();
         
         // Prepare remove documents request
@@ -1449,6 +1543,26 @@ FunctionResult GetEmbeddingFunction::execute(const AgentData& params) {
         
         // Get the document service from ServerAPI
         auto& serverAPI = ServerAPI::instance();
+        
+        // Check if document service is available
+        try {
+            auto& documentService = serverAPI.getDocumentService();
+        } catch (const std::runtime_error& e) {
+            // DocumentService not available (Qdrant not running)
+            ServerLogger::logWarning("DocumentService not available for embedding generation: %s", e.what());
+            
+            FunctionResult result(false, std::string("DocumentService not available: ") + e.what());
+            result.result_data.set("text", text);
+            result.result_data.set("model_id", model);
+            result.result_data.set("result", "Failed to generate embedding - DocumentService not available");
+            
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+            result.execution_time_ms = duration.count() / 1000.0;
+            
+            return result;
+        }
+        
         auto& documentService = serverAPI.getDocumentService();
         
         // Get embedding
@@ -1513,6 +1627,27 @@ FunctionResult TestDocumentServiceFunction::execute(const AgentData& params) {
         
         // Get the document service from ServerAPI
         auto& serverAPI = ServerAPI::instance();
+        
+        // Check if document service is available
+        try {
+            auto& documentService = serverAPI.getDocumentService();
+        } catch (const std::runtime_error& e) {
+            // DocumentService not available (Qdrant not running)
+            ServerLogger::logWarning("DocumentService not available for testing: %s", e.what());
+            
+            FunctionResult result(false, std::string("DocumentService not available: ") + e.what());
+            result.result_data.set("connection_ok", false);
+            result.result_data.set("error", e.what());
+            result.result_data.set("detailed", detailed);
+            result.result_data.set("result", "DocumentService test failed - service not available");
+            
+            auto end_time = std::chrono::high_resolution_clock::now();
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
+            result.execution_time_ms = duration.count() / 1000.0;
+            
+            return result;
+        }
+        
         auto& documentService = serverAPI.getDocumentService();
         
         // Test connection

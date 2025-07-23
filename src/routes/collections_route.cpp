@@ -20,33 +20,17 @@ CollectionsRoute::~CollectionsRoute() = default;
 
 bool CollectionsRoute::match(const std::string& method, const std::string& path)
 {
-    // Match /api/v1/collections and /api/v1/collections/{id}
-    std::regex collections_pattern(R"(^/api/v1/collections(?:/([^/]+))?$)");
-    return std::regex_match(path, collections_pattern) && 
-           (method == "GET" || method == "POST" || method == "PUT" || method == "DELETE");
+    // Match POST /api/v1/collections for collection creation
+    std::regex collections_pattern(R"(^/api/v1/collections$)");
+    return method == "POST" && std::regex_match(path, collections_pattern);
 }
 
 void CollectionsRoute::handle(SocketType sock, const std::string& body)
 {
     try
     {
-        // Note: In a real implementation, method and path would be extracted from the request
-        // For now, we'll handle this based on the body content and path patterns
-        
-        // This is a simplified implementation - in practice, you'd need to parse the HTTP request
-        // to get the actual method and path
-        
-        ServerLogger::logInfo("Collections route handling request");
-        
-        // For demonstration, we'll assume GET for empty body, POST for non-empty
-        if (body.empty())
-        {
-            handleGetCollections(sock, "/api/v1/collections");
-        }
-        else
-        {
-            handlePostCollections(sock, body);
-        }
+        // Only handle POST requests for collection creation
+        handlePostCollections(sock, body);
     }
     catch (const std::exception& ex)
     {

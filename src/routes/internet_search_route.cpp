@@ -185,7 +185,7 @@ namespace kolosal {
 
     bool InternetSearchRoute::match(const std::string& method, const std::string& path) {
         return (method == "GET" || method == "POST") && 
-               (path == "/internet_search" || path == "/v1/internet_search" || path == "/search");
+               (path == "/internet_search" || path == "/v1/internet_search" || path == "/search" || path == "/search/advanced");
     }
 
     std::string InternetSearchRoute::buildSearchUrl(const SearchRequest& request) {

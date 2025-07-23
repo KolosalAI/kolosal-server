@@ -49,21 +49,31 @@ bool RetrieveRequest::validate() const
 {
     if (query.empty())
     {
-        ServerLogger::logDebug("Validation failed: query is empty");
+        ServerLogger::logWarning("Validation failed: query is empty - please provide a search query");
+        return false;
+    }
+    
+    if (query.length() > 10000)  // Reasonable query length limit
+    {
+        ServerLogger::logWarning("Validation failed: query too long (%zu chars) - maximum 10000 characters allowed", query.length());
         return false;
     }
     
     if (k <= 0 || k > 1000)  // Reasonable upper limit
     {
-        ServerLogger::logDebug("Validation failed: k must be between 1 and 1000, got %d", k);
+        ServerLogger::logWarning("Validation failed: k must be between 1 and 1000, got %d", k);
         return false;
     }
     
     if (score_threshold < 0.0f || score_threshold > 1.0f)
     {
-        ServerLogger::logDebug("Validation failed: score_threshold must be between 0.0 and 1.0, got %f", score_threshold);
+        ServerLogger::logWarning("Validation failed: score_threshold must be between 0.0 and 1.0, got %f", score_threshold);
         return false;
     }
+    
+    // Log validation success with parameters for debugging
+    ServerLogger::logDebug("Request validation successful - query length: %zu, k: %d, threshold: %.3f", 
+                          query.length(), k, score_threshold);
     
     return true;
 }

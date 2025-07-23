@@ -85,7 +85,18 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         // Validate the request
         if (!request.validate())
         {
-            sendErrorResponse(sock, 400, "Invalid request parameters");
+            std::string validation_error = "Invalid request parameters - ";
+            if (request.query.empty()) {
+                validation_error += "query cannot be empty";
+            } else if (request.k <= 0 || request.k > 1000) {
+                validation_error += "k must be between 1 and 1000 (got " + std::to_string(request.k) + ")";
+            } else if (request.score_threshold < 0.0f || request.score_threshold > 1.0f) {
+                validation_error += "score_threshold must be between 0.0 and 1.0 (got " + std::to_string(request.score_threshold) + ")";
+            } else {
+                validation_error += "check request parameters";
+            }
+            
+            sendErrorResponse(sock, 400, validation_error, "invalid_request_error");
             return;
         }
 
@@ -106,22 +117,17 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         try {
             auto& document_service = serverAPI.getDocumentService();
             
-            // Test connection
+            // Test connection first
+            ServerLogger::logDebug("[Thread %u] Testing database connection", std::this_thread::get_id());
             bool connected = document_service.testConnection().get();
             if (!connected)
             {
-                ServerLogger::logWarning("[Thread %u] Database connection failed, returning empty result", std::this_thread::get_id());
-                // Return empty results instead of error to prevent test failures
-                json response = {
-                    {"success", true},
-                    {"results", json::array()},
-                    {"total", 0},
-                    {"query", request.query},
-                    {"requestId", requestId}
-                };
-                send_response(sock, 200, response.dump());
+                ServerLogger::logError("[Thread %u] Database connection test failed", std::this_thread::get_id());
+                sendErrorResponse(sock, 503, "Database connection failed - ensure Qdrant is running and accessible", "service_unavailable");
                 return;
             }
+            
+            ServerLogger::logDebug("[Thread %u] Database connection successful", std::this_thread::get_id());
 
             // Process retrieval
             ServerLogger::logDebug("[Thread %u] Submitting retrieval for processing", std::this_thread::get_id());
@@ -134,7 +140,14 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
             // Complete monitoring
             // monitor_->completeRequest(requestId);
 
-            // Send successful response
+            // Check if we got any results and provide helpful information
+            if (response.total_found == 0)
+            {
+                ServerLogger::logInfo("[Thread %u] No documents found for query '%s' - this could be normal if no matching documents exist", 
+                                    std::this_thread::get_id(), request.query.c_str());
+            }
+
+            // Send successful response (even if no documents found)
             std::map<std::string, std::string> headers = {
                 {"Content-Type", "application/json"},
                 {"Access-Control-Allow-Origin", "*"},
@@ -143,20 +156,28 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
             };
             send_response(sock, 200, response.to_json().dump(), headers);
 
-            ServerLogger::logInfo("[Thread %u] Successfully retrieved %d documents for query", 
+            ServerLogger::logInfo("[Thread %u] Successfully processed retrieval request - returned %d documents", 
                                   std::this_thread::get_id(), response.total_found);
                                   
         } catch (const std::runtime_error& ex) {
-            // Handle DocumentService not initialized
-            ServerLogger::logWarning("[Thread %u] DocumentService error: %s, returning empty result", std::this_thread::get_id(), ex.what());
-            json response = {
-                {"success", true},
-                {"results", json::array()},
-                {"total", 0},
-                {"query", request.query},
-                {"requestId", requestId}
-            };
-            send_response(sock, 200, response.dump());
+            // Handle DocumentService specific errors with more context
+            std::string error_msg = ex.what();
+            ServerLogger::logError("[Thread %u] DocumentService error: %s", std::this_thread::get_id(), error_msg.c_str());
+            
+            // Provide specific error codes and helpful messages
+            if (error_msg.find("not initialized") != std::string::npos) {
+                sendErrorResponse(sock, 500, "Document service not initialized - server may be starting up. Check GET /health for status", "service_not_ready");
+            } else if (error_msg.find("Qdrant is disabled") != std::string::npos) {
+                sendErrorResponse(sock, 503, "Document retrieval is disabled in server configuration. Check GET /health for details", "service_disabled");
+            } else if (error_msg.find("embedding") != std::string::npos) {
+                sendErrorResponse(sock, 500, "Embedding generation failed - " + error_msg + ". Check GET /health for service status", "embedding_error");
+            } else if (error_msg.find("Vector search failed") != std::string::npos) {
+                sendErrorResponse(sock, 503, "Vector search failed - " + error_msg + ". Check GET /health for database status", "search_error");
+            } else if (error_msg.find("Collection") != std::string::npos && error_msg.find("does not exist") != std::string::npos) {
+                sendErrorResponse(sock, 404, "No documents collection found - please index some documents first. Check GET /health for collection status", "collection_not_found");
+            } else {
+                sendErrorResponse(sock, 500, "DocumentService error: " + error_msg + ". Check GET /health for detailed diagnostics", "service_error");
+            }
             return;
         }
     }

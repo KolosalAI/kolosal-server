@@ -165,6 +165,79 @@ functions:
       detailed: "Whether to perform detailed testing"
     timeout_ms: 30000
 
+  - name: "research"
+    type: "builtin"
+    description: "Research and gather information on a topic"
+    parameters:
+      query: "Research query or topic"
+      depth: "Research depth (basic/detailed/comprehensive)"
+    timeout_ms: 60000
+    
+  - name: "analyze"
+    type: "builtin"
+    description: "Analyze data, text, or information"
+    parameters:
+      content: "Content to analyze"
+      analysis_type: "Type of analysis to perform"
+    timeout_ms: 60000
+    
+  - name: "summarize"
+    type: "builtin"
+    description: "Summarize text or information"
+    parameters:
+      content: "Content to summarize"
+      length: "Summary length (short/medium/long)"
+    timeout_ms: 60000
+    
+  - name: "write"
+    type: "builtin"
+    description: "Write or generate content"
+    parameters:
+      prompt: "Writing prompt or request"
+      style: "Writing style preference"
+      length: "Desired content length"
+    timeout_ms: 60000
+    
+  - name: "edit"
+    type: "builtin"
+    description: "Edit or revise existing content"
+    parameters:
+      content: "Content to edit"
+      instructions: "Editing instructions"
+    timeout_ms: 60000
+    
+  - name: "format"
+    type: "builtin"
+    description: "Format text or data according to specifications"
+    parameters:
+      content: "Content to format"
+      format_type: "Desired format type"
+    timeout_ms: 30000
+    
+  - name: "review"
+    type: "builtin"
+    description: "Review and provide feedback on content or data"
+    parameters:
+      content: "Content to review"
+      criteria: "Review criteria or focus areas"
+    timeout_ms: 60000
+    
+  - name: "validate"
+    type: "builtin"
+    description: "Validate data, content, or processes"
+    parameters:
+      content: "Content to validate"
+      validation_type: "Type of validation to perform"
+    timeout_ms: 30000
+    
+  - name: "improve"
+    type: "builtin"
+    description: "Improve or optimize content, processes, or data"
+    parameters:
+      content: "Content to improve"
+      improvement_areas: "Areas to focus improvement on"
+    timeout_ms: 60000
+
 # Agent definitions
 agents:
   # Research Assistant Agent

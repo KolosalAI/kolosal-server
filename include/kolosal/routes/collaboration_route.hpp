@@ -6,6 +6,7 @@
 
 #include <memory>
 #include <string>
+#include <json.hpp>
 
 namespace kolosal::routes {
 

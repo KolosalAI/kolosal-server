@@ -19,27 +19,15 @@ ContextRetrievalRoute::~ContextRetrievalRoute() = default;
 
 bool ContextRetrievalRoute::match(const std::string& method, const std::string& path)
 {
-    return (path == "/context-retrieval" || path == "/api/v1/context-retrieval") && 
-           (method == "GET" || method == "POST");
+    return method == "POST" && (path == "/context-retrieval" || path == "/api/v1/context-retrieval");
 }
 
 void ContextRetrievalRoute::handle(SocketType sock, const std::string& body)
 {
     try
     {
-        // For demonstration purposes, we'll handle based on body content
-        // In a real implementation, you'd parse the HTTP method from the request
-        
-        if (body.empty())
-        {
-            // Assume GET request for endpoint info
-            handleContextRetrievalInfo(sock);
-        }
-        else
-        {
-            // Assume POST request for actual retrieval
-            handleContextRetrieval(sock, body);
-        }
+        // Only handle POST requests for context retrieval
+        handleContextRetrieval(sock, body);
     }
     catch (const std::exception& ex)
     {

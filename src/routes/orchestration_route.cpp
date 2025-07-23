@@ -14,9 +14,10 @@ OrchestrationRoute::OrchestrationRoute(std::shared_ptr<agents::AgentOrchestrator
 }
 
 void OrchestrationRoute::setup_routes(Server& server) {
-    // This method exists for compatibility with AgentsRoute pattern
-    // The OrchestrationRoute instance should be added directly to the server
-    // This is typically called from outside, so we don't add ourselves here
+    // Add this route instance to the server
+    // Note: We can't use std::make_unique here since this object already exists
+    // The caller should manage the lifetime of this route object
+    ServerLogger::logInfo("OrchestrationRoute::setup_routes called - route should be added by caller");
 }
 
 bool OrchestrationRoute::match(const std::string& method, const std::string& path) {

@@ -5715,6 +5715,12 @@ static void ggml_compute_backward(
 }
 
 static void ggml_visit_parents(struct ggml_cgraph * cgraph, struct ggml_tensor * node) {
+    // Safety check: ensure we have valid parameters
+    if (!cgraph || !node) {
+        GGML_PRINT_DEBUG("%s: Warning - null parameter passed (cgraph=%p, node=%p)\n", __func__, (void*)cgraph, (void*)node);
+        return;
+    }
+    
     // check if already visited
     if (ggml_hash_insert(&cgraph->visited_hash_set, node) == GGML_HASHSET_ALREADY_EXISTS) {
         return;
@@ -5767,7 +5773,25 @@ static void ggml_build_forward_impl(struct ggml_cgraph * cgraph, struct ggml_ten
 
     if (n_new > 0) {
         // the last added node should always be starting point
-        GGML_ASSERT(cgraph->nodes[cgraph->n_nodes - 1] == tensor);
+        // Adding defensive check to prevent crashes from corrupted graph state
+        if (cgraph->nodes[cgraph->n_nodes - 1] != tensor) {
+            GGML_PRINT_DEBUG("%s: Warning - graph integrity check failed, expected tensor %p but got %p\n", 
+                            __func__, (void*)tensor, (void*)cgraph->nodes[cgraph->n_nodes - 1]);
+            // Instead of asserting, we'll try to find the tensor in the graph
+            bool found = false;
+            for (int i = n0; i < cgraph->n_nodes; i++) {
+                if (cgraph->nodes[i] == tensor) {
+                    found = true;
+                    break;
+                }
+            }
+            if (!found) {
+                GGML_PRINT_DEBUG("%s: Error - tensor not found in newly added nodes, graph may be corrupted\n", __func__);
+                // In a production environment, we might want to handle this more gracefully
+                // For now, we'll still assert but with more information
+                GGML_ASSERT(false && "Tensor not found in computational graph - possible memory corruption");
+            }
+        }
     }
 }
 

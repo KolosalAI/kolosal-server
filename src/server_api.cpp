@@ -15,6 +15,7 @@
 #include "kolosal/routes/agent_monitoring_route.hpp"
 #include "kolosal/routes/function_execution_route.hpp"
 #include "kolosal/routes/collaboration_route.hpp"
+#include "kolosal/routes/agent_documents_route.hpp"
 
 #include "kolosal/routes/downloads_route.hpp"
 #include "kolosal/routes/parse_pdf_route.hpp"
@@ -24,13 +25,24 @@
 #include "kolosal/routes/embedding_route.hpp"
 #include "kolosal/routes/add_documents_route.hpp"
 #include "kolosal/routes/retrieve_route.hpp"
+#include "kolosal/routes/retrieve_test_route.hpp"
 #include "kolosal/retrieval/remove_documents_route.hpp"
 #include "kolosal/routes/auto_setup_route.hpp"
 #include "kolosal/routes/documents_route.hpp"
+#include "kolosal/routes/document_search_route.hpp"
 #include "kolosal/routes/collections_route.hpp"
+#include "kolosal/routes/collections_list_route.hpp"
+#include "kolosal/routes/collections_delete_route.hpp"
 #include "kolosal/routes/context_retrieval_route.hpp"
 #include "kolosal/routes/vector_search_route.hpp"
 #include "kolosal/routes/qdrant_route.hpp"
+#include "kolosal/routes/documents_upload_route.hpp"
+#include "kolosal/routes/bulk_operations_route.hpp"
+#include "kolosal/routes/internet_search_route.hpp"
+#include "kolosal/routes/not_found_route.hpp"
+#include "kolosal/routes/rag_route.hpp"
+#include "kolosal/routes/workflow_route.hpp"
+#include "kolosal/routes/session_route.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -40,6 +52,9 @@
 #include "kolosal/retrieval/document_service.hpp"
 #include <memory>
 #include <stdexcept>
+#include <thread>
+#include <atomic>
+#include <exception>
 
 namespace kolosal
 {
@@ -54,8 +69,14 @@ namespace kolosal
         std::unique_ptr<AutoSetupManager> autoSetupManager;
         std::unique_ptr<retrieval::DocumentService> documentService;
         std::unique_ptr<routes::AgentsRoute> agentsRoute;
+        std::unique_ptr<routes::AgentDocumentsRoute> agentDocumentsRoute;
         std::unique_ptr<routes::OrchestrationRoute> orchestrationRoute;
         ServerConfig config;
+        
+        // Server thread management
+        std::thread serverThread;
+        std::atomic<bool> serverThreadRunning{true};
+        std::exception_ptr serverThreadException{nullptr};
 
         Impl()
         {
@@ -168,26 +189,55 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<EmbeddingRoute>());
             pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
             pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
+            pImpl->server->addRoute(std::make_unique<RetrieveTestRoute>());
             pImpl->server->addRoute(std::make_unique<retrieval::RemoveDocumentsRoute>());
             
             // Register new API v1 routes
             pImpl->server->addRoute(std::make_unique<routes::DocumentsRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::DocumentsUploadRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::DocumentSearchRoute>());
             pImpl->server->addRoute(std::make_unique<routes::CollectionsRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::CollectionsListRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::CollectionsDeleteRoute>());
             pImpl->server->addRoute(std::make_unique<routes::ContextRetrievalRoute>());
             pImpl->server->addRoute(std::make_unique<routes::VectorSearchRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::BulkOperationsRoute>());
             pImpl->server->addRoute(std::make_unique<routes::QdrantRoute>());
             
             // Register Auto-Setup routes
             pImpl->server->addRoute(std::make_unique<routes::AutoSetupRoute>());
+            
+            // Register basic RAG and Workflow routes (these provide stub implementations)
+            auto ragRoute = std::make_unique<routes::RAGRoute>();
+            ragRoute->setup_routes(*pImpl->server);
+            
+            auto workflowRoute = std::make_unique<routes::WorkflowRoute>();
+            workflowRoute->setup_routes(*pImpl->server);
+            
+            auto sessionRoute = std::make_unique<routes::SessionRoute>();
+            sessionRoute->setup_routes(*pImpl->server);
+            
+            // Register catch-all 404 route (MUST BE LAST!)
+            pImpl->server->addRoute(std::make_unique<routes::NotFoundRoute>());
 
             ServerLogger::logInfo("Routes registered successfully");
 
-            // Start server in a background thread
-            std::thread([this]()
+            // Start server in a background thread with proper thread management
+            pImpl->serverThread = std::thread([this]()
                         {
-                ServerLogger::logInfo("Starting server main loop");
-                pImpl->server->run(); })
-                .detach();
+                try {
+                    ServerLogger::logInfo("Starting server main loop");
+                    pImpl->server->run();
+                    ServerLogger::logInfo("Server main loop exited normally");
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Server thread exception: %s", e.what());
+                    pImpl->serverThreadException = std::make_exception_ptr(e);
+                } catch (...) {
+                    ServerLogger::logError("Server thread unknown exception");
+                    pImpl->serverThreadException = std::current_exception();
+                }
+                pImpl->serverThreadRunning = false;
+                });
 
             return true;
         }
@@ -208,8 +258,12 @@ namespace kolosal
     void ServerAPI::enableSearch(const SearchConfig& config)
     {
         // Implementation for enabling search functionality
-        // This would typically involve setting up search endpoints
-        ServerLogger::logInfo("Search functionality enabled");
+        if (pImpl && pImpl->server) {
+            pImpl->server->addRoute(std::make_unique<InternetSearchRoute>(config));
+            ServerLogger::logInfo("Internet search functionality enabled with SearXNG URL: %s", config.searxng_url.c_str());
+        } else {
+            ServerLogger::logError("Cannot enable search: server not initialized");
+        }
     }
 
     void ServerAPI::shutdown()
@@ -217,6 +271,16 @@ namespace kolosal
         if (pImpl->server)
         {
             ServerLogger::logInfo("Shutting down server");
+
+            // Signal the server to stop
+            pImpl->server->stop();
+
+            // Wait for server thread to finish
+            if (pImpl->serverThread.joinable()) {
+                ServerLogger::logInfo("Waiting for server thread to finish...");
+                pImpl->serverThread.join();
+                ServerLogger::logInfo("Server thread finished");
+            }
 
             // Wait for all download threads to complete (this will cancel them first)
             try
@@ -241,6 +305,23 @@ namespace kolosal
     {
         return *pImpl->nodeManager;
     }
+
+    bool ServerAPI::isServerThreadRunning() const
+    {
+        return pImpl->serverThreadRunning.load();
+    }
+
+    void ServerAPI::checkServerThread()
+    {
+        if (!pImpl->serverThreadRunning.load()) {
+            if (pImpl->serverThreadException) {
+                std::rethrow_exception(pImpl->serverThreadException);
+            } else {
+                throw std::runtime_error("Server thread has exited unexpectedly");
+            }
+        }
+    }
+
     const NodeManager &ServerAPI::getNodeManager() const
     {
         return *pImpl->nodeManager;
@@ -283,6 +364,15 @@ namespace kolosal
                 pImpl->agentsRoute->setup_routes(*pImpl->server);
                 ServerLogger::logInfo("Agent routes setup completed");
                 
+                // Create and setup agent documents route
+                ServerLogger::logInfo("Creating AgentDocumentsRoute object...");
+                pImpl->agentDocumentsRoute = std::make_unique<routes::AgentDocumentsRoute>(pImpl->agentManager);
+                ServerLogger::logInfo("AgentDocumentsRoute object created successfully");
+                
+                ServerLogger::logInfo("Setting up agent documents routes...");
+                pImpl->agentDocumentsRoute->setup_routes(*pImpl->server);
+                ServerLogger::logInfo("Agent documents routes setup completed");
+                
                 ServerLogger::logInfo("Adding AgentMonitoringRoute...");
                 pImpl->server->addRoute(std::make_unique<AgentMonitoringRoute>(pImpl->agentManager, pImpl->agentOrchestrator));
                 ServerLogger::logInfo("AgentMonitoringRoute added");
@@ -314,10 +404,13 @@ namespace kolosal
         
         // Register orchestration and workflow routes if available
         if (pImpl->server && pImpl->agentOrchestrator) {
-            // Create persistent route objects
-            pImpl->orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator);
-            pImpl->orchestrationRoute->setup_routes(*pImpl->server);
+            ServerLogger::logInfo("Adding OrchestrationRoute to server...");
             
+            // Create and add OrchestrationRoute directly to server
+            auto orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator);
+            pImpl->server->addRoute(std::move(orchestrationRoute));
+            
+            ServerLogger::logInfo("Adding SequentialWorkflowRoute to server...");
             // SequentialWorkflowRoute doesn't have setup_routes, so add it normally
             pImpl->server->addRoute(std::make_unique<routes::SequentialWorkflowRoute>(pImpl->agentManager));
             

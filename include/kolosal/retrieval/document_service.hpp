@@ -71,6 +71,12 @@ public:
     std::future<bool> testConnection();
     
     /**
+     * @brief Get service health and diagnostic information
+     * @return Future with JSON containing service status and diagnostics
+     */
+    std::future<nlohmann::json> getHealthStatus();
+    
+    /**
      * @brief Get embedding for text using configured model
      * @param text Text to embed
      * @param model_id Model ID to use (optional, uses default if empty)

@@ -21,12 +21,12 @@ ServerLogger::~ServerLogger() {
 }
 
 void ServerLogger::setLevel(LogLevel level) {
-	std::lock_guard<std::mutex> lock(logMutex);
+	std::lock_guard<std::timed_mutex> lock(logMutex);
 	minLevel = level;
 }
 
 bool ServerLogger::setLogFile(const std::string& filePath) {
-	std::lock_guard<std::mutex> lock(logMutex);
+	std::lock_guard<std::timed_mutex> lock(logMutex);
 	
 	if (logFile.is_open()) {
 		logFile.close();
@@ -44,7 +44,14 @@ bool ServerLogger::setLogFile(const std::string& filePath) {
 }
 
 void ServerLogger::log(LogLevel level, const std::string& message) {
-	std::lock_guard<std::mutex> lock(logMutex);
+	// Try to acquire lock with timeout to prevent indefinite blocking
+	std::unique_lock<std::timed_mutex> lock(logMutex, std::chrono::milliseconds(100));
+	
+	if (!lock.owns_lock()) {
+		// If we can't get the lock quickly, log to stderr and return
+		std::cerr << "[LOGGER_TIMEOUT] " << message << std::endl;
+		return;
+	}
 	
 	// Check if we should log this level
 	if (level > minLevel) {
@@ -79,10 +86,30 @@ void ServerLogger::log(LogLevel level, const std::string& message) {
 		}
 	}
 	
-	// Output to file
+	// Output to file with error handling
 	if (logFile.is_open()) {
-		logFile << formattedMessage << std::endl;
-		logFile.flush();
+		try {
+			logFile << formattedMessage << std::endl;
+			logFile.flush();
+			
+			// Check for write errors
+			if (logFile.fail()) {
+				// Try to recover by closing and reopening the file
+				logFile.clear();
+				logFile.close();
+				if (!logFilePath.empty()) {
+					logFile.open(logFilePath, std::ios::app);
+					if (logFile.is_open()) {
+						logFile << formattedMessage << std::endl;
+						logFile.flush();
+					}
+				}
+			}
+		} catch (const std::exception& e) {
+			// If file logging fails, at least try to output to stderr
+			std::cerr << "Logger error: " << e.what() << std::endl;
+			std::cerr << formattedMessage << std::endl;
+		}
 	}
 }
 
@@ -263,17 +290,17 @@ void ServerLogger::logDebug(const char* format, ...) {
 
 // Configuration methods
 void ServerLogger::setQuietMode(bool enabled) {
-	std::lock_guard<std::mutex> lock(logMutex);
+	std::lock_guard<std::timed_mutex> lock(logMutex);
 	quietMode = enabled;
 }
 
 void ServerLogger::setShowRequestDetails(bool enabled) {
-	std::lock_guard<std::mutex> lock(logMutex);
+	std::lock_guard<std::timed_mutex> lock(logMutex);
 	showRequestDetails = enabled;
 }
 
 // Get stored logs
 std::vector<LogEntry> ServerLogger::getLogs() const {
-	std::lock_guard<std::mutex> lock(const_cast<std::mutex&>(logMutex));
+	std::lock_guard<std::timed_mutex> lock(const_cast<std::timed_mutex&>(logMutex));
 	return logs;
 }

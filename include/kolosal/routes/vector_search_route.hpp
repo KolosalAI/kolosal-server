@@ -5,6 +5,7 @@
 #include "../retrieval/document_service.hpp"
 #include <string>
 #include <memory>
+#include <json.hpp>
 
 namespace kolosal::routes
 {

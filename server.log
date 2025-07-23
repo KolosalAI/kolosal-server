@@ -34,405 +34,453 @@ Models:
     GPU ID: 0
   text-embedding-3-small:
     Path: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
-    Load immediately: No
+    Load immediately: Yes
     GPU ID: 0
   text-embedding-3-large:
     Path: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
-    Load immediately: No
+    Load immediately: Yes
     GPU ID: 0
 
 Features:
   Health Check: Enabled
   Metrics: Enabled
 ====================================
-[2025-07-21 21:03:16.818] [INFO] Logger configured - Level: INFO, Quiet: false, Details: true
-[2025-07-21 21:03:16.818] [INFO] Initializing agent system from: config/agents.yaml
+[2025-07-22 18:50:53.601] [INFO] Logger configured - Level: INFO, Quiet: false, Details: true
+[2025-07-22 18:50:53.601] [INFO] Initializing agent system from: config/agents.yaml
 DEBUG: Agent manager created
 DEBUG: About to call load_configuration
-[2025-07-21 21:03:16.827] [INFO] Validating agent system configuration...
-[2025-07-21 21:03:16.827] [INFO] Engine config suggestion: All inference engines are set to manual loading - consider enabling auto_load for frequently used engines
-[2025-07-21 21:03:16.827] [INFO] Configuration validation completed: 9/9 agents are valid
-[2025-07-21 21:03:16.828] [INFO] DEBUG: About to check inference engine health
-[2025-07-21 21:03:16.828] [INFO] DEBUG: Inference engine health check completed successfully
-[2025-07-21 21:03:16.828] [WARNING] No healthy inference engines detected - LLM functions may not work properly
-[2025-07-21 21:03:16.828] [INFO] DEBUG: About to register function configurations
-[2025-07-21 21:03:16.828] [INFO] Registered function config: inference (type: builtin)
-[2025-07-21 21:03:16.828] [INFO] Registered function config: text_processing (type: builtin)
-[2025-07-21 21:03:16.828] [INFO] Registered function config: data_analysis (type: builtin)
-[2025-07-21 21:03:16.828] [INFO] Registered function config: web_search (type: external_api)
-[2025-07-21 21:03:16.828] [INFO] Registered function config: code_generation (type: llm)
-[2025-07-21 21:03:16.829] [INFO] Registered function config: retrieval (type: builtin)
-[2025-07-21 21:03:16.829] [INFO] Registered function config: context_retrieval (type: builtin)
-[2025-07-21 21:03:16.829] [INFO] Registered function config: add_document (type: builtin)
-[2025-07-21 21:03:16.829] [INFO] Registered function config: remove_document (type: builtin)
-[2025-07-21 21:03:16.829] [INFO] Registered function config: parse_pdf (type: builtin)
-[2025-07-21 21:03:16.829] [INFO] Registered function config: parse_docx (type: builtin)
-[2025-07-21 21:03:16.829] [INFO] Registered function config: get_embedding (type: builtin)
-[2025-07-21 21:03:16.829] [INFO] Registered function config: test_document_service (type: builtin)
-[2025-07-21 21:03:16.829] [INFO] DEBUG: Function configurations registered successfully
-[2025-07-21 21:03:16.829] [INFO] Configuration loaded successfully from: config/agents.yaml
-[2025-07-21 21:03:16.829] [INFO] Found 9 agent configurations
-[2025-07-21 21:03:16.829] [INFO] Found 13 function configurations
-[2025-07-21 21:03:16.829] [INFO] Found 3 inference engine configurations
-[2025-07-21 21:03:16.829] [INFO] DEBUG: About to return true from load_configuration
+[2025-07-22 18:50:53.612] [INFO] Validating agent system configuration...
+[2025-07-22 18:50:53.613] [INFO] Engine config suggestion: All inference engines are set to manual loading - consider enabling auto_load for frequently used engines
+[2025-07-22 18:50:53.613] [INFO] Configuration validation completed: 9/9 agents are valid
+[2025-07-22 18:50:53.614] [INFO] DEBUG: About to check inference engine health
+[2025-07-22 18:50:53.615] [INFO] DEBUG: Inference engine health check completed successfully
+[2025-07-22 18:50:53.616] [WARNING] No healthy inference engines detected - LLM functions may not work properly
+[2025-07-22 18:50:53.616] [INFO] DEBUG: About to register function configurations
+[2025-07-22 18:50:53.616] [INFO] Registered function config: inference (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: text_processing (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: data_analysis (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: web_search (type: external_api)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: code_generation (type: llm)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: retrieval (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: context_retrieval (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: add_document (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: remove_document (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: parse_pdf (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: parse_docx (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: get_embedding (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: test_document_service (type: builtin)
+[2025-07-22 18:50:53.616] [INFO] Registered function config: research (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] Registered function config: analyze (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] Registered function config: summarize (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] Registered function config: write (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] Registered function config: edit (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] Registered function config: format (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] Registered function config: review (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] Registered function config: validate (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] Registered function config: improve (type: builtin)
+[2025-07-22 18:50:53.617] [INFO] DEBUG: Function configurations registered successfully
+[2025-07-22 18:50:53.617] [INFO] Configuration loaded successfully from: config/agents.yaml
+[2025-07-22 18:50:53.617] [INFO] Found 9 agent configurations
+[2025-07-22 18:50:53.617] [INFO] Found 22 function configurations
+[2025-07-22 18:50:53.617] [INFO] Found 3 inference engine configurations
+[2025-07-22 18:50:53.617] [INFO] DEBUG: About to return true from load_configuration
 DEBUG: load_configuration returned: true
 DEBUG: Agent configuration loaded successfully
-[2025-07-21 21:03:16.829] [INFO] Agent configuration loaded successfully, starting agent manager...
-[2025-07-21 21:03:16.829] [INFO] DEBUG: About to call agentManager->start()
+[2025-07-22 18:50:53.618] [INFO] Agent configuration loaded successfully, starting agent manager...
+[2025-07-22 18:50:53.618] [INFO] DEBUG: About to call agentManager->start()
 DEBUG: About to call agentManager->start()
-[2025-07-21 21:03:16.830] [INFO] Message router started
-[2025-07-21 21:03:16.832] [INFO] Registered function: add
-[2025-07-21 21:03:16.832] [INFO] Registered function: echo
-[2025-07-21 21:03:16.832] [INFO] Registered function: delay
-[2025-07-21 21:03:16.832] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.832] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.832] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.833] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.833] [INFO] Registered function: inference
-[2025-07-21 21:03:16.833] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.833] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.833] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.833] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.833] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.833] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.833] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.833] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.833] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.834] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.834] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.834] [INFO] Agent created: research_assistant (ID: ce42d2b7...)
-[2025-07-21 21:03:16.834] [INFO] Registered function: inference
-[2025-07-21 21:03:16.834] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.834] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.834] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.834] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.834] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.834] [WARNING] Unknown builtin function: add_document
-[2025-07-21 21:03:16.834] [WARNING] Failed to create function: add_document for agent: research_assistant
-[2025-07-21 21:03:16.834] [WARNING] Unknown builtin function: remove_document
-[2025-07-21 21:03:16.834] [WARNING] Failed to create function: remove_document for agent: research_assistant
-[2025-07-21 21:03:16.834] [WARNING] Unknown builtin function: parse_pdf
-[2025-07-21 21:03:16.834] [WARNING] Failed to create function: parse_pdf for agent: research_assistant
-[2025-07-21 21:03:16.834] [WARNING] Unknown builtin function: parse_docx
-[2025-07-21 21:03:16.834] [WARNING] Failed to create function: parse_docx for agent: research_assistant
-[2025-07-21 21:03:16.834] [WARNING] Unknown builtin function: get_embedding
-[2025-07-21 21:03:16.834] [WARNING] Failed to create function: get_embedding for agent: research_assistant
-[2025-07-21 21:03:16.834] [WARNING] Unknown builtin function: test_document_service
-[2025-07-21 21:03:16.834] [WARNING] Failed to create function: test_document_service for agent: research_assistant
-[2025-07-21 21:03:16.834] [INFO] Created agent from config: research_assistant (ID: ce42d2b7...)
-[2025-07-21 21:03:16.834] [INFO] Agent started: research_assistant
-[2025-07-21 21:03:16.834] [INFO] Agent started: ce42d2b7...
-[2025-07-21 21:03:16.834] [INFO] Registered function: add
-[2025-07-21 21:03:16.834] [INFO] Registered function: echo
-[2025-07-21 21:03:16.835] [INFO] Registered function: delay
-[2025-07-21 21:03:16.835] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.835] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.835] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.835] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.835] [INFO] Registered function: inference
-[2025-07-21 21:03:16.835] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.835] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.835] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.835] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.835] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.835] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.835] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.835] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.835] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.835] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.835] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.835] [INFO] Agent created: code_assistant (ID: 72b468d1...)
-[2025-07-21 21:03:16.835] [INFO] Registered function: inference
-[2025-07-21 21:03:16.835] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.835] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.835] [INFO] Created agent from config: code_assistant (ID: 72b468d1...)
-[2025-07-21 21:03:16.835] [INFO] Agent started: code_assistant
-[2025-07-21 21:03:16.835] [INFO] Agent started: 72b468d1...
-[2025-07-21 21:03:16.836] [INFO] Registered function: add
-[2025-07-21 21:03:16.836] [INFO] Registered function: echo
-[2025-07-21 21:03:16.836] [INFO] Registered function: delay
-[2025-07-21 21:03:16.836] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.836] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.836] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.836] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.836] [INFO] Registered function: inference
-[2025-07-21 21:03:16.836] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.836] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.836] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.837] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.837] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.837] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.837] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.837] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.837] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.837] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.837] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.837] [INFO] Agent created: data_analyst (ID: 7c1a6b87...)
-[2025-07-21 21:03:16.837] [INFO] Registered function: inference
-[2025-07-21 21:03:16.837] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.837] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.837] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.837] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.837] [INFO] Created agent from config: data_analyst (ID: 7c1a6b87...)
-[2025-07-21 21:03:16.837] [INFO] Agent started: data_analyst
-[2025-07-21 21:03:16.837] [INFO] Agent started: 7c1a6b87...
-[2025-07-21 21:03:16.837] [INFO] Registered function: add
-[2025-07-21 21:03:16.837] [INFO] Registered function: echo
-[2025-07-21 21:03:16.837] [INFO] Registered function: delay
-[2025-07-21 21:03:16.837] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.837] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.837] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.837] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.838] [INFO] Registered function: inference
-[2025-07-21 21:03:16.838] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.838] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.838] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.838] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.838] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.838] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.838] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.838] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.838] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.838] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.838] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.838] [INFO] Agent created: document_manager (ID: 3bf8168b...)
-[2025-07-21 21:03:16.838] [INFO] Registered function: inference
-[2025-07-21 21:03:16.838] [WARNING] Unknown builtin function: add_document
-[2025-07-21 21:03:16.838] [WARNING] Failed to create function: add_document for agent: document_manager
-[2025-07-21 21:03:16.838] [WARNING] Unknown builtin function: remove_document
-[2025-07-21 21:03:16.838] [WARNING] Failed to create function: remove_document for agent: document_manager
-[2025-07-21 21:03:16.838] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.838] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.838] [WARNING] Unknown builtin function: parse_pdf
-[2025-07-21 21:03:16.838] [WARNING] Failed to create function: parse_pdf for agent: document_manager
-[2025-07-21 21:03:16.838] [WARNING] Unknown builtin function: parse_docx
-[2025-07-21 21:03:16.838] [WARNING] Failed to create function: parse_docx for agent: document_manager
-[2025-07-21 21:03:16.838] [WARNING] Unknown builtin function: get_embedding
-[2025-07-21 21:03:16.838] [WARNING] Failed to create function: get_embedding for agent: document_manager
-[2025-07-21 21:03:16.839] [WARNING] Unknown builtin function: test_document_service
-[2025-07-21 21:03:16.839] [WARNING] Failed to create function: test_document_service for agent: document_manager
-[2025-07-21 21:03:16.839] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.839] [INFO] Created agent from config: document_manager (ID: 3bf8168b...)
-[2025-07-21 21:03:16.839] [INFO] Agent started: document_manager
-[2025-07-21 21:03:16.839] [INFO] Agent started: 3bf8168b...
-[2025-07-21 21:03:16.839] [INFO] Registered function: add
-[2025-07-21 21:03:16.839] [INFO] Registered function: echo
-[2025-07-21 21:03:16.839] [INFO] Registered function: delay
-[2025-07-21 21:03:16.839] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.839] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.839] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.839] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.839] [INFO] Registered function: inference
-[2025-07-21 21:03:16.839] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.839] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.839] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.839] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.839] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.839] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.839] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.840] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.840] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.840] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.840] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.840] [INFO] Agent created: content_creator (ID: 409cd35f...)
-[2025-07-21 21:03:16.840] [INFO] Registered function: inference
-[2025-07-21 21:03:16.840] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.840] [INFO] Created agent from config: content_creator (ID: 409cd35f...)
-[2025-07-21 21:03:16.840] [INFO] Agent started: content_creator
-[2025-07-21 21:03:16.840] [INFO] Agent started: 409cd35f...
-[2025-07-21 21:03:16.840] [INFO] Registered function: add
-[2025-07-21 21:03:16.840] [INFO] Registered function: echo
-[2025-07-21 21:03:16.840] [INFO] Registered function: delay
-[2025-07-21 21:03:16.840] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.840] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.840] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.840] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.840] [INFO] Registered function: inference
-[2025-07-21 21:03:16.841] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.841] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.841] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.841] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.841] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.841] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.841] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.841] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.841] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.841] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.841] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.841] [INFO] Agent created: project_manager (ID: ee374f1b...)
-[2025-07-21 21:03:16.841] [INFO] Registered function: inference
-[2025-07-21 21:03:16.841] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.841] [INFO] Created agent from config: project_manager (ID: ee374f1b...)
-[2025-07-21 21:03:16.841] [INFO] Agent started: project_manager
-[2025-07-21 21:03:16.841] [INFO] Agent started: ee374f1b...
-[2025-07-21 21:03:16.841] [INFO] Registered function: add
-[2025-07-21 21:03:16.841] [INFO] Registered function: echo
-[2025-07-21 21:03:16.841] [INFO] Registered function: delay
-[2025-07-21 21:03:16.841] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.841] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.842] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.842] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.842] [INFO] Registered function: inference
-[2025-07-21 21:03:16.842] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.842] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.842] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.842] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.842] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.842] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.842] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.842] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.842] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.842] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.842] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.842] [INFO] Agent created: qa_specialist (ID: bea96037...)
-[2025-07-21 21:03:16.842] [INFO] Registered function: inference
-[2025-07-21 21:03:16.842] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.842] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.842] [INFO] Created agent from config: qa_specialist (ID: bea96037...)
-[2025-07-21 21:03:16.842] [INFO] Registered function: add
-[2025-07-21 21:03:16.842] [INFO] Registered function: echo
-[2025-07-21 21:03:16.842] [INFO] Registered function: delay
-[2025-07-21 21:03:16.842] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.843] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.843] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.843] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.843] [INFO] Registered function: inference
-[2025-07-21 21:03:16.843] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.843] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.843] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.843] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.843] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.843] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.843] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.843] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.843] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.843] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.843] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.843] [INFO] Agent created: response_test_agent (ID: 0958fc00...)
-[2025-07-21 21:03:16.843] [INFO] Registered function: inference
-[2025-07-21 21:03:16.843] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.843] [INFO] Created agent from config: response_test_agent (ID: 0958fc00...)
-[2025-07-21 21:03:16.843] [INFO] Agent started: response_test_agent
-[2025-07-21 21:03:16.843] [INFO] Agent started: 0958fc00...
-[2025-07-21 21:03:16.843] [INFO] Registered function: add
-[2025-07-21 21:03:16.843] [INFO] Registered function: echo
-[2025-07-21 21:03:16.843] [INFO] Registered function: delay
-[2025-07-21 21:03:16.844] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.844] [INFO] Registered function: text_processing
-[2025-07-21 21:03:16.844] [INFO] Registered function: data_transform
-[2025-07-21 21:03:16.844] [INFO] Registered function: data_analysis
-[2025-07-21 21:03:16.844] [INFO] Registered function: inference
-[2025-07-21 21:03:16.844] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.844] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.844] [INFO] Registered function: list_tools
-[2025-07-21 21:03:16.844] [INFO] Registered function: web_search
-[2025-07-21 21:03:16.844] [INFO] Registered function: code_generation
-[2025-07-21 21:03:16.844] [INFO] Registered function: add_document
-[2025-07-21 21:03:16.844] [INFO] Registered function: remove_document
-[2025-07-21 21:03:16.844] [INFO] Registered function: parse_pdf
-[2025-07-21 21:03:16.844] [INFO] Registered function: parse_docx
-[2025-07-21 21:03:16.844] [INFO] Registered function: get_embedding
-[2025-07-21 21:03:16.844] [INFO] Registered function: test_document_service
-[2025-07-21 21:03:16.844] [INFO] Agent created: knowledge_agent (ID: bc5ed771...)
-[2025-07-21 21:03:16.844] [INFO] Registered function: inference
-[2025-07-21 21:03:16.844] [INFO] Registered function: retrieval
-[2025-07-21 21:03:16.844] [INFO] Registered function: context_retrieval
-[2025-07-21 21:03:16.844] [INFO] Registered function: text_analysis
-[2025-07-21 21:03:16.845] [INFO] Created agent from config: knowledge_agent (ID: bc5ed771...)
-[2025-07-21 21:03:16.845] [INFO] Agent started: knowledge_agent
-[2025-07-21 21:03:16.845] [INFO] Agent started: bc5ed771...
-[2025-07-21 21:03:16.845] [INFO] YAML-configurable agent manager started
+[2025-07-22 18:50:53.618] [INFO] Message router started
+[2025-07-22 18:50:53.621] [INFO] Registered function: add
+[2025-07-22 18:50:53.621] [INFO] Registered function: echo
+[2025-07-22 18:50:53.621] [INFO] Registered function: delay
+[2025-07-22 18:50:53.621] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.621] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.621] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.621] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.621] [INFO] Registered function: inference
+[2025-07-22 18:50:53.621] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.621] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.621] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.621] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.621] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.621] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.622] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.622] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.622] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.622] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.622] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.622] [INFO] Agent created: research_assistant (ID: 5d5bd2ba...)
+[2025-07-22 18:50:53.622] [INFO] Registered function: inference
+[2025-07-22 18:50:53.622] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.622] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.622] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.622] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.622] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.623] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.623] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.623] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.623] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.623] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.623] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.624] [INFO] Created agent from config: research_assistant (ID: 5d5bd2ba...)
+[2025-07-22 18:50:53.624] [INFO] Agent started: research_assistant
+[2025-07-22 18:50:53.624] [INFO] Agent started: 5d5bd2ba...
+[2025-07-22 18:50:53.624] [INFO] Registered function: add
+[2025-07-22 18:50:53.624] [INFO] Registered function: echo
+[2025-07-22 18:50:53.624] [INFO] Registered function: delay
+[2025-07-22 18:50:53.624] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.624] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.625] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.625] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.625] [INFO] Registered function: inference
+[2025-07-22 18:50:53.625] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.625] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.625] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.625] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.625] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.625] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.625] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.625] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.625] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.625] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.625] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.625] [INFO] Agent created: code_assistant (ID: 6d5eb520...)
+[2025-07-22 18:50:53.625] [INFO] Registered function: inference
+[2025-07-22 18:50:53.626] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.626] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.626] [INFO] Created agent from config: code_assistant (ID: 6d5eb520...)
+[2025-07-22 18:50:53.626] [INFO] Agent started: code_assistant
+[2025-07-22 18:50:53.626] [INFO] Agent started: 6d5eb520...
+[2025-07-22 18:50:53.626] [INFO] Registered function: add
+[2025-07-22 18:50:53.626] [INFO] Registered function: echo
+[2025-07-22 18:50:53.626] [INFO] Registered function: delay
+[2025-07-22 18:50:53.627] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.627] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.627] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.627] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.627] [INFO] Registered function: inference
+[2025-07-22 18:50:53.627] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.628] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.628] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.628] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.628] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.628] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.628] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.628] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.628] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.628] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.629] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.629] [INFO] Agent created: data_analyst (ID: e31af528...)
+[2025-07-22 18:50:53.629] [INFO] Registered function: inference
+[2025-07-22 18:50:53.629] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.629] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.629] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.629] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.629] [INFO] Created agent from config: data_analyst (ID: e31af528...)
+[2025-07-22 18:50:53.629] [INFO] Agent started: data_analyst
+[2025-07-22 18:50:53.629] [INFO] Agent started: e31af528...
+[2025-07-22 18:50:53.629] [INFO] Registered function: add
+[2025-07-22 18:50:53.629] [INFO] Registered function: echo
+[2025-07-22 18:50:53.629] [INFO] Registered function: delay
+[2025-07-22 18:50:53.629] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.629] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.629] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.629] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.630] [INFO] Registered function: inference
+[2025-07-22 18:50:53.630] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.630] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.630] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.630] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.630] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.630] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.630] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.630] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.630] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.630] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.630] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.630] [INFO] Agent created: document_manager (ID: fc4c0e31...)
+[2025-07-22 18:50:53.630] [INFO] Registered function: inference
+[2025-07-22 18:50:53.631] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.631] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.631] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.631] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.631] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.631] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.632] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.632] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.632] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.632] [INFO] Created agent from config: document_manager (ID: fc4c0e31...)
+[2025-07-22 18:50:53.632] [INFO] Agent started: document_manager
+[2025-07-22 18:50:53.632] [INFO] Agent started: fc4c0e31...
+[2025-07-22 18:50:53.632] [INFO] Registered function: add
+[2025-07-22 18:50:53.632] [INFO] Registered function: echo
+[2025-07-22 18:50:53.632] [INFO] Registered function: delay
+[2025-07-22 18:50:53.632] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.632] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.632] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.632] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.632] [INFO] Registered function: inference
+[2025-07-22 18:50:53.632] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.632] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.632] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.633] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.633] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.633] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.633] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.633] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.633] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.633] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.633] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.633] [INFO] Agent created: content_creator (ID: 218fae3e...)
+[2025-07-22 18:50:53.633] [INFO] Registered function: inference
+[2025-07-22 18:50:53.633] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.633] [INFO] Created agent from config: content_creator (ID: 218fae3e...)
+[2025-07-22 18:50:53.633] [INFO] Agent started: content_creator
+[2025-07-22 18:50:53.633] [INFO] Agent started: 218fae3e...
+[2025-07-22 18:50:53.633] [INFO] Registered function: add
+[2025-07-22 18:50:53.633] [INFO] Registered function: echo
+[2025-07-22 18:50:53.633] [INFO] Registered function: delay
+[2025-07-22 18:50:53.634] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.634] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.634] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.634] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.634] [INFO] Registered function: inference
+[2025-07-22 18:50:53.634] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.634] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.634] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.634] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.634] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.634] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.634] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.634] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.634] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.634] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.634] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.634] [INFO] Agent created: project_manager (ID: 90030c94...)
+[2025-07-22 18:50:53.635] [INFO] Registered function: inference
+[2025-07-22 18:50:53.635] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.635] [INFO] Created agent from config: project_manager (ID: 90030c94...)
+[2025-07-22 18:50:53.636] [INFO] Agent started: project_manager
+[2025-07-22 18:50:53.636] [INFO] Agent started: 90030c94...
+[2025-07-22 18:50:53.636] [INFO] Registered function: add
+[2025-07-22 18:50:53.636] [INFO] Registered function: echo
+[2025-07-22 18:50:53.636] [INFO] Registered function: delay
+[2025-07-22 18:50:53.636] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.636] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.636] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.636] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.636] [INFO] Registered function: inference
+[2025-07-22 18:50:53.636] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.636] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.636] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.636] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.636] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.637] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.637] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.637] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.637] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.637] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.637] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.637] [INFO] Agent created: qa_specialist (ID: d50a9176...)
+[2025-07-22 18:50:53.637] [INFO] Registered function: inference
+[2025-07-22 18:50:53.637] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.637] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.637] [INFO] Created agent from config: qa_specialist (ID: d50a9176...)
+[2025-07-22 18:50:53.637] [INFO] Registered function: add
+[2025-07-22 18:50:53.637] [INFO] Registered function: echo
+[2025-07-22 18:50:53.637] [INFO] Registered function: delay
+[2025-07-22 18:50:53.637] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.637] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.638] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.638] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.638] [INFO] Registered function: inference
+[2025-07-22 18:50:53.638] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.638] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.638] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.638] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.638] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.638] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.638] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.638] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.638] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.638] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.638] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.638] [INFO] Agent created: response_test_agent (ID: 380e5d18...)
+[2025-07-22 18:50:53.638] [INFO] Registered function: inference
+[2025-07-22 18:50:53.638] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.638] [INFO] Created agent from config: response_test_agent (ID: 380e5d18...)
+[2025-07-22 18:50:53.639] [INFO] Agent started: response_test_agent
+[2025-07-22 18:50:53.639] [INFO] Agent started: 380e5d18...
+[2025-07-22 18:50:53.639] [INFO] Registered function: add
+[2025-07-22 18:50:53.639] [INFO] Registered function: echo
+[2025-07-22 18:50:53.639] [INFO] Registered function: delay
+[2025-07-22 18:50:53.639] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.639] [INFO] Registered function: text_processing
+[2025-07-22 18:50:53.639] [INFO] Registered function: data_transform
+[2025-07-22 18:50:53.639] [INFO] Registered function: data_analysis
+[2025-07-22 18:50:53.640] [INFO] Registered function: inference
+[2025-07-22 18:50:53.640] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.640] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.640] [INFO] Registered function: list_tools
+[2025-07-22 18:50:53.640] [INFO] Registered function: web_search
+[2025-07-22 18:50:53.640] [INFO] Registered function: code_generation
+[2025-07-22 18:50:53.640] [INFO] Registered function: add_document
+[2025-07-22 18:50:53.640] [INFO] Registered function: remove_document
+[2025-07-22 18:50:53.640] [INFO] Registered function: parse_pdf
+[2025-07-22 18:50:53.640] [INFO] Registered function: parse_docx
+[2025-07-22 18:50:53.640] [INFO] Registered function: get_embedding
+[2025-07-22 18:50:53.640] [INFO] Registered function: test_document_service
+[2025-07-22 18:50:53.641] [INFO] Agent created: knowledge_agent (ID: 40ac38eb...)
+[2025-07-22 18:50:53.641] [INFO] Registered function: inference
+[2025-07-22 18:50:53.641] [INFO] Registered function: retrieval
+[2025-07-22 18:50:53.641] [INFO] Registered function: context_retrieval
+[2025-07-22 18:50:53.641] [INFO] Registered function: text_analysis
+[2025-07-22 18:50:53.641] [INFO] Created agent from config: knowledge_agent (ID: 40ac38eb...)
+[2025-07-22 18:50:53.641] [INFO] Agent started: knowledge_agent
+[2025-07-22 18:50:53.641] [INFO] Agent started: 40ac38eb...
+[2025-07-22 18:50:53.641] [INFO] YAML-configurable agent manager started
 DEBUG: agentManager->start() completed successfully
-[2025-07-21 21:03:16.845] [INFO] DEBUG: agentManager->start() completed successfully
-[2025-07-21 21:03:16.845] [INFO] Agent manager started successfully
-[2025-07-21 21:03:16.845] [INFO] Initializing agent orchestrator...
+[2025-07-22 18:50:53.641] [INFO] DEBUG: agentManager->start() completed successfully
+[2025-07-22 18:50:53.641] [INFO] Agent manager started successfully
+[2025-07-22 18:50:53.641] [INFO] Initializing agent orchestrator...
 DEBUG: Initializing agent orchestrator...
 DEBUG: Agent orchestrator created
-[2025-07-21 21:03:16.845] [INFO] Agent orchestrator started
+[2025-07-22 18:50:53.642] [INFO] Agent orchestrator started
 DEBUG: Agent orchestrator started
-[2025-07-21 21:03:16.845] [INFO] Agent orchestrator started successfully
-[2025-07-21 21:03:16.845] [INFO] Registering agent manager with server...
-[2025-07-21 21:03:16.845] [INFO] setAgentManager called with manager: valid
-[2025-07-21 21:03:16.845] [ERROR] Cannot register agent routes - server: null, manager: valid
-[2025-07-21 21:03:16.845] [INFO] Agent monitoring updated with orchestrator
-[2025-07-21 21:03:16.846] [INFO] Agent manager registered with server
-[2025-07-21 21:03:16.846] [INFO] Agent system initialized successfully
-[2025-07-21 21:03:16.846] [INFO] Agent system initialization complete, proceeding with server setup...
+[2025-07-22 18:50:53.642] [INFO] Agent orchestrator started successfully
+[2025-07-22 18:50:53.642] [INFO] Agent system initialized successfully
+[2025-07-22 18:50:53.642] [INFO] Agent system initialization complete, proceeding with server setup...
 Agent system initialization complete, proceeding with server setup...
 Public access disabled - binding to localhost only (127.0.0.1)
-[2025-07-21 21:03:16.846] [INFO] Attempting to initialize server on 127.0.0.1:8080
+[2025-07-22 18:50:53.643] [INFO] Attempting to initialize server on 127.0.0.1:8080
 Attempting to initialize server on 127.0.0.1:8080
-[2025-07-21 21:03:16.846] [INFO] Initializing server on 127.0.0.1:8080 with idle timeout: 300 seconds
-[2025-07-21 21:03:16.846] [INFO] NodeManager initialized with idle timeout: 300 seconds.
-[2025-07-21 21:03:16.846] [INFO] Found inference engines in: D:\Works\Genta\codes\kolosal-server\build\debug
-[2025-07-21 21:03:16.846] [INFO] Using plugins directory: D:\Works\Genta\codes\kolosal-server\build\debug
-[2025-07-21 21:03:16.846] [INFO] Found inference engine: llama-cpu at D:\Works\Genta\codes\kolosal-server\build\debug\llama-cpu.dll
-[2025-07-21 21:03:16.846] [INFO] Scan complete. Found 1 inference engines.
-[2025-07-21 21:03:16.846] [INFO] Found 1 available inference engines:
-[2025-07-21 21:03:16.846] [INFO]   - llama-cpu: Inference engine for cpu acceleration
-[2025-07-21 21:03:16.847] [INFO] Autoscaling thread started.
-[2025-07-21 21:03:16.849] [INFO] QdrantClient initialized - Host: localhost:6333
-[2025-07-21 21:03:16.849] [INFO] DocumentService initialized with Qdrant client
-[2025-07-21 21:03:16.850] [INFO] Initializing DocumentService with Qdrant enabled: true, host: localhost, port: 6333
-[2025-07-21 21:03:16.850] [INFO] DocumentService: Testing Qdrant connection...
-[2025-07-21 21:03:16.854] [INFO] DocumentService: Successfully connected to Qdrant at localhost:6333
-[2025-07-21 21:03:16.854] [INFO] DocumentService initialized successfully
-[2025-07-21 21:03:16.854] [INFO] Default engine configurations setup complete
-[2025-07-21 21:03:16.855] [INFO] AutoSetupManager initialized
-[2025-07-21 21:03:16.855] [INFO] Rate limiter initialized with default config - Max requests: 100, Window: 60 seconds, Enabled: true
-[2025-07-21 21:03:16.855] [INFO] CORS configuration updated - Enabled: true, Origins: 1, Methods: 7, Headers: 5
-[2025-07-21 21:03:16.855] [INFO] Authentication middleware initialized with default configuration
-[2025-07-21 21:03:16.856] [INFO] Server initialized and listening on 127.0.0.1:8080
-[2025-07-21 21:03:16.856] [INFO] Registering routes
-[2025-07-21 21:03:16.856] [INFO] Auth config route initialized
-[2025-07-21 21:03:16.856] [INFO] EmbeddingRoute initialized with completion monitoring
-[2025-07-21 21:03:16.856] [INFO] AddDocumentsRoute initialized
-[2025-07-21 21:03:16.856] [INFO] RetrieveRoute initialized
-[2025-07-21 21:03:16.856] [INFO] RemoveDocumentsRoute initialized
-[2025-07-21 21:03:16.856] [INFO] DocumentsRoute initialized
-[2025-07-21 21:03:16.856] [INFO] CollectionsRoute initialized
-[2025-07-21 21:03:16.856] [INFO] ContextRetrievalRoute initialized
-[2025-07-21 21:03:16.856] [INFO] VectorSearchRoute initialized
-[2025-07-21 21:03:16.856] [INFO] Auto-setup route initialized
-[2025-07-21 21:03:16.856] [INFO] Routes registered successfully
-[2025-07-21 21:03:16.857] [INFO] Server initialized successfully on 127.0.0.1:8080
-Server initialized successfully on 127.0.0.1[2025-07-21 21:03:16.857] [INFO] Starting server main loop:8080
-
-[2025-07-21 21:03:16.857] [INFO] Server entering main loop with concurrent request handling
-[2025-07-21 21:03:16.857] [INFO] Rate limiter config updated - Max requests: 100, Window: 60 seconds, Enabled: true
-[2025-07-21 21:03:16.857] [INFO] CORS configuration updated - Enabled: true, Origins: 1, Methods: 7, Headers: 5
-[2025-07-21 21:03:16.857] [INFO] API key configuration updated - Enabled: true, Required: false, Keys count: 2
-[2025-07-21 21:03:16.857] [INFO] Authentication configured - Rate Limit: enabled, CORS: enabled, API Keys: optional (2 keys)
-[2025-07-21 21:03:16.857] [INFO] Metrics enabled
-[2025-07-21 21:03:16.857] [INFO] System metrics monitoring enabled
-[2025-07-21 21:03:16.857] [INFO] Search functionality enabled
-[2025-07-21 21:03:16.857] [INFO] Internet search endpoint enabled
+[2025-07-22 18:50:53.643] [INFO] Initializing server on 127.0.0.1:8080 with idle timeout: 300 seconds
+[2025-07-22 18:50:53.644] [INFO] NodeManager initialized with idle timeout: 300 seconds.
+[2025-07-22 18:50:53.644] [INFO] Found inference engines in: D:\Works\Genta\codes\kolosal-server\build\debug
+[2025-07-22 18:50:53.644] [INFO] Using plugins directory: D:\Works\Genta\codes\kolosal-server\build\debug
+[2025-07-22 18:50:53.645] [INFO] Found inference engine: llama-cpu at D:\Works\Genta\codes\kolosal-server\build\debug\llama-cpu.dll
+[2025-07-22 18:50:53.645] [INFO] Scan complete. Found 1 inference engines.
+[2025-07-22 18:50:53.645] [INFO] Found 1 available inference engines:
+[2025-07-22 18:50:53.645] [INFO]   - llama-cpu: Inference engine for cpu acceleration
+[2025-07-22 18:50:53.646] [INFO] Autoscaling thread started.
+[2025-07-22 18:50:53.649] [INFO] QdrantClient initialized - Host: localhost:6333
+[2025-07-22 18:50:53.649] [INFO] DocumentService initialized with Qdrant client
+[2025-07-22 18:50:53.649] [INFO] Initializing DocumentService with Qdrant enabled: true, host: localhost, port: 6333
+[2025-07-22 18:50:53.650] [INFO] DocumentService: Testing Qdrant connection...
+[2025-07-22 18:50:53.655] [INFO] DocumentService: Successfully connected to Qdrant at localhost:6333
+[2025-07-22 18:50:53.656] [INFO] DocumentService initialized successfully
+[2025-07-22 18:50:53.656] [INFO] Rate limiter initialized with default config - Max requests: 100, Window: 60 seconds, Enabled: true
+[2025-07-22 18:50:53.656] [INFO] CORS configuration updated - Enabled: true, Origins: 1, Methods: 7, Headers: 5
+[2025-07-22 18:50:53.656] [INFO] Authentication middleware initialized with default configuration
+[2025-07-22 18:50:53.657] [INFO] Server initialized and listening on 127.0.0.1:8080
+[2025-07-22 18:50:53.657] [INFO] Registering routes
+[2025-07-22 18:50:53.657] [INFO] Auth config route initialized
+[2025-07-22 18:50:53.658] [INFO] EmbeddingRoute initialized with completion monitoring
+[2025-07-22 18:50:53.658] [INFO] AddDocumentsRoute initialized
+[2025-07-22 18:50:53.658] [INFO] RetrieveRoute initialized
+[2025-07-22 18:50:53.658] [INFO] RemoveDocumentsRoute initialized
+[2025-07-22 18:50:53.658] [INFO] DocumentsRoute initialized
+[2025-07-22 18:50:53.658] [INFO] DocumentSearchRoute initialized
+[2025-07-22 18:50:53.658] [INFO] CollectionsRoute initialized
+[2025-07-22 18:50:53.658] [INFO] ContextRetrievalRoute initialized
+[2025-07-22 18:50:53.658] [INFO] VectorSearchRoute initialized
+[2025-07-22 18:50:53.658] [INFO] QdrantRoute initialized
+[2025-07-22 18:50:53.658] [INFO] Auto-setup route initialized
+[2025-07-22 18:50:53.658] [INFO] Setting up RAG routes
+[2025-07-22 18:50:53.659] [INFO] RAG routes setup completed
+[2025-07-22 18:50:53.659] [INFO] Setting up Workflow routes
+[2025-07-22 18:50:53.659] [INFO] Workflow routes setup completed
+[2025-07-22 18:50:53.659] [INFO] Setting up Session routes
+[2025-07-22 18:50:53.659] [INFO] Session routes setup completed
+[2025-07-22 18:50:53.659] [INFO] Routes registered successfully
+[2025-07-22 18:50:53.659] [INFO] Server initialized successfully on 127.0.0.1:8080
+Server initialized successfully on 127.0.0.1[2025-07-22 18:50:53.659] [INFO] Starting server main loop
+:8080
+[2025-07-22 18:50:53.659] [INFO] Server entering main loop with concurrent request handling
+[2025-07-22 18:50:53.660] [INFO] Rate limiter config updated - Max requests: 100, Window: 60 seconds, Enabled: true
+[2025-07-22 18:50:53.660] [INFO] CORS configuration updated - Enabled: true, Origins: 1, Methods: 7, Headers: 5
+[2025-07-22 18:50:53.660] [INFO] API key configuration updated - Enabled: true, Required: false, Keys count: 2
+[2025-07-22 18:50:53.660] [INFO] Authentication configured - Rate Limit: enabled, CORS: enabled, API Keys: optional (2 keys)
+[2025-07-22 18:50:53.660] [INFO] Metrics enabled
+[2025-07-22 18:50:53.660] [INFO] System metrics monitoring enabled
+[2025-07-22 18:50:53.661] [INFO] Started 2 worker threads for internet search
+[2025-07-22 18:50:53.661] [INFO] Internet search functionality enabled with SearXNG URL: http://localhost:8090
+[2025-07-22 18:50:53.661] [INFO] Internet search endpoint enabled
+[2025-07-22 18:50:53.661] [INFO] Registering agent manager with server...
+[2025-07-22 18:50:53.661] [INFO] setAgentManager called with manager: valid
+[2025-07-22 18:50:53.661] [INFO] Creating AgentsRoute object...
+[2025-07-22 18:50:53.661] [INFO] AgentsRoute object created successfully
+[2025-07-22 18:50:53.661] [INFO] Setting up agent routes...
+[2025-07-22 18:50:53.662] [INFO] Agent routes setup completed
+[2025-07-22 18:50:53.662] [INFO] Creating AgentDocumentsRoute object...
+[2025-07-22 18:50:53.662] [INFO] AgentDocumentsRoute object created successfully
+[2025-07-22 18:50:53.662] [INFO] Setting up agent documents routes...
+[2025-07-22 18:50:53.662] [INFO] Agent documents routes setup completed
+[2025-07-22 18:50:53.662] [INFO] Adding AgentMonitoringRoute...
+[2025-07-22 18:50:53.662] [INFO] AgentMonitoringRoute added
+[2025-07-22 18:50:53.662] [INFO] Adding FunctionExecutionRoute...
+[2025-07-22 18:50:53.662] [INFO] FunctionExecutionRoute added
+[2025-07-22 18:50:53.662] [INFO] Adding CollaborationRoute...
+[2025-07-22 18:50:53.662] [INFO] CollaborationRoute added
+[2025-07-22 18:50:53.662] [INFO] Agent routes registered successfully
+[2025-07-22 18:50:53.662] [INFO] Adding OrchestrationRoute to server...
+[2025-07-22 18:50:53.662] [INFO] Adding SequentialWorkflowRoute to server...
+[2025-07-22 18:50:53.662] [INFO] Sequential workflow executor initialized
+[2025-07-22 18:50:53.662] [INFO] Sequential workflow route initialized
+[2025-07-22 18:50:53.663] [INFO] Agent orchestration routes registered
+[2025-07-22 18:50:53.663] [INFO] Agent monitoring updated with orchestrator
+[2025-07-22 18:50:53.663] [INFO] Agent manager registered with server
 Configuring model 'qwen3-0.6b'...
-[2025-07-21 21:03:16.857] [INFO] Validating model file for engine registration 'qwen3-0.6b': ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
-[2025-07-21 21:03:16.858] [INFO] Local model file found. Size: 387.37 MB
-[2025-07-21 21:03:16.858] [INFO] Successfully registered engine with ID 'qwen3-0.6b' for lazy loading. Model: ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
-Γ£ô Model 'qwen3-0.6b' registered for lazy loading
-[2025-07-21 21:03:16.858] [INFO] Model 'qwen3-0.6b' registered for lazy loading
+[2025-07-22 18:50:53.663] [INFO] Validating model file for engine registration 'qwen3-0.6b': ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
+[2025-07-22 18:50:53.663] [INFO] Local model file found. Size: 387.37 MB
+[2025-07-22 18:50:53.663] [INFO] Successfully registered engine with ID 'qwen3-0.6b' for lazy loading. Model: ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
+✓ Model 'qwen3-0.6b' registered for lazy loading
+[2025-07-22 18:50:53.663] [INFO] Model 'qwen3-0.6b' registered for lazy loading
 Configuring model 'gpt-3.5-turbo'...
-[2025-07-21 21:03:16.858] [INFO] Validating model file for engine registration 'gpt-3.5-turbo': ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
-[2025-07-21 21:03:16.858] [INFO] Local model file found. Size: 387.37 MB
-[2025-07-21 21:03:16.858] [INFO] Successfully registered engine with ID 'gpt-3.5-turbo' for lazy loading. Model: ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
-Γ£ô Model 'gpt-3.5-turbo' registered for lazy loading
-[2025-07-21 21:03:16.858] [INFO] Model 'gpt-3.5-turbo' registered for lazy loading
+[2025-07-22 18:50:53.663] [INFO] Validating model file for engine registration 'gpt-3.5-turbo': ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
+[2025-07-22 18:50:53.664] [INFO] Local model file found. Size: 387.37 MB
+[2025-07-22 18:50:53.664] [INFO] Successfully registered engine with ID 'gpt-3.5-turbo' for lazy loading. Model: ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
+✓ Model 'gpt-3.5-turbo' registered for lazy loading
+[2025-07-22 18:50:53.664] [INFO] Model 'gpt-3.5-turbo' registered for lazy loading
 Configuring model 'text-embedding-3-small'...
-[2025-07-21 21:03:16.858] [INFO] Validating model file for engine registration 'text-embedding-3-small': ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
-[2025-07-21 21:03:16.858] [INFO] Local model file found. Size: 609.54 MB
-[2025-07-21 21:03:16.858] [INFO] Successfully registered engine with ID 'text-embedding-3-small' for lazy loading. Model: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
-Γ£ô Model 'text-embedding-3-small' registered for lazy loading
-[2025-07-21 21:03:16.859] [INFO] Model 'text-embedding-3-small' registered for lazy loading
-Configuring model 'text-embedding-3-large'...
-[2025-07-21 21:03:16.859] [INFO] Validating model file for engine registration 'text-embedding-3-large': ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
-[2025-07-21 21:03:16.859] [INFO] Local model file found. Size: 609.54 MB
-[2025-07-21 21:03:16.859] [INFO] Successfully registered engine with ID 'text-embedding-3-large' for lazy loading. Model: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
-Γ£ô Model 'text-embedding-3-large' registered for lazy loading
-[2025-07-21 21:03:16.859] [INFO] Model 'text-embedding-3-large' registered for lazy loading
+[2025-07-22 18:50:53.665] [INFO] Validating model file for engine 'text-embedding-3-small': ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+[2025-07-22 18:50:53.665] [INFO] Local model file found. Size: 609.54 MB
+[2025-07-22 18:50:53.665] [INFO] Creating llama-cpu inference engine for ID 'text-embedding-3-small'
+[2025-07-22 18:50:53.665] [INFO] Loading llama-cpu inference engine plugin...
+[2025-07-22 18:50:53.665] [INFO] Successfully loaded inference engine: llama-cpu
+[2025-07-22 18:50:53.665] [INFO] Successfully loaded llama-cpu inference engine plugin
+[2025-07-22 18:50:53.666] [INFO] Creating inference engine instance...
+[2025-07-22 18:50:53.666] [INFO] Loading model for engine 'text-embedding-3-small' from path: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+common_init_from_params: setting dry_penalty_last_n to ctx_size = 2048
+common_chat_templates_init: failed to parse chat template (defaulting to chatml): Expected value expression at row 18, column 30:
+{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
+{%- for message in messages[::-1] %}
+                             ^
+    {%- set index = (messages|length - 1) - loop.index0 %}
 
-Γ£ô Successfully configured 4 model(s)
+[2025-07-22 18:50:54.821] [INFO] Successfully loaded model for engine 'text-embedding-3-small'
+[2025-07-22 18:50:54.821] [INFO] Successfully added and loaded engine with ID 'text-embedding-3-small'. Model: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+✓ Model 'text-embedding-3-small' loaded successfully
+[2025-07-22 18:50:54.824] [INFO] Model 'text-embedding-3-small' loaded successfully
+Configuring model 'text-embedding-3-large'...
+[2025-07-22 18:50:54.824] [INFO] Validating model file for engine 'text-embedding-3-large': ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+[2025-07-22 18:50:54.825] [INFO] Local model file found. Size: 609.54 MB
+[2025-07-22 18:50:54.825] [INFO] Creating llama-cpu inference engine for ID 'text-embedding-3-large'
+[2025-07-22 18:50:54.825] [INFO] Creating inference engine instance...
+[2025-07-22 18:50:54.825] [INFO] Loading model for engine 'text-embedding-3-large' from path: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+common_init_from_params: setting dry_penalty_last_n to ctx_size = 2048
+common_chat_templates_init: failed to parse chat template (defaulting to chatml): Expected value expression at row 18, column 30:
+{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
+{%- for message in messages[::-1] %}
+                             ^
+    {%- set index = (messages|length - 1) - loop.index0 %}
+
+[2025-07-22 18:50:55.942] [INFO] Successfully loaded model for engine 'text-embedding-3-large'
+[2025-07-22 18:50:55.943] [INFO] Successfully added and loaded engine with ID 'text-embedding-3-large'. Model: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+✓ Model 'text-embedding-3-large' loaded successfully
+[2025-07-22 18:50:55.945] [INFO] Model 'text-embedding-3-large' loaded successfully
+
+✓ Successfully configured 4 model(s)
 
 Server started successfully!
 Server URL (localhost only): http://127.0.0.1:8080
@@ -440,124 +488,122 @@ Server URL (localhost only): http://127.0.0.1:8080
 Public access is DISABLED - server only accessible from this machine
    Use --public flag or set allow_public_access: true in config to enable external access
    Use --internet flag or set allow_internet_access: true in config to enable internet access
-[2025-07-21 21:03:16.966] [INFO]
+[2025-07-22 18:50:56.061] [INFO]
 Core endpoints:
-[2025-07-21 21:03:16.966] [INFO]   GET  /v1/health              - Health status
-[2025-07-21 21:03:16.966] [INFO]   GET  /models                 - List available models
-[2025-07-21 21:03:16.966] [INFO]   POST /v1/chat/completions    - Chat completions (OpenAI compatible)
-[2025-07-21 21:03:16.966] [INFO]   POST /v1/completions         - Text completions (OpenAI compatible)
-[2025-07-21 21:03:16.966] [INFO]   POST /v1/embeddings          - Text embeddings (OpenAI compatible)
-[2025-07-21 21:03:16.966] [INFO]   GET  /engines                - List engines
-[2025-07-21 21:03:16.966] [INFO]   POST /engines                - Add new engine
-[2025-07-21 21:03:16.967] [INFO]   GET  /engines/{id}/status    - Engine status
-[2025-07-21 21:03:16.967] [INFO]   DELETE /engines/{id}         - Remove engine
-[2025-07-21 21:03:16.967] [INFO]
+[2025-07-22 18:50:56.061] [INFO]   GET  /v1/health              - Health status
+[2025-07-22 18:50:56.061] [INFO]   GET  /models                 - List available models
+[2025-07-22 18:50:56.061] [INFO]   POST /v1/chat/completions    - Chat completions (OpenAI compatible)
+[2025-07-22 18:50:56.061] [INFO]   POST /v1/completions         - Text completions (OpenAI compatible)
+[2025-07-22 18:50:56.061] [INFO]   POST /v1/embeddings          - Text embeddings (OpenAI compatible)
+[2025-07-22 18:50:56.061] [INFO]   GET  /engines                - List engines
+[2025-07-22 18:50:56.061] [INFO]   POST /engines                - Add new engine
+[2025-07-22 18:50:56.061] [INFO]   GET  /engines/{id}/status    - Engine status
+[2025-07-22 18:50:56.061] [INFO]   DELETE /engines/{id}         - Remove engine
+[2025-07-22 18:50:56.061] [INFO]
 Download endpoints:
-[2025-07-21 21:03:16.967] [INFO]   GET  /downloads              - List all downloads status
-[2025-07-21 21:03:16.967] [INFO]   GET  /downloads/{model_id}   - Get specific download progress
-[2025-07-21 21:03:16.967] [INFO]   DELETE /downloads/{model_id} - Cancel specific download
-[2025-07-21 21:03:16.967] [INFO]   POST /downloads/{model_id}/cancel - Cancel download
-[2025-07-21 21:03:16.967] [INFO]   POST /downloads/{model_id}/pause  - Pause download
-[2025-07-21 21:03:16.967] [INFO]   POST /downloads/{model_id}/resume - Resume download
-[2025-07-21 21:03:16.967] [INFO]
+[2025-07-22 18:50:56.062] [INFO]   GET  /downloads              - List all downloads status
+[2025-07-22 18:50:56.062] [INFO]   GET  /downloads/{model_id}   - Get specific download progress
+[2025-07-22 18:50:56.062] [INFO]   DELETE /downloads/{model_id} - Cancel specific download
+[2025-07-22 18:50:56.062] [INFO]   POST /downloads/{model_id}/cancel - Cancel download
+[2025-07-22 18:50:56.062] [INFO]   POST /downloads/{model_id}/pause  - Pause download
+[2025-07-22 18:50:56.062] [INFO]   POST /downloads/{model_id}/resume - Resume download
+[2025-07-22 18:50:56.062] [INFO]
 Document & RAG endpoints:
-[2025-07-21 21:03:16.967] [INFO]   POST /retrieve               - Document retrieval endpoint
-[2025-07-21 21:03:16.967] [INFO]   POST /api/v1/documents       - Add documents to collection
-[2025-07-21 21:03:16.967] [INFO]   DELETE /api/v1/documents     - Remove documents from collection
-[2025-07-21 21:03:16.967] [INFO]   POST /parse-pdf              - PDF parse endpoint
-[2025-07-21 21:03:16.967] [INFO]   POST /parse-docx             - DOCX parse endpoint
-[2025-07-21 21:03:16.968] [INFO]
+[2025-07-22 18:50:56.062] [INFO]   POST /retrieve               - Document retrieval endpoint
+[2025-07-22 18:50:56.062] [INFO]   POST /api/v1/documents       - Add documents to collection
+[2025-07-22 18:50:56.062] [INFO]   DELETE /api/v1/documents     - Remove documents from collection
+[2025-07-22 18:50:56.062] [INFO]   POST /parse-pdf              - PDF parse endpoint
+[2025-07-22 18:50:56.062] [INFO]   POST /parse-docx             - DOCX parse endpoint
+[2025-07-22 18:50:56.062] [INFO]
 Workflow endpoints:
-[2025-07-21 21:03:16.968] [INFO]   POST /sequential-workflows   - Create sequential workflow
-[2025-07-21 21:03:16.968] [INFO]   GET  /sequential-workflows   - List sequential workflows
-[2025-07-21 21:03:16.968] [INFO]   GET  /sequential-workflows/{id} - Get workflow details
-[2025-07-21 21:03:16.968] [INFO]   POST /sequential-workflows/{id}/execute - Execute workflow
-[2025-07-21 21:03:16.968] [INFO]   GET  /sequential-workflows/{id}/result - Get workflow result
-[2025-07-21 21:03:16.968] [INFO]   GET  /sequential-workflows/{id}/status - Get workflow status
-[2025-07-21 21:03:16.968] [INFO]   POST /sequential-workflows/{id}/cancel - Cancel workflow
-[2025-07-21 21:03:16.968] [INFO]   DELETE /sequential-workflows/{id} - Delete workflow
-[2025-07-21 21:03:16.968] [INFO]   GET  /sequential-workflows/metrics - Workflow executor metrics
-[2025-07-21 21:03:16.968] [INFO]   POST /sequential-workflows/from-template - Create workflow from template
-[2025-07-21 21:03:16.968] [INFO]
+[2025-07-22 18:50:56.062] [INFO]   POST /sequential-workflows   - Create sequential workflow
+[2025-07-22 18:50:56.062] [INFO]   GET  /sequential-workflows   - List sequential workflows
+[2025-07-22 18:50:56.062] [INFO]   GET  /sequential-workflows/{id} - Get workflow details
+[2025-07-22 18:50:56.062] [INFO]   POST /sequential-workflows/{id}/execute - Execute workflow
+[2025-07-22 18:50:56.062] [INFO]   GET  /sequential-workflows/{id}/result - Get workflow result
+[2025-07-22 18:50:56.062] [INFO]   GET  /sequential-workflows/{id}/status - Get workflow status
+[2025-07-22 18:50:56.062] [INFO]   POST /sequential-workflows/{id}/cancel - Cancel workflow
+[2025-07-22 18:50:56.062] [INFO]   DELETE /sequential-workflows/{id} - Delete workflow
+[2025-07-22 18:50:56.062] [INFO]   GET  /sequential-workflows/metrics - Workflow executor metrics
+[2025-07-22 18:50:56.062] [INFO]   POST /sequential-workflows/from-template - Create workflow from template
+[2025-07-22 18:50:56.063] [INFO]
 Orchestration endpoints:
-[2025-07-21 21:03:16.968] [INFO]   POST /orchestration/workflows        - Create orchestration workflow
-[2025-07-21 21:03:16.969] [INFO]   POST /orchestration/execute          - Execute orchestration workflow
-[2025-07-21 21:03:16.969] [INFO]   GET  /orchestration/status           - Orchestration status
-[2025-07-21 21:03:16.969] [INFO]
+[2025-07-22 18:50:56.063] [INFO]   POST /orchestration/workflows        - Create orchestration workflow
+[2025-07-22 18:50:56.063] [INFO]   POST /orchestration/execute          - Execute orchestration workflow
+[2025-07-22 18:50:56.063] [INFO]   GET  /orchestration/status           - Orchestration status
+[2025-07-22 18:50:56.063] [INFO]
 Server endpoints:
-[2025-07-21 21:03:16.969] [INFO]   GET  /server-logs            - Retrieve server logs
-[2025-07-21 21:03:16.970] [INFO]
+[2025-07-22 18:50:56.063] [INFO]   GET  /server-logs            - Retrieve server logs
+[2025-07-22 18:50:56.063] [INFO]
 Search endpoints:
-[2025-07-21 21:03:16.970] [INFO]   POST /search                 - Internet search endpoint
-[2025-07-21 21:03:16.970] [INFO]
+[2025-07-22 18:50:56.063] [INFO]   POST /search                 - Internet search endpoint
+[2025-07-22 18:50:56.063] [INFO]
 Agent System endpoints:
-[2025-07-21 21:03:16.970] [INFO]   GET  /api/v1/agents          - List all agents
-[2025-07-21 21:03:16.970] [INFO]   POST /api/v1/agents          - Create new agent
-[2025-07-21 21:03:16.970] [INFO]   GET  /api/v1/agents/{id}     - Get agent details
-[2025-07-21 21:03:16.970] [INFO]   POST /api/v1/agents/{id}/start    - Start agent
-[2025-07-21 21:03:16.970] [INFO]   POST /api/v1/agents/{id}/stop     - Stop agent
-[2025-07-21 21:03:16.970] [INFO]   DELETE /api/v1/agents/{id}        - Delete agent
-[2025-07-21 21:03:16.970] [INFO]   POST /api/v1/agents/{id}/execute  - Execute agent function
-[2025-07-21 21:03:16.970] [INFO]   POST /api/v1/agents/{id}/execute-async - Execute agent function async
-[2025-07-21 21:03:16.970] [INFO]   GET  /api/v1/agents/jobs/{job_id}/status - Get async job status
-[2025-07-21 21:03:16.970] [INFO]   GET  /api/v1/agents/jobs/{job_id}/result - Get async job result
-[2025-07-21 21:03:16.971] [INFO]   POST /api/v1/agents/messages/send - Send message to agent
-[2025-07-21 21:03:16.971] [INFO]   POST /api/v1/agents/messages/broadcast - Broadcast message
-[2025-07-21 21:03:16.971] [INFO]   POST /v1/agents/{id}/chat/completions - OpenAI compatible agent chat
-[2025-07-21 21:03:16.971] [INFO]   GET  /api/v1/agents/system/status  - Agent system status
-[2025-07-21 21:03:16.971] [INFO]   GET  /api/v1/agents/system/metrics - Agent system metrics
-[2025-07-21 21:03:16.971] [INFO]
+[2025-07-22 18:50:56.063] [INFO]   GET  /api/v1/agents          - List all agents
+[2025-07-22 18:50:56.063] [INFO]   POST /api/v1/agents          - Create new agent
+[2025-07-22 18:50:56.063] [INFO]   GET  /api/v1/agents/{id}     - Get agent details
+[2025-07-22 18:50:56.063] [INFO]   POST /api/v1/agents/{id}/start    - Start agent
+[2025-07-22 18:50:56.063] [INFO]   POST /api/v1/agents/{id}/stop     - Stop agent
+[2025-07-22 18:50:56.064] [INFO]   DELETE /api/v1/agents/{id}        - Delete agent
+[2025-07-22 18:50:56.064] [INFO]   POST /api/v1/agents/{id}/execute  - Execute agent function
+[2025-07-22 18:50:56.064] [INFO]   POST /api/v1/agents/{id}/execute-async - Execute agent function async
+[2025-07-22 18:50:56.064] [INFO]   GET  /api/v1/agents/jobs/{job_id}/status - Get async job status
+[2025-07-22 18:50:56.064] [INFO]   GET  /api/v1/agents/jobs/{job_id}/result - Get async job result
+[2025-07-22 18:50:56.065] [INFO]   POST /api/v1/agents/messages/send - Send message to agent
+[2025-07-22 18:50:56.065] [INFO]   POST /api/v1/agents/messages/broadcast - Broadcast message
+[2025-07-22 18:50:56.065] [INFO]   POST /v1/agents/{id}/chat/completions - OpenAI compatible agent chat
+[2025-07-22 18:50:56.065] [INFO]   GET  /api/v1/agents/system/status  - Agent system status
+[2025-07-22 18:50:56.065] [INFO]   GET  /api/v1/agents/system/metrics - Agent system metrics
+[2025-07-22 18:50:56.065] [INFO]
 Agent Orchestration endpoints:
-[2025-07-21 21:03:16.971] [INFO]   POST /api/v1/orchestration/workflows     - Create workflow
-[2025-07-21 21:03:16.971] [INFO]   GET  /api/v1/orchestration/workflows     - List workflows
-[2025-07-21 21:03:16.971] [INFO]   POST /api/v1/orchestration/workflows/{id}/execute - Execute workflow
-[2025-07-21 21:03:16.971] [INFO]   POST /api/v1/orchestration/workflows/{id}/execute-async - Execute workflow async
-[2025-07-21 21:03:16.971] [INFO]   GET  /api/v1/orchestration/workflows/{id}/status - Get workflow status
-[2025-07-21 21:03:16.971] [INFO]   GET  /api/v1/orchestration/workflows/{id}/result - Get workflow result
-[2025-07-21 21:03:16.971] [INFO]   POST /api/v1/orchestration/collaboration-groups - Create collaboration group
-[2025-07-21 21:03:16.971] [INFO]   POST /api/v1/orchestration/collaboration-groups/{id}/execute - Execute group
-[2025-07-21 21:03:16.971] [INFO]   GET  /api/v1/orchestration/status        - Orchestration status
-[2025-07-21 21:03:16.971] [INFO]   GET  /api/v1/orchestration/metrics       - Orchestration metrics
-[2025-07-21 21:03:16.971] [INFO]   POST /api/v1/agents/system/reload        - Reload agent system
-[2025-07-21 21:03:16.971] [INFO]
+[2025-07-22 18:50:56.065] [INFO]   POST /api/v1/orchestration/workflows     - Create workflow
+[2025-07-22 18:50:56.065] [INFO]   GET  /api/v1/orchestration/workflows     - List workflows
+[2025-07-22 18:50:56.065] [INFO]   POST /api/v1/orchestration/workflows/{id}/execute - Execute workflow
+[2025-07-22 18:50:56.065] [INFO]   POST /api/v1/orchestration/workflows/{id}/execute-async - Execute workflow async
+[2025-07-22 18:50:56.065] [INFO]   GET  /api/v1/orchestration/workflows/{id}/status - Get workflow status
+[2025-07-22 18:50:56.065] [INFO]   GET  /api/v1/orchestration/workflows/{id}/result - Get workflow result
+[2025-07-22 18:50:56.065] [INFO]   POST /api/v1/orchestration/collaboration-groups - Create collaboration group
+[2025-07-22 18:50:56.065] [INFO]   POST /api/v1/orchestration/collaboration-groups/{id}/execute - Execute group
+[2025-07-22 18:50:56.065] [INFO]   GET  /api/v1/orchestration/status        - Orchestration status
+[2025-07-22 18:50:56.065] [INFO]   GET  /api/v1/orchestration/metrics       - Orchestration metrics
+[2025-07-22 18:50:56.065] [INFO]   POST /api/v1/agents/system/reload        - Reload agent system
+[2025-07-22 18:50:56.065] [INFO]
 Authentication endpoints:
-[2025-07-21 21:03:16.971] [INFO]   GET  /v1/auth/config         - Get authentication configuration
-[2025-07-21 21:03:16.971] [INFO]   PUT  /v1/auth/config         - Update authentication configuration
-[2025-07-21 21:03:16.971] [INFO]   GET  /v1/auth/stats          - Get authentication statistics
-[2025-07-21 21:03:16.971] [INFO]   POST /v1/auth/clear          - Clear rate limit data
-[2025-07-21 21:03:16.971] [INFO]
+[2025-07-22 18:50:56.065] [INFO]   GET  /v1/auth/config         - Get authentication configuration
+[2025-07-22 18:50:56.065] [INFO]   PUT  /v1/auth/config         - Update authentication configuration
+[2025-07-22 18:50:56.065] [INFO]   GET  /v1/auth/stats          - Get authentication statistics
+[2025-07-22 18:50:56.065] [INFO]   POST /v1/auth/clear          - Clear rate limit data
+[2025-07-22 18:50:56.065] [INFO]
 Metrics endpoints:
-[2025-07-21 21:03:16.972] [INFO]   GET  /metrics                - Combined system and completion metrics
-[2025-07-21 21:03:16.972] [INFO]   GET  /v1/metrics             - Combined system and completion metrics
-[2025-07-21 21:03:16.972] [INFO]   GET  /metrics/system         - System monitoring metrics only
-[2025-07-21 21:03:16.972] [INFO]   GET  /v1/metrics/system      - System monitoring metrics only
-[2025-07-21 21:03:16.972] [INFO]   GET  /metrics/completion     - Completion performance metrics only
-[2025-07-21 21:03:16.972] [INFO]   GET  /v1/metrics/completion  - Completion performance metrics only
-[2025-07-21 21:03:16.972] [INFO]   GET  /metrics/completion/{engine_id} - Engine-specific completion metrics
+[2025-07-22 18:50:56.065] [INFO]   GET  /metrics                - Combined system and completion metrics
+[2025-07-22 18:50:56.066] [INFO]   GET  /v1/metrics             - Combined system and completion metrics
+[2025-07-22 18:50:56.066] [INFO]   GET  /metrics/system         - System monitoring metrics only
+[2025-07-22 18:50:56.066] [INFO]   GET  /v1/metrics/system      - System monitoring metrics only
+[2025-07-22 18:50:56.066] [INFO]   GET  /metrics/completion     - Completion performance metrics only
+[2025-07-22 18:50:56.066] [INFO]   GET  /v1/metrics/completion  - Completion performance metrics only
+[2025-07-22 18:50:56.066] [INFO]   GET  /metrics/completion/{engine_id} - Engine-specific completion metrics
 
 Press Ctrl+C to stop the server...
-[2025-07-21 21:03:16.972] [INFO] Entering main server loop
-[2025-07-21 21:05:17.448] [INFO] [Thread 48232] Processing GET request for /health from 127.0.0.1
-[2025-07-21 21:05:17.448] [INFO] Auth middleware processing request: GET /health from 127.0.0.1
-[2025-07-21 21:05:17.448] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:05:17.448] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:05:17.448] [INFO] Rate limit result - Allowed: true, Used: 1, Remaining: 99
-[2025-07-21 21:05:17.448] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:05:17.448] [INFO] [Thread 48232] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:05:17.449] [INFO] [Thread 48232] Completed request for /health
-[2025-07-21 21:05:17.668] [INFO] [Thread 58996] Processing POST request for /chat/completions from 127.0.0.1
-[2025-07-21 21:05:17.668] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
-[2025-07-21 21:05:17.668] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:05:17.669] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:05:17.669] [INFO] Rate limit result - Allowed: true, Used: 2, Remaining: 98
-[2025-07-21 21:05:17.669] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:05:17.669] [INFO] [Thread 58996] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:05:17.669] [INFO] [Thread 58996] Received chat completion request
-[2025-07-21 21:05:17.669] [INFO] Engine ID 'qwen3-0.6b' was unloaded due to inactivity. Attempting to reload.
-[2025-07-21 21:05:17.669] [INFO] Reloading llama-cpu inference engine plugin...
-[2025-07-21 21:05:17.669] [INFO] Successfully loaded inference engine: llama-cpu
-[2025-07-21 21:05:17.669] [INFO] Creating new inference engine instance for reload...
-[2025-07-21 21:05:17.669] [INFO] Reloading model from path: ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
+[2025-07-22 18:50:56.066] [INFO] Entering main server loop
+[2025-07-22 18:51:11.581] [INFO] [Thread 29472] Processing GET request for /health from 127.0.0.1
+[2025-07-22 18:51:11.585] [INFO] Auth middleware processing request: GET /health from 127.0.0.1
+[2025-07-22 18:51:11.589] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:51:11.589] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:51:11.590] [INFO] Rate limit result - Allowed: true, Used: 1, Remaining: 99
+[2025-07-22 18:51:11.590] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:51:11.590] [INFO] [Thread 29472] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:51:11.590] [INFO] [Thread 29472] Completed request for /health
+[2025-07-22 18:51:11.840] [INFO] [Thread 31600] Processing POST request for /chat/completions from 127.0.0.1
+[2025-07-22 18:51:11.844] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
+[2025-07-22 18:51:11.844] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:51:11.844] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:51:11.845] [INFO] Rate limit result - Allowed: true, Used: 2, Remaining: 98
+[2025-07-22 18:51:11.845] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:51:11.845] [INFO] [Thread 31600] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:51:11.845] [INFO] [Thread 31600] Received chat completion request
+[2025-07-22 18:51:11.845] [INFO] Engine ID 'qwen3-0.6b' was unloaded due to inactivity. Attempting to reload.
+[2025-07-22 18:51:11.845] [INFO] Creating new inference engine instance for reload...
+[2025-07-22 18:51:11.845] [INFO] Reloading model from path: ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
 common_init_from_params: setting dry_penalty_last_n to ctx_size = 2048
 Failed to generate tool call example: Unknown method: startswith at row 20, column 82:
     {%- set index = (messages|length - 1) - loop.index0 %}
@@ -639,953 +685,131 @@ Failed to generate tool call example: Unknown method: startswith at row 20, colu
 ^
     {{- '<|im_start|>system\n' }}
 
-[2025-07-21 21:05:19.269] [INFO] Successfully reloaded model for engine 'qwen3-0.6b'
-[2025-07-21 21:05:19.269] [INFO] Successfully reloaded engine ID 'qwen3-0.6b'.
-[2025-07-21 21:05:19.269] [INFO] [Thread 58996] Processing non-streaming chat completion request for model 'qwen3-0.6b'
-[2025-07-21 21:05:23.762] [INFO] [Thread 58996] Completed non-streaming response for job 0 (20.47 tokens/sec)
-[2025-07-21 21:05:23.762] [INFO] [Thread 58996] Completed request for /chat/completions
-[2025-07-21 21:05:23.772] [INFO] [Thread 49760] Processing POST request for /chat/completions from 127.0.0.1
-[2025-07-21 21:05:23.773] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
-[2025-07-21 21:05:23.773] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:05:23.773] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:05:23.773] [INFO] Rate limit result - Allowed: true, Used: 3, Remaining: 97
-[2025-07-21 21:05:23.774] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:05:23.774] [INFO] [Thread 49760] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:05:23.774] [INFO] [Thread 49760] Received chat completion request
-[2025-07-21 21:05:23.774] [INFO] [Thread 49760] Processing streaming chat completion request for model 'qwen3-0.6b'
-[2025-07-21 21:05:28.070] [ERROR] [Thread 49760] JSON parsing error: [json.exception.type_error.316] incomplete UTF-8 string; last byte: 0x98
-[2025-07-21 21:05:28.071] [INFO] [Thread 49760] Completed request for /chat/completions
-[2025-07-21 21:05:28.096] [INFO] [Thread 52044] Processing POST request for /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.096] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.096] [INFO] [Thread 55592] Processing POST request for /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.096] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:05:28.096] [INFO] [Thread 20696] Processing POST request for /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.096] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.097] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.097] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:05:28.097] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:05:28.097] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:05:28.097] [INFO] Rate limit result - Allowed: true, Used: 4, Remaining: 96
-[2025-07-21 21:05:28.097] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:05:28.098] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:05:28.098] [INFO] [Thread 49212] Processing POST request for /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.098] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.098] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:05:28.098] [INFO] [Thread 52044] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:05:28.098] [INFO] [Thread 45772] Processing POST request for /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.098] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:05:28.099] [INFO] Rate limit result - Allowed: true, Used: 5, Remaining: 95
-[2025-07-21 21:05:28.099] [INFO] Rate limit result - Allowed: true, Used: 6, Remaining: 94
-[2025-07-21 21:05:28.099] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:05:28.099] [INFO] [Thread 52044] Received chat completion request
-[2025-07-21 21:05:28.099] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
-[2025-07-21 21:05:28.099] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:05:28.099] [INFO] [Thread 20696] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:05:28.100] [INFO] [Thread 52044] Processing non-streaming chat completion request for model 'qwen3-0.6b'
-[2025-07-21 21:05:28.100] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:05:28.100] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:05:28.100] [INFO] [Thread 55592] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:05:28.100] [INFO] Rate limit result - Allowed: true, Used: 7, Remaining: 93
-[2025-07-21 21:05:28.100] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:05:28.100] [INFO] [Thread 49212] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:05:28.100] [INFO] [Thread 55592] Received chat completion request
-[2025-07-21 21:05:28.101] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:05:28.101] [INFO] [Thread 20696] Received chat completion request
-[2025-07-21 21:05:28.101] [INFO] [Thread 55592] Processing non-streaming chat completion request for model 'qwen3-0.6b'
-[2025-07-21 21:05:28.101] [INFO] [Thread 20696] Processing non-streaming chat completion request for model 'qwen3-0.6b'
-[2025-07-21 21:05:28.101] [INFO] [Thread 49212] Received chat completion request
-[2025-07-21 21:05:28.101] [INFO] [Thread 49212] Processing non-streaming chat completion request for model 'qwen3-0.6b'
-[2025-07-21 21:05:28.102] [INFO] Rate limit result - Allowed: true, Used: 8, Remaining: 92
-[2025-07-21 21:05:28.102] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:05:28.102] [INFO] [Thread 45772] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:05:28.102] [INFO] [Thread 45772] Received chat completion request
-[2025-07-21 21:05:28.102] [INFO] [Thread 45772] Processing non-streaming chat completion request for model 'qwen3-0.6b'
-[2025-07-21 21:05:35.201] [INFO] [Thread 52044] Completed non-streaming response for job 2 (20.43 tokens/sec)
-[2025-07-21 21:05:35.201] [INFO] [Thread 52044] Completed request for /chat/completions
-[2025-07-21 21:05:42.975] [INFO] [Thread 55592] Completed non-streaming response for job 3 (19.67 tokens/sec)
-[2025-07-21 21:05:42.975] [INFO] [Thread 55592] Completed request for /chat/completions
-[2025-07-21 21:05:51.042] [INFO] [Thread 20696] Completed non-streaming response for job 4 (19.19 tokens/sec)
-[2025-07-21 21:05:51.042] [INFO] [Thread 20696] Completed request for /chat/completions
-[2025-07-21 21:05:58.177] [INFO] [Thread 49212] Completed non-streaming response for job 5 (19.31 tokens/sec)
-[2025-07-21 21:05:58.177] [INFO] [Thread 49212] Completed request for /chat/completions
-[2025-07-21 21:06:05.412] [INFO] [Thread 45772] Completed non-streaming response for job 6 (19.03 tokens/sec)
-[2025-07-21 21:06:05.412] [INFO] [Thread 45772] Completed request for /chat/completions
-[2025-07-21 21:06:05.453] [INFO] [Thread 42668] Processing POST request for /embeddings from 127.0.0.1
-[2025-07-21 21:06:05.453] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
-[2025-07-21 21:06:05.454] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:05.454] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:05.454] [INFO] Rate limit result - Allowed: true, Used: 9, Remaining: 91
-[2025-07-21 21:06:05.454] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:05.454] [INFO] [Thread 42668] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:05.454] [INFO] [Thread 42668] Received embedding request
-[2025-07-21 21:06:05.455] [INFO] Engine ID 'text-embedding-3-small' was unloaded due to inactivity. Attempting to reload.
-[2025-07-21 21:06:05.455] [INFO] Creating new inference engine instance for reload...
-[2025-07-21 21:06:05.455] [INFO] Reloading model from path: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
-common_init_from_params: setting dry_penalty_last_n to ctx_size = 2048
-common_chat_templates_init: failed to parse chat template (defaulting to chatml): Expected value expression at row 18, column 30:
-{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
-{%- for message in messages[::-1] %}
-                             ^
-    {%- set index = (messages|length - 1) - loop.index0 %}
-
-[2025-07-21 21:06:06.968] [INFO] Successfully reloaded model for engine 'text-embedding-3-small'
-[2025-07-21 21:06:06.969] [INFO] Successfully reloaded engine ID 'text-embedding-3-small'.
-[2025-07-21 21:06:06.969] [INFO] [Thread 42668] Processing 1 embedding request(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:07.393] [INFO] [Thread 42668] Successfully generated 1 embedding(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:07.394] [INFO] [Thread 42668] Completed request for /embeddings
-[2025-07-21 21:06:07.420] [INFO] [Thread 49948] Processing POST request for /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.421] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.421] [INFO] [Thread 48668] Processing POST request for /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.421] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:07.421] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.421] [INFO] [Thread 39400] Processing POST request for /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.421] [INFO] [Thread 45612] Processing POST request for /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.421] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:07.422] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.422] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:07.422] [INFO] [Thread 26548] Processing POST request for /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.422] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.422] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:07.422] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
-[2025-07-21 21:06:07.422] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:07.423] [INFO] Rate limit result - Allowed: true, Used: 10, Remaining: 90
-[2025-07-21 21:06:07.423] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:07.423] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:07.423] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:07.423] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:07.423] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:07.424] [INFO] Rate limit result - Allowed: true, Used: 11, Remaining: 89
-[2025-07-21 21:06:07.424] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:07.424] [INFO] [Thread 49948] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:07.424] [INFO] Rate limit result - Allowed: true, Used: 12, Remaining: 88
-[2025-07-21 21:06:07.424] [INFO] Rate limit result - Allowed: true, Used: 13, Remaining: 87
-[2025-07-21 21:06:07.424] [INFO] [Thread 49948] Received embedding request
-[2025-07-21 21:06:07.424] [INFO] Rate limit result - Allowed: true, Used: 14, Remaining: 86
-[2025-07-21 21:06:07.425] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:07.425] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:07.425] [INFO] [Thread 45612] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:07.425] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:07.425] [INFO] [Thread 39400] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:07.425] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:07.425] [INFO] [Thread 26548] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:07.425] [INFO] [Thread 49948] Processing 1 embedding request(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:07.426] [INFO] [Thread 48668] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:07.426] [INFO] [Thread 45612] Received embedding request
-[2025-07-21 21:06:07.426] [INFO] [Thread 39400] Received embedding request
-[2025-07-21 21:06:07.426] [INFO] [Thread 26548] Received embedding request
-[2025-07-21 21:06:07.426] [INFO] [Thread 48668] Received embedding request
-[2025-07-21 21:06:07.426] [INFO] [Thread 45612] Processing 1 embedding request(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:07.426] [INFO] [Thread 39400] Processing 1 embedding request(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:07.426] [INFO] [Thread 26548] Processing 1 embedding request(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:07.427] [INFO] [Thread 48668] Processing 1 embedding request(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:07.769] [INFO] [Thread 49948] Successfully generated 1 embedding(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:07.770] [INFO] [Thread 49948] Completed request for /embeddings
-[2025-07-21 21:06:08.279] [INFO] [Thread 45612] Successfully generated 1 embedding(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:08.279] [INFO] [Thread 45612] Completed request for /embeddings
-[2025-07-21 21:06:08.994] [INFO] [Thread 39400] Successfully generated 1 embedding(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:08.994] [INFO] [Thread 39400] Completed request for /embeddings
-[2025-07-21 21:06:09.686] [INFO] [Thread 26548] Successfully generated 1 embedding(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:09.687] [INFO] [Thread 26548] Completed request for /embeddings
-[2025-07-21 21:06:10.492] [INFO] [Thread 48668] Successfully generated 1 embedding(s) for model 'text-embedding-3-small'
-[2025-07-21 21:06:10.492] [INFO] [Thread 48668] Completed request for /embeddings
-[2025-07-21 21:06:10.510] [INFO] [Thread 40004] Processing POST request for /embeddings from 127.0.0.1
-[2025-07-21 21:06:10.510] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
-[2025-07-21 21:06:10.511] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:10.511] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:10.511] [INFO] Rate limit result - Allowed: true, Used: 15, Remaining: 85
-[2025-07-21 21:06:10.511] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:10.511] [INFO] [Thread 40004] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:10.512] [INFO] [Thread 40004] Received embedding request
-[2025-07-21 21:06:10.512] [INFO] Engine ID 'text-embedding-3-large' was unloaded due to inactivity. Attempting to reload.
-[2025-07-21 21:06:10.512] [INFO] Creating new inference engine instance for reload...
-[2025-07-21 21:06:10.512] [INFO] Reloading model from path: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
-common_init_from_params: setting dry_penalty_last_n to ctx_size = 2048
-common_chat_templates_init: failed to parse chat template (defaulting to chatml): Expected value expression at row 18, column 30:
-{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
-{%- for message in messages[::-1] %}
-                             ^
-    {%- set index = (messages|length - 1) - loop.index0 %}
-
-[2025-07-21 21:06:12.025] [INFO] Successfully reloaded model for engine 'text-embedding-3-large'
-[2025-07-21 21:06:12.025] [INFO] Successfully reloaded engine ID 'text-embedding-3-large'.
-[2025-07-21 21:06:12.026] [INFO] [Thread 40004] Processing 1 embedding request(s) for model 'text-embedding-3-large'
-[2025-07-21 21:06:12.769] [INFO] [Thread 40004] Successfully generated 1 embedding(s) for model 'text-embedding-3-large'
-[2025-07-21 21:06:12.770] [INFO] [Thread 40004] Completed request for /embeddings
-[2025-07-21 21:06:12.784] [INFO] [Thread 40932] Processing POST request for /chat/completions from 127.0.0.1
-[2025-07-21 21:06:12.784] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
-[2025-07-21 21:06:12.784] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:12.784] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:12.785] [INFO] Rate limit result - Allowed: true, Used: 16, Remaining: 84
-[2025-07-21 21:06:12.785] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:12.785] [INFO] [Thread 40932] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:12.785] [INFO] [Thread 40932] Received chat completion request
-[2025-07-21 21:06:12.785] [INFO] Engine ID 'gpt-3.5-turbo' was unloaded due to inactivity. Attempting to reload.
-[2025-07-21 21:06:12.785] [INFO] Creating new inference engine instance for reload...
-[2025-07-21 21:06:12.786] [INFO] Reloading model from path: ./downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
-common_init_from_params: setting dry_penalty_last_n to ctx_size = 4096
-Failed to generate tool call example: Unknown method: startswith at row 20, column 82:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-                                                                                 ^
-        {%- set ns.multi_step_tool = false %}
- at row 20, column 112:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-                                                                                                               ^
-        {%- set ns.multi_step_tool = false %}
- at row 20, column 61:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-                                                            ^
-        {%- set ns.multi_step_tool = false %}
- at row 20, column 31:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-                              ^
-        {%- set ns.multi_step_tool = false %}
- at row 20, column 5:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-    ^
-        {%- set ns.multi_step_tool = false %}
- at row 18, column 39:
-{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
-{%- for message in messages|reverse %}
-                                      ^
-    {%- set index = (messages|length - 1) - loop.index0 %}
- at row 18, column 1:
-{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
-{%- for message in messages|reverse %}
-^
-    {%- set index = (messages|length - 1) - loop.index0 %}
- at row 1, column 1:
-{%- if tools %}
-^
-    {{- '<|im_start|>system\n' }}
-
-[INFERENCE] [ERROR] Failed to format chat templates: Unknown method: startswith at row 20, column 82:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-                                                                                 ^
-        {%- set ns.multi_step_tool = false %}
- at row 20, column 112:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-                                                                                                               ^
-        {%- set ns.multi_step_tool = false %}
- at row 20, column 61:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-                                                            ^
-        {%- set ns.multi_step_tool = false %}
- at row 20, column 31:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-                              ^
-        {%- set ns.multi_step_tool = false %}
- at row 20, column 5:
-    {%- set index = (messages|length - 1) - loop.index0 %}
-    {%- if ns.multi_step_tool and message.role == "user" and not(message.content.startswith('<tool_response>') and message.content.endswith('</tool_response>')) %}
-    ^
-        {%- set ns.multi_step_tool = false %}
- at row 18, column 39:
-{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
-{%- for message in messages|reverse %}
-                                      ^
-    {%- set index = (messages|length - 1) - loop.index0 %}
- at row 18, column 1:
-{%- set ns = namespace(multi_step_tool=true, last_query_index=messages|length - 1) %}
-{%- for message in messages|reverse %}
-^
-    {%- set index = (messages|length - 1) - loop.index0 %}
- at row 1, column 1:
-{%- if tools %}
-^
-    {{- '<|im_start|>system\n' }}
-
-[2025-07-21 21:06:14.656] [INFO] Successfully reloaded model for engine 'gpt-3.5-turbo'
-[2025-07-21 21:06:14.656] [INFO] Successfully reloaded engine ID 'gpt-3.5-turbo'.
-[2025-07-21 21:06:14.657] [INFO] [Thread 40932] Processing non-streaming chat completion request for model 'gpt-3.5-turbo'
-[2025-07-21 21:06:20.433] [INFO] [Thread 40932] Completed non-streaming response for job 0 (15.89 tokens/sec)
-[2025-07-21 21:06:20.434] [INFO] [Thread 40932] Completed request for /chat/completions
-[2025-07-21 21:06:20.479] [INFO] [Thread 2932] Processing POST request for /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.480] [INFO] Auth middleware processing request: POST /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.481] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.481] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.482] [INFO] Rate limit result - Allowed: true, Used: 15, Remaining: 85
-[2025-07-21 21:06:20.482] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.482] [INFO] [Thread 2932] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.482] [INFO] [Thread 2932] Received PDF parse request
-[2025-07-21 21:06:20.486] [INFO] Parsing PDF data (size: 34224 bytes) using method: fast
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-[2025-07-21 21:06:20.539] [INFO] PDF parsing completed successfully. Pages: 40, Text length: 115182
-[2025-07-21 21:06:20.543] [INFO] [Thread 2932] Completed request for /parse-pdf
-[2025-07-21 21:06:20.559] [INFO] [Thread 6956] Processing POST request for /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.559] [INFO] [Thread 42332] Processing POST request for /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.559] [INFO] [Thread 30900] Processing POST request for /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.559] [INFO] Auth middleware processing request: POST /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.560] [INFO] [Thread 45452] Processing POST request for /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.560] [INFO] [Thread 51532] Processing POST request for /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.560] [INFO] Auth middleware processing request: POST /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.560] [INFO] Auth middleware processing request: POST /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.561] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.561] [INFO] Auth middleware processing request: POST /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.561] [INFO] Auth middleware processing request: POST /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:20.561] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.561] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.561] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.562] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.562] [INFO] Rate limit result - Allowed: true, Used: 16, Remaining: 84
-[2025-07-21 21:06:20.562] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.562] [INFO] Rate limit result - Allowed: true, Used: 17, Remaining: 83
-[2025-07-21 21:06:20.562] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.562] [INFO] [Thread 42332] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.563] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.563] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.563] [INFO] [Thread 45452] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.563] [INFO] Rate limit result - Allowed: true, Used: 18, Remaining: 82
-[2025-07-21 21:06:20.563] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.563] [INFO] [Thread 45452] Received PDF parse request
-[2025-07-21 21:06:20.564] [INFO] [Thread 42332] Received PDF parse request
-[2025-07-21 21:06:20.564] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.564] [INFO] [Thread 6956] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.564] [INFO] Rate limit result - Allowed: true, Used: 19, Remaining: 81
-[2025-07-21 21:06:20.564] [INFO] Parsing PDF data (size: 4964 bytes) using method: fast
-[2025-07-21 21:06:20.564] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.565] [INFO] Parsing PDF data (size: 4965 bytes) using method: fast
-[2025-07-21 21:06:20.565] [INFO] [Thread 6956] Received PDF parse request
-[2025-07-21 21:06:20.565] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.565] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.565] [INFO] [Thread 30900] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.565] [INFO] Rate limit result - Allowed: true, Used: 20, Remaining: 80
-[2025-07-21 21:06:20.565] [INFO] Parsing PDF data (size: 4965 bytes) using method: fast
-[2025-07-21 21:06:20.566] [INFO] [Thread 30900] Received PDF parse request
-[2025-07-21 21:06:20.566] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.566] [INFO] [Thread 51532] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.566] [INFO] Parsing PDF data (size: 4965 bytes) using method: fast
-[2025-07-21 21:06:20.566] [INFO] [Thread 51532] Received PDF parse request
-[2025-07-21 21:06:20.567] [INFO] Parsing PDF data (size: 4963 bytes) using method: fast
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed output
-warning: dropping unclosed device
-warning: dropping unclosed device
-warning: dropping unclosed output
-[2025-07-21 21:06:20.577] [INFO] PDF parsing completed successfully. Pages: 5, Text length: 12376warning: dropping unclosed device
-
-warning: dropping unclosed output
-[2025-07-21 21:06:20.578] [INFO] PDF parsing completed successfully. Pages: 5, Text length: 12376
-warning: dropping unclosed device
-warning: dropping unclosed output
-warning: dropping unclosed device
-[2025-07-21 21:06:20.578] [INFO] PDF parsing completed successfully. Pages: 5, Text length: 12376
-warning: dropping unclosed output
-[2025-07-21 21:06:20.578] [INFO] [Thread 42332] Completed request for /parse-pdf
-warning: dropping unclosed device
-[2025-07-21 21:06:20.578] [INFO] PDF parsing completed successfully. Pages: 5, Text length: 12376
-[2025-07-21 21:06:20.579] [INFO] [Thread 6956] Completed request for /parse-pdf
-warning: dropping unclosed output
-warning: dropping unclosed device
-[2025-07-21 21:06:20.579] [INFO] [Thread 45452] Completed request for /parse-pdf
-[2025-07-21 21:06:20.579] [INFO] [Thread 30900] Completed request for /parse-pdf
-warning: dropping unclosed output
-warning: dropping unclosed device
-[2025-07-21 21:06:20.580] [INFO] PDF parsing completed successfully. Pages: 5, Text length: 12376
-[2025-07-21 21:06:20.581] [INFO] [Thread 51532] Completed request for /parse-pdf
-[2025-07-21 21:06:20.615] [INFO] [Thread 47984] Processing POST request for /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.615] [INFO] Auth middleware processing request: POST /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.615] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.616] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.616] [INFO] Rate limit result - Allowed: true, Used: 21, Remaining: 79
-[2025-07-21 21:06:20.616] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.616] [INFO] [Thread 47984] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.616] [INFO] [Thread 47984] Received DOCX parse request
-[2025-07-21 21:06:20.620] [INFO] Parsing DOCX data (size: 38147 bytes)
-[2025-07-21 21:06:20.942] [INFO] DOCX parsing completed successfully. Text length: 112760
-[2025-07-21 21:06:20.945] [INFO] [Thread 47984] Completed request for /parse-docx
-[2025-07-21 21:06:20.955] [INFO] [Thread 48344] Processing POST request for /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.955] [INFO] [Thread 59608] Processing POST request for /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.956] [INFO] [Thread 45736] Processing POST request for /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.956] [INFO] Auth middleware processing request: POST /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.956] [INFO] [Thread 46772] Processing POST request for /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.957] [INFO] Auth middleware processing request: POST /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.957] [INFO] Auth middleware processing request: POST /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.957] [INFO] [Thread 47400] Processing POST request for /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.957] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.957] [INFO] Auth middleware processing request: POST /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.957] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.958] [INFO] Auth middleware processing request: POST /parse-docx from 127.0.0.1
-[2025-07-21 21:06:20.958] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.958] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.958] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:20.958] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.958] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.959] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.959] [INFO] Rate limit result - Allowed: true, Used: 22, Remaining: 78
-[2025-07-21 21:06:20.959] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.959] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:20.959] [INFO] Rate limit result - Allowed: true, Used: 23, Remaining: 77
-[2025-07-21 21:06:20.959] [INFO] Rate limit result - Allowed: true, Used: 24, Remaining: 76
-[2025-07-21 21:06:20.959] [INFO] Rate limit result - Allowed: true, Used: 25, Remaining: 75
-[2025-07-21 21:06:20.960] [INFO] Rate limit result - Allowed: true, Used: 26, Remaining: 74
-[2025-07-21 21:06:20.960] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.960] [INFO] [Thread 47400] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.960] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.960] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.960] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.960] [INFO] [Thread 46772] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.960] [INFO] [Thread 59608] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.960] [INFO] [Thread 45736] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.961] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:20.961] [INFO] [Thread 47400] Received DOCX parse request
-[2025-07-21 21:06:20.961] [INFO] [Thread 48344] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:20.961] [INFO] [Thread 59608] Received DOCX parse request
-[2025-07-21 21:06:20.961] [INFO] [Thread 45736] Received DOCX parse request
-[2025-07-21 21:06:20.961] [INFO] [Thread 46772] Received DOCX parse request
-[2025-07-21 21:06:20.962] [INFO] [Thread 48344] Received DOCX parse request
-[2025-07-21 21:06:20.962] [INFO] Parsing DOCX data (size: 37033 bytes)
-[2025-07-21 21:06:20.963] [INFO] Parsing DOCX data (size: 37034 bytes)
-[2025-07-21 21:06:20.963] [INFO] Parsing DOCX data (size: 37034 bytes)
-[2025-07-21 21:06:20.964] [INFO] Parsing DOCX data (size: 37033 bytes)
-[2025-07-21 21:06:20.964] [INFO] Parsing DOCX data (size: 37034 bytes)
-[2025-07-21 21:06:20.998] [INFO] DOCX parsing completed successfully. Text length: 9102
-[2025-07-21 21:06:20.998] [INFO] [Thread 45736] Completed request for /parse-docx
-[2025-07-21 21:06:21.000] [INFO] DOCX parsing completed successfully. Text length: 9102
-[2025-07-21 21:06:21.000] [INFO] [Thread 48344] Completed request for /parse-docx
-[2025-07-21 21:06:21.001] [INFO] DOCX parsing completed successfully. Text length: 9102
-[2025-07-21 21:06:21.002] [INFO] [Thread 46772] Completed request for /parse-docx
-[2025-07-21 21:06:21.002] [INFO] DOCX parsing completed successfully. Text length: 9102
-[2025-07-21 21:06:21.003] [INFO] [Thread 47400] Completed request for /parse-docx
-[2025-07-21 21:06:21.004] [INFO] DOCX parsing completed successfully. Text length: 9102
-[2025-07-21 21:06:21.005] [INFO] [Thread 59608] Completed request for /parse-docx
-[2025-07-21 21:06:21.044] [INFO] [Thread 48160] Processing POST request for /add_documents from 127.0.0.1
-[2025-07-21 21:06:21.044] [INFO] Auth middleware processing request: POST /add_documents from 127.0.0.1
-[2025-07-21 21:06:21.044] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:21.044] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:21.044] [INFO] Rate limit result - Allowed: true, Used: 27, Remaining: 73
-[2025-07-21 21:06:21.044] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:21.045] [INFO] [Thread 48160] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:21.045] [INFO] [Thread 48160] Received add documents request
-[2025-07-21 21:06:21.046] [INFO] [Thread 48160] Processing 10 documents for indexing (Request ID: doc-1-1753103181046)
-[2025-07-21 21:06:21.049] [INFO] Processing 10 documents for collection 'documents'
-[2025-07-21 21:06:36.808] [INFO] Upserting 10 points to collection 'documents'
-[2025-07-21 21:06:36.828] [INFO] Successfully indexed 10 documents to collection 'documents'
-[2025-07-21 21:06:36.829] [INFO] [Thread 48160] Successfully processed documents - Success: 10, Failed: 0
-[2025-07-21 21:06:36.829] [INFO] [Thread 48160] Completed request for /add_documents
-[2025-07-21 21:06:36.868] [INFO] [Thread 45072] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.868] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.868] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.869] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.869] [INFO] Rate limit result - Allowed: true, Used: 22, Remaining: 78
-[2025-07-21 21:06:36.869] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.869] [INFO] [Thread 45072] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.870] [INFO] Vector search request - Query: smartphone, Limit: 5, Collection: default
-[2025-07-21 21:06:36.870] [INFO] [Thread 45072] Completed request for /vector-search
-[2025-07-21 21:06:36.882] [INFO] [Thread 36444] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.883] [INFO] [Thread 59492] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.883] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.883] [INFO] [Thread 60224] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.883] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.883] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.883] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.883] [INFO] [Thread 31160] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.884] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.884] [INFO] [Thread 36596] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.884] [INFO] [Thread 40168] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.884] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.884] [INFO] [Thread 35356] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.884] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.884] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.884] [INFO] [Thread 37880] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.885] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.885] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.885] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.885] [INFO] [Thread 28664] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.885] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.885] [INFO] [Thread 41004] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.885] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.886] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.886] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.886] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.886] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.886] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.886] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.887] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.887] [INFO] Rate limit result - Allowed: true, Used: 23, Remaining: 77
-[2025-07-21 21:06:36.887] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.887] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.887] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.887] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.887] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.888] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.888] [INFO] Rate limit result - Allowed: true, Used: 24, Remaining: 76
-[2025-07-21 21:06:36.888] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.888] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.888] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.888] [INFO] Rate limit result - Allowed: true, Used: 25, Remaining: 75
-[2025-07-21 21:06:36.888] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.888] [INFO] Rate limit result - Allowed: true, Used: 26, Remaining: 74
-[2025-07-21 21:06:36.889] [INFO] Rate limit result - Allowed: true, Used: 27, Remaining: 73
-[2025-07-21 21:06:36.889] [INFO] Rate limit result - Allowed: true, Used: 28, Remaining: 72
-[2025-07-21 21:06:36.889] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.889] [INFO] [Thread 60224] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.889] [INFO] Rate limit result - Allowed: true, Used: 29, Remaining: 71
-[2025-07-21 21:06:36.889] [INFO] Rate limit result - Allowed: true, Used: 30, Remaining: 70
-[2025-07-21 21:06:36.890] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.890] [INFO] Vector search request - Query: machine learning algorithms, Limit: 10, Collection: default
-[2025-07-21 21:06:36.890] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.890] [INFO] [Thread 36444] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.890] [INFO] [Thread 59492] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.890] [INFO] Rate limit result - Allowed: true, Used: 31, Remaining: 69
-[2025-07-21 21:06:36.890] [INFO] Rate limit result - Allowed: true, Used: 32, Remaining: 68
-[2025-07-21 21:06:36.891] [INFO] Vector search request - Query: smartphone technology, Limit: 10, Collection: default
-[2025-07-21 21:06:36.891] [INFO] [Thread 60224] Completed request for /vector-search
-[2025-07-21 21:06:36.891] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.891] [INFO] [Thread 41004] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.891] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.892] [INFO] [Thread 31160] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.892] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.892] [INFO] [Thread 36444] Completed request for /vector-search
-[2025-07-21 21:06:36.892] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.892] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.892] [INFO] [Thread 40168] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.893] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.893] [INFO] [Thread 37880] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.893] [INFO] [Thread 35356] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.893] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.893] [INFO] [Thread 36596] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.893] [INFO] Vector search request - Query: cloud computing services, Limit: 10, Collection: default
-[2025-07-21 21:06:36.894] [INFO] Vector search request - Query: cybersecurity best practices, Limit: 10, Collection: default
-[2025-07-21 21:06:36.894] [INFO] Vector search request - Query: database management, Limit: 10, Collection: default
-[2025-07-21 21:06:36.894] [INFO] [Thread 28664] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.894] [INFO] [Thread 41004] Completed request for /vector-search
-[2025-07-21 21:06:36.894] [INFO] Vector search request - Query: software development, Limit: 10, Collection: default
-[2025-07-21 21:06:36.895] [INFO] [Thread 31160] Completed request for /vector-search
-[2025-07-21 21:06:36.895] [INFO] Vector search request - Query: data science methods, Limit: 10, Collection: default
-[2025-07-21 21:06:36.895] [INFO] Vector search request - Query: web development frameworks, Limit: 10, Collection: default
-[2025-07-21 21:06:36.895] [INFO] Vector search request - Query: artificial intelligence, Limit: 10, Collection: default
-[2025-07-21 21:06:36.895] [INFO] [Thread 37880] Completed request for /vector-search
-[2025-07-21 21:06:36.896] [INFO] [Thread 36596] Completed request for /vector-search
-[2025-07-21 21:06:36.896] [INFO] Vector search request - Query: mobile app development, Limit: 10, Collection: default
-[2025-07-21 21:06:36.896] [INFO] [Thread 35356] Completed request for /vector-search
-[2025-07-21 21:06:36.896] [INFO] [Thread 40168] Completed request for /vector-search
-[2025-07-21 21:06:36.896] [INFO] [Thread 59492] Completed request for /vector-search
-[2025-07-21 21:06:36.897] [INFO] [Thread 28664] Completed request for /vector-search
-[2025-07-21 21:06:36.909] [INFO] [Thread 56472] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.909] [INFO] [Thread 49188] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.909] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.909] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.910] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.910] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.910] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.910] [INFO] [Thread 59504] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.911] [INFO] [Thread 59612] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.911] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.911] [INFO] [Thread 20356] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.911] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.911] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.912] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.912] [INFO] Rate limit result - Allowed: true, Used: 33, Remaining: 67
-[2025-07-21 21:06:36.912] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:36.912] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.912] [INFO] Rate limit result - Allowed: true, Used: 34, Remaining: 66
-[2025-07-21 21:06:36.912] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.912] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.913] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.913] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.913] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.913] [INFO] Rate limit result - Allowed: true, Used: 35, Remaining: 65
-[2025-07-21 21:06:36.913] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.913] [INFO] [Thread 56472] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.913] [INFO] [Thread 49188] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.913] [INFO] Rate limit result - Allowed: true, Used: 36, Remaining: 64
-[2025-07-21 21:06:36.914] [INFO] Rate limit result - Allowed: true, Used: 37, Remaining: 63
-[2025-07-21 21:06:36.914] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.914] [INFO] [Thread 59504] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.914] [INFO] Vector search request - Query: python programming, Limit: 10, Collection: default
-[2025-07-21 21:06:36.914] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.914] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.914] [INFO] [Thread 20356] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.914] [INFO] Vector search request - Query: javascript frameworks, Limit: 10, Collection: default
-[2025-07-21 21:06:36.915] [INFO] [Thread 59612] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.915] [INFO] [Thread 56472] Completed request for /vector-search
-[2025-07-21 21:06:36.915] [INFO] [Thread 49188] Completed request for /vector-search
-[2025-07-21 21:06:36.915] [INFO] Vector search request - Query: nodejs backend, Limit: 10, Collection: default
-[2025-07-21 21:06:36.915] [INFO] Vector search request - Query: react development, Limit: 10, Collection: default
-[2025-07-21 21:06:36.915] [INFO] Vector search request - Query: database optimization, Limit: 10, Collection: default
-[2025-07-21 21:06:36.916] [INFO] [Thread 59504] Completed request for /vector-search
-[2025-07-21 21:06:36.916] [INFO] [Thread 20356] Completed request for /vector-search
-[2025-07-21 21:06:36.916] [INFO] [Thread 59612] Completed request for /vector-search
-[2025-07-21 21:06:36.924] [INFO] [Thread 36840] Processing GET request for /health from 127.0.0.1
-[2025-07-21 21:06:36.924] [INFO] Auth middleware processing request: GET /health from 127.0.0.1
-[2025-07-21 21:06:36.924] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.924] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.925] [INFO] Rate limit result - Allowed: true, Used: 38, Remaining: 62
-[2025-07-21 21:06:36.925] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.925] [INFO] [Thread 36840] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.925] [INFO] [Thread 36840] Completed request for /health
-[2025-07-21 21:06:36.930] [INFO] [Thread 51320] Processing GET request for /api/v1/agents/system/status from 127.0.0.1
-[2025-07-21 21:06:36.930] [INFO] Auth middleware processing request: GET /api/v1/agents/system/status from 127.0.0.1
-[2025-07-21 21:06:36.930] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.930] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.930] [INFO] Rate limit result - Allowed: true, Used: 39, Remaining: 61
-[2025-07-21 21:06:36.930] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.931] [INFO] [Thread 51320] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.931] [WARNING] [Thread 51320] No route found for GET /api/v1/agents/system/status
-[2025-07-21 21:06:36.931] [INFO] [Thread 51320] Completed request for /api/v1/agents/system/status
-[2025-07-21 21:06:36.935] [INFO] [Thread 6496] Processing GET request for /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:36.935] [INFO] Auth middleware processing request: GET /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:36.936] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.936] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.936] [INFO] Rate limit result - Allowed: true, Used: 40, Remaining: 60
-[2025-07-21 21:06:36.936] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.936] [INFO] [Thread 6496] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.936] [WARNING] [Thread 6496] No route found for GET /api/v1/agents
-[2025-07-21 21:06:36.937] [INFO] [Thread 6496] Completed request for /api/v1/agents
-[2025-07-21 21:06:36.941] [INFO] [Thread 34164] Processing POST request for /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:36.941] [INFO] Auth middleware processing request: POST /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:36.941] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.941] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.941] [INFO] Rate limit result - Allowed: true, Used: 41, Remaining: 59
-[2025-07-21 21:06:36.941] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.942] [INFO] [Thread 34164] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.942] [WARNING] [Thread 34164] No route found for POST /api/v1/agents
-[2025-07-21 21:06:36.942] [INFO] [Thread 34164] Completed request for /api/v1/agents
-[2025-07-21 21:06:36.946] [INFO] [Thread 48860] Processing POST request for /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:36.946] [INFO] Auth middleware processing request: POST /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:36.946] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.946] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.946] [INFO] Rate limit result - Allowed: true, Used: 42, Remaining: 58
-[2025-07-21 21:06:36.946] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.946] [INFO] [Thread 48860] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.947] [WARNING] [Thread 48860] No route found for POST /api/v1/agents
-[2025-07-21 21:06:36.947] [INFO] [Thread 48860] Completed request for /api/v1/agents
-[2025-07-21 21:06:36.951] [INFO] [Thread 49784] Processing POST request for /api/v1/documents from 127.0.0.1
-[2025-07-21 21:06:36.952] [INFO] Auth middleware processing request: POST /api/v1/documents from 127.0.0.1
-[2025-07-21 21:06:36.952] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.952] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.952] [INFO] Rate limit result - Allowed: true, Used: 43, Remaining: 57
-[2025-07-21 21:06:36.952] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.952] [INFO] [Thread 49784] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.953] [INFO] [Thread 49784] Completed request for /api/v1/documents
-[2025-07-21 21:06:36.956] [INFO] [Thread 48532] Processing POST request for /retrieve from 127.0.0.1
-[2025-07-21 21:06:36.956] [INFO] Auth middleware processing request: POST /retrieve from 127.0.0.1
-[2025-07-21 21:06:36.956] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:36.957] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:36.957] [INFO] Rate limit result - Allowed: true, Used: 44, Remaining: 56
-[2025-07-21 21:06:36.957] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:36.957] [INFO] [Thread 48532] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:36.957] [INFO] [Thread 48532] Received retrieve request
-[2025-07-21 21:06:36.958] [INFO] [Thread 48532] Processing retrieval for query: 'healthcare AI machine learning diagnostics' (k=3, Request ID: ret-1-1753103196958)
-[2025-07-21 21:06:36.961] [INFO] Retrieving documents for query: 'healthcare AI machine learning diagnostics' (k=3, collection='documents')
-[2025-07-21 21:06:37.621] [INFO] Successfully retrieved 0 documents for query
-[2025-07-21 21:06:37.621] [INFO] [Thread 48532] Successfully retrieved 0 documents for query
-[2025-07-21 21:06:37.622] [INFO] [Thread 48532] Completed request for /retrieve
-[2025-07-21 21:06:37.626] [INFO] [Thread 57088] Processing POST request for /retrieve from 127.0.0.1
-[2025-07-21 21:06:37.626] [INFO] Auth middleware processing request: POST /retrieve from 127.0.0.1
-[2025-07-21 21:06:37.627] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:37.627] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:37.627] [INFO] Rate limit result - Allowed: true, Used: 45, Remaining: 55
-[2025-07-21 21:06:37.627] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:37.627] [INFO] [Thread 57088] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:37.628] [INFO] [Thread 57088] Received retrieve request
-[2025-07-21 21:06:37.628] [INFO] [Thread 57088] Processing retrieval for query: 'autonomous vehicles self-driving cars computer vision' (k=2, Request ID: ret-2-1753103197628)
-[2025-07-21 21:06:37.632] [INFO] Retrieving documents for query: 'autonomous vehicles self-driving cars computer vision' (k=2, collection='documents')
-[2025-07-21 21:06:38.286] [INFO] Successfully retrieved 0 documents for query
-[2025-07-21 21:06:38.287] [INFO] [Thread 57088] Successfully retrieved 0 documents for query
-[2025-07-21 21:06:38.287] [INFO] [Thread 57088] Completed request for /retrieve
-[2025-07-21 21:06:38.291] [INFO] [Thread 60296] Processing POST request for /retrieve from 127.0.0.1
-[2025-07-21 21:06:38.292] [INFO] Auth middleware processing request: POST /retrieve from 127.0.0.1
-[2025-07-21 21:06:38.292] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:38.292] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:38.292] [INFO] Rate limit result - Allowed: true, Used: 46, Remaining: 54
-[2025-07-21 21:06:38.292] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:38.292] [INFO] [Thread 60296] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:38.293] [INFO] [Thread 60296] Received retrieve request
-[2025-07-21 21:06:38.293] [INFO] [Thread 60296] Processing retrieval for query: 'financial fraud detection algorithmic trading' (k=2, Request ID: ret-3-1753103198293)
-[2025-07-21 21:06:38.297] [INFO] Retrieving documents for query: 'financial fraud detection algorithmic trading' (k=2, collection='documents')
-[2025-07-21 21:06:38.955] [INFO] Successfully retrieved 0 documents for query
-[2025-07-21 21:06:38.956] [INFO] [Thread 60296] Successfully retrieved 0 documents for query
-[2025-07-21 21:06:38.956] [INFO] [Thread 60296] Completed request for /retrieve
-[2025-07-21 21:06:38.961] [INFO] [Thread 42244] Processing POST request for /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:38.961] [INFO] Auth middleware processing request: POST /parse-pdf from 127.0.0.1
-[2025-07-21 21:06:38.962] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:38.962] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:38.962] [INFO] Rate limit result - Allowed: true, Used: 47, Remaining: 53
-[2025-07-21 21:06:38.962] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:38.962] [INFO] [Thread 42244] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:38.963] [INFO] [Thread 42244] Received PDF parse request
-[2025-07-21 21:06:38.963] [INFO] [Thread 42244] Completed request for /parse-pdf
-[2025-07-21 21:06:38.968] [INFO] [Thread 55336] Processing POST request for /embeddings from 127.0.0.1
-[2025-07-21 21:06:38.968] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
-[2025-07-21 21:06:38.969] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:38.969] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:38.969] [INFO] Rate limit result - Allowed: true, Used: 48, Remaining: 52
-[2025-07-21 21:06:38.969] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:38.970] [INFO] [Thread 55336] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:38.970] [INFO] [Thread 55336] Received embedding request
-[2025-07-21 21:06:38.970] [ERROR] [Thread 55336] Error parsing embedding request: Missing required field: input
-[2025-07-21 21:06:38.971] [ERROR] [Thread 55336] Embedding request error (400): Missing required field: input
-[2025-07-21 21:06:38.971] [INFO] [Thread 55336] Completed request for /embeddings
-[2025-07-21 21:06:38.976] [INFO] [Thread 41024] Processing POST request for /api/v1/collections from 127.0.0.1
-[2025-07-21 21:06:38.976] [INFO] Auth middleware processing request: POST /api/v1/collections from 127.0.0.1
-[2025-07-21 21:06:38.976] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:38.976] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:38.976] [INFO] Rate limit result - Allowed: true, Used: 49, Remaining: 51
-[2025-07-21 21:06:38.977] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:38.977] [INFO] [Thread 41024] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:38.977] [INFO] Collections route handling request
-[2025-07-21 21:06:38.978] [INFO] [Thread 41024] Completed request for /api/v1/collections
-[2025-07-21 21:06:38.982] [INFO] [Thread 46276] Processing GET request for /api/v1/collections from 127.0.0.1
-[2025-07-21 21:06:38.982] [INFO] Auth middleware processing request: GET /api/v1/collections from 127.0.0.1
-[2025-07-21 21:06:38.982] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:38.983] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:38.983] [INFO] Rate limit result - Allowed: true, Used: 50, Remaining: 50
-[2025-07-21 21:06:38.983] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:38.983] [INFO] [Thread 46276] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:38.983] [INFO] Collections route handling request
-[2025-07-21 21:06:38.984] [INFO] [Thread 46276] Completed request for /api/v1/collections
-[2025-07-21 21:06:38.988] [INFO] [Thread 50976] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:38.989] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:38.989] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:38.989] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:38.989] [INFO] Rate limit result - Allowed: true, Used: 51, Remaining: 49
-[2025-07-21 21:06:38.989] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:38.989] [INFO] [Thread 50976] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:38.990] [INFO] [Thread 50976] Completed request for /vector-search
-[2025-07-21 21:06:38.994] [INFO] [Thread 58944] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:38.995] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:38.995] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:38.995] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:38.995] [INFO] Rate limit result - Allowed: true, Used: 52, Remaining: 48
-[2025-07-21 21:06:38.995] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:38.995] [INFO] [Thread 58944] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:38.996] [INFO] [Thread 58944] Completed request for /vector-search
-[2025-07-21 21:06:39.000] [INFO] [Thread 39132] Processing POST request for /context-retrieval from 127.0.0.1
-[2025-07-21 21:06:39.001] [INFO] Auth middleware processing request: POST /context-retrieval from 127.0.0.1
-[2025-07-21 21:06:39.001] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.001] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.001] [INFO] Rate limit result - Allowed: true, Used: 53, Remaining: 47
-[2025-07-21 21:06:39.001] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.001] [INFO] [Thread 39132] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.001] [INFO] Context retrieval request - Query: How does AI help in healthcare diagnosis?, Limit: 10, Collection: default
-[2025-07-21 21:06:39.002] [INFO] [Thread 39132] Completed request for /context-retrieval
-[2025-07-21 21:06:39.005] [INFO] [Thread 49436] Processing POST request for /context-retrieval from 127.0.0.1
-[2025-07-21 21:06:39.006] [INFO] Auth middleware processing request: POST /context-retrieval from 127.0.0.1
-[2025-07-21 21:06:39.006] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.006] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.006] [INFO] Rate limit result - Allowed: true, Used: 54, Remaining: 46
-[2025-07-21 21:06:39.006] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.006] [INFO] [Thread 49436] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.006] [INFO] Context retrieval request - Query: What are the benefits of autonomous vehicles?, Limit: 10, Collection: default
-[2025-07-21 21:06:39.007] [INFO] [Thread 49436] Completed request for /context-retrieval
-[2025-07-21 21:06:39.011] [INFO] [Thread 56344] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:39.011] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:39.011] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.011] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.011] [INFO] Rate limit result - Allowed: true, Used: 55, Remaining: 45
-[2025-07-21 21:06:39.012] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.012] [INFO] [Thread 56344] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.012] [INFO] Vector search request - Query: artificial intelligence, Limit: 10, Collection: default
-[2025-07-21 21:06:39.012] [INFO] [Thread 56344] Completed request for /vector-search
-[2025-07-21 21:06:39.016] [INFO] [Thread 60024] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:39.017] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:39.017] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.017] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.017] [INFO] Rate limit result - Allowed: true, Used: 56, Remaining: 44
-[2025-07-21 21:06:39.017] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.017] [INFO] [Thread 60024] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.018] [INFO] Vector search request - Query: machine learning, Limit: 10, Collection: default
-[2025-07-21 21:06:39.018] [INFO] [Thread 60024] Completed request for /vector-search
-[2025-07-21 21:06:39.022] [INFO] [Thread 54612] Processing POST request for /vector-search from 127.0.0.1
-[2025-07-21 21:06:39.022] [INFO] Auth middleware processing request: POST /vector-search from 127.0.0.1
-[2025-07-21 21:06:39.022] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.023] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.023] [INFO] Rate limit result - Allowed: true, Used: 57, Remaining: 43
-[2025-07-21 21:06:39.023] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.023] [INFO] [Thread 54612] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.024] [INFO] Vector search request - Query: technology, Limit: 10, Collection: default
-[2025-07-21 21:06:39.024] [INFO] [Thread 54612] Completed request for /vector-search
-[2025-07-21 21:06:39.029] [INFO] [Thread 52960] Processing POST request for /api/v1/documents/bulk from 127.0.0.1
-[2025-07-21 21:06:39.029] [INFO] Auth middleware processing request: POST /api/v1/documents/bulk from 127.0.0.1
-[2025-07-21 21:06:39.029] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.030] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.030] [INFO] Rate limit result - Allowed: true, Used: 58, Remaining: 42
-[2025-07-21 21:06:39.030] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.030] [INFO] [Thread 52960] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.030] [INFO] [Thread 52960] Completed request for /api/v1/documents/bulk
-[2025-07-21 21:06:39.034] [INFO] [Thread 35360] Processing GET request for /api/v1/qdrant/status from 127.0.0.1
-[2025-07-21 21:06:39.034] [INFO] Auth middleware processing request: GET /api/v1/qdrant/status from 127.0.0.1
-[2025-07-21 21:06:39.034] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.035] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.035] [INFO] Rate limit result - Allowed: true, Used: 59, Remaining: 41
-[2025-07-21 21:06:39.035] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.035] [INFO] [Thread 35360] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.035] [WARNING] [Thread 35360] No route found for GET /api/v1/qdrant/status
-[2025-07-21 21:06:39.036] [INFO] [Thread 35360] Completed request for /api/v1/qdrant/status
-[2025-07-21 21:06:39.039] [INFO] [Thread 59508] Processing GET request for /api/v1/qdrant/collections from 127.0.0.1
-[2025-07-21 21:06:39.040] [INFO] Auth middleware processing request: GET /api/v1/qdrant/collections from 127.0.0.1
-[2025-07-21 21:06:39.040] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.040] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.041] [INFO] Rate limit result - Allowed: true, Used: 60, Remaining: 40
-[2025-07-21 21:06:39.041] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.041] [INFO] [Thread 59508] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.041] [WARNING] [Thread 59508] No route found for GET /api/v1/qdrant/collections
-[2025-07-21 21:06:39.042] [INFO] [Thread 59508] Completed request for /api/v1/qdrant/collections
-[2025-07-21 21:06:39.046] [INFO] [Thread 23700] Processing GET request for /api/v1/qdrant/cluster/info from 127.0.0.1
-[2025-07-21 21:06:39.046] [INFO] Auth middleware processing request: GET /api/v1/qdrant/cluster/info from 127.0.0.1
-[2025-07-21 21:06:39.046] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.046] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.046] [INFO] Rate limit result - Allowed: true, Used: 61, Remaining: 39
-[2025-07-21 21:06:39.047] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.047] [INFO] [Thread 23700] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.047] [WARNING] [Thread 23700] No route found for GET /api/v1/qdrant/cluster/info
-[2025-07-21 21:06:39.047] [INFO] [Thread 23700] Completed request for /api/v1/qdrant/cluster/info
-[2025-07-21 21:06:39.054] [INFO] [Thread 40268] Processing DELETE request for /api/v1/collections/test_collection_1753103198 from 127.0.0.1
-[2025-07-21 21:06:39.054] [INFO] Auth middleware processing request: DELETE /api/v1/collections/test_collection_1753103198 from 127.0.0.1
-[2025-07-21 21:06:39.054] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.054] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.054] [INFO] Rate limit result - Allowed: true, Used: 62, Remaining: 38
-[2025-07-21 21:06:39.055] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.055] [INFO] [Thread 40268] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.055] [INFO] Collections route handling request
-[2025-07-21 21:06:39.055] [INFO] [Thread 40268] Completed request for /api/v1/collections/test_collection_1753103198
-[2025-07-21 21:06:39.060] [INFO] [Thread 55384] Processing POST request for /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:39.060] [INFO] Auth middleware processing request: POST /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:39.060] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.061] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.061] [INFO] Rate limit result - Allowed: true, Used: 63, Remaining: 37
-[2025-07-21 21:06:39.061] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.061] [INFO] [Thread 55384] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.061] [WARNING] [Thread 55384] No route found for POST /api/v1/agents
-[2025-07-21 21:06:39.062] [INFO] [Thread 55384] Completed request for /api/v1/agents
-[2025-07-21 21:06:39.065] [INFO] [Thread 44940] Processing POST request for /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:39.065] [INFO] Auth middleware processing request: POST /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:39.065] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.065] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.066] [INFO] Rate limit result - Allowed: true, Used: 64, Remaining: 36
-[2025-07-21 21:06:39.066] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.066] [INFO] [Thread 44940] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.066] [WARNING] [Thread 44940] No route found for POST /api/v1/agents
-[2025-07-21 21:06:39.067] [INFO] [Thread 44940] Completed request for /api/v1/agents
-[2025-07-21 21:06:39.069] [INFO] [Thread 58540] Processing POST request for /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:39.069] [INFO] Auth middleware processing request: POST /api/v1/agents from 127.0.0.1
-[2025-07-21 21:06:39.070] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
-[2025-07-21 21:06:39.070] [INFO] CORS result - IsValid: true, IsPreflight: false
-[2025-07-21 21:06:39.070] [INFO] Rate limit result - Allowed: true, Used: 65, Remaining: 35
-[2025-07-21 21:06:39.070] [INFO] Auth middleware completed - Request allowed: true
-[2025-07-21 21:06:39.070] [INFO] [Thread 58540] Auth middleware result - Allowed: true, Status: 200, Reason:
-[2025-07-21 21:06:39.071] [WARNING] [Thread 58540] No route found for POST /api/v1/agents
-[2025-07-21 21:06:39.071] [INFO] [Thread 58540] Completed request for /api/v1/agents
+[2025-07-22 18:51:13.985] [INFO] Successfully reloaded model for engine 'qwen3-0.6b'
+[2025-07-22 18:51:13.985] [INFO] Successfully reloaded engine ID 'qwen3-0.6b'.
+[2025-07-22 18:51:13.985] [INFO] [Thread 31600] Processing non-streaming chat completion request for model 'qwen3-0.6b'
+[2025-07-22 18:51:22.661] [INFO] [Thread 31600] Completed non-streaming response for job 0 (10.39 tokens/sec)
+[2025-07-22 18:51:22.661] [INFO] [Thread 31600] Completed request for /chat/completions
+[2025-07-22 18:51:22.675] [INFO] [Thread 560] Processing POST request for /chat/completions from 127.0.0.1
+[2025-07-22 18:51:22.675] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
+[2025-07-22 18:51:22.675] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:51:22.675] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:51:22.675] [INFO] Rate limit result - Allowed: true, Used: 3, Remaining: 97
+[2025-07-22 18:51:22.676] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:51:22.676] [INFO] [Thread 560] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:51:22.676] [INFO] [Thread 560] Received chat completion request
+[2025-07-22 18:51:22.676] [INFO] [Thread 560] Processing streaming chat completion request for model 'qwen3-0.6b'
+[2025-07-22 18:51:28.154] [ERROR] [Thread 560] JSON parsing error: [json.exception.type_error.316] incomplete UTF-8 string; last byte: 0x98
+[2025-07-22 18:51:28.154] [INFO] [Thread 560] Completed request for /chat/completions
+[2025-07-22 18:51:28.184] [INFO] [Thread 21212] Processing POST request for /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.189] [INFO] [Thread 43808] Processing POST request for /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.189] [INFO] [Thread 25672] Processing POST request for /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.190] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.190] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.190] [INFO] [Thread 23720] Processing POST request for /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.190] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.191] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:51:28.191] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:51:28.191] [INFO] [Thread 25656] Processing POST request for /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.191] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:51:28.191] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.191] [INFO] Auth middleware processing request: POST /chat/completions from 127.0.0.1
+[2025-07-22 18:51:28.192] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:51:28.192] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:51:28.192] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:51:28.192] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:51:28.192] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:51:28.192] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:51:28.192] [INFO] Rate limit result - Allowed: true, Used: 4, Remaining: 96
+[2025-07-22 18:51:28.193] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:51:28.193] [INFO] Rate limit result - Allowed: true, Used: 5, Remaining: 95
+[2025-07-22 18:51:28.193] [INFO] Rate limit result - Allowed: true, Used: 6, Remaining: 94
+[2025-07-22 18:51:28.193] [INFO] Rate limit result - Allowed: true, Used: 7, Remaining: 93
+[2025-07-22 18:51:28.193] [INFO] Rate limit result - Allowed: true, Used: 8, Remaining: 92
+[2025-07-22 18:51:28.193] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:51:28.193] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:51:28.193] [INFO] [Thread 21212] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:51:28.194] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:51:28.194] [INFO] [Thread 23720] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:51:28.194] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:51:28.194] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:51:28.194] [INFO] [Thread 43808] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:51:28.194] [INFO] [Thread 21212] Received chat completion request
+[2025-07-22 18:51:28.194] [INFO] [Thread 25656] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:51:28.194] [INFO] [Thread 25672] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:51:28.195] [INFO] [Thread 23720] Received chat completion request
+[2025-07-22 18:51:28.195] [INFO] [Thread 21212] Processing non-streaming chat completion request for model 'qwen3-0.6b'
+[2025-07-22 18:51:28.195] [INFO] [Thread 43808] Received chat completion request
+[2025-07-22 18:51:28.195] [INFO] [Thread 23720] Processing non-streaming chat completion request for model 'qwen3-0.6b'
+[2025-07-22 18:51:28.195] [INFO] [Thread 25656] Received chat completion request
+[2025-07-22 18:51:28.195] [INFO] [Thread 25672] Received chat completion request
+[2025-07-22 18:51:28.196] [INFO] [Thread 43808] Processing non-streaming chat completion request for model 'qwen3-0.6b'
+[2025-07-22 18:51:28.196] [INFO] [Thread 25656] Processing non-streaming chat completion request for model 'qwen3-0.6b'
+[2025-07-22 18:51:28.196] [INFO] [Thread 25672] Processing non-streaming chat completion request for model 'qwen3-0.6b'
+[2025-07-22 18:52:01.970] [INFO] [Thread 21212] Completed non-streaming response for job 2 (12.98 tokens/sec)
+[2025-07-22 18:52:01.970] [INFO] [Thread 43808] Completed non-streaming response for job 4 (12.98 tokens/sec)
+[2025-07-22 18:52:01.970] [INFO] [Thread 23720] Completed non-streaming response for job 3 (12.98 tokens/sec)
+[2025-07-22 18:52:01.970] [INFO] [Thread 21212] Completed request for /chat/completions
+[2025-07-22 18:52:01.970] [INFO] [Thread 43808] Completed request for /chat/completions
+[2025-07-22 18:52:01.971] [INFO] [Thread 23720] Completed request for /chat/completions
+[2025-07-22 18:52:02.021] [INFO] [Thread 25656] Completed non-streaming response for job 5 (12.98 tokens/sec)
+[2025-07-22 18:52:02.022] [INFO] [Thread 25656] Completed request for /chat/completions
+[2025-07-22 18:52:10.106] [INFO] [Thread 25672] Completed non-streaming response for job 6 (14.56 tokens/sec)
+[2025-07-22 18:52:10.107] [INFO] [Thread 25672] Completed request for /chat/completions
+[2025-07-22 18:52:10.151] [INFO] [Thread 35468] Processing POST request for /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.151] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.152] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:52:10.152] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:52:10.152] [INFO] Rate limit result - Allowed: true, Used: 9, Remaining: 91
+[2025-07-22 18:52:10.153] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:52:10.153] [INFO] [Thread 35468] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:52:10.154] [INFO] [Thread 35468] Received embedding request
+[2025-07-22 18:52:10.155] [INFO] [Thread 35468] Processing 1 embedding request(s) for model 'text-embedding-3-small'
+[2025-07-22 18:52:10.645] [INFO] [Thread 35468] Successfully generated 1 embedding(s) for model 'text-embedding-3-small'
+[2025-07-22 18:52:10.645] [INFO] [Thread 35468] Completed request for /embeddings
+[2025-07-22 18:52:10.669] [INFO] [Thread 9912] Processing POST request for /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.669] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.669] [INFO] [Thread 32008] Processing POST request for /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.669] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:52:10.669] [INFO] [Thread 2060] Processing POST request for /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.669] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.669] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.670] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:52:10.670] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:52:10.670] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:52:10.670] [INFO] Rate limit result - Allowed: true, Used: 10, Remaining: 90
+[2025-07-22 18:52:10.670] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:52:10.670] [INFO] [Thread 24864] Processing POST request for /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.670] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:52:10.670] [INFO] [Thread 25656] Processing POST request for /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.671] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:52:10.671] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.671] [INFO] Auth middleware processing request: POST /embeddings from 127.0.0.1
+[2025-07-22 18:52:10.671] [INFO] Rate limit result - Allowed: true, Used: 11, Remaining: 89
+[2025-07-22 18:52:10.671] [INFO] [Thread 9912] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:52:10.671] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:52:10.671] [INFO] CORS headers - Origin: , Request-Headers: , Request-Method:
+[2025-07-22 18:52:10.671] [INFO] Rate limit result - Allowed: true, Used: 12, Remaining: 88
+[2025-07-22 18:52:10.672] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:52:10.672] [INFO] [Thread 2060] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:52:10.672] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:52:10.672] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:52:10.672] [INFO] [Thread 9912] Received embedding request
+[2025-07-22 18:52:10.672] [INFO] CORS result - IsValid: true, IsPreflight: false
+[2025-07-22 18:52:10.672] [INFO] [Thread 2060] Received embedding request
+[2025-07-22 18:52:10.672] [INFO] Rate limit result - Allowed: true, Used: 13, Remaining: 87
+[2025-07-22 18:52:10.672] [INFO] [Thread 32008] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:52:10.673] [INFO] [Thread 9912] Processing 1 embedding request(s) for model 'text-embedding-3-small'
+[2025-07-22 18:52:10.673] [INFO] Rate limit result - Allowed: true, Used: 14, Remaining: 86
+[2025-07-22 18:52:10.673] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:52:10.673] [INFO] [Thread 32008] Received embedding request
+[2025-07-22 18:52:10.673] [INFO] [Thread 2060] Processing 1 embedding request(s) for model 'text-embedding-3-small'
+[2025-07-22 18:52:10.673] [INFO] Auth middleware completed - Request allowed: true
+[2025-07-22 18:52:10.673] [INFO] [Thread 24864] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:52:10.673] [INFO] [Thread 25656] Auth middleware result - Allowed: true, Status: 200, Reason:
+[2025-07-22 18:52:10.674] [INFO] [Thread 32008] Processing 1 embedding request(s) for model 'text-embedding-3-small'
+[2025-07-22 18:52:10.674] [INFO] [Thread 24864] Received embedding request
+[2025-07-22 18:52:10.674] [INFO] [Thread 25656] Received embedding request
+[2025-07-22 18:52:10.674] [INFO] [Thread 24864] Processing 1 embedding request(s) for model 'text-embedding-3-small'
+[2025-07-22 18:52:10.674] [INFO] [Thread 25656] Processing 1 embedding request(s) for model 'text-embedding-3-small'
+PS D:\Works\Genta\codes\kolosal-server>

@@ -4,27 +4,42 @@ project(KolosalServer VERSION 1.0.0 LANGUAGES CXX)
 # Include UCM for runtime library management
 include(${CMAKE_SOURCE_DIR}/cmake/ucm.cmake)
 
-# Configure runtime library for consistency with MuPDF
+# Configure runtime library for consistency
 if(MSVC)
-    # Force Release runtime library to match MuPDF's library
+    # WORKAROUND: Use Release runtime (/MD) for all builds to match pre-compiled MuPDF libraries
+    # This prevents LNK2038 runtime library mismatch errors
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    
+    # Clear any existing runtime flags first for all configurations
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL}")
+    
+    # Set Release runtime (/MD) for ALL build configurations to match MuPDF
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MD")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MD")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MD")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /MD")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
+    set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} /MD")
+    
+    # Also disable iterator debug level in Debug builds to match MuPDF
     if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        # Use Release runtime even in Debug build to match MuPDF
-        ucm_set_runtime(STATIC)
-        set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
-        # Override to use Release runtime for compatibility
-        set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MD")
-        set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MD")
-        string(REPLACE "/MDd" "/MD" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-        string(REPLACE "/MDd" "/MD" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
-        string(REPLACE "/MTd" "/MD" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-        string(REPLACE "/MTd" "/MD" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
         add_compile_definitions(_ITERATOR_DEBUG_LEVEL=0)
-        message(STATUS "Using Release runtime (/MD) for Debug build to match MuPDF")
+        message(STATUS "Using Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 for Debug build to match MuPDF")
     else()
-        ucm_set_runtime(DYNAMIC)
+        message(STATUS "Using Release runtime (/MD) for Release build")
     endif()
 else()
-    ucm_set_runtime(DYNAMIC)
+    # For non-MSVC compilers, use dynamic linking
+    set(BUILD_SHARED_LIBS ON)
 endif()
 
 # Use C++17 for this project (required for std::filesystem)
@@ -101,9 +116,11 @@ set(SOURCES
     src/routes/sequential_workflow_route.cpp
     src/routes/function_execution_route.cpp
     src/routes/collaboration_route.cpp
+    src/routes/agent_documents_route.cpp
 
     # Document retrieval routes
     src/routes/retrieve_route.cpp
+    src/routes/retrieve_test_route.cpp
     src/routes/add_documents_route.cpp
     src/routes/parse_pdf_route.cpp
     src/routes/parse_docx_route.cpp
@@ -113,10 +130,19 @@ set(SOURCES
     src/routes/internet_search_route.cpp
     src/routes/auto_setup_route.cpp
     src/routes/documents_route.cpp
+    src/routes/documents_upload_route.cpp
+    src/routes/document_search_route.cpp
     src/routes/collections_route.cpp
+    src/routes/collections_list_route.cpp
+    src/routes/collections_delete_route.cpp
+    src/routes/bulk_operations_route.cpp
     src/routes/context_retrieval_route.cpp
     src/routes/vector_search_route.cpp
     src/routes/qdrant_route.cpp
+    src/routes/not_found_route.cpp
+    src/routes/rag_route.cpp
+    src/routes/workflow_route.cpp
+    src/routes/session_route.cpp
 
     # Agent system core
     src/agents/agent_core.cpp
@@ -186,7 +212,22 @@ if(MSVC)
     target_compile_options(kolosal_server PRIVATE /FS /bigobj)
     # Completely disable parallel compilation to prevent PDB conflicts
     target_compile_options(kolosal_server PRIVATE /MP1)
-    message(STATUS "Added /FS, /bigobj, and /MP1 compile options to kolosal_server target for MSVC")
+    
+    # Set runtime library to match MuPDF (always use Release runtime)
+    set_target_properties(kolosal_server PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+    )
+    target_compile_options(kolosal_server PRIVATE
+        $<$<CONFIG:Debug>:/MD>
+        $<$<CONFIG:Release>:/MD>
+        $<$<CONFIG:RelWithDebInfo>:/MD>
+        $<$<CONFIG:MinSizeRel>:/MD>
+    )
+    # Disable iterator debug level for all configurations to match MuPDF
+    target_compile_definitions(kolosal_server PRIVATE _ITERATOR_DEBUG_LEVEL=0)
+    message(STATUS "Using Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 for kolosal_server to match MuPDF")
+    
+    message(STATUS "Added /FS, /bigobj, /MP1, and runtime library options to kolosal_server target for MSVC")
 endif()
 
 # Create executable
@@ -198,7 +239,22 @@ set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server"
 if(MSVC)
     target_compile_options(kolosal_server_exe PRIVATE /FS /bigobj)
     target_compile_options(kolosal_server_exe PRIVATE /MP1)
-    message(STATUS "Added /FS, /bigobj, and /MP1 compile options to kolosal_server_exe target for MSVC")
+    
+    # Set runtime library to match MuPDF (always use Release runtime)
+    set_target_properties(kolosal_server_exe PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+    )
+    target_compile_options(kolosal_server_exe PRIVATE
+        $<$<CONFIG:Debug>:/MD>
+        $<$<CONFIG:Release>:/MD>
+        $<$<CONFIG:RelWithDebInfo>:/MD>
+        $<$<CONFIG:MinSizeRel>:/MD>
+    )
+    # Disable iterator debug level for all configurations to match MuPDF
+    target_compile_definitions(kolosal_server_exe PRIVATE _ITERATOR_DEBUG_LEVEL=0)
+    message(STATUS "Using Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 for kolosal_server_exe to match MuPDF")
+    
+    message(STATUS "Added /FS, /bigobj, /MP1, and runtime library options to kolosal_server_exe target for MSVC")
 endif()
 
 # Function to copy DLLs to executable directory
@@ -281,8 +337,40 @@ set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
 set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
 set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static library" FORCE)
 
+# Configure yaml-cpp runtime library to match our project
+if(MSVC)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set(YAML_CPP_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL" CACHE STRING "yaml-cpp runtime library" FORCE)
+    else()
+        set(YAML_CPP_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL" CACHE STRING "yaml-cpp runtime library" FORCE)
+    endif()
+endif()
+
 # Add yaml-cpp subdirectory
 add_subdirectory(${YAML_CPP_PATH})
+
+# Configure yaml-cpp runtime library after it's been added
+if(MSVC AND TARGET yaml-cpp)
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        set_target_properties(yaml-cpp PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL"
+        )
+        target_compile_options(yaml-cpp PRIVATE
+            $<$<CONFIG:Debug>:/MDd>
+        )
+        message(STATUS "Configured yaml-cpp to use Debug runtime (/MDd)")
+    else()
+        set_target_properties(yaml-cpp PROPERTIES
+            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+        )
+        target_compile_options(yaml-cpp PRIVATE
+            $<$<CONFIG:Release>:/MD>
+            $<$<CONFIG:RelWithDebInfo>:/MD>
+            $<$<CONFIG:MinSizeRel>:/MD>
+        )
+        message(STATUS "Configured yaml-cpp to use Release runtime (/MD)")
+    endif()
+endif()
 
 # Note: yaml-cpp is still needed for server configuration
 if(NOT TARGET yaml-cpp)
@@ -291,6 +379,27 @@ if(NOT TARGET yaml-cpp)
     if(CMAKE_POSITION_INDEPENDENT_CODE)
         set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
         message(STATUS "Applied -fPIC to yaml-cpp static library")
+    endif()
+    
+    # Configure runtime library for fallback yaml-cpp as well
+    if(MSVC)
+        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+            set_target_properties(yaml-cpp PROPERTIES
+                MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL"
+            )
+            target_compile_options(yaml-cpp PRIVATE
+                $<$<CONFIG:Debug>:/MDd>
+            )
+        else()
+            set_target_properties(yaml-cpp PROPERTIES
+                MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+            )
+            target_compile_options(yaml-cpp PRIVATE
+                $<$<CONFIG:Release>:/MD>
+                $<$<CONFIG:RelWithDebInfo>:/MD>
+                $<$<CONFIG:MinSizeRel>:/MD>
+            )
+        endif()
     endif()
 endif()
 

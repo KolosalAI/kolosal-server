@@ -13,6 +13,7 @@
 #include <iphlpapi.h>
 #include <wininet.h>
 #include <io.h>
+#include <fcntl.h>
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "wininet.lib")
@@ -254,6 +255,13 @@ void print_version()
 
 int main(int argc, char *argv[])
 {
+#ifdef _WIN32
+    // Set console to UTF-8 for proper character display
+    SetConsoleOutputCP(CP_UTF8);
+    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stderr), _O_BINARY);
+#endif
+
     // Load configuration from command line arguments
     ServerConfig config;
     if (!config.loadFromArgs(argc, argv))
@@ -725,6 +733,7 @@ int main(int argc, char *argv[])
 
     ServerLogger::logInfo("\nDocument & RAG endpoints:");
     ServerLogger::logInfo("  POST /retrieve               - Document retrieval endpoint");
+    ServerLogger::logInfo("  GET  /retrieve/test          - Document retrieval diagnostic test");
     ServerLogger::logInfo("  POST /api/v1/documents       - Add documents to collection");
     ServerLogger::logInfo("  DELETE /api/v1/documents     - Remove documents from collection");
     ServerLogger::logInfo("  POST /parse-pdf              - PDF parse endpoint");
@@ -817,6 +826,16 @@ int main(int argc, char *argv[])
     while (keep_running)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Check if server thread is still running
+        try {
+            server.checkServerThread();
+        } catch (const std::exception& e) {
+            std::cerr << "Server thread error detected: " << e.what() << std::endl;
+            ServerLogger::logError("Server thread error detected: %s", e.what());
+            keep_running = false;
+            break;
+        }
     }
 
     std::cout << "Shutting down server..." << std::endl;
