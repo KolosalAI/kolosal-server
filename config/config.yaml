@@ -41,6 +41,21 @@ auth:
       - X-Requested-With
       - Accept
       - Origin
+database:
+  # Qdrant vector database configuration
+  qdrant:
+    enabled: true
+    host: "localhost"
+    port: 6333
+    collection_name: "documents"
+    default_embedding_model: "text-embedding-3-small"  # Model to use for embedding documents
+    timeout: 60
+    # Optional authentication
+    api_key: ""
+    # Connection pooling
+    max_connections: 20
+    connection_timeout: 10
+
 search:
   enabled: true
   searxng_url: http://localhost:8090
@@ -86,7 +101,7 @@ models:
       n_batch: 512
       n_ubatch: 128
   - id: text-embedding-3-small
-    path: D:\Works\Genta\codes\kolosal-server\downloads\Qwen3-Embedding-0.6B-Q8_0.gguf
+    path: .\downloads\Qwen3-Embedding-0.6B-Q8_0.gguf
     type: embedding
     load_immediately: true
     main_gpu_id: 0
@@ -102,7 +117,7 @@ models:
       n_batch: 256
       n_ubatch: 64
   - id: text-embedding-3-large
-    path: D:\Works\Genta\codes\kolosal-server\downloads\Qwen3-Embedding-0.6B-Q8_0.gguf
+    path: .\downloads\Qwen3-Embedding-0.6B-Q8_0.gguf
     type: embedding
     load_immediately: true
     main_gpu_id: 0

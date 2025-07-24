@@ -16,10 +16,10 @@
             "port": 6333,
             "collection_name": "documents",
             "default_embedding_model": "text-embedding-3-small",
-            "timeout": 30,
+            "timeout": 60,
             "api_key": "",
-            "max_connections": 10,
-            "connection_timeout": 5
+            "max_connections": 20,
+            "connection_timeout": 10
         }
     },
     "auth": {

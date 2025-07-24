@@ -20,12 +20,12 @@ database:
     port: 6333
     collection_name: "documents"
     default_embedding_model: "text-embedding-3-small"  # Model to use for embedding documents
-    timeout: 30
+    timeout: 60
     # Optional authentication
     api_key: ""
     # Connection pooling
-    max_connections: 10
-    connection_timeout: 5
+    max_connections: 20
+    connection_timeout: 10
 
 # Internet search configuration
 search:

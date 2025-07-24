@@ -250,11 +250,11 @@ namespace kolosal
             // Add to server config
             config.inferenceEngines.push_back(newEngine);
 
-            // Save updated config to file
+            // Save updated config to file (only if a config file was loaded)
             ServerLogger::logInfo("About to save configuration after adding engine '%s'", engineName.c_str());
             ServerLogger::logInfo("Current config file path in EnginesRoute: '%s'", config.getCurrentConfigFilePath().c_str());
             
-            if (!config.saveToCurrentFile())
+            if (!config.getCurrentConfigFilePath().empty() && !config.saveToCurrentFile())
             {
                 // Remove the engine from memory if save failed
                 config.inferenceEngines.pop_back();
@@ -269,6 +269,10 @@ namespace kolosal
                 };
                 send_response(sock, 500, jError.dump());
                 return;
+            }
+            else if (config.getCurrentConfigFilePath().empty())
+            {
+                ServerLogger::logInfo("No config file path set. Engine added to memory but not saved to file.");
             }
 
             // Reconfigure inference loader with updated engines
@@ -385,11 +389,11 @@ namespace kolosal
             // Update the default engine in config
             config.defaultInferenceEngine = engineName;
 
-            // Save updated config to file
+            // Save updated config to file (only if a config file was loaded)
             ServerLogger::logInfo("About to save configuration after setting default engine to '%s'", engineName.c_str());
             ServerLogger::logInfo("Current config file path in EnginesRoute: '%s'", config.getCurrentConfigFilePath().c_str());
             
-            if (!config.saveToCurrentFile())
+            if (!config.getCurrentConfigFilePath().empty() && !config.saveToCurrentFile())
             {
                 json jError = {
                     {"error", {
@@ -401,6 +405,10 @@ namespace kolosal
                 };
                 send_response(sock, 500, jError.dump());
                 return;
+            }
+            else if (config.getCurrentConfigFilePath().empty())
+            {
+                ServerLogger::logInfo("No config file path set. Default engine set in memory but not saved to file.");
             }
 
             // Prepare response

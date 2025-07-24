@@ -3,6 +3,7 @@
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <thread>
 #include "../../inference/include/inference_interface.h"
 #ifdef _WIN32
@@ -289,6 +290,14 @@ namespace kolosal
             {
                 search.enable_safe_search = false;
             }
+            else if (arg == "--auto-save")
+            {
+                autoSaveEnabled = true;
+            }
+            else if (arg == "--no-auto-save")
+            {
+                autoSaveEnabled = false;
+            }
             
             // Help and version
             else if (arg == "-h" || arg == "--help")
@@ -317,6 +326,37 @@ namespace kolosal
     {
         try
         {
+            // First, validate that the file exists and is readable
+            std::ifstream testFile(configFile);
+            if (!testFile.is_open()) {
+                std::cerr << "[Error] Cannot open config file: " << configFile << std::endl;
+                return false;
+            }
+            testFile.close();
+
+            // Validate YAML syntax before parsing
+            try {
+                YAML::LoadFile(configFile);
+            } catch (const YAML::Exception& e) {
+                std::cerr << "[Error] Invalid YAML syntax in config file " << configFile << ": " << e.what() << std::endl;
+                
+                // Try to load backup if it exists
+                std::string backupPath = configFile + ".backup";
+                std::ifstream backupFile(backupPath);
+                if (backupFile.is_open()) {
+                    backupFile.close();
+                    std::cerr << "[Info] Attempting to load from backup: " << backupPath << std::endl;
+                    try {
+                        YAML::LoadFile(backupPath);
+                        // If backup is valid, suggest using it
+                        std::cerr << "[Info] Backup file is valid. Consider restoring from backup." << std::endl;
+                    } catch (const YAML::Exception& backupError) {
+                        std::cerr << "[Error] Backup file is also invalid: " << backupError.what() << std::endl;
+                    }
+                }
+                return false;
+            }
+
             YAML::Node config = YAML::LoadFile(configFile); // Load basic server settings
             if (config["server"])
             {
@@ -744,6 +784,17 @@ namespace kolosal
             config["search"]["default_language"] = search.default_language;
             config["search"]["default_category"] = search.default_category;
 
+            // Database configuration
+            config["database"]["qdrant"]["enabled"] = database.qdrant.enabled;
+            config["database"]["qdrant"]["host"] = database.qdrant.host;
+            config["database"]["qdrant"]["port"] = database.qdrant.port;
+            config["database"]["qdrant"]["collection_name"] = database.qdrant.collectionName;
+            config["database"]["qdrant"]["default_embedding_model"] = database.qdrant.defaultEmbeddingModel;
+            config["database"]["qdrant"]["timeout"] = database.qdrant.timeout;
+            config["database"]["qdrant"]["api_key"] = database.qdrant.apiKey;
+            config["database"]["qdrant"]["max_connections"] = database.qdrant.maxConnections;
+            config["database"]["qdrant"]["connection_timeout"] = database.qdrant.connectionTimeout;
+
             // Models
             for (const auto &model : models)
             {
@@ -789,7 +840,31 @@ namespace kolosal
                 return false;
             }
 
-            file << config;
+            // Validate the generated YAML before writing
+            std::stringstream yamlStream;
+            yamlStream << config;
+            std::string yamlContent = yamlStream.str();
+            
+            // Try to parse it back to validate structure
+            try {
+                YAML::Load(yamlContent);
+            } catch (const YAML::Exception& e) {
+                std::cerr << "[Error] Generated YAML is invalid: " << e.what() << std::endl;
+                file.close();
+                return false;
+            }
+
+            file << yamlContent;
+            file.close();
+            
+            // Verify the file was written successfully by trying to read it back
+            std::ifstream verifyFile(configFile);
+            if (!verifyFile.is_open()) {
+                std::cerr << "[Error] Failed to verify saved config file: " << configFile << std::endl;
+                return false;
+            }
+            verifyFile.close();
+
             return true;
         }
         catch (const std::exception &e)
@@ -1011,6 +1086,10 @@ namespace kolosal
         std::cout << "    --search-safe-search      Enable safe search (restrict explicit content)\n";
         std::cout << "    --no-search-safe-search   Disable safe search\n\n";
 
+        std::cout << "  Configuration Management:\n";
+        std::cout << "    --auto-save               Enable automatic saving of configuration changes\n";
+        std::cout << "    --no-auto-save            Disable automatic saving (default)\n\n";
+
         std::cout << "  Help:\n";
         std::cout << "    -h, --help                Show this help message\n";
         std::cout << "    -v, --version             Show version information\n\n";
@@ -1043,12 +1122,42 @@ namespace kolosal
             std::cerr << "[Error] No current config file path set - cannot save configuration" << std::endl;
             return false;
         }
+        
+        // Create a backup of the current config before saving
+        try {
+            std::string backupPath = currentConfigFilePath + ".backup";
+            std::ifstream src(currentConfigFilePath, std::ios::binary);
+            std::ofstream dst(backupPath, std::ios::binary);
+            if (src && dst) {
+                dst << src.rdbuf();
+                src.close();
+                dst.close();
+            }
+        } catch (const std::exception& e) {
+            std::cerr << "[Warning] Failed to create config backup: " << e.what() << std::endl;
+        }
+        
         return saveToFile(currentConfigFilePath);
     }
 
     const std::string& ServerConfig::getCurrentConfigFilePath() const
     {
         return currentConfigFilePath;
+    }
+
+    void ServerConfig::setAutoSaveEnabled(bool enabled)
+    {
+        autoSaveEnabled = enabled;
+        if (enabled) {
+            std::cout << "Auto-save enabled: Configuration changes will be automatically saved to file" << std::endl;
+        } else {
+            std::cout << "Auto-save disabled: Configuration changes will not be automatically saved to file" << std::endl;
+        }
+    }
+
+    bool ServerConfig::isAutoSaveEnabled() const
+    {
+        return autoSaveEnabled;
     }
 
     std::string ServerConfig::makeAbsolutePath(const std::string& path)

@@ -204,6 +204,7 @@ struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
     
     // Internal flags
     bool helpOrVersionShown = false;  // Tracks if help/version was displayed
+    bool autoSaveEnabled = false;     // Controls whether config is automatically saved during initialization
     
     // Track the path of the currently loaded config file for saving
 #pragma warning(push)
@@ -257,6 +258,18 @@ struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
      * @return Path to the currently loaded config file, or empty string if none
      */
     const std::string& getCurrentConfigFilePath() const;
+    
+    /**
+     * @brief Enable or disable automatic saving of configuration changes
+     * @param enabled Whether to enable auto-save
+     */
+    void setAutoSaveEnabled(bool enabled);
+    
+    /**
+     * @brief Check if auto-save is enabled
+     * @return True if auto-save is enabled
+     */
+    bool isAutoSaveEnabled() const;
     
     /**
      * @brief Validate the configuration

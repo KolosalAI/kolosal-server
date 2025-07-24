@@ -1,38 +1,40 @@
-2025-07-24 13:54:08 - ================================================================================
-2025-07-24 13:54:08 - KOLOSAL SERVER TEST SUITE
-2025-07-24 13:54:08 - ================================================================================
-2025-07-24 13:54:08 - Trying endpoint: http://127.0.0.1:8080/health
-2025-07-24 13:54:08 - ✅ Server is responding at: http://127.0.0.1:8080/health
-2025-07-24 13:54:08 - 
+2025-07-24 17:09:47 - ================================================================================
+2025-07-24 17:09:47 - KOLOSAL SERVER TEST SUITE
+2025-07-24 17:09:47 - ================================================================================
+2025-07-24 17:09:47 - Trying endpoint: http://127.0.0.1:8080/health
+2025-07-24 17:09:47 - ✅ Server is responding at: http://127.0.0.1:8080/health
+2025-07-24 17:09:47 - 
 Server Status:
-2025-07-24 13:54:08 -   Available Engines:
-2025-07-24 13:54:08 -     - qwen3-0.6b: unloaded
-2025-07-24 13:54:08 -     - gpt-3.5-turbo: unloaded
-2025-07-24 13:54:08 -   Node Manager: enabled autoscaling
-2025-07-24 13:54:08 -   Loaded Engines: 0
-2025-07-24 13:54:08 -   Total Engines: 2
-2025-07-24 13:54:08 -   Health Status: degraded
-2025-07-24 13:54:08 - Response content: {'document_service': {'collection_error': 'Cannot check collection - no database connection', 'collection_exists': False, 'collection_name': 'documents', 'configuration': {'default_embedding_model': 'text-embedding-3-large', 'host': 'localhost', 'port': 6333, 'timeout': 30}, 'connection_error': 'Qdrant disabled or client not initialized', 'qdrant_connection': False, 'qdrant_enabled': False, 'recommendations': ['Initialize the DocumentService', 'Enable Qdrant in configuration', 'Check Qdrant server is running and accessible at localhost:6333'], 'service_initialized': False, 'status': 'unhealthy', 'timestamp': 1753336448}, 'engines': [{'engine_id': 'qwen3-0.6b', 'status': 'unloaded'}, {'engine_id': 'gpt-3.5-turbo', 'status': 'unloaded'}], 'node_manager': {'autoscaling': 'enabled', 'loaded_engines': 0, 'total_engines': 2, 'unloaded_engines': 2}, 'server': {'name': 'Kolosal Inference Server', 'uptime': 'running', 'version': '1.0.0'}, 'status': 'degraded', 'timestamp': 1753336448401}
-2025-07-24 13:54:08 - 
+2025-07-24 17:09:47 -   Available Engines:
+2025-07-24 17:09:47 -     - qwen3-0.6b: loaded
+2025-07-24 17:09:47 -     - gpt-3.5-turbo: loaded
+2025-07-24 17:09:47 -     - text-embedding-3-large: loaded
+2025-07-24 17:09:47 -     - text-embedding-3-small: loaded
+2025-07-24 17:09:47 -   Node Manager: enabled autoscaling
+2025-07-24 17:09:47 -   Loaded Engines: 4
+2025-07-24 17:09:47 -   Total Engines: 4
+2025-07-24 17:09:47 -   Health Status: healthy
+2025-07-24 17:09:47 - Response content: {'document_service': {'collection_exists': True, 'collection_name': 'documents', 'configuration': {'default_embedding_model': 'text-embedding-3-small', 'host': 'localhost', 'port': 6333, 'timeout': 60}, 'qdrant_connection': True, 'qdrant_enabled': True, 'service_initialized': True, 'status': 'healthy', 'timestamp': 1753348187}, 'engines': [{'engine_id': 'qwen3-0.6b', 'status': 'loaded'}, {'engine_id': 'gpt-3.5-turbo', 'status': 'loaded'}, {'engine_id': 'text-embedding-3-large', 'status': 'loaded'}, {'engine_id': 'text-embedding-3-small', 'status': 'loaded'}], 'node_manager': {'autoscaling': 'enabled', 'loaded_engines': 4, 'total_engines': 4, 'unloaded_engines': 0}, 'server': {'name': 'Kolosal Inference Server', 'uptime': 'running', 'version': '1.0.0'}, 'status': 'healthy', 'timestamp': 1753348187434}
+2025-07-24 17:09:47 - 
 Configuration:
-2025-07-24 13:54:08 -   Server: http://127.0.0.1:8080
-2025-07-24 13:54:08 -   Authentication: Enabled (API Key: Not Required)
-2025-07-24 13:54:08 -   Rate Limiting: 100 requests/60s
-2025-07-24 13:54:08 -   Testing multiple endpoints to determine server capabilities...
-2025-07-24 13:54:08 -   Enhanced logging: Capturing all endpoint requests and responses
-2025-07-24 13:54:08 -   Dual logging: Writing to both terminal and tests.log file
-2025-07-24 13:54:08 - ================================================================================
-2025-07-24 13:54:08 - ============================================================
-2025-07-24 13:54:08 - ENGINE TESTS
-2025-07-24 13:54:08 - ============================================================
-2025-07-24 13:54:08 - 
+2025-07-24 17:09:47 -   Server: http://127.0.0.1:8080
+2025-07-24 17:09:47 -   Authentication: Enabled (API Key: Not Required)
+2025-07-24 17:09:47 -   Rate Limiting: 100 requests/60s
+2025-07-24 17:09:47 -   Testing multiple endpoints to determine server capabilities...
+2025-07-24 17:09:47 -   Enhanced logging: Capturing all endpoint requests and responses
+2025-07-24 17:09:47 -   Dual logging: Writing to both terminal and tests.log file
+2025-07-24 17:09:47 - ================================================================================
+2025-07-24 17:09:47 - ============================================================
+2025-07-24 17:09:47 - ENGINE TESTS
+2025-07-24 17:09:47 - ============================================================
+2025-07-24 17:09:47 - 
 --- Testing Primary LLM Model (qwen3-0.6b) ---
-2025-07-24 13:54:08 - 
+2025-07-24 17:09:47 - 
 🧪 Running: Basic Completion (qwen3-0.6b)
-2025-07-24 13:54:08 - 🚀 Testing chat completion with model: qwen3-0.6b
-2025-07-24 13:54:08 - ⏳ Sending request...
-2025-07-24 13:54:08 - 📤 Request URL: http://127.0.0.1:8080/v1/chat/completions
-2025-07-24 13:54:08 - 📦 Request payload: {
+2025-07-24 17:09:47 - 🚀 Testing chat completion with model: qwen3-0.6b
+2025-07-24 17:09:47 - ⏳ Sending request...
+2025-07-24 17:09:47 - 📤 Request URL: http://127.0.0.1:8080/v1/chat/completions
+2025-07-24 17:09:47 - 📦 Request payload: {
   "model": "qwen3-0.6b",
   "messages": [
     {
@@ -43,18 +45,42 @@ Configuration:
   "temperature": 0.7,
   "max_tokens": 128
 }
-2025-07-24 13:54:08 - 📊 Request details:
-2025-07-24 13:54:08 -    - Model: qwen3-0.6b
-2025-07-24 13:54:08 -    - Temperature: 0.7
-2025-07-24 13:54:08 -    - Max tokens: 128
-2025-07-24 13:54:09 - ❌ Chat completion test: FAIL - Error code: 400 - {'error': {'code': None, 'message': "Error: Model 'qwen3-0.6b' not found or could not be loaded", 'param': None, 'type': 'invalid_request_error'}}
-2025-07-24 13:54:09 - ❌ Basic Completion (qwen3-0.6b) - FAILED (0.69s)
-2025-07-24 13:54:09 - 
+2025-07-24 17:09:47 - 📊 Request details:
+2025-07-24 17:09:47 -    - Model: qwen3-0.6b
+2025-07-24 17:09:47 -    - Temperature: 0.7
+2025-07-24 17:09:47 -    - Max tokens: 128
+2025-07-24 17:10:07 - 📥 Response received in 19.75 seconds
+2025-07-24 17:10:07 - 📄 Response content: {
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "<think>\nOkay, the user just said \"Hello!\" to me. Let me respond appropriately. Since they're asking a greeting, I should acknowledge their message. Maybe say \"Hello!\" and offer assistance. Keep it friendly and open-ended. Let them know I'm here to help. No need to overcomplicate, just a simple reply.\n</think>\n\nHello! How can I assist you today? \ud83d\ude0a"
+      }
+    }
+  ],
+  "model": "qwen3-0.6b",
+  "usage": {
+    "completion_tokens": 82,
+    "prompt_tokens": 5,
+    "total_tokens": 87
+  }
+}
+2025-07-24 17:10:07 - ✅ Chat completion test: PASS - Generated 348 characters
+2025-07-24 17:10:07 - Response: <think>
+Okay, the user just said "Hello!" to me. Let me respond appropriately. Since they're asking a greeting, I should acknowledge their message. Maybe say "Hello!" and offer assistance. Keep it friendly and open-ended. Let them know I'm here to help. No need to overcomplicate, just a simple reply.
+</think>
+
+Hello! How can I assist you today? 😊
+2025-07-24 17:10:07 - ⏱️ Elapsed time: 19.75 seconds
+2025-07-24 17:10:07 - 🔥 Tokens per second: 4.25
+2025-07-24 17:10:07 - ✅ Basic Completion (qwen3-0.6b) - PASSED (19.77s)
+2025-07-24 17:10:07 - 
 🧪 Running: Streaming Completion (qwen3-0.6b)
-2025-07-24 13:54:09 - 🚀 Testing chat completion streaming with model: qwen3-0.6b
-2025-07-24 13:54:09 - ⏳ Sending request...
-2025-07-24 13:54:09 - 📤 Request URL: http://127.0.0.1:8080/v1/chat/completions
-2025-07-24 13:54:09 - 📦 Request payload: {
+2025-07-24 17:10:07 - 🚀 Testing chat completion streaming with model: qwen3-0.6b
+2025-07-24 17:10:07 - ⏳ Sending request...
+2025-07-24 17:10:07 - 📤 Request URL: http://127.0.0.1:8080/v1/chat/completions
+2025-07-24 17:10:07 - 📦 Request payload: {
   "model": "qwen3-0.6b",
   "messages": [
     {
@@ -66,52 +92,110 @@ Configuration:
   "max_tokens": 128,
   "stream": true
 }
-2025-07-24 13:54:09 - 📊 Request details:
-2025-07-24 13:54:09 -    - Model: qwen3-0.6b
-2025-07-24 13:54:09 -    - Temperature: 0.7
-2025-07-24 13:54:09 -    - Max tokens: 128
-2025-07-24 13:54:09 -    - Stream: True
-2025-07-24 13:54:09 - 
-❌ Streaming failed after 0.03s
-2025-07-24 13:54:09 - Error details: Error code: 400 - {'error': {'code': None, 'message': "Error: Model 'qwen3-0.6b' not found or could not be loaded", 'param': None, 'type': 'invalid_request_error'}}
-2025-07-24 13:54:09 - 📥 Error details: {
-  "error": "Error code: 400 - {'error': {'code': None, 'message': \"Error: Model 'qwen3-0.6b' not found or could not be loaded\", 'param': None, 'type': 'invalid_request_error'}}",
-  "elapsed_time": 0.032373666763305664,
-  "error_type": "BadRequestError"
+2025-07-24 17:10:07 - 📊 Request details:
+2025-07-24 17:10:07 -    - Model: qwen3-0.6b
+2025-07-24 17:10:07 -    - Temperature: 0.7
+2025-07-24 17:10:07 -    - Max tokens: 128
+2025-07-24 17:10:07 -    - Stream: True
+2025-07-24 17:10:08 - <think>
+2025-07-24 17:10:08 - Okay
+2025-07-24 17:10:09 - ,
+2025-07-24 17:10:09 -  the
+2025-07-24 17:10:09 -  user
+2025-07-24 17:10:09 -  just
+2025-07-24 17:10:10 -  said
+2025-07-24 17:10:10 -  "
+2025-07-24 17:10:10 - Hello
+2025-07-24 17:10:10 - !"
+2025-07-24 17:10:10 -  to
+2025-07-24 17:10:11 -  me
+2025-07-24 17:10:11 - .
+2025-07-24 17:10:11 -  Let
+2025-07-24 17:10:11 -  me
+2025-07-24 17:10:11 -  respond
+2025-07-24 17:10:12 -  appropriately
+2025-07-24 17:10:12 - .
+2025-07-24 17:10:12 -  Since
+2025-07-24 17:10:12 -  they
+2025-07-24 17:10:13 - 're
+2025-07-24 17:10:13 -  asking
+2025-07-24 17:10:13 -  a
+2025-07-24 17:10:13 -  greeting
+2025-07-24 17:10:13 - ,
+2025-07-24 17:10:14 -  I
+2025-07-24 17:10:14 -  should
+2025-07-24 17:10:14 -  acknowledge
+2025-07-24 17:10:14 -  their
+2025-07-24 17:10:14 -  message
+2025-07-24 17:10:15 - .
+2025-07-24 17:10:15 -  Maybe
+2025-07-24 17:10:15 -  say
+2025-07-24 17:10:15 -  "
+2025-07-24 17:10:15 - Hello
+2025-07-24 17:10:16 - !"
+2025-07-24 17:10:16 -  and
+2025-07-24 17:10:16 -  offer
+2025-07-24 17:10:16 -  assistance
+2025-07-24 17:10:16 - .
+2025-07-24 17:10:17 -  Keep
+2025-07-24 17:10:17 -  it
+2025-07-24 17:10:17 -  friendly
+2025-07-24 17:10:17 -  and
+2025-07-24 17:10:17 -  open
+2025-07-24 17:10:18 - -ended
+2025-07-24 17:10:18 - .
+2025-07-24 17:10:18 -  Let
+2025-07-24 17:10:18 -  them
+2025-07-24 17:10:18 -  know
+2025-07-24 17:10:19 -  I
+2025-07-24 17:10:19 - 'm
+2025-07-24 17:10:19 -  here
+2025-07-24 17:10:19 -  to
+2025-07-24 17:10:20 -  help
+2025-07-24 17:10:20 - .
+2025-07-24 17:10:20 -  No
+2025-07-24 17:10:20 -  need
+2025-07-24 17:10:20 -  to
+2025-07-24 17:10:20 -  over
+2025-07-24 17:10:21 - comp
+2025-07-24 17:10:21 - licate
+2025-07-24 17:10:21 - ,
+2025-07-24 17:10:21 -  just
+2025-07-24 17:10:22 -  a
+2025-07-24 17:10:22 -  simple
+2025-07-24 17:10:22 -  reply
+2025-07-24 17:10:22 - .
+2025-07-24 17:10:22 - </think>
+2025-07-24 17:10:23 - Hello
+2025-07-24 17:10:23 - !
+2025-07-24 17:10:23 -  How
+2025-07-24 17:10:23 -  can
+2025-07-24 17:10:24 -  I
+2025-07-24 17:10:24 -  assist
+2025-07-24 17:10:24 -  you
+2025-07-24 17:10:24 -  today
+2025-07-24 17:10:24 - ?
+2025-07-24 17:10:25 - 📥 Streaming response summary: {
+  "total_chunks": 80,
+  "successful_chunks": 80,
+  "response_length": 346,
+  "time_to_first_token": 1.0089375972747803,
+  "total_time": 17.746599674224854
 }
-2025-07-24 13:54:09 - ❌ Unknown streaming error occurred
-2025-07-24 13:54:09 - ❌ Streaming Completion (qwen3-0.6b) - FAILED (0.05s)
-2025-07-24 13:54:09 - 
-⚠️  Streaming test failed. Running diagnostic tests...
-2025-07-24 13:54:09 - 🔍 Testing non-streaming completion with same parameters...
-2025-07-24 13:54:09 - 
-🧪 Running: Diagnostic: Non-streaming with same params
-2025-07-24 13:54:09 - 🚀 Testing chat completion with model: qwen3-0.6b
-2025-07-24 13:54:09 - ⏳ Sending request...
-2025-07-24 13:54:09 - 📤 Request URL: http://127.0.0.1:8080/v1/chat/completions
-2025-07-24 13:54:09 - 📦 Request payload: {
-  "model": "qwen3-0.6b",
-  "messages": [
-    {
-      "role": "user",
-      "content": "Hello!"
-    }
-  ],
-  "temperature": 0.7,
-  "max_tokens": 128
-}
-2025-07-24 13:54:09 - 📊 Request details:
-2025-07-24 13:54:09 -    - Model: qwen3-0.6b
-2025-07-24 13:54:09 -    - Temperature: 0.7
-2025-07-24 13:54:09 -    - Max tokens: 128
-2025-07-24 13:54:09 - ❌ Chat completion test: FAIL - Error code: 400 - {'error': {'code': None, 'message': "Error: Model 'qwen3-0.6b' not found or could not be loaded", 'param': None, 'type': 'invalid_request_error'}}
-2025-07-24 13:54:09 - ❌ Diagnostic: Non-streaming with same params - FAILED (0.02s)
-2025-07-24 13:54:09 - ❌ Both streaming and non-streaming failed - broader model/server issue
-2025-07-24 13:54:09 - 
+2025-07-24 17:10:25 - 
+✅ Response received!
+2025-07-24 17:10:25 - 📦 Total chunks received: 80
+2025-07-24 17:10:25 - ✅ Successful chunks: 80
+2025-07-24 17:10:25 - 📝 Response text length: 346
+2025-07-24 17:10:25 - ⏱️ Time to first token: 1.01 seconds
+2025-07-24 17:10:25 - ⏱️ Total elapsed time: 17.75 seconds
+2025-07-24 17:10:25 - 🔥 Tokens per second: 4.62
+2025-07-24 17:10:25 - ✅ Streaming Completion (qwen3-0.6b) - PASSED (17.77s)
+2025-07-24 17:10:25 - 
 🧪 Running: Concurrent Completion (qwen3-0.6b)
-2025-07-24 13:54:09 - 🚀 Testing 5 concurrent chat completions with model: qwen3-0.6b
-2025-07-24 13:54:09 - ⏳ Sending concurrent requests...
-2025-07-24 13:54:09 - 📤 Request configuration: {
+2025-07-24 17:10:25 - 🚀 Testing 5 concurrent chat completions with model: qwen3-0.6b
+2025-07-24 17:10:25 - ⏳ Sending concurrent requests...
+2025-07-24 17:10:25 - 📤 Request configuration: {
   "model": "qwen3-0.6b",
   "temperature": 0.7,
   "max_tokens": 128,
@@ -124,31 +208,142 @@ Configuration:
     "What's your favorite color?"
   ]
 }
-2025-07-24 13:54:09 - ❌ Concurrent completion failed: Error code: 400 - {'error': {'code': None, 'message': "Error: Model 'qwen3-0.6b' not found or could not be loaded", 'param': None, 'type': 'invalid_request_error'}}
-2025-07-24 13:54:09 - ❌ Concurrent Completion (qwen3-0.6b) - FAILED (0.08s)
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:03 - 📥 Concurrent requests summary: {
+  "total_requests": 5,
+  "total_time": 98.60947060585022,
+  "results": [
+    {
+      "request_id": 1,
+      "elapsed_time": 82.22666120529175,
+      "tokens_per_second": 1.5566727156831521,
+      "output_tokens": 128,
+      "content_preview": "<think>\u7406\u89e3\uff0c\u6211\u9700\u8981\u5e2e\u52a9\u60a8\u7406\u89e3\uff0c\u91cf\u5b50\u529b\u5b66\u5206\u652f\uff0c\u7814\u7a76\u91cf\u5b50\u7cfb\u7edf\uff0c\u5982\u91cf\u5b50\u73b0\u8c61\uff0c\u5305\u62ec\u6ce2\u7c92\u3001\u5149\u5b50\u548c\u5fae\u89c2\u7c92..."
+    },
+    {
+      "request_id": 2,
+      "elapsed_time": 82.2221839427948,
+      "tokens_per_second": 1.5567574815217098,
+      "output_tokens": 128,
+      "content_preview": "<think>\u7406\u89e3\u8005\n</think>\n\n\u91cf\u5b50\u7269\u7406\u662f\u7269\u7406\u5b66\u7684\u4e00\u4e2a\u5206\u652f\uff0c\u7814\u7a76\u7269\u8d28\u7684\u57fa\u672c\u6027\u8d28\u548c\u884c\u4e3a\u3002\u5b83\u5305..."
+    },
+    {
+      "request_id": 3,
+      "elapsed_time": 82.22230219841003,
+      "tokens_per_second": 1.5567552425268285,
+      "output_tokens": 128,
+      "content_preview": "<think>\u7406\u89e3\u8005\n</think>\n\n\u91cf\u5b50\u7269\u7406\u662f\u7269\u7406\u5b66\u7684\u4e00\u4e2a\u5206\u652f\uff0c\u7814\u7a76\u7269\u8d28\u7684\u57fa\u672c\u6027\u8d28\u548c\u884c\u4e3a\u3002\u5b83\u5305..."
+    },
+    {
+      "request_id": 4,
+      "elapsed_time": 48.92252779006958,
+      "tokens_per_second": 1.4921551133508217,
+      "output_tokens": 73,
+      "content_preview": "<think>\n<think>\n</think>\n\n\u91cf\u5b50\u7269\u7406\u662f\u7269\u7406\u5b66\u7684\u4e00\u4e2a\u5206\u652f\uff0c\u7814\u7a76\u91cf\u5b50\u4e16\u754c\u7684\u6027\u8d28\u548c..."
+    },
+    {
+      "request_id": 5,
+      "elapsed_time": 98.5969455242157,
+      "tokens_per_second": 1.2982146588766568,
+      "output_tokens": 128,
+      "content_preview": "<think>\nOkay, the user asked, \"What's your favorit..."
+    }
+  ]
+}
+2025-07-24 17:12:03 - ✅ All responses received!
+2025-07-24 17:12:03 - Request 1: ⏱️ 82.23s, 🔥 1.56 tokens/sec, 📝 128 tokens
+2025-07-24 17:12:03 - Response: <think>理解，我需要帮助您理解，量子力学分支，研究量子系统，如量子现象，包括波粒、光子和微观粒子，以及它们的基本概念包括波粒二象性、量子态、波函数、量子纠缠等。量子态和量子纠缠等。
+
+量子力学的基本概念如波粒子、量子力学、量子力学理论的基本概念，我们可以在回答应该从句，组织成一个段落，结构化总结句。
+</think>
+
+**我的最喜欢的颜色是蓝色。蓝色让我感到放松，也象征着海洋的广阔世界。它从红色那样热烈，也不像黄色那样鲜艳
+2025-07-24 17:12:03 - Request 2: ⏱️ 82.22s, 🔥 1.56 tokens/sec, 📝 128 tokens
+2025-07-24 17:12:03 - Response: <think>理解者
+</think>
+
+量子物理是物理学的一个分支，研究物质的基本性质和行为。它包括原子、电子、光等微观粒子的行为。量子力学的理论包括波粒二象性、量子态、量子叠加、量子不确定性、量子叠加态、量子不确定性是其中的基本概念。这些理论在现代物理学中起着重要作用。量子物理的基本理解和知识的应用。
+从这些方面出发，然后分点列出，再最后用总结句。
+</think>
+
+我的最喜欢的颜色是蓝色。蓝色代表宁静、放松，也让我能去探索未知。它不像红色那样热情，也不像黄色那样鲜艳
+2025-07-24 17:12:03 - Request 3: ⏱️ 82.22s, 🔥 1.56 tokens/sec, 📝 128 tokens
+2025-07-24 17:12:03 - Response: <think>理解者
+</think>
+
+量子物理是物理学的一个分支，研究物质的基本性质和行为。它包括原子、电子、光等微观粒子的行为。量子力学的理论包括波粒二象性、量子态、量子叠加、量子不确定性、量子叠加态、量子不确定性是其中的基本概念。这些理论在现代物理学中起着重要作用。量子物理的基本理解和知识的应用。
+从这些方面出发，然后分点列出，再最后用总结句。
+</think>
+
+我的最喜欢的颜色是蓝色。蓝色代表宁静、放松，也让我能去探索未知。它不像红色那样热情，也不像黄色那样鲜艳
+2025-07-24 17:12:03 - Request 4: ⏱️ 48.92s, 🔥 1.49 tokens/sec, 📝 73 tokens
+2025-07-24 17:12:03 - Response: <think>
+<think>
+</think>
+
+量子物理是物理学的一个分支，研究量子世界的性质和行为。它与宏观和亚原子、甚至更小粒子。量子力学理论和概念如波，波和量子态、波函数、量子纠缠等。量子力学与量子纠缠、波粒子的基本概念和现象在现代物理中起着重要作用。
+2025-07-24 17:12:03 - Request 5: ⏱️ 98.60s, 🔥 1.30 tokens/sec, 📝 128 tokens
+2025-07-24 17:12:03 - Response: <think>
+Okay, the user asked, "What's your favorite color?" I need to respond appropriately. Since I'm an AI, I don't have personal feelings, but I should be honest.
+
+I should acknowledge that I don't have personal preferences and maybe理解问题？或者是否有其他要求？
+
+另外，关于测试数据，是否需要提供一些示例？或者是否只需要说明我的思路？比如，如果问题有多个部分，需要分清楚各个部分的处理步骤？
+
+可能用户希望得到一个清晰的步骤说明，或者一些测试用例，或者是否需要进一步的帮助。
+
+总之，我需要确保回答清晰、准确
+2025-07-24 17:12:03 - 📊 Average tokens per second per request: 1.49
+2025-07-24 17:12:03 - 📊 Overall tokens per second: 5.93
+2025-07-24 17:12:03 - 📊 Total concurrent execution time: 98.61 seconds
+2025-07-24 17:12:03 - 📊 Total tokens generated: 585
+2025-07-24 17:12:03 - 📊 Successful requests: 5/5
+2025-07-24 17:12:03 - ✅ Concurrent Completion (qwen3-0.6b) - PASSED (98.65s)
+2025-07-24 17:12:03 - 
 --- Testing Small Embedding Model (text-embedding-3-small) ---
-2025-07-24 13:54:09 - Warning: This model may not be available on current server instance
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:03 - Warning: This model may not be available on current server instance
+2025-07-24 17:12:03 - 
 🧪 Running: Basic Embedding (text-embedding-3-small)
-2025-07-24 13:54:09 - 🚀 Testing embedding with model: text-embedding-3-small
-2025-07-24 13:54:09 - ⏳ Sending request...
-2025-07-24 13:54:09 - 📤 Request URL: http://127.0.0.1:8080/v1/embeddings
-2025-07-24 13:54:09 - 📦 Request payload: {
+2025-07-24 17:12:03 - 🚀 Testing embedding with model: text-embedding-3-small
+2025-07-24 17:12:03 - ⏳ Sending request...
+2025-07-24 17:12:03 - 📤 Request URL: http://127.0.0.1:8080/v1/embeddings
+2025-07-24 17:12:03 - 📦 Request payload: {
   "model": "text-embedding-3-small",
   "input": "Hello, world!"
 }
-2025-07-24 13:54:09 - 📊 Request details:
-2025-07-24 13:54:09 -    - Model: text-embedding-3-small
-2025-07-24 13:54:09 -    - Input text: Hello, world!
-2025-07-24 13:54:09 -    - Input length: 13 characters
-2025-07-24 13:54:09 - ❌ Embedding generation test: FAIL - Error code: 404 - {'error': {'code': '', 'message': "Model 'text-embedding-3-small' not found or could not be loaded", 'param': 'model', 'type': 'model_not_found'}}
-2025-07-24 13:54:09 - ❌ Basic Embedding (text-embedding-3-small) - FAILED (0.03s)
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:03 - 📊 Request details:
+2025-07-24 17:12:03 -    - Model: text-embedding-3-small
+2025-07-24 17:12:03 -    - Input text: Hello, world!
+2025-07-24 17:12:03 -    - Input length: 13 characters
+2025-07-24 17:12:05 - 📥 Response received in 1.51 seconds
+2025-07-24 17:12:05 - 📄 Response content: {
+  "data": [
+    {
+      "embedding_dimensions": 1024,
+      "embedding_preview": [
+        0.03073287568986416,
+        0.027614248916506767,
+        -0.014044445939362049,
+        -0.07772952318191528,
+        0.025723114609718323
+      ]
+    }
+  ],
+  "model": "text-embedding-3-small",
+  "usage": {
+    "prompt_tokens": 3,
+    "total_tokens": 3
+  }
+}
+2025-07-24 17:12:05 - ✅ Embedding generation test: PASS - Generated embedding with 1024 dimensions
+2025-07-24 17:12:05 - Input text: Hello, world!
+2025-07-24 17:12:05 - ⏱️ Elapsed time: 1.51 seconds
+2025-07-24 17:12:05 - 📊 Usage: 3 tokens
+2025-07-24 17:12:05 - ✅ Basic Embedding (text-embedding-3-small) - PASSED (1.52s)
+2025-07-24 17:12:05 - 
 🧪 Running: Concurrent Embedding (text-embedding-3-small)
-2025-07-24 13:54:09 - 🚀 Testing 5 concurrent embeddings with model: text-embedding-3-small
-2025-07-24 13:54:09 - ⏳ Sending concurrent requests...
-2025-07-24 13:54:09 - 📤 Request configuration: {
+2025-07-24 17:12:05 - 🚀 Testing 5 concurrent embeddings with model: text-embedding-3-small
+2025-07-24 17:12:05 - ⏳ Sending concurrent requests...
+2025-07-24 17:12:05 - 📤 Request configuration: {
   "model": "text-embedding-3-small",
   "concurrent_requests": 5,
   "input_texts": [
@@ -159,37 +354,115 @@ Configuration:
     "Embeddings convert text into numerical vectors."
   ]
 }
-2025-07-24 13:54:09 - ❌ Concurrent embedding failed: Error code: 404 - {'error': {'code': '', 'message': "Model 'text-embedding-3-small' not found or could not be loaded", 'param': 'model', 'type': 'model_not_found'}}
-2025-07-24 13:54:09 - ❌ Concurrent Embedding (text-embedding-3-small) - FAILED (0.07s)
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:14 - 📥 Concurrent requests summary: {
+  "total_requests": 5,
+  "total_time": 9.324523210525513,
+  "results": [
+    {
+      "request_id": 1,
+      "elapsed_time": 9.27068042755127,
+      "embedding_dimensions": 1024,
+      "tokens": 3,
+      "input_text": "Hello, world!"
+    },
+    {
+      "request_id": 2,
+      "elapsed_time": 9.303666591644287,
+      "embedding_dimensions": 1024,
+      "tokens": 11,
+      "input_text": "The quick brown fox jumps over the lazy dog."
+    },
+    {
+      "request_id": 3,
+      "elapsed_time": 1.7803916931152344,
+      "embedding_dimensions": 1024,
+      "tokens": 11,
+      "input_text": "Machine learning is transforming technology."
+    },
+    {
+      "request_id": 4,
+      "elapsed_time": 9.283974170684814,
+      "embedding_dimensions": 1024,
+      "tokens": 16,
+      "input_text": "Natural language processing enables computers to u..."
+    },
+    {
+      "request_id": 5,
+      "elapsed_time": 9.317765235900879,
+      "embedding_dimensions": 1024,
+      "tokens": 11,
+      "input_text": "Embeddings convert text into numerical vectors."
+    }
+  ]
+}
+2025-07-24 17:12:14 - ✅ All responses received!
+2025-07-24 17:12:14 - Request 1: ⏱️ 9.27s, 📏 1024 dims, 📊 3 tokens
+2025-07-24 17:12:14 - Input: Hello, world!
+2025-07-24 17:12:14 - Request 2: ⏱️ 9.30s, 📏 1024 dims, 📊 11 tokens
+2025-07-24 17:12:14 - Input: The quick brown fox jumps over the lazy dog.
+2025-07-24 17:12:14 - Request 3: ⏱️ 1.78s, 📏 1024 dims, 📊 11 tokens
+2025-07-24 17:12:14 - Input: Machine learning is transforming technology.
+2025-07-24 17:12:14 - Request 4: ⏱️ 9.28s, 📏 1024 dims, 📊 16 tokens
+2025-07-24 17:12:14 - Input: Natural language processing enables computers to understand text.
+2025-07-24 17:12:14 - Request 5: ⏱️ 9.32s, 📏 1024 dims, 📊 11 tokens
+2025-07-24 17:12:14 - Input: Embeddings convert text into numerical vectors.
+2025-07-24 17:12:14 - 📊 Average time per request: 7.79s
+2025-07-24 17:12:14 - 📊 Total concurrent execution time: 9.32 seconds
+2025-07-24 17:12:14 - 📊 Total tokens processed: 52
+2025-07-24 17:12:14 - 📊 Successful requests: 5/5
+2025-07-24 17:12:14 - ✅ Concurrent Embedding (text-embedding-3-small) - PASSED (9.36s)
+2025-07-24 17:12:14 - 
 --- Testing Large Embedding Model (text-embedding-3-large) ---
-2025-07-24 13:54:09 - Warning: This model may not be available on current server instance
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:14 - Warning: This model may not be available on current server instance
+2025-07-24 17:12:14 - 
 🧪 Running: Basic Embedding (text-embedding-3-large)
-2025-07-24 13:54:09 - 🚀 Testing embedding with model: text-embedding-3-large
-2025-07-24 13:54:09 - ⏳ Sending request...
-2025-07-24 13:54:09 - 📤 Request URL: http://127.0.0.1:8080/v1/embeddings
-2025-07-24 13:54:09 - 📦 Request payload: {
+2025-07-24 17:12:14 - 🚀 Testing embedding with model: text-embedding-3-large
+2025-07-24 17:12:14 - ⏳ Sending request...
+2025-07-24 17:12:14 - 📤 Request URL: http://127.0.0.1:8080/v1/embeddings
+2025-07-24 17:12:14 - 📦 Request payload: {
   "model": "text-embedding-3-large",
   "input": "Testing large embedding model with Kolosal Server."
 }
-2025-07-24 13:54:09 - 📊 Request details:
-2025-07-24 13:54:09 -    - Model: text-embedding-3-large
-2025-07-24 13:54:09 -    - Input text: Testing large embedding model with Kolosal Server.
-2025-07-24 13:54:09 -    - Input length: 50 characters
-2025-07-24 13:54:09 - ❌ Embedding generation test: FAIL - Error code: 404 - {'error': {'code': '', 'message': "Model 'text-embedding-3-large' not found or could not be loaded", 'param': 'model', 'type': 'model_not_found'}}
-2025-07-24 13:54:09 - ❌ Basic Embedding (text-embedding-3-large) - FAILED (0.03s)
-2025-07-24 13:54:09 - 
-📊 Quick Summary: 0/8 tests passed, 8 failed
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:14 - 📊 Request details:
+2025-07-24 17:12:14 -    - Model: text-embedding-3-large
+2025-07-24 17:12:14 -    - Input text: Testing large embedding model with Kolosal Server.
+2025-07-24 17:12:14 -    - Input length: 50 characters
+2025-07-24 17:12:17 - 📥 Response received in 2.51 seconds
+2025-07-24 17:12:17 - 📄 Response content: {
+  "data": [
+    {
+      "embedding_dimensions": 1024,
+      "embedding_preview": [
+        -0.00977263879030943,
+        0.0010564442491158843,
+        -0.013861066661775112,
+        -0.0698319748044014,
+        0.009010671637952328
+      ]
+    }
+  ],
+  "model": "text-embedding-3-large",
+  "usage": {
+    "prompt_tokens": 12,
+    "total_tokens": 12
+  }
+}
+2025-07-24 17:12:17 - ✅ Embedding generation test: PASS - Generated embedding with 1024 dimensions
+2025-07-24 17:12:17 - Input text: Testing large embedding model with Kolosal Server.
+2025-07-24 17:12:17 - ⏱️ Elapsed time: 2.51 seconds
+2025-07-24 17:12:17 - 📊 Usage: 12 tokens
+2025-07-24 17:12:17 - ✅ Basic Embedding (text-embedding-3-large) - PASSED (2.53s)
+2025-07-24 17:12:17 - 
+📊 Quick Summary: 6/6 tests passed, 0 failed
+2025-07-24 17:12:17 - 
 --- Testing Alternative LLM Model (gpt-3.5-turbo) ---
-2025-07-24 13:54:09 - Warning: This model may not be available on current server instance
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:17 - Warning: This model may not be available on current server instance
+2025-07-24 17:12:17 - 
 🧪 Running: Basic Completion (gpt-3.5-turbo)
-2025-07-24 13:54:09 - 🚀 Testing chat completion with model: gpt-3.5-turbo
-2025-07-24 13:54:09 - ⏳ Sending request...
-2025-07-24 13:54:09 - 📤 Request URL: http://127.0.0.1:8080/v1/chat/completions
-2025-07-24 13:54:09 - 📦 Request payload: {
+2025-07-24 17:12:17 - 🚀 Testing chat completion with model: gpt-3.5-turbo
+2025-07-24 17:12:17 - ⏳ Sending request...
+2025-07-24 17:12:17 - 📤 Request URL: http://127.0.0.1:8080/v1/chat/completions
+2025-07-24 17:12:17 - 📦 Request payload: {
   "model": "gpt-3.5-turbo",
   "messages": [
     {
@@ -200,29 +473,53 @@ Configuration:
   "temperature": 0.7,
   "max_tokens": 128
 }
-2025-07-24 13:54:09 - 📊 Request details:
-2025-07-24 13:54:09 -    - Model: gpt-3.5-turbo
-2025-07-24 13:54:09 -    - Temperature: 0.7
-2025-07-24 13:54:09 -    - Max tokens: 128
-2025-07-24 13:54:09 - ❌ Chat completion test: FAIL - Error code: 400 - {'error': {'code': None, 'message': "Error: Model 'gpt-3.5-turbo' not found or could not be loaded", 'param': None, 'type': 'invalid_request_error'}}
-2025-07-24 13:54:09 - ❌ Basic Completion (gpt-3.5-turbo) - FAILED (0.02s)
-2025-07-24 13:54:09 - ============================================================
-2025-07-24 13:54:09 - DOCUMENT PROCESSING TESTS
-2025-07-24 13:54:09 - ============================================================
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:17 - 📊 Request details:
+2025-07-24 17:12:17 -    - Model: gpt-3.5-turbo
+2025-07-24 17:12:17 -    - Temperature: 0.7
+2025-07-24 17:12:17 -    - Max tokens: 128
+2025-07-24 17:12:37 - 📥 Response received in 20.61 seconds
+2025-07-24 17:12:37 - 📄 Response content: {
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "<think>\nOkay, the user just said \"Hello!\" to me. Let me respond appropriately. Since they're asking a greeting, I should acknowledge their message. Maybe say \"Hello!\" and offer assistance. Keep it friendly and open-ended. Let them know I'm here to help. No need to overcomplicate, just a simple reply.\n</think>\n\nHello! How can I assist you today? \ud83d\ude0a"
+      }
+    }
+  ],
+  "model": "gpt-3.5-turbo",
+  "usage": {
+    "completion_tokens": 82,
+    "prompt_tokens": 5,
+    "total_tokens": 87
+  }
+}
+2025-07-24 17:12:37 - ✅ Chat completion test: PASS - Generated 348 characters
+2025-07-24 17:12:37 - Response: <think>
+Okay, the user just said "Hello!" to me. Let me respond appropriately. Since they're asking a greeting, I should acknowledge their message. Maybe say "Hello!" and offer assistance. Keep it friendly and open-ended. Let them know I'm here to help. No need to overcomplicate, just a simple reply.
+</think>
+
+Hello! How can I assist you today? 😊
+2025-07-24 17:12:37 - ⏱️ Elapsed time: 20.61 seconds
+2025-07-24 17:12:37 - 🔥 Tokens per second: 4.08
+2025-07-24 17:12:37 - ✅ Basic Completion (gpt-3.5-turbo) - PASSED (20.63s)
+2025-07-24 17:12:37 - ============================================================
+2025-07-24 17:12:37 - DOCUMENT PROCESSING TESTS
+2025-07-24 17:12:37 - ============================================================
+2025-07-24 17:12:37 - 
 🧪 Running: Basic PDF Parsing
-2025-07-24 13:54:09 - 🚀 Testing PDF parsing: test_files/test_pdf.pdf
-2025-07-24 13:54:09 - ⏳ Sending request...
-2025-07-24 13:54:09 - ✅ PDF parsing test: PASS - Extracted 0 characters
-2025-07-24 13:54:09 - 📄 Total pages: 40
-2025-07-24 13:54:09 - ⏱️ Time per PDF: 0.13 seconds
-2025-07-24 13:54:09 - 🔥 Pages per second: 312.09
-2025-07-24 13:54:09 - ✅ Basic PDF Parsing - PASSED (0.14s)
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:37 - 🚀 Testing PDF parsing: test_files/test_pdf.pdf
+2025-07-24 17:12:37 - ⏳ Sending request...
+2025-07-24 17:12:38 - ✅ PDF parsing test: PASS - Extracted 0 characters
+2025-07-24 17:12:38 - 📄 Total pages: 40
+2025-07-24 17:12:38 - ⏱️ Time per PDF: 0.14 seconds
+2025-07-24 17:12:38 - 🔥 Pages per second: 288.53
+2025-07-24 17:12:38 - ✅ Basic PDF Parsing - PASSED (0.15s)
+2025-07-24 17:12:38 - 
 🧪 Running: Concurrent PDF Parsing
-2025-07-24 13:54:09 - 🚀 Testing 5 concurrent PDF parsing requests
-2025-07-24 13:54:09 - ⏳ Sending concurrent requests...
-2025-07-24 13:54:09 - 📤 Request configuration: {
+2025-07-24 17:12:38 - 🚀 Testing 5 concurrent PDF parsing requests
+2025-07-24 17:12:38 - ⏳ Sending concurrent requests...
+2025-07-24 17:12:38 - 📤 Request configuration: {
   "concurrent_requests": 5,
   "method": "fast",
   "file_paths": [
@@ -233,79 +530,79 @@ Configuration:
     "test_pdf5.pdf"
   ]
 }
-2025-07-24 13:54:09 - 📥 Concurrent requests summary: {
+2025-07-24 17:12:38 - 📥 Concurrent requests summary: {
   "total_requests": 5,
-  "total_time": 0.06640291213989258,
+  "total_time": 0.07422637939453125,
   "results": [
     {
       "request_id": 1,
-      "elapsed_time": 0.04797244071960449,
+      "elapsed_time": 0.0673060417175293,
       "total_pages": 5,
-      "pages_per_second": 104.22650849108648,
+      "pages_per_second": 74.28753604296108,
       "file_name": "test_pdf1.pdf"
     },
     {
       "request_id": 2,
-      "elapsed_time": 0.06034994125366211,
+      "elapsed_time": 0.06566596031188965,
       "total_pages": 5,
-      "pages_per_second": 82.8501220735918,
+      "pages_per_second": 76.14295102442425,
       "file_name": "test_pdf2.pdf"
     },
     {
       "request_id": 3,
-      "elapsed_time": 0.05407547950744629,
+      "elapsed_time": 0.06469488143920898,
       "total_pages": 5,
-      "pages_per_second": 92.46335021978845,
+      "pages_per_second": 77.28586696148885,
       "file_name": "test_pdf3.pdf"
     },
     {
       "request_id": 4,
-      "elapsed_time": 0.053075551986694336,
+      "elapsed_time": 0.05568957328796387,
       "total_pages": 5,
-      "pages_per_second": 94.20533207555646,
+      "pages_per_second": 89.78341374866747,
       "file_name": "test_pdf4.pdf"
     },
     {
       "request_id": 5,
-      "elapsed_time": 0.04513072967529297,
+      "elapsed_time": 0.05438494682312012,
       "total_pages": 5,
-      "pages_per_second": 110.7892568095852,
+      "pages_per_second": 91.9372049082229,
       "file_name": "test_pdf5.pdf"
     }
   ]
 }
-2025-07-24 13:54:09 - ✅ All PDF parsing completed!
-2025-07-24 13:54:09 - Request 1: ⏱️ 0.05s, 📄 5 pages, 🔥 104.23 pages/sec
-2025-07-24 13:54:09 - PDF: test_files/test_pdf1.pdf
-2025-07-24 13:54:09 - Request 2: ⏱️ 0.06s, 📄 5 pages, 🔥 82.85 pages/sec
-2025-07-24 13:54:09 - PDF: test_files/test_pdf2.pdf
-2025-07-24 13:54:09 - Request 3: ⏱️ 0.05s, 📄 5 pages, 🔥 92.46 pages/sec
-2025-07-24 13:54:09 - PDF: test_files/test_pdf3.pdf
-2025-07-24 13:54:09 - Request 4: ⏱️ 0.05s, 📄 5 pages, 🔥 94.21 pages/sec
-2025-07-24 13:54:09 - PDF: test_files/test_pdf4.pdf
-2025-07-24 13:54:09 - Request 5: ⏱️ 0.05s, 📄 5 pages, 🔥 110.79 pages/sec
-2025-07-24 13:54:09 - PDF: test_files/test_pdf5.pdf
-2025-07-24 13:54:09 - 📊 Average time per PDF: 0.05s
-2025-07-24 13:54:09 - 📊 Average pages per second per PDF: 96.91
-2025-07-24 13:54:09 - 📊 Overall pages per second: 376.49
-2025-07-24 13:54:09 - 📊 Total concurrent execution time: 0.07 seconds
-2025-07-24 13:54:09 - 📊 Total pages processed: 25
-2025-07-24 13:54:09 - 📊 Successful requests: 5/5
-2025-07-24 13:54:09 - ✅ Concurrent PDF Parsing - PASSED (0.09s)
-2025-07-24 13:54:09 - 
+2025-07-24 17:12:38 - ✅ All PDF parsing completed!
+2025-07-24 17:12:38 - Request 1: ⏱️ 0.07s, 📄 5 pages, 🔥 74.29 pages/sec
+2025-07-24 17:12:38 - PDF: test_files/test_pdf1.pdf
+2025-07-24 17:12:38 - Request 2: ⏱️ 0.07s, 📄 5 pages, 🔥 76.14 pages/sec
+2025-07-24 17:12:38 - PDF: test_files/test_pdf2.pdf
+2025-07-24 17:12:38 - Request 3: ⏱️ 0.06s, 📄 5 pages, 🔥 77.29 pages/sec
+2025-07-24 17:12:38 - PDF: test_files/test_pdf3.pdf
+2025-07-24 17:12:38 - Request 4: ⏱️ 0.06s, 📄 5 pages, 🔥 89.78 pages/sec
+2025-07-24 17:12:38 - PDF: test_files/test_pdf4.pdf
+2025-07-24 17:12:38 - Request 5: ⏱️ 0.05s, 📄 5 pages, 🔥 91.94 pages/sec
+2025-07-24 17:12:38 - PDF: test_files/test_pdf5.pdf
+2025-07-24 17:12:38 - 📊 Average time per PDF: 0.06s
+2025-07-24 17:12:38 - 📊 Average pages per second per PDF: 81.89
+2025-07-24 17:12:38 - 📊 Overall pages per second: 336.81
+2025-07-24 17:12:38 - 📊 Total concurrent execution time: 0.07 seconds
+2025-07-24 17:12:38 - 📊 Total pages processed: 25
+2025-07-24 17:12:38 - 📊 Successful requests: 5/5
+2025-07-24 17:12:38 - ✅ Concurrent PDF Parsing - PASSED (0.11s)
+2025-07-24 17:12:38 - 
 🧪 Running: Basic DOCX Parsing
-2025-07-24 13:54:09 - 🚀 Testing DOCX parsing: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx.docx
-2025-07-24 13:54:09 - ⏳ Sending request...
-2025-07-24 13:54:10 - ✅ DOCX parsing completed!
-2025-07-24 13:54:10 - 📄 File size: 37.25 KB
-2025-07-24 13:54:10 - ⏱️ Time per DOCX: 0.66 seconds
-2025-07-24 13:54:10 - 🔥 KB per second: 56.52
-2025-07-24 13:54:10 - ✅ Basic DOCX Parsing - COMPLETED (0.67s)
-2025-07-24 13:54:10 - 
+2025-07-24 17:12:38 - 🚀 Testing DOCX parsing: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx.docx
+2025-07-24 17:12:38 - ⏳ Sending request...
+2025-07-24 17:12:39 - ✅ DOCX parsing completed!
+2025-07-24 17:12:39 - 📄 File size: 37.25 KB
+2025-07-24 17:12:39 - ⏱️ Time per DOCX: 0.87 seconds
+2025-07-24 17:12:39 - 🔥 KB per second: 42.65
+2025-07-24 17:12:39 - ✅ Basic DOCX Parsing - COMPLETED (0.88s)
+2025-07-24 17:12:39 - 
 🧪 Running: Concurrent DOCX Parsing
-2025-07-24 13:54:10 - 🚀 Testing 5 concurrent DOCX parsing requests
-2025-07-24 13:54:10 - ⏳ Sending concurrent requests...
-2025-07-24 13:54:10 - 📤 Request configuration: {
+2025-07-24 17:12:39 - 🚀 Testing 5 concurrent DOCX parsing requests
+2025-07-24 17:12:39 - ⏳ Sending concurrent requests...
+2025-07-24 17:12:39 - 📤 Request configuration: {
   "concurrent_requests": 5,
   "method": "fast",
   "file_paths": [
@@ -316,87 +613,92 @@ Configuration:
     "test_docx5.docx"
   ]
 }
-2025-07-24 13:54:10 - 📥 Concurrent requests summary: {
+2025-07-24 17:12:39 - 📥 Concurrent requests summary: {
   "total_requests": 5,
-  "total_time": 0.10929703712463379,
+  "total_time": 0.1380751132965088,
   "results": [
     {
       "request_id": 1,
-      "elapsed_time": 0.10828065872192383,
+      "elapsed_time": 0.11954784393310547,
       "file_size_kb": 36.1650390625,
-      "kb_per_second": 333.9935265389883,
+      "kb_per_second": 302.5151928522995,
       "file_name": "test_docx1.docx"
     },
     {
       "request_id": 2,
-      "elapsed_time": 0.08140730857849121,
+      "elapsed_time": 0.12723827362060547,
       "file_size_kb": 36.1650390625,
-      "kb_per_second": 444.2480619246911,
+      "kb_per_second": 284.23082169705964,
       "file_name": "test_docx2.docx"
     },
     {
       "request_id": 3,
-      "elapsed_time": 0.08802914619445801,
+      "elapsed_time": 0.12116837501525879,
       "file_size_kb": 36.166015625,
-      "kb_per_second": 410.84137684476235,
+      "kb_per_second": 298.4773512102114,
       "file_name": "test_docx3.docx"
     },
     {
       "request_id": 4,
-      "elapsed_time": 0.07286643981933594,
+      "elapsed_time": 0.12858295440673828,
       "file_size_kb": 36.166015625,
-      "kb_per_second": 496.33295814464833,
+      "kb_per_second": 281.26601843816985,
       "file_name": "test_docx4.docx"
     },
     {
       "request_id": 5,
-      "elapsed_time": 0.08379292488098145,
+      "elapsed_time": 0.12061357498168945,
       "file_size_kb": 36.166015625,
-      "kb_per_second": 431.6118058460164,
+      "kb_per_second": 299.85029156536007,
       "file_name": "test_docx5.docx"
     }
   ]
 }
-2025-07-24 13:54:10 - ✅ All DOCX parsing completed!
-2025-07-24 13:54:10 - Request 1: ⏱️ 0.11s, 📄 36.17 KB, 🔥 333.99 KB/sec
-2025-07-24 13:54:10 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx1.docx
-2025-07-24 13:54:10 - Request 2: ⏱️ 0.08s, 📄 36.17 KB, 🔥 444.25 KB/sec
-2025-07-24 13:54:10 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx2.docx
-2025-07-24 13:54:10 - Request 3: ⏱️ 0.09s, 📄 36.17 KB, 🔥 410.84 KB/sec
-2025-07-24 13:54:10 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx3.docx
-2025-07-24 13:54:10 - Request 4: ⏱️ 0.07s, 📄 36.17 KB, 🔥 496.33 KB/sec
-2025-07-24 13:54:10 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx4.docx
-2025-07-24 13:54:10 - Request 5: ⏱️ 0.08s, 📄 36.17 KB, 🔥 431.61 KB/sec
-2025-07-24 13:54:10 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx5.docx
-2025-07-24 13:54:10 - 📊 Average time per DOCX: 0.09s
-2025-07-24 13:54:10 - 📊 Average KB per second per DOCX: 423.41
-2025-07-24 13:54:10 - 📊 Overall KB per second: 1654.47
-2025-07-24 13:54:10 - 📊 Total concurrent execution time: 0.11 seconds
-2025-07-24 13:54:10 - 📊 Total KB processed: 180.83
-2025-07-24 13:54:10 - 📊 Successful requests: 5/5
-2025-07-24 13:54:10 - ✅ Concurrent DOCX Parsing - PASSED (0.13s)
-2025-07-24 13:54:10 - 
-📊 Quick Summary: 4/13 tests passed, 9 failed
-2025-07-24 13:54:10 - ============================================================
-2025-07-24 13:54:10 - DOCUMENT INGESTION & RETRIEVAL TESTS
-2025-07-24 13:54:10 - ============================================================
-2025-07-24 13:54:10 - 
+2025-07-24 17:12:39 - ✅ All DOCX parsing completed!
+2025-07-24 17:12:39 - Request 1: ⏱️ 0.12s, 📄 36.17 KB, 🔥 302.52 KB/sec
+2025-07-24 17:12:39 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx1.docx
+2025-07-24 17:12:39 - Request 2: ⏱️ 0.13s, 📄 36.17 KB, 🔥 284.23 KB/sec
+2025-07-24 17:12:39 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx2.docx
+2025-07-24 17:12:39 - Request 3: ⏱️ 0.12s, 📄 36.17 KB, 🔥 298.48 KB/sec
+2025-07-24 17:12:39 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx3.docx
+2025-07-24 17:12:39 - Request 4: ⏱️ 0.13s, 📄 36.17 KB, 🔥 281.27 KB/sec
+2025-07-24 17:12:39 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx4.docx
+2025-07-24 17:12:39 - Request 5: ⏱️ 0.12s, 📄 36.17 KB, 🔥 299.85 KB/sec
+2025-07-24 17:12:39 - DOCX: D:\Works\Genta\codes\kolosal-server-test\test_files\test_docx5.docx
+2025-07-24 17:12:39 - 📊 Average time per DOCX: 0.12s
+2025-07-24 17:12:39 - 📊 Average KB per second per DOCX: 293.27
+2025-07-24 17:12:39 - 📊 Overall KB per second: 1309.64
+2025-07-24 17:12:39 - 📊 Total concurrent execution time: 0.14 seconds
+2025-07-24 17:12:39 - 📊 Total KB processed: 180.83
+2025-07-24 17:12:39 - 📊 Successful requests: 5/5
+2025-07-24 17:12:39 - ✅ Concurrent DOCX Parsing - PASSED (0.16s)
+2025-07-24 17:12:39 - 
+📊 Quick Summary: 11/11 tests passed, 0 failed
+2025-07-24 17:12:39 - ============================================================
+2025-07-24 17:12:39 - DOCUMENT INGESTION & RETRIEVAL TESTS
+2025-07-24 17:12:39 - ============================================================
+2025-07-24 17:12:39 - 
 🧪 Running: Document Ingestion
-2025-07-24 13:54:10 - 🚀 Testing document ingestion...
-2025-07-24 13:54:10 - ⏳ Sending request...
-2025-07-24 13:54:10 - ❌ Document ingestion test: FAIL - HTTP 404: {"available_endpoints": {"agents": {"chat": "POST /v1/agents/{id}/chat - Chat with agent", "create": "POST /v1/agents - Create a new agent", "delete": "DELETE /v1/agents/{id} - Delete an agent", "execute": "POST /v1/agents/{id}/execute - Execute agent task", "get": "GET /v1/agents/{id} - Get agent details", "list": "GET /v1/agents - List all agents", "system_status": "GET /v1/agents/system/status - Agent system status"}, "chat_completions": "POST /v1/chat/completions - Chat completions", "completions": "POST /v1/completions - Text completions", "documents": {"add": "POST /add_documents - Add documents to knowledge base", "parse_docx": "POST /parse_docx - Parse DOCX content", "parse_pdf": "POST /parse_pdf - Parse PDF content", "retrieve": "POST /retrieve - Retrieve relevant documents"}, "embeddings": "POST /v1/embeddings - Generate embeddings", "health": "GET /health - Server health status", "models": "GET /v1/models - List available models", "rag": {"chat": "POST /v1/rag/chat - RAG-enhanced chat", "search": "POST /v1/rag/search - Search knowledge base"}, "workflows": {"create": "POST /v1/workflows - Create workflow", "execute": "POST /v1/workflows/{id}/execute - Execute workflow", "status": "GET /v1/workflows/{id}/status - Get workflow status"}}, "documentation": "Visit the /docs endpoint for full API documentation", "error": {"code": 404, "message": "The requested endpoint was not found.", "type": "invalid_request_error"}, "note": "This is a catch-all route. If you see this, the requested endpoint may not be implemented yet.", "timestamp": 1753336450779}
-2025-07-24 13:54:10 - ❌ Document Ingestion - FAILED (0.04s)
-2025-07-24 13:54:10 - 
+2025-07-24 17:12:39 - 🚀 Testing document ingestion...
+2025-07-24 17:12:39 - ⏳ Sending request...
+2025-07-24 17:12:39 - ❌ Document ingestion test: FAIL - HTTP 404: {"available_endpoints": {"agents": {"chat": "POST /v1/agents/{id}/chat - Chat with agent", "create": "POST /v1/agents - Create a new agent", "delete": "DELETE /v1/agents/{id} - Delete an agent", "execute": "POST /v1/agents/{id}/execute - Execute agent task", "get": "GET /v1/agents/{id} - Get agent details", "list": "GET /v1/agents - List all agents", "system_status": "GET /v1/agents/system/status - Agent system status"}, "chat_completions": "POST /v1/chat/completions - Chat completions", "completions": "POST /v1/completions - Text completions", "documents": {"add": "POST /add_documents - Add documents to knowledge base", "parse_docx": "POST /parse_docx - Parse DOCX content", "parse_pdf": "POST /parse_pdf - Parse PDF content", "retrieve": "POST /retrieve - Retrieve relevant documents"}, "embeddings": "POST /v1/embeddings - Generate embeddings", "health": "GET /health - Server health status", "models": "GET /v1/models - List available models", "rag": {"chat": "POST /v1/rag/chat - RAG-enhanced chat", "search": "POST /v1/rag/search - Search knowledge base"}, "workflows": {"create": "POST /v1/workflows - Create workflow", "execute": "POST /v1/workflows/{id}/execute - Execute workflow", "status": "GET /v1/workflows/{id}/status - Get workflow status"}}, "documentation": "Visit the /docs endpoint for full API documentation", "error": {"code": 404, "message": "The requested endpoint was not found.", "type": "invalid_request_error"}, "note": "This is a catch-all route. If you see this, the requested endpoint may not be implemented yet.", "timestamp": 1753348359420}
+2025-07-24 17:12:39 - ❌ Document Ingestion - FAILED (0.02s)
+2025-07-24 17:12:39 - 
 🧪 Running: Basic Document Retrieval
-2025-07-24 13:54:10 - 🚀 Testing document retrieval with query: smartphone
-2025-07-24 13:54:10 - ⏳ Sending request...
-2025-07-24 13:54:10 - ❌ Document retrieval test: FAIL - HTTP 503: {"error": {"code": 503, "message": "Vector search service not ready - server may be initializing. Please try again in a moment.", "type": "service_not_ready"}, "success": false}
-2025-07-24 13:54:10 - ❌ Basic Document Retrieval - FAILED (0.05s)
-2025-07-24 13:54:10 - 
+2025-07-24 17:12:39 - 🚀 Testing document retrieval with query: smartphone
+2025-07-24 17:12:39 - ⏳ Sending request...
+2025-07-24 17:12:40 - ✅ Document retrieval test: PASS
+2025-07-24 17:12:40 - 📄 Retrieved documents count: 0
+2025-07-24 17:12:40 - ⏱️ Response time: 1.02 seconds
+2025-07-24 17:12:40 - 🔍 Query: smartphone
+2025-07-24 17:12:40 - 
+⚠️ No documents found in the response.
+2025-07-24 17:12:40 - ✅ Basic Document Retrieval - PASSED (1.04s)
+2025-07-24 17:12:40 - 
 🧪 Running: Concurrent Document Retrieval
-2025-07-24 13:54:10 - 🚀 Testing 10 concurrent document retrieval requests
-2025-07-24 13:54:10 - ⏳ Sending concurrent requests...
-2025-07-24 13:54:10 - 📤 Request configuration: {
+2025-07-24 17:12:40 - 🚀 Testing 10 concurrent document retrieval requests
+2025-07-24 17:12:40 - ⏳ Sending concurrent requests...
+2025-07-24 17:12:40 - 📤 Request configuration: {
   "concurrent_requests": 10,
   "queries": [
     "smartphone technology",
@@ -413,189 +715,254 @@ Configuration:
   "limit": 10,
   "score_threshold": 0.0
 }
-2025-07-24 13:54:10 - ❌ Concurrent document retrieval test: FAIL - 503, message='Failed to retrieve documents for query: smartphone technology', url='http://127.0.0.1:8080/vector-search'
-2025-07-24 13:54:10 - ❌ Concurrent Document Retrieval - FAILED (0.04s)
-2025-07-24 13:54:10 - 
+2025-07-24 17:12:49 - 📥 Concurrent requests summary: {
+  "total_requests": 10,
+  "total_time": 8.60519552230835,
+  "results": [
+    {
+      "request_id": 1,
+      "elapsed_time": 1.2660846710205078,
+      "document_count": 0,
+      "query": "smartphone technology"
+    },
+    {
+      "request_id": 2,
+      "elapsed_time": 8.598870038986206,
+      "document_count": 0,
+      "query": "artificial intelligence"
+    },
+    {
+      "request_id": 3,
+      "elapsed_time": 8.46149206161499,
+      "document_count": 0,
+      "query": "machine learning algorithms"
+    },
+    {
+      "request_id": 4,
+      "elapsed_time": 8.549365758895874,
+      "document_count": 0,
+      "query": "data science methods"
+    },
+    {
+      "request_id": 5,
+      "elapsed_time": 8.524279594421387,
+      "document_count": 0,
+      "query": "cloud computing services"
+    },
+    {
+      "request_id": 6,
+      "elapsed_time": 8.467738628387451,
+      "document_count": 0,
+      "query": "cybersecurity best practices"
+    },
+    {
+      "request_id": 7,
+      "elapsed_time": 8.553034782409668,
+      "document_count": 0,
+      "query": "software development"
+    },
+    {
+      "request_id": 8,
+      "elapsed_time": 8.44352102279663,
+      "document_count": 0,
+      "query": "web development frameworks"
+    },
+    {
+      "request_id": 9,
+      "elapsed_time": 8.590830326080322,
+      "document_count": 0,
+      "query": "mobile app development"
+    },
+    {
+      "request_id": 10,
+      "elapsed_time": 8.571942567825317,
+      "document_count": 0,
+      "query": "database management"
+    }
+  ]
+}
+2025-07-24 17:12:49 - ✅ All document retrieval requests completed!
+2025-07-24 17:12:49 - Request 1: ⏱️ 1.27s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: smartphone technology
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 2: ⏱️ 8.60s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: artificial intelligence
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 3: ⏱️ 8.46s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: machine learning algorithms
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 4: ⏱️ 8.55s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: data science methods
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 5: ⏱️ 8.52s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: cloud computing services
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 6: ⏱️ 8.47s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: cybersecurity best practices
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 7: ⏱️ 8.55s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: software development
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 8: ⏱️ 8.44s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: web development frameworks
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 9: ⏱️ 8.59s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: mobile app development
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - Request 10: ⏱️ 8.57s, 📄 0 docs
+2025-07-24 17:12:49 - 🔍 Query: database management
+2025-07-24 17:12:49 -    ⚠️ No documents found
+2025-07-24 17:12:49 - 📊 SUMMARY STATISTICS:
+2025-07-24 17:12:49 - 📊 Average response time: 7.80s
+2025-07-24 17:12:49 - 📊 Average documents per query: 0.00
+2025-07-24 17:12:49 - 📊 Total concurrent execution time: 8.61 seconds
+2025-07-24 17:12:49 - 📊 Successful requests: 0/10
+2025-07-24 17:12:49 - ❌ Concurrent Document Retrieval - FAILED (8.76s)
+2025-07-24 17:12:49 - 
 🧪 Running: Custom Concurrent Retrieval
-2025-07-24 13:54:10 - 🚀 Testing 5 custom concurrent document retrieval requests
-2025-07-24 13:54:10 - ⏳ Sending concurrent requests...
-2025-07-24 13:54:10 - ❌ Custom Concurrent Retrieval - FAILED (0.02s)
-2025-07-24 13:54:10 -    Error: 503, message='Failed to retrieve documents for query: javascript frameworks', url='http://127.0.0.1:8080/vector-search'
-2025-07-24 13:54:10 - 
-📊 Quick Summary: 4/17 tests passed, 13 failed
-2025-07-24 13:54:10 - ============================================================
-2025-07-24 13:54:10 - AGENT SYSTEM TESTS
-2025-07-24 13:54:10 - ============================================================
-2025-07-24 13:54:10 - 
+2025-07-24 17:12:49 - 🚀 Testing 5 custom concurrent document retrieval requests
+2025-07-24 17:12:49 - ⏳ Sending concurrent requests...
+2025-07-24 17:12:53 - ✅ All custom document retrieval requests completed!
+2025-07-24 17:12:53 - Request 1: ⏱️ 1.04s, 📄 0 docs
+2025-07-24 17:12:53 - 🔍 Query: python programming
+2025-07-24 17:12:53 -    ⚠️ No documents found
+2025-07-24 17:12:53 - Request 2: ⏱️ 3.89s, 📄 0 docs
+2025-07-24 17:12:53 - 🔍 Query: javascript frameworks
+2025-07-24 17:12:53 -    ⚠️ No documents found
+2025-07-24 17:12:53 - Request 3: ⏱️ 3.87s, 📄 0 docs
+2025-07-24 17:12:53 - 🔍 Query: react development
+2025-07-24 17:12:53 -    ⚠️ No documents found
+2025-07-24 17:12:53 - Request 4: ⏱️ 3.88s, 📄 0 docs
+2025-07-24 17:12:53 - 🔍 Query: nodejs backend
+2025-07-24 17:12:53 -    ⚠️ No documents found
+2025-07-24 17:12:53 - Request 5: ⏱️ 3.77s, 📄 0 docs
+2025-07-24 17:12:53 - 🔍 Query: database optimization
+2025-07-24 17:12:53 -    ⚠️ No documents found
+2025-07-24 17:12:53 - 📊 CUSTOM QUERY SUMMARY:
+2025-07-24 17:12:53 - 📊 Average response time: 3.29s
+2025-07-24 17:12:53 - 📊 Average documents per query: 0.00
+2025-07-24 17:12:53 - 📊 Total execution time: 3.89 seconds
+2025-07-24 17:12:53 - ✅ Custom Concurrent Retrieval - COMPLETED (3.92s)
+2025-07-24 17:12:53 - 
+📊 Quick Summary: 13/15 tests passed, 2 failed
+2025-07-24 17:12:53 - ============================================================
+2025-07-24 17:12:53 - AGENT SYSTEM TESTS
+2025-07-24 17:12:53 - ============================================================
+2025-07-24 17:12:53 - 
 --- Testing Agent Features ---
-2025-07-24 13:54:10 - 
+2025-07-24 17:12:53 - 
 🧪 Running: Agent Features Test
-2025-07-24 13:54:11 - 
+2025-07-24 17:13:27 - 
 🔄 Running Complete RAG Workflow Test...
-2025-07-24 13:54:11 - 📚 Step 1: Adding knowledge content...
-2025-07-24 13:54:11 - 🔍 Step 2: Testing document search...
-2025-07-24 13:54:11 - 💬 Step 3: Testing RAG chat...
-2025-07-24 13:54:11 - ⚙️ Step 4: Testing workflow creation...
-2025-07-24 13:54:11 - 📝 Step 6: Testing session management...
-2025-07-24 13:54:11 - 
+2025-07-24 17:13:27 - 📚 Step 1: Adding knowledge content...
+2025-07-24 17:13:35 - 🔍 Step 2: Testing document search...
+2025-07-24 17:13:36 - 💬 Step 3: Testing RAG chat...
+2025-07-24 17:13:36 - ⚙️ Step 4: Testing workflow creation...
+2025-07-24 17:13:36 - 📝 Step 6: Testing session management...
+2025-07-24 17:13:36 - 
 🧹 Cleaning up created resources...
-2025-07-24 13:54:11 - ❌ Agent Features Test - FAILED (0.18s)
-2025-07-24 13:54:11 - 
+2025-07-24 17:13:36 - ⚠️ Could not delete document 6eb302f8-387c-4667-bd63-44f332b26393: 404
+2025-07-24 17:13:36 - ⚠️ Could not delete document 60a90d67-4782-4348-8564-c358b1f161d8: 404
+2025-07-24 17:13:36 - ✅ Agent Features Test - PASSED (43.01s)
+2025-07-24 17:13:36 - 
 --- Testing RAG Features ---
-2025-07-24 13:54:11 - 
+2025-07-24 17:13:36 - 
 🧪 Running: RAG Features Test
-2025-07-24 13:54:11 - ❌ RAG Features Test - FAILED (0.21s)
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:55 - ✅ RAG Features Test - PASSED (79.47s)
+2025-07-24 17:14:55 - 
 --- Testing Workflow Features ---
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:55 - 
 🧪 Running: Workflow Features Test
-2025-07-24 13:54:11 - ✅ Workflow Features Test - PASSED (0.28s)
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 - ✅ Workflow Features Test - PASSED (0.30s)
+2025-07-24 17:14:56 - 
 ================================================================================
-2025-07-24 13:54:11 - 📊 COMPREHENSIVE TEST SUMMARY
-2025-07-24 13:54:11 - ================================================================================
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 - 📊 COMPREHENSIVE TEST SUMMARY
+2025-07-24 17:14:56 - ================================================================================
+2025-07-24 17:14:56 - 
 🖥️  SERVER STATUS:
-2025-07-24 13:54:11 -    ✅ Server is responding
-2025-07-24 13:54:11 -    • available_engines: 2
-2025-07-24 13:54:11 -    • loaded_engines: 0
-2025-07-24 13:54:11 -    • total_engines: 2
-2025-07-24 13:54:11 -    • health_status: degraded
-2025-07-24 13:54:11 -    • responding_endpoint: http://127.0.0.1:8080/health
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 -    ✅ Server is responding
+2025-07-24 17:14:56 -    • available_engines: 4
+2025-07-24 17:14:56 -    • loaded_engines: 4
+2025-07-24 17:14:56 -    • total_engines: 4
+2025-07-24 17:14:56 -    • health_status: healthy
+2025-07-24 17:14:56 -    • responding_endpoint: http://127.0.0.1:8080/health
+2025-07-24 17:14:56 - 
 📈 OVERALL STATISTICS:
-2025-07-24 13:54:11 -    • Total Tests: 20
-2025-07-24 13:54:11 -    • Passed: 5 (25.0%)
-2025-07-24 13:54:11 -    • Failed: 15 (75.0%)
-2025-07-24 13:54:11 -    • Skipped: 0 (0.0%)
-2025-07-24 13:54:11 -    • Warnings: 0 (0.0%)
-2025-07-24 13:54:11 -    • Total Duration: 3.26s
-2025-07-24 13:54:11 -    • Average Test Duration: 0.14s
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 -    • Total Tests: 18
+2025-07-24 17:14:56 -    • Passed: 16 (88.9%)
+2025-07-24 17:14:56 -    • Failed: 2 (11.1%)
+2025-07-24 17:14:56 -    • Skipped: 0 (0.0%)
+2025-07-24 17:14:56 -    • Warnings: 0 (0.0%)
+2025-07-24 17:14:56 -    • Total Duration: 308.61s
+2025-07-24 17:14:56 -    • Average Test Duration: 17.11s
+2025-07-24 17:14:56 - 
 📋 CATEGORY BREAKDOWN:
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 - 
    AGENT SYSTEM:
-2025-07-24 13:54:11 -      • Tests: 3
-2025-07-24 13:54:11 -      • Passed: 1 | Failed: 2 | Skipped: 0 | Warnings: 0
-2025-07-24 13:54:11 -      • Duration: 0.66s (avg: 0.22s)
-2025-07-24 13:54:11 -        ❌ Agent Features Test (0.18s)
-2025-07-24 13:54:11 -        ❌ RAG Features Test (0.21s)
-2025-07-24 13:54:11 -        ✅ Workflow Features Test (0.28s)
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 -      • Tests: 3
+2025-07-24 17:14:56 -      • Passed: 3 | Failed: 0 | Skipped: 0 | Warnings: 0
+2025-07-24 17:14:56 -      • Duration: 122.78s (avg: 40.93s)
+2025-07-24 17:14:56 -        ✅ Agent Features Test (43.01s)
+2025-07-24 17:14:56 -        ✅ RAG Features Test (79.47s)
+2025-07-24 17:14:56 -        ✅ Workflow Features Test (0.30s)
+2025-07-24 17:14:56 - 
    DOCUMENT MANAGEMENT:
-2025-07-24 13:54:11 -      • Tests: 4
-2025-07-24 13:54:11 -      • Passed: 0 | Failed: 4 | Skipped: 0 | Warnings: 0
-2025-07-24 13:54:11 -      • Duration: 0.16s (avg: 0.04s)
-2025-07-24 13:54:11 -        ❌ Document Ingestion (0.04s)
-2025-07-24 13:54:11 -        ❌ Basic Document Retrieval (0.05s)
-2025-07-24 13:54:11 -        ❌ Concurrent Document Retrieval (0.04s)
-2025-07-24 13:54:11 -        ❌ Custom Concurrent Retrieval (0.02s)
-2025-07-24 13:54:11 -          └─ Error: 503, message='Failed to retrieve documents for query: javascript frameworks', url='http://127.0.0.1:...
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 -      • Tests: 4
+2025-07-24 17:14:56 -      • Passed: 2 | Failed: 2 | Skipped: 0 | Warnings: 0
+2025-07-24 17:14:56 -      • Duration: 13.75s (avg: 3.44s)
+2025-07-24 17:14:56 -        ❌ Document Ingestion (0.02s)
+2025-07-24 17:14:56 -        ✅ Basic Document Retrieval (1.04s)
+2025-07-24 17:14:56 -        ❌ Concurrent Document Retrieval (8.76s)
+2025-07-24 17:14:56 -        ✅ Custom Concurrent Retrieval (3.92s)
+2025-07-24 17:14:56 - 
    DOCUMENT PROCESSING:
-2025-07-24 13:54:11 -      • Tests: 4
-2025-07-24 13:54:11 -      • Passed: 4 | Failed: 0 | Skipped: 0 | Warnings: 0
-2025-07-24 13:54:11 -      • Duration: 1.03s (avg: 0.26s)
-2025-07-24 13:54:11 -        ✅ Basic PDF Parsing (0.14s)
-2025-07-24 13:54:11 -        ✅ Concurrent PDF Parsing (0.09s)
-2025-07-24 13:54:11 -        ✅ Basic DOCX Parsing (0.67s)
-2025-07-24 13:54:11 -        ✅ Concurrent DOCX Parsing (0.13s)
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 -      • Tests: 4
+2025-07-24 17:14:56 -      • Passed: 4 | Failed: 0 | Skipped: 0 | Warnings: 0
+2025-07-24 17:14:56 -      • Duration: 1.31s (avg: 0.33s)
+2025-07-24 17:14:56 -        ✅ Basic PDF Parsing (0.15s)
+2025-07-24 17:14:56 -        ✅ Concurrent PDF Parsing (0.11s)
+2025-07-24 17:14:56 -        ✅ Basic DOCX Parsing (0.88s)
+2025-07-24 17:14:56 -        ✅ Concurrent DOCX Parsing (0.16s)
+2025-07-24 17:14:56 - 
    ENGINE TESTS:
-2025-07-24 13:54:11 -      • Tests: 9
-2025-07-24 13:54:11 -      • Passed: 0 | Failed: 9 | Skipped: 0 | Warnings: 0
-2025-07-24 13:54:11 -      • Duration: 0.98s (avg: 0.11s)
-2025-07-24 13:54:11 -        ❌ Basic Completion (qwen3-0.6b) (0.69s)
-2025-07-24 13:54:11 -        ❌ Streaming Completion (qwen3-0.6b) (0.05s)
-2025-07-24 13:54:11 -        ❌ Diagnostic: Non-streaming with same params (0.02s)
-2025-07-24 13:54:11 -        ❌ Streaming Diagnosis (0.00s)
-2025-07-24 13:54:11 -        ❌ Concurrent Completion (qwen3-0.6b) (0.08s)
-2025-07-24 13:54:11 -        ❌ Basic Embedding (text-embedding-3-small) (0.03s)
-2025-07-24 13:54:11 -        ❌ Concurrent Embedding (text-embedding-3-small) (0.07s)
-2025-07-24 13:54:11 -        ❌ Basic Embedding (text-embedding-3-large) (0.03s)
-2025-07-24 13:54:11 -        ❌ Basic Completion (gpt-3.5-turbo) (0.02s)
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 -      • Tests: 7
+2025-07-24 17:14:56 -      • Passed: 7 | Failed: 0 | Skipped: 0 | Warnings: 0
+2025-07-24 17:14:56 -      • Duration: 170.22s (avg: 24.32s)
+2025-07-24 17:14:56 -        ✅ Basic Completion (qwen3-0.6b) (19.77s)
+2025-07-24 17:14:56 -        ✅ Streaming Completion (qwen3-0.6b) (17.77s)
+2025-07-24 17:14:56 -        ✅ Concurrent Completion (qwen3-0.6b) (98.65s)
+2025-07-24 17:14:56 -        ✅ Basic Embedding (text-embedding-3-small) (1.52s)
+2025-07-24 17:14:56 -        ✅ Concurrent Embedding (text-embedding-3-small) (9.36s)
+2025-07-24 17:14:56 -        ✅ Basic Embedding (text-embedding-3-large) (2.53s)
+2025-07-24 17:14:56 -        ✅ Basic Completion (gpt-3.5-turbo) (20.63s)
+2025-07-24 17:14:56 - 
 ❌ FAILED TESTS DETAIL:
-2025-07-24 13:54:11 - 
-   1. Basic Completion (qwen3-0.6b) (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.69s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   2. Streaming Completion (qwen3-0.6b) (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.05s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   3. Diagnostic: Non-streaming with same params (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.02s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   4. Streaming Diagnosis (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.00s
-2025-07-24 13:54:11 -       Details: Both streaming and non-streaming failed
-2025-07-24 13:54:11 - 
-   5. Concurrent Completion (qwen3-0.6b) (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.08s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   6. Basic Embedding (text-embedding-3-small) (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.03s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   7. Concurrent Embedding (text-embedding-3-small) (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.07s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   8. Basic Embedding (text-embedding-3-large) (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.03s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   9. Basic Completion (gpt-3.5-turbo) (Engine Tests)
-2025-07-24 13:54:11 -       Time: 13:54:09 | Duration: 0.02s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   10. Document Ingestion (Document Management)
-2025-07-24 13:54:11 -       Time: 13:54:10 | Duration: 0.04s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   11. Basic Document Retrieval (Document Management)
-2025-07-24 13:54:11 -       Time: 13:54:10 | Duration: 0.05s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   12. Concurrent Document Retrieval (Document Management)
-2025-07-24 13:54:11 -       Time: 13:54:10 | Duration: 0.04s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   13. Custom Concurrent Retrieval (Document Management)
-2025-07-24 13:54:11 -       Time: 13:54:10 | Duration: 0.02s
-2025-07-24 13:54:11 -       Error: 503, message='Failed to retrieve documents for query: javascript frameworks', url='http://127.0.0.1:8080/vector-search'
-2025-07-24 13:54:11 - 
-   14. Agent Features Test (Agent System)
-2025-07-24 13:54:11 -       Time: 13:54:11 | Duration: 0.18s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
-   15. RAG Features Test (Agent System)
-2025-07-24 13:54:11 -       Time: 13:54:11 | Duration: 0.21s
-2025-07-24 13:54:11 -       Details: Test function returned False
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 - 
+   1. Document Ingestion (Document Management)
+2025-07-24 17:14:56 -       Time: 17:12:39 | Duration: 0.02s
+2025-07-24 17:14:56 -       Details: Test function returned False
+2025-07-24 17:14:56 - 
+   2. Concurrent Document Retrieval (Document Management)
+2025-07-24 17:14:56 -       Time: 17:12:49 | Duration: 8.76s
+2025-07-24 17:14:56 -       Details: Test function returned False
+2025-07-24 17:14:56 - 
 ⏱️  SLOWEST TESTS:
-2025-07-24 13:54:11 -    1. Basic Completion (qwen3-0.6b): 0.69s (Engine Tests)
-2025-07-24 13:54:11 -    2. Basic DOCX Parsing: 0.67s (Document Processing)
-2025-07-24 13:54:11 -    3. Workflow Features Test: 0.28s (Agent System)
-2025-07-24 13:54:11 -    4. RAG Features Test: 0.21s (Agent System)
-2025-07-24 13:54:11 -    5. Agent Features Test: 0.18s (Agent System)
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 -    1. Concurrent Completion (qwen3-0.6b): 98.65s (Engine Tests)
+2025-07-24 17:14:56 -    2. RAG Features Test: 79.47s (Agent System)
+2025-07-24 17:14:56 -    3. Agent Features Test: 43.01s (Agent System)
+2025-07-24 17:14:56 -    4. Basic Completion (gpt-3.5-turbo): 20.63s (Engine Tests)
+2025-07-24 17:14:56 -    5. Basic Completion (qwen3-0.6b): 19.77s (Engine Tests)
+2025-07-24 17:14:56 - 
 🎯 FINAL RESULT:
-2025-07-24 13:54:11 -    ⚠️  15 TEST(S) FAILED
-2025-07-24 13:54:11 -    📊 Success Rate: 25.0%
-2025-07-24 13:54:11 - 
+2025-07-24 17:14:56 -    ⚠️  2 TEST(S) FAILED
+2025-07-24 17:14:56 -    📊 Success Rate: 88.9%
+2025-07-24 17:14:56 - 
 💡 RECOMMENDATIONS:
-2025-07-24 13:54:11 -    1. 🤖 Engine test failures detected. Check model availability and server configuration
-2025-07-24 13:54:11 -    2. 🤖 Agent system failures. Check API compatibility and authentication
-2025-07-24 13:54:11 -    3. 🚨 Low success rate (<50%). Review server setup and test configuration
-2025-07-24 13:54:11 - ================================================================================
-2025-07-24 13:54:11 - ============================================================
-2025-07-24 13:54:11 - ALL TESTS COMPLETED
-2025-07-24 13:54:11 - ============================================================
-2025-07-24 13:54:11 - Enhanced logging complete - check logs/ directory for detailed endpoint logs
-2025-07-24 13:54:11 - Test results logged to tests.log file
-2025-07-24 13:54:11 - ================================================================================
+2025-07-24 17:14:56 -    1. ⏱️ 3 tests are running slowly (>30s). Consider optimization
+2025-07-24 17:14:56 - ================================================================================
+2025-07-24 17:14:56 - ============================================================
+2025-07-24 17:14:56 - ALL TESTS COMPLETED
+2025-07-24 17:14:56 - ============================================================
+2025-07-24 17:14:56 - Enhanced logging complete - check logs/ directory for detailed endpoint logs
+2025-07-24 17:14:56 - Test results logged to tests.log file
+2025-07-24 17:14:56 - ================================================================================

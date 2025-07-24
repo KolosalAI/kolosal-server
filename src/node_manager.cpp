@@ -159,17 +159,24 @@ namespace kolosal
                     config.defaultInferenceEngine = preferredEngine;
                     ServerLogger::logInfo("Set default inference engine to: %s", config.defaultInferenceEngine.c_str());
                     
-                    // Save the updated configuration to file to persist the choice
-                    ServerLogger::logInfo("About to save default inference engine configuration");
-                    ServerLogger::logInfo("Current config file path during initialization: '%s'", config.getCurrentConfigFilePath().c_str());
-                    
-                    if (config.saveToCurrentFile())
+                    // Only save the updated configuration if auto-save is enabled
+                    if (config.autoSaveEnabled)
                     {
-                        ServerLogger::logInfo("Saved default inference engine configuration to current config file");
+                        ServerLogger::logInfo("About to save default inference engine configuration");
+                        ServerLogger::logInfo("Current config file path during initialization: '%s'", config.getCurrentConfigFilePath().c_str());
+                        
+                        if (config.saveToCurrentFile())
+                        {
+                            ServerLogger::logInfo("Saved default inference engine configuration to current config file");
+                        }
+                        else
+                        {
+                            ServerLogger::logWarning("Failed to save default inference engine configuration to current config file");
+                        }
                     }
                     else
                     {
-                        ServerLogger::logWarning("Failed to save default inference engine configuration to current config file");
+                        ServerLogger::logInfo("Auto-save disabled. Default inference engine set but not saved to config file.");
                     }
                 }
             }
@@ -340,10 +347,21 @@ namespace kolosal
                         config.defaultInferenceEngine = preferredEngine;
                         ServerLogger::logInfo("Set default inference engine to: %s", config.defaultInferenceEngine.c_str());
                         
-                        // Save configuration if possible
-                        if (config.saveToCurrentFile())
+                        // Only save configuration if auto-save is enabled
+                        if (config.autoSaveEnabled)
                         {
-                            ServerLogger::logInfo("Saved default configuration to file");
+                            if (config.saveToCurrentFile())
+                            {
+                                ServerLogger::logInfo("Saved default configuration to file");
+                            }
+                            else
+                            {
+                                ServerLogger::logWarning("Failed to save default configuration to file");
+                            }
+                        }
+                        else
+                        {
+                            ServerLogger::logInfo("Auto-save disabled. Default inference engine set but not saved to config file.");
                         }
                     }
                 }
@@ -1534,18 +1552,30 @@ namespace kolosal
                 }
             }
             
-            // Save the updated configuration
+            // Save the updated configuration only if auto-save is enabled and a config file was loaded
             ServerLogger::logInfo("About to save configuration for model '%s'", engineId.c_str());
             ServerLogger::logInfo("Current config file path in NodeManager: '%s'", config.getCurrentConfigFilePath().c_str());
+            ServerLogger::logInfo("Auto-save enabled: %s", config.isAutoSaveEnabled() ? "true" : "false");
             ServerLogger::logInfo("ServerConfig instance address during model save: %lu", reinterpret_cast<uintptr_t>(&config));
             
-            if (!config.saveToCurrentFile())
+            if (!config.getCurrentConfigFilePath().empty() && config.isAutoSaveEnabled())
             {
-                ServerLogger::logWarning("Failed to save configuration to file for model '%s'. Configuration changes are in memory only.", engineId.c_str());
-                return false;
+                if (!config.saveToCurrentFile())
+                {
+                    ServerLogger::logWarning("Failed to save configuration to file for model '%s'. Configuration changes are in memory only.", engineId.c_str());
+                    return false;
+                }
+                ServerLogger::logInfo("Successfully saved model '%s' to configuration file", engineId.c_str());
+            }
+            else if (!config.getCurrentConfigFilePath().empty())
+            {
+                ServerLogger::logInfo("Auto-save disabled. Model '%s' added to memory but not saved to file.", engineId.c_str());
+            }
+            else
+            {
+                ServerLogger::logInfo("No config file path set. Model '%s' added to memory but not saved to file.", engineId.c_str());
             }
             
-            ServerLogger::logInfo("Successfully saved model '%s' to configuration file", engineId.c_str());
             return true;
         }
         catch (const std::exception &ex)
@@ -1572,15 +1602,23 @@ namespace kolosal
                 config.models.erase(it);
                 ServerLogger::logInfo("Removed model '%s' from configuration", engineId.c_str());
                 
-                // Save the updated configuration
+                // Save the updated configuration (only if a config file was loaded)
                 ServerLogger::logInfo("About to save configuration after removing model '%s'", engineId.c_str());
                 ServerLogger::logInfo("Current config file path in NodeManager: '%s'", config.getCurrentConfigFilePath().c_str());
                 ServerLogger::logInfo("ServerConfig instance address during model removal: %lu", reinterpret_cast<uintptr_t>(&config));
                 
-                if (!config.saveToCurrentFile())
+                if (!config.getCurrentConfigFilePath().empty())
                 {
-                    ServerLogger::logWarning("Failed to save configuration to file after removing model '%s'. Configuration changes are in memory only.", engineId.c_str());
-                    return false;
+                    if (!config.saveToCurrentFile())
+                    {
+                        ServerLogger::logWarning("Failed to save configuration to file after removing model '%s'. Configuration changes are in memory only.", engineId.c_str());
+                        return false;
+                    }
+                    ServerLogger::logInfo("Successfully saved configuration after removing model '%s'", engineId.c_str());
+                }
+                else
+                {
+                    ServerLogger::logInfo("No config file path set. Model '%s' removed from memory but not saved to file.", engineId.c_str());
                 }
                 
                 ServerLogger::logInfo("Successfully updated configuration file after removing model '%s'", engineId.c_str());

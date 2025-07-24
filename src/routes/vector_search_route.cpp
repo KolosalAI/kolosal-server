@@ -70,7 +70,7 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
 
         int limit = request_data.value("limit", 10);
         double threshold = request_data.value("threshold", 0.0);
-        std::string collection = request_data.value("collection", "default");
+        std::string collection = request_data.value("collection", "documents");
 
         // Enhanced parameter validation
         if (limit <= 0 || limit > 1000) {
@@ -349,7 +349,7 @@ void VectorSearchRoute::handleVectorSearchInfo(SocketType sock)
                 {"collection", {
                     {"type", "string"},
                     {"required", false},
-                    {"default", "default"},
+                    {"default", "documents"},
                     {"description", "Collection to search in"}
                 }}
             }},
