@@ -123,7 +123,8 @@ bool AutoSetupManager::create_engine_from_config(const EngineConfig& config) {
         config.engine_id,
         config.model_path.c_str(),
         load_params,
-        config.main_gpu_id
+        config.main_gpu_id,
+        "llama-cpu"
     );
     
     if (success) {

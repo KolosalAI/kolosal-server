@@ -1,11 +1,9 @@
 #include "kolosal/server_api.hpp"
 #include "kolosal/server.hpp"
-#include "kolosal/routes/chat_completion_route.hpp"
+#include "kolosal/routes/oai_completions_route.hpp"
 #include "kolosal/routes/completion_route.hpp"
-#include "kolosal/routes/inference_completion_route.hpp"
-#include "kolosal/routes/inference_chat_completion_route.hpp"
 #include "kolosal/routes/models_route.hpp"
-#include "kolosal/routes/list_inference_engines_route.hpp"
+#include "kolosal/routes/engines_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/auth_config_route.hpp"
 #include "kolosal/routes/server_logs_route.hpp"
@@ -26,7 +24,7 @@
 #include "kolosal/routes/add_documents_route.hpp"
 #include "kolosal/routes/retrieve_route.hpp"
 #include "kolosal/routes/retrieve_test_route.hpp"
-#include "kolosal/retrieval/remove_documents_route.hpp"
+#include "kolosal/routes/remove_documents_route.hpp"
 #include "kolosal/routes/auto_setup_route.hpp"
 #include "kolosal/routes/documents_route.hpp"
 #include "kolosal/routes/document_search_route.hpp"
@@ -172,12 +170,10 @@ namespace kolosal
             
             // Register routes
             ServerLogger::logInfo("Registering routes");
-            pImpl->server->addRoute(std::make_unique<ChatCompletionsRoute>());
-            pImpl->server->addRoute(std::make_unique<CompletionsRoute>());
-            pImpl->server->addRoute(std::make_unique<InferenceCompletionRoute>());
-            pImpl->server->addRoute(std::make_unique<InferenceChatCompletionRoute>());
+            pImpl->server->addRoute(std::make_unique<OaiCompletionsRoute>());
+            pImpl->server->addRoute(std::make_unique<CompletionRoute>());
             pImpl->server->addRoute(std::make_unique<ModelsRoute>());
-            pImpl->server->addRoute(std::make_unique<ListInferenceEnginesRoute>());
+            pImpl->server->addRoute(std::make_unique<EnginesRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
             pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
             pImpl->server->addRoute(std::make_unique<ServerLogsRoute>());
@@ -190,7 +186,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<AddDocumentsRoute>());
             pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
             pImpl->server->addRoute(std::make_unique<RetrieveTestRoute>());
-            pImpl->server->addRoute(std::make_unique<retrieval::RemoveDocumentsRoute>());
+            pImpl->server->addRoute(std::make_unique<RemoveDocumentsRoute>());
             
             // Register new API v1 routes
             pImpl->server->addRoute(std::make_unique<routes::DocumentsRoute>());

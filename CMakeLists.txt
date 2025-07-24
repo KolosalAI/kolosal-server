@@ -98,12 +98,10 @@ set(SOURCES
     src/models/embedding_response_model.cpp
 
     # Basic routes
-    src/routes/chat_completion_route.cpp
+    src/routes/oai_completions_route.cpp
     src/routes/completion_route.cpp
-    src/routes/inference_completion_route.cpp
-    src/routes/inference_chat_completion_route.cpp
     src/routes/models_route.cpp
-    src/routes/list_inference_engines_route.cpp
+    src/routes/engines_route.cpp
     src/routes/health_status_route.cpp    
     src/routes/auth_config_route.cpp    
     src/routes/server_logs_route.cpp    
@@ -124,8 +122,10 @@ set(SOURCES
     src/routes/add_documents_route.cpp
     src/routes/parse_pdf_route.cpp
     src/routes/parse_docx_route.cpp
+    src/routes/parse_html_route.cpp
     src/routes/parse_pdf_file_route.cpp
     src/routes/parse_docx_file_route.cpp
+    src/routes/remove_documents_route.cpp
     src/routes/embedding_route.cpp
     src/routes/internet_search_route.cpp
     src/routes/auto_setup_route.cpp
@@ -168,15 +168,16 @@ set(SOURCES
     src/node_manager.cpp
     src/auto_setup_manager.cpp
     src/qdrant_client.cpp
+    src/gpu_detection.cpp
 
     # Document retrieval system
     src/retrieval/document_service.cpp
     src/retrieval/parse_pdf.cpp
     src/retrieval/parse_docx.cpp
+    src/retrieval/parse_html.cpp
     src/retrieval/add_document_types.cpp
     src/retrieval/remove_document_types.cpp
     src/retrieval/retrieve_types.cpp
-    src/retrieval/remove_documents_route.cpp
 
     # External dependencies
     external/pugixml/src/pugixml.cpp

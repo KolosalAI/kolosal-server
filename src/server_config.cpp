@@ -7,6 +7,9 @@
 #include "../../inference/include/inference_interface.h"
 #ifdef _WIN32
 #include <cstdlib>
+#include <windows.h>
+#else
+#include <unistd.h>
 #endif
 
 namespace kolosal
@@ -660,6 +663,8 @@ namespace kolosal
                     search.api_key = searchConfig["api_key"].as<std::string>();
             }
 
+            // Store the config file path for future saves
+            currentConfigFilePath = configFile;
             return validate();
         }
         catch (const std::exception &e)
@@ -989,6 +994,72 @@ namespace kolosal
         std::cout << "Kolosal Server v1.0.0\n";
         std::cout << "A high-performance HTTP server for AI inference\n";
         std::cout << "Built with C++14, supports multiple models and authentication\n";
+    }
+
+    bool ServerConfig::saveToCurrentFile() const
+    {
+        if (currentConfigFilePath.empty()) {
+            std::cerr << "[Error] No current config file path set - cannot save configuration" << std::endl;
+            return false;
+        }
+        return saveToFile(currentConfigFilePath);
+    }
+
+    const std::string& ServerConfig::getCurrentConfigFilePath() const
+    {
+        return currentConfigFilePath;
+    }
+
+    std::string ServerConfig::makeAbsolutePath(const std::string& path)
+    {
+        if (path.empty()) {
+            return path;
+        }
+
+        // Check if path is already absolute
+#ifdef _WIN32
+        if (path.length() >= 2 && path[1] == ':') {
+            return path; // Already absolute on Windows (e.g., C:\path)
+        }
+        if (path.length() >= 2 && (path[0] == '\\' || path[0] == '/')) {
+            return path; // UNC path or root path
+        }
+#else
+        if (path[0] == '/') {
+            return path; // Already absolute on Unix-like systems
+        }
+#endif
+
+        // Convert relative path to absolute
+        try {
+#ifdef _WIN32
+            char buffer[MAX_PATH];
+            if (GetFullPathNameA(path.c_str(), MAX_PATH, buffer, nullptr) != 0) {
+                return std::string(buffer);
+            }
+#endif
+            
+            // Fallback: get current working directory and append path
+            char cwd[1024];
+#ifdef _WIN32
+            if (GetCurrentDirectoryA(sizeof(cwd), cwd) != 0) {
+#else
+            if (getcwd(cwd, sizeof(cwd)) != nullptr) {
+#endif
+                std::string result = std::string(cwd);
+#ifdef _WIN32
+                if (result.back() != '\\') result += '\\';
+#else
+                if (result.back() != '/') result += '/';
+#endif
+                result += path;
+                return result;
+            }
+        } catch (...) {
+            // If all else fails, return the original path
+        }
+        
+        return path;
     }
 
     ServerConfig& ServerConfig::getInstance()

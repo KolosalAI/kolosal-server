@@ -8,8 +8,17 @@
 #include <sstream>
 
 #ifdef _WIN32
+#ifndef _WINSOCKAPI_
+#define _WINSOCKAPI_  // Prevent winsock.h inclusion
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN  // Exclude rarely-used stuff from Windows headers
+#endif
+#define NOMINMAX  // Prevent Windows.h from defining min and max macros
 #include <winsock2.h>
+#include <ws2tcpip.h>
 #include <windows.h>
+#undef NOMINMAX
 #else
 #include <dlfcn.h>
 #endif

@@ -8,8 +8,18 @@
 #include <filesystem>
 #include <cstring>
 #ifdef _WIN32
+#ifndef _WINSOCKAPI_
+#define _WINSOCKAPI_
+#endif
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#ifndef NOMINMAX
+#define NOMINMAX
+#endif
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <windows.h>
 #include <iphlpapi.h>
 #include <wininet.h>
 #include <io.h>
@@ -560,6 +570,7 @@ int main(int argc, char *argv[])
             std::cout << "Configuring model '" << modelConfig.id << "'..." << std::endl;            // Use DownloadManager to handle both URLs and local files consistently
             bool success = downloadManager.loadModelAtStartup(modelConfig.id,
                                                               modelConfig.path,
+                                                              modelConfig.type,
                                                               modelConfig.loadParams,
                                                               modelConfig.mainGpuId,
                                                               modelConfig.loadImmediately,

@@ -58,6 +58,28 @@ public:
      * @return True if the model was validated and registered successfully, false otherwise.
      */
     bool registerEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId, const std::string& engineType);
+
+    /**
+     * @brief Loads a new embedding inference engine with the given model and parameters.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the engine was loaded successfully, false otherwise.
+     */
+    bool addEmbeddingEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId);
+
+    /**
+     * @brief Registers an embedding model for lazy loading without immediately loading it.
+     * 
+     * @param engineId A unique identifier for this engine.
+     * @param modelPath Path to the model file.
+     * @param loadParams Parameters for loading the model.
+     * @param mainGpuId The main GPU ID to use for this engine.
+     * @return True if the model was validated and registered successfully, false otherwise.
+     */
+    bool registerEmbeddingEngine(const std::string& engineId, const char* modelPath, const LoadingParameters& loadParams, int mainGpuId);
   
     /**
      * @brief Retrieves a pointer to an inference engine by its ID.
@@ -132,6 +154,18 @@ public:
      */
     bool reconfigureEngines(const std::vector<InferenceEngineConfig>& engines);
 
+    /**
+     * @brief Get singleton instance of NodeManager
+     * @return Pointer to the singleton NodeManager instance
+     */
+    static NodeManager* getInstance();
+
+    /**
+     * @brief Initialize the singleton NodeManager with idle timeout
+     * @param idleTimeout Timeout before idle engines are unloaded
+     */
+    static void initialize(std::chrono::seconds idleTimeout);
+
 private:
     /**
      * @brief Saves a model configuration to the config file
@@ -171,6 +205,7 @@ private:
         std::atomic<bool> isLoaded{false};
         std::atomic<bool> isLoading{false};
         std::atomic<bool> markedForRemoval{false};
+        std::atomic<bool> isEmbeddingModel{false};
         mutable std::mutex engineMutex;
         std::condition_variable loadingCv;
         
@@ -189,6 +224,7 @@ private:
             , isLoaded(other.isLoaded.load())
             , isLoading(other.isLoading.load())
             , markedForRemoval(other.markedForRemoval.load())
+            , isEmbeddingModel(other.isEmbeddingModel.load())
         {}
         
         EngineRecord& operator=(EngineRecord&& other) noexcept {
@@ -202,6 +238,7 @@ private:
                 isLoaded.store(other.isLoaded.load());
                 isLoading.store(other.isLoading.load());
                 markedForRemoval.store(other.markedForRemoval.load());
+                isEmbeddingModel.store(other.isEmbeddingModel.load());
             }
             return *this;
         }
