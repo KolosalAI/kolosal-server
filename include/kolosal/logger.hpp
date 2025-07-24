@@ -1,13 +1,11 @@
 #pragma once
 
 #include "export.hpp"
-
 #include <string>
+#include <memory>
 #include <vector>
 #include <fstream>
 #include <mutex>
-#include <memory>
-#include <iostream>
 
 enum class LogLevel {
 	SERVER_ERROR,
@@ -63,7 +61,7 @@ public:
 	static void logDebug(const char* format, ...);
 
 	// Get stored logs
-	const std::vector<LogEntry>& getLogs() const;
+	std::vector<LogEntry> getLogs() const;
 
 private:
 	// Private constructor for singleton
@@ -71,7 +69,6 @@ private:
 	~ServerLogger();
 
 	void log(LogLevel level, const std::string& message);
-
 	std::string formatString(const char* format, va_list args);
 
 	// Get string representation of log level
@@ -87,7 +84,7 @@ private:
 	std::ofstream logFile;
 	std::string logFilePath;
 #pragma warning(pop)
-	std::mutex logMutex;
+	std::timed_mutex logMutex;
 	
 	// Quiet mode settings
 	bool quietMode;

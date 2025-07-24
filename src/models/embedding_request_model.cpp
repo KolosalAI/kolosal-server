@@ -100,19 +100,26 @@ void EmbeddingRequest::from_json(const nlohmann::json& j)
     }
     model = j["model"];
 
-    if (!j.contains("input"))
+    // Handle input field - accept both "input" and "texts" for compatibility
+    bool has_input = j.contains("input");
+    bool has_texts = j.contains("texts");
+    
+    if (!has_input && !has_texts)
     {
-        throw std::runtime_error("Missing required field: input");
+        throw std::runtime_error("Missing required field: input or texts");
     }
+    
+    // Prefer "input" if both are present, otherwise use "texts"
+    const auto& input_field = has_input ? j["input"] : j["texts"];
 
     // Handle input as either string or array of strings
-    if (j["input"].is_string())
+    if (input_field.is_string())
     {
-        input = j["input"].get<std::string>();
+        input = input_field.get<std::string>();
     }
-    else if (j["input"].is_array())
+    else if (input_field.is_array())
     {
-        input = j["input"].get<std::vector<std::string>>();
+        input = input_field.get<std::vector<std::string>>();
     }
     else
     {

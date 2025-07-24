@@ -83,7 +83,9 @@ namespace kolosal
                 AuthResult() = default;
                 AuthResult(bool allow, const std::string &r = "")
                     : allowed(allow), reason(r) {}
-            };        public:
+            };
+
+        public:
             /**
              * @brief Default constructor with default configurations
              */
@@ -176,10 +178,12 @@ namespace kolosal
              * @brief Add an allowed CORS origin
              * @param origin Origin to add
              */
-            void addAllowedOrigin(const std::string &origin); /**
-                                                               * @brief Remove an allowed CORS origin
-                                                               * @param origin Origin to remove
-                                                               */
+            void addAllowedOrigin(const std::string &origin);
+
+            /**
+             * @brief Remove an allowed CORS origin
+             * @param origin Origin to remove
+             */
             void removeAllowedOrigin(const std::string &origin);
 
             /**

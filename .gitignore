@@ -13,5 +13,10 @@ CMakeUserPresets.json
 .vs/
 out/
 build/
+downloads/
+config/
+*.log
+__pycache__
+*.pyc
 models/**
 downloads/**

@@ -2726,6 +2726,15 @@ inline std::shared_ptr<Context> Context::builtins() {
   globals.set("int", simple_function("int", { "value" }, [](const std::shared_ptr<Context> &, Value & args) -> Value {
       return args.at("value").to_int();
   }));
+  globals.set("reverse", simple_function("reverse", { "items" }, [](const std::shared_ptr<Context> &, Value & args) -> Value {
+      auto & items = args.at("items");
+      if (!items.is_array()) throw std::runtime_error("reverse filter: object is not a list");
+      auto reversed = Value::array();
+      for (size_t i = items.size(); i > 0; --i) {
+          reversed.push_back(items.at(i - 1));
+      }
+      return reversed;
+  }));
   globals.set("list", simple_function("list", { "items" }, [](const std::shared_ptr<Context> &, Value & args) -> Value {
       auto & items = args.at("items");
       if (!items.is_array()) throw std::runtime_error("object is not iterable");

@@ -30,6 +30,10 @@ public:
     std::vector<std::string> get_function_names() const;
     bool has_function(const std::string& name) const;
     std::string get_function_description(const std::string& name) const;
+    
+    // Enhanced tool management
+    std::string get_available_tools_summary() const;
+    std::vector<std::pair<std::string, std::string>> get_all_functions_with_descriptions() const;
 };
 
 } // namespace kolosal::agents

@@ -91,6 +91,13 @@
         "xtr1common": "cpp",
         "xtree": "cpp",
         "xutility": "cpp",
+<<<<<<< HEAD
+        "complex": "cpp",
+        "stack": "cpp"
+    },
+    "dotnet.defaultSolution": "disable"
+=======
         "stack": "cpp"
     }
+>>>>>>> origin/retrieval
 }

@@ -19,8 +19,43 @@ project(InferenceEngine VERSION 1.0.0 LANGUAGES CXX)
 # Include UCM for runtime library management
 include(${CMAKE_SOURCE_DIR}/cmake/ucm.cmake)
 
-# Static link the runtime libraries
-ucm_set_runtime(DYNAMIC)
+# Configure runtime library for consistency with main project
+if(MSVC)
+    # WORKAROUND: Use Release runtime (/MD) for all builds to match pre-compiled MuPDF libraries
+    # This prevents LNK2038 runtime library mismatch errors
+    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    
+    # Clear any existing runtime flags first for all configurations
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
+    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL}")
+    
+    # Set Release runtime (/MD) for ALL build configurations to match MuPDF
+    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MD")
+    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MD")
+    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
+    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MD")
+    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
+    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /MD")
+    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
+    set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} /MD")
+    
+    # Also disable iterator debug level in Debug builds to match MuPDF
+    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+        add_compile_definitions(_ITERATOR_DEBUG_LEVEL=0)
+        message(STATUS "Inference: Using Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 for Debug build to match MuPDF")
+    else()
+        message(STATUS "Inference: Using Release runtime (/MD) for Release build")
+    endif()
+else()
+    # For non-MSVC compilers, use dynamic linking
+    set(BUILD_SHARED_LIBS ON)
+endif()
 
 # Use C++17 for this project (required for std::filesystem)
 set(CMAKE_CXX_STANDARD 17)
@@ -89,6 +124,22 @@ message(STATUS "Building inference engine: ${TARGET_NAME} (${ACCELERATION_TYPE})
 # Create the shared library target
 add_library(${TARGET_NAME} SHARED ${SOURCES} ${HEADERS})
 
+# Configure runtime library for inference target to match MuPDF
+if(MSVC)
+    set_target_properties(${TARGET_NAME} PROPERTIES
+        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+    )
+    target_compile_options(${TARGET_NAME} PRIVATE
+        $<$<CONFIG:Debug>:/MD>
+        $<$<CONFIG:Release>:/MD>
+        $<$<CONFIG:RelWithDebInfo>:/MD>
+        $<$<CONFIG:MinSizeRel>:/MD>
+    )
+    # Disable iterator debug level for all configurations to match MuPDF
+    target_compile_definitions(${TARGET_NAME} PRIVATE _ITERATOR_DEBUG_LEVEL=0)
+    message(STATUS "Inference: Set runtime library to /MD and _ITERATOR_DEBUG_LEVEL=0 for ${TARGET_NAME}")
+endif()
+
 # Define compile definitions for the library
 target_compile_definitions(${TARGET_NAME} PRIVATE INFERENCE_EXPORTS)
 
@@ -136,6 +187,7 @@ set(BUILD_SHARED_LIBS     OFF CACHE BOOL "Build llama.cpp as a static lib"      
 set(GGML_STATIC_LINK      ON  CACHE BOOL "Static link ggml libraries"           FORCE)
 set(GGML_STATIC           ON  CACHE BOOL "Static link ggml libraries"           FORCE)
 set(LLAMA_AVX512          OFF CACHE BOOL "Disable AVX512 in llama.cpp"          FORCE)
+set(GGML_CANN             OFF CACHE BOOL "Disable CANN support in llama.cpp"    FORCE)
 
 # Force position-independent code for llama.cpp when building shared library
 if(BUILD_SHARED_LIBS OR CMAKE_POSITION_INDEPENDENT_CODE)
@@ -277,6 +329,34 @@ if(CMAKE_POSITION_INDEPENDENT_CODE)
         set_target_properties(toolcall PROPERTIES POSITION_INDEPENDENT_CODE ON)
     endif()
     message(STATUS "Applied -fPIC to llama.cpp static libraries")
+endif()
+
+# Force runtime library to match MuPDF for all llama.cpp targets on MSVC
+if(MSVC)
+    set_target_properties(llama PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    set_target_properties(ggml PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    set_target_properties(common PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    if(TARGET toolcall)
+        set_target_properties(toolcall PROPERTIES MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
+    endif()
+    
+    # Also set compile options for llama.cpp targets
+    target_compile_options(llama PRIVATE $<$<CONFIG:Debug>:/MD> $<$<CONFIG:Release>:/MD>)
+    target_compile_options(ggml PRIVATE $<$<CONFIG:Debug>:/MD> $<$<CONFIG:Release>:/MD>)
+    target_compile_options(common PRIVATE $<$<CONFIG:Debug>:/MD> $<$<CONFIG:Release>:/MD>)
+    if(TARGET toolcall)
+        target_compile_options(toolcall PRIVATE $<$<CONFIG:Debug>:/MD> $<$<CONFIG:Release>:/MD>)
+    endif()
+    
+    # Disable iterator debug level for llama.cpp targets too
+    target_compile_definitions(llama PRIVATE _ITERATOR_DEBUG_LEVEL=0)
+    target_compile_definitions(ggml PRIVATE _ITERATOR_DEBUG_LEVEL=0)
+    target_compile_definitions(common PRIVATE _ITERATOR_DEBUG_LEVEL=0)
+    if(TARGET toolcall)
+        target_compile_definitions(toolcall PRIVATE _ITERATOR_DEBUG_LEVEL=0)
+    endif()
+    
+    message(STATUS "Applied /MD runtime and _ITERATOR_DEBUG_LEVEL=0 to llama.cpp libraries to match MuPDF")
 endif()
 
 # Link llama.cpp libraries

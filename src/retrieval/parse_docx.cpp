@@ -9,6 +9,7 @@
 #include <sstream>
 #include <stdexcept>
 #include <cstring>
+#include <chrono>
 #include <unzip.h>
 #include <pugixml.hpp>
 
@@ -18,7 +19,9 @@ namespace retrieval
     static std::mutex zip_mutex;
 
     // Forward declaration
-    static std::string extract_document_xml_from_file(const std::string &file_path);    // Internal function to extract document.xml from file (without mutex locking)
+    static std::string extract_document_xml_from_file(const std::string &file_path);
+    
+    // Internal function to extract document.xml from file (without mutex locking)
     static std::string extract_document_xml_from_file_internal(const std::string &file_path)
     {
 
@@ -74,14 +77,25 @@ namespace retrieval
     {
         std::lock_guard<std::mutex> lock(zip_mutex);
         
-        // Write data to temporary file for minizip
-        std::string temp_file = (std::filesystem::temp_directory_path() / "temp_docx.docx").string();
+        // Generate unique temporary file name
+        auto now = std::chrono::system_clock::now();
+        auto timestamp = std::chrono::duration_cast<std::chrono::milliseconds>(now.time_since_epoch()).count();
+        auto thread_id = std::hash<std::thread::id>{}(std::this_thread::get_id());
+        std::string temp_filename = "temp_docx_" + std::to_string(timestamp) + "_" + std::to_string(thread_id) + ".docx";
+        std::string temp_file = (std::filesystem::temp_directory_path() / temp_filename).string();
+        
         std::ofstream temp_out(temp_file, std::ios::binary);
         if (!temp_out.is_open())
         {
-            throw std::runtime_error("Failed to create temporary file");
+            throw std::runtime_error("Failed to create temporary file: " + temp_file);
         }
         temp_out.write(reinterpret_cast<const char*>(data), size);
+        if (!temp_out.good())
+        {
+            temp_out.close();
+            std::filesystem::remove(temp_file);
+            throw std::runtime_error("Failed to write data to temporary file: " + temp_file);
+        }
         temp_out.close();
 
         try
@@ -111,7 +125,9 @@ namespace retrieval
         {
             is_bold = props.select_node(".//w:b").node() != nullptr;
             is_italic = props.select_node(".//w:i").node() != nullptr;
-        }        // Extract text content
+        }
+        
+        // Extract text content
         for (pugi::xpath_node xpath_node : run.select_nodes(".//w:t"))
         {
             pugi::xml_node text_node = xpath_node.node();
@@ -166,7 +182,9 @@ namespace retrieval
                     heading_level = std::stoi(match[1].str());
                 }
             }
-        }        // Process all text runs in the paragraph
+        }
+        
+        // Process all text runs in the paragraph
         std::string text_content;
         for (pugi::xpath_node xpath_node : para.select_nodes(".//w:r"))
         {
@@ -214,7 +232,9 @@ namespace retrieval
         if (!body)
         {
             throw std::runtime_error("Document body not found in XML");
-        }        // Process all paragraphs
+        }
+        
+        // Process all paragraphs
         for (pugi::xpath_node xpath_node : body.select_nodes("//w:p"))
         {
             pugi::xml_node para = xpath_node.node();
@@ -267,7 +287,9 @@ namespace retrieval
         if (!file_exists(file_path) || !has_docx_extension(file_path))
         {
             return false;
-        }        try
+        }
+        
+        try
         {
             std::lock_guard<std::mutex> lock(zip_mutex);
 
@@ -290,7 +312,9 @@ namespace retrieval
         {
             return false;
         }
-    }    size_t DOCXParser::get_page_count(const std::string &file_path)
+    }
+
+    size_t DOCXParser::get_page_count(const std::string &file_path)
     {
         if (!file_exists(file_path) || !has_docx_extension(file_path))
         {
@@ -335,7 +359,9 @@ namespace retrieval
             if (!body)
             {
                 return 0;
-            }            size_t paragraph_count = 0;
+            }
+
+            size_t paragraph_count = 0;
             for (pugi::xpath_node xpath_node : body.select_nodes("//w:p"))
             {
                 pugi::xml_node para = xpath_node.node();

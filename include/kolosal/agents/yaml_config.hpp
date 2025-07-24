@@ -16,6 +16,7 @@ struct KOLOSAL_SERVER_API LLMConfig {
     std::string model_name = "gpt-4";
     std::string api_endpoint = "";
     std::string api_key = "";
+    std::string instruction = "";  // Added instruction field
     double temperature = 0.7;
     int max_tokens = 2048;
     std::vector<std::string> stop_sequences;
@@ -24,6 +25,8 @@ struct KOLOSAL_SERVER_API LLMConfig {
     int max_retries = 3;
     
     static LLMConfig from_yaml(const YAML::Node& node);
+    // Add method to convert to YAML
+    YAML::Node to_yaml() const;
 };
 
 /**
@@ -40,14 +43,37 @@ struct KOLOSAL_SERVER_API FunctionConfig {
     int timeout_ms = 5000;
     
     static FunctionConfig from_yaml(const YAML::Node& node);
+    // Add method to convert to YAML
+    YAML::Node to_yaml() const;
+};
+
+/**
+ * @brief Inference engine configuration
+ */
+struct KOLOSAL_SERVER_API InferenceEngineConfig {
+    std::string name;
+    std::string type = "llama_cpp"; // "llama_cpp", "cuda", "vulkan", etc.
+    std::string model_path;
+    std::map<std::string, std::string> settings;
+    bool auto_load = true;
+    int context_size = 4096;
+    int batch_size = 512;
+    int threads = 4;
+    int gpu_layers = 0;
+    
+    static InferenceEngineConfig from_yaml(const YAML::Node& node);
+    // Add method to convert to YAML
+    YAML::Node to_yaml() const;
 };
 
 /**
  * @brief Agent configuration
  */
 struct KOLOSAL_SERVER_API AgentConfig {
+    std::string id;
     std::string name;
     std::string type;
+    std::string description;
     std::string role;
     std::string system_prompt;
     std::vector<std::string> capabilities;
@@ -59,6 +85,8 @@ struct KOLOSAL_SERVER_API AgentConfig {
     int heartbeat_interval_seconds = 5;
     
     static AgentConfig from_yaml(const YAML::Node& node);
+    // Add method to convert to YAML
+    YAML::Node to_yaml() const;
 };
 
 /**
@@ -67,6 +95,7 @@ struct KOLOSAL_SERVER_API AgentConfig {
 struct KOLOSAL_SERVER_API SystemConfig {
     std::vector<AgentConfig> agents;
     std::vector<FunctionConfig> functions;
+    std::vector<InferenceEngineConfig> inference_engines;
     std::map<std::string, std::string> global_settings;
     int worker_threads = 4;
     int health_check_interval_seconds = 10;
@@ -74,6 +103,9 @@ struct KOLOSAL_SERVER_API SystemConfig {
     
     static SystemConfig from_yaml(const YAML::Node& root);
     static SystemConfig from_file(const std::string& yaml_file);
+    // Add methods to save configuration
+    YAML::Node to_yaml() const;
+    bool save_to_file(const std::string& yaml_file) const;
 };
 
 } // namespace kolosal::agents

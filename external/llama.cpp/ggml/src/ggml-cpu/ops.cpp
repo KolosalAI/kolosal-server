@@ -4722,10 +4722,18 @@ static void ggml_compute_forward_soft_max_f32(
         ggml_vec_max_f32(nc, &max, wp);
 
         ggml_float sum = ggml_vec_soft_max_f32(nc, dp, wp, max);
-        assert(sum > 0.0);
-
-        sum = 1.0/sum;
-        ggml_vec_scale_f32(nc, dp, sum);
+        
+        // Handle numerical underflow gracefully instead of asserting
+        if (sum <= 0.0) {
+            // Set uniform distribution as fallback
+            const float uniform_val = 1.0f / nc;
+            for (int i = 0; i < nc; ++i) {
+                dp[i] = uniform_val;
+            }
+        } else {
+            sum = 1.0/sum;
+            ggml_vec_scale_f32(nc, dp, sum);
+        }
 
 #ifndef NDEBUG
         for (int i = 0; i < nc; ++i) {

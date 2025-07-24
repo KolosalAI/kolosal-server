@@ -10,7 +10,9 @@
 #include <future>
 #include <chrono>
 
-namespace kolosal {    // Structure to hold engine creation parameters
+namespace kolosal {
+
+    // Structure to hold engine creation parameters
     struct EngineCreationParams {
         std::string model_id;
         std::string model_type = "llm";  // "llm" or "embedding" - preserve embedding support
@@ -82,7 +84,9 @@ namespace kolosal {    // Structure to hold engine creation parameters
         std::map<std::string, std::shared_ptr<DownloadProgress>> getAllActiveDownloads();
 
         // Clean up completed/failed downloads older than specified minutes
-        void cleanupOldDownloads(int minutes = 60);        /**
+        void cleanupOldDownloads(int minutes = 60);
+
+        /**
          * @brief Load a model at startup, using DownloadManager for URLs
          * 
          * This method is specifically designed for startup model loading.
@@ -91,7 +95,6 @@ namespace kolosal {    // Structure to hold engine creation parameters
          * 
          * @param model_id The unique identifier for the model
          * @param model_path The path or URL to the model
-         * @param model_type The type of model ("llm" or "embedding")
          * @param load_params Loading parameters for the model
          * @param main_gpu_id The main GPU ID to use
          * @param load_immediately Whether to load immediately or register for lazy loading

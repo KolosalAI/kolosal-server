@@ -1,4 +1,5 @@
 #include "kolosal/routes/health_status_route.hpp"
+#include "kolosal/retrieval/document_service.hpp"
 #include "kolosal/utils.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/node_manager.h"
@@ -60,7 +61,32 @@ namespace kolosal
                                {"name", "Kolosal Inference Server"}, {"version", "1.0.0"}, {"uptime", "running"} // Could be enhanced with actual uptime
                            }},
                 {"node_manager", {{"total_engines", engineIds.size()}, {"loaded_engines", loadedCount}, {"unloaded_engines", unloadedCount}, {"autoscaling", "enabled"}}},
-                {"engines", engineSummary}};            send_response(sock, 200, response.dump());
+                {"engines", engineSummary}};
+            
+            // Add document service health information
+            try 
+            {
+                auto& serverAPI = ServerAPI::instance();
+                auto& documentService = serverAPI.getDocumentService();
+                auto healthStatus = documentService.getHealthStatus().get();
+                response["document_service"] = healthStatus;
+                
+                // Update overall status if document service is unhealthy
+                if (healthStatus.contains("status") && healthStatus["status"].get<std::string>() != "healthy")
+                {
+                    response["status"] = "degraded";
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                // Document service may not be available, add error info
+                response["document_service"] = {
+                    {"status", "unavailable"},
+                    {"error", ex.what()}
+                };
+                response["status"] = "degraded";
+                ServerLogger::logWarning("Document service health check failed: %s", ex.what());
+            }            send_response(sock, 200, response.dump());
             ServerLogger::logDebug("[Thread %u] Successfully provided health status - %zu engines total (%d loaded, %d unloaded)",
                                   std::this_thread::get_id(), engineIds.size(), loadedCount, unloadedCount);
         }

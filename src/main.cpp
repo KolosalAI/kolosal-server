@@ -6,14 +6,19 @@
 #include <atomic>
 #include <vector>
 #include <filesystem>
+#include <cstring>
 #ifdef _WIN32
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <iphlpapi.h>
 #include <wininet.h>
+#include <io.h>
+#include <fcntl.h>
 #pragma comment(lib, "ws2_32.lib")
 #pragma comment(lib, "iphlpapi.lib")
 #pragma comment(lib, "wininet.lib")
+#define write _write
+#define STDERR_FILENO _fileno(stderr)
 #else
 #include <sys/socket.h>
 #include <ifaddrs.h>
@@ -28,6 +33,12 @@
 #include "kolosal/auth/auth_middleware.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/download_utils.hpp"
+#include "kolosal/agents/multi_agent_system.hpp"
+#include "kolosal/agents/agent_orchestrator.hpp"
+
+#ifdef KOLOSAL_CLI_ENABLED
+#include "kolosal/cli_interface.hpp"
+#endif
 
 using namespace kolosal;
 
@@ -65,18 +76,25 @@ std::vector<std::string> getLocalIPAddresses()
                          unicast != nullptr; unicast = unicast->Next)
                     {
 
-                        char ipStr[INET6_ADDRSTRLEN];
+                        wchar_t ipStr[INET6_ADDRSTRLEN];
                         DWORD ipStrLen = INET6_ADDRSTRLEN;
 
-                        if (WSAAddressToStringA(unicast->Address.lpSockaddr,
+                        if (WSAAddressToStringW(unicast->Address.lpSockaddr,
                                                 unicast->Address.iSockaddrLength,
                                                 nullptr, ipStr, &ipStrLen) == 0)
                         {
-                            std::string ip(ipStr);
-                            // Filter out loopback, link-local, and IPv6 addresses for simplicity
-                            if (ip != "127.0.0.1" && ip.find("169.254.") != 0 && ip.find(":") == std::string::npos)
-                            {
-                                addresses.push_back(ip);
+                            // Convert wide string to narrow string
+                            int len = WideCharToMultiByte(CP_UTF8, 0, ipStr, -1, nullptr, 0, nullptr, nullptr);
+                            if (len > 0) {
+                                std::vector<char> buffer(len);
+                                WideCharToMultiByte(CP_UTF8, 0, ipStr, -1, buffer.data(), len, nullptr, nullptr);
+                                std::string ip(buffer.data());
+                                
+                                // Filter out loopback, link-local, and IPv6 addresses for simplicity
+                                if (ip != "127.0.0.1" && ip.find("169.254.") != 0 && ip.find(":") == std::string::npos)
+                                {
+                                    addresses.push_back(ip);
+                                }
                             }
                         }
                     }
@@ -217,8 +235,10 @@ bool configureUPnPPortForwarding(const std::string &port)
 // Signal handler for graceful shutdown
 void signal_handler(int signal)
 {
-    std::cout << "\nReceived signal " << signal << ", shutting down gracefully..." << std::endl;
-    keep_running = false;
+    // Use async-signal-safe functions only
+    const char* msg = "\nReceived shutdown signal, shutting down gracefully...\n";
+    write(STDERR_FILENO, msg, strlen(msg));
+    keep_running.store(false, std::memory_order_release);
 }
 
 void print_usage(const char *program_name)
@@ -235,6 +255,13 @@ void print_version()
 
 int main(int argc, char *argv[])
 {
+#ifdef _WIN32
+    // Set console to UTF-8 for proper character display
+    SetConsoleOutputCP(CP_UTF8);
+    _setmode(_fileno(stdout), _O_BINARY);
+    _setmode(_fileno(stderr), _O_BINARY);
+#endif
+
     // Load configuration from command line arguments
     ServerConfig config;
     if (!config.loadFromArgs(argc, argv))
@@ -296,6 +323,116 @@ int main(int argc, char *argv[])
     // Initialize the server
     ServerAPI &server = ServerAPI::instance();
 
+    // Initialize agent system if agents configuration exists
+    std::shared_ptr<kolosal::agents::YAMLConfigurableAgentManager> agentManager;
+    std::shared_ptr<kolosal::agents::AgentOrchestrator> agentOrchestrator;
+    
+    std::string agentsConfigPath = "config/agents.yaml";
+    
+    if (std::filesystem::exists(agentsConfigPath)) {
+        try {
+            ServerLogger::logInfo("Initializing agent system from: %s", agentsConfigPath.c_str());
+            
+            agentManager = std::make_shared<kolosal::agents::YAMLConfigurableAgentManager>();
+            std::cout << "DEBUG: Agent manager created" << std::endl;
+            std::cout.flush();
+            
+            std::cout << "DEBUG: About to call load_configuration" << std::endl;
+            std::cout.flush();
+            
+            bool configLoaded = false;
+            try {
+                configLoaded = agentManager->load_configuration(agentsConfigPath);
+                std::cout << "DEBUG: load_configuration returned: " << (configLoaded ? "true" : "false") << std::endl;
+                std::cout.flush();
+            } catch (const std::exception& e) {
+                std::cout << "DEBUG: Exception in load_configuration: " << e.what() << std::endl;
+                std::cout.flush();
+                ServerLogger::logError("Exception loading agent configuration: %s", e.what());
+                std::cerr << "Error loading agent configuration: " << e.what() << std::endl;
+                return 1;
+            } catch (...) {
+                std::cout << "DEBUG: Unknown exception in load_configuration" << std::endl;
+                std::cout.flush();
+                ServerLogger::logError("Unknown exception loading agent configuration");
+                std::cerr << "Unknown error loading agent configuration" << std::endl;
+                return 1;
+            }
+            
+            if (configLoaded) {
+                std::cout << "DEBUG: Agent configuration loaded successfully" << std::endl;
+                std::cout.flush();
+                
+                ServerLogger::logInfo("Agent configuration loaded successfully, starting agent manager...");
+                try {
+                    ServerLogger::logInfo("DEBUG: About to call agentManager->start()");
+                    std::cout << "DEBUG: About to call agentManager->start()" << std::endl;
+                    std::cout.flush();
+                    
+                    agentManager->start();
+                    
+                    std::cout << "DEBUG: agentManager->start() completed successfully" << std::endl;
+                    std::cout.flush();
+                    
+                    ServerLogger::logInfo("DEBUG: agentManager->start() completed successfully");
+                    ServerLogger::logInfo("Agent manager started successfully");
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Exception starting agent manager: %s", e.what());
+                    std::cerr << "Error starting agent manager: " << e.what() << std::endl;
+                    std::cout << "DEBUG: Exception in agentManager->start(): " << e.what() << std::endl;
+                    std::cout.flush();
+                    return 1;
+                } catch (...) {
+                    ServerLogger::logError("Unknown exception starting agent manager");
+                    std::cerr << "Unknown error starting agent manager" << std::endl;
+                    std::cout << "DEBUG: Unknown exception in agentManager->start()" << std::endl;
+                    std::cout.flush();
+                    return 1;
+                }
+                
+                // Initialize orchestrator for advanced workflows
+                ServerLogger::logInfo("Initializing agent orchestrator...");
+                std::cout << "DEBUG: Initializing agent orchestrator..." << std::endl;
+                std::cout.flush();
+                
+                try {
+                    agentOrchestrator = std::make_shared<kolosal::agents::AgentOrchestrator>(agentManager);
+                    std::cout << "DEBUG: Agent orchestrator created" << std::endl;
+                    std::cout.flush();
+                    
+                    agentOrchestrator->start();
+                    std::cout << "DEBUG: Agent orchestrator started" << std::endl;
+                    std::cout.flush();
+                    
+                    ServerLogger::logInfo("Agent orchestrator started successfully");
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Exception starting agent orchestrator: %s", e.what());
+                    std::cerr << "Error starting agent orchestrator: " << e.what() << std::endl;
+                    return 1;
+                }
+                
+                ServerLogger::logInfo("Agent system initialized successfully");
+            } else {
+                ServerLogger::logError("Failed to load agent configuration - agent system disabled");
+                std::cerr << "Warning: Failed to load agent configuration - continuing without agent system" << std::endl;
+                // Continue without agent system instead of exiting
+            }
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Failed to initialize agent system: %s", e.what());
+            std::cerr << "Warning: Agent system initialization failed: " << e.what() << std::endl;
+            std::cerr << "Continuing without agent system..." << std::endl;
+            // Continue without agent system
+        }
+    } else {
+        ServerLogger::logInfo("Agent system bypassed or configuration not found (%s) - continuing without agent system", agentsConfigPath.c_str());
+        std::cout << "Agent system bypassed - continuing without agent system" << std::endl;
+        std::cout.flush();
+    }
+    
+    ServerLogger::logInfo("Agent system initialization complete, proceeding with server setup...");
+    std::cout << "Agent system initialization complete, proceeding with server setup..." << std::endl;
+    std::cout.flush();
+
     // Determine the actual host to bind to based on public access setting
     std::string bindHost = config.host;
     if (!config.allowPublicAccess && config.host == "0.0.0.0")
@@ -312,11 +449,20 @@ int main(int argc, char *argv[])
         std::cout << "Server will only be accessible from this machine" << std::endl;
     }
 
-    if (!server.init(config.port, bindHost, config.idleTimeout))
+    ServerLogger::logInfo("Attempting to initialize server on %s:%s", bindHost.c_str(), config.port.c_str());
+    std::cout << "Attempting to initialize server on " << bindHost << ":" << config.port << std::endl;
+    std::cout.flush();
+    
+    if (!server.init(config.port, bindHost, config.idleTimeout, config))
     {
         std::cerr << "Failed to initialize server on " << bindHost << ":" << config.port << std::endl;
+        ServerLogger::logError("Server initialization failed on %s:%s", bindHost.c_str(), config.port.c_str());
         return 1;
-    } // Configure authentication if enabled
+    }
+    
+    ServerLogger::logInfo("Server initialized successfully on %s:%s", bindHost.c_str(), config.port.c_str());
+    std::cout << "Server initialized successfully on " << bindHost << ":" << config.port << std::endl;
+    std::cout.flush(); // Configure authentication if enabled
     if (config.auth.enableAuth)
     {
         try
@@ -330,7 +476,7 @@ int main(int argc, char *argv[])
             authMiddleware.updateCorsConfig(config.auth.cors);
 
             // Configure API key authentication
-            auth::AuthMiddleware::ApiKeyConfig apiKeyConfig;
+            kolosal::auth::AuthMiddleware::ApiKeyConfig apiKeyConfig;
             apiKeyConfig.enabled = config.auth.enableAuth;
             apiKeyConfig.required = config.auth.requireApiKey;
             apiKeyConfig.headerName = config.auth.apiKeyHeader;
@@ -382,7 +528,25 @@ int main(int argc, char *argv[])
             std::cerr << "Failed to enable internet search: " << e.what() << std::endl;
             return 1;
         }
-    } // Load models if specified
+    }
+
+    // Register agent manager with server for route access (after server init)
+    if (agentManager) {
+        ServerLogger::logInfo("Registering agent manager with server...");
+        try {
+            server.setAgentManager(agentManager);
+            if (agentOrchestrator) {
+                server.setAgentOrchestrator(agentOrchestrator);
+            }
+            ServerLogger::logInfo("Agent manager registered with server");
+        } catch (const std::exception& e) {
+            ServerLogger::logError("Exception registering agent manager with server: %s", e.what());
+            std::cerr << "Error registering agent manager with server: " << e.what() << std::endl;
+            return 1;
+        }
+    }
+    
+    // Load models if specified
     if (!config.models.empty())
     {
         auto &downloadManager = DownloadManager::getInstance();
@@ -396,7 +560,6 @@ int main(int argc, char *argv[])
             std::cout << "Configuring model '" << modelConfig.id << "'..." << std::endl;            // Use DownloadManager to handle both URLs and local files consistently
             bool success = downloadManager.loadModelAtStartup(modelConfig.id,
                                                               modelConfig.path,
-                                                              modelConfig.type,
                                                               modelConfig.loadParams,
                                                               modelConfig.mainGpuId,
                                                               modelConfig.loadImmediately,
@@ -405,7 +568,7 @@ int main(int argc, char *argv[])
             if (success)
             {
                 // Check if this was a URL that started an async download
-                if (is_valid_url(modelConfig.path) && !std::filesystem::exists(generate_download_path(modelConfig.path, "./models")))
+                if (kolosal::is_valid_url(modelConfig.path) && !std::filesystem::exists(kolosal::generate_download_path(modelConfig.path, "./models")))
                 {
                     std::cout << "✓ Model '" << modelConfig.id << "' download started (async)" << std::endl;
                     ServerLogger::logInfo("Model '%s' download started from URL: %s", modelConfig.id.c_str(), modelConfig.path.c_str());
@@ -459,6 +622,9 @@ int main(int argc, char *argv[])
         }
     }
     std::cout << "\nServer started successfully!" << std::endl;
+
+    // Give the server thread a moment to fully start
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
     // Display appropriate server URLs based on configuration
     if (config.allowPublicAccess && (bindHost == "0.0.0.0" || bindHost == "::"))
@@ -549,35 +715,146 @@ int main(int argc, char *argv[])
         std::cout << "   Use --public flag or set allow_public_access: true in config to enable external access" << std::endl;
         std::cout << "   Use --internet flag or set allow_internet_access: true in config to enable internet access" << std::endl;
     }
-    std::cout << "\nAvailable endpoints:" << std::endl;
-    std::cout << "  GET  /health                 - Health status" << std::endl;
-    std::cout << "  GET  /models                 - List available models" << std::endl;
-    std::cout << "  POST /v1/chat/completions    - Chat completions (OpenAI compatible)" << std::endl;
-    std::cout << "  POST /v1/completions         - Text completions (OpenAI compatible)" << std::endl;
-    std::cout << "  POST /v1/embeddings          - Text embeddings (OpenAI compatible)" << std::endl;
-    std::cout << "  GET  /engines                - List engines" << std::endl;
-    std::cout << "  POST /engines                - Add new engine" << std::endl;
-    std::cout << "  GET  /engines/{id}/status    - Engine status" << std::endl;
-    std::cout << "  DELETE /engines/{id}         - Remove engine" << std::endl;
 
+    ServerLogger::logInfo("\nCore endpoints:");
+    ServerLogger::logInfo("  GET  /v1/health              - Health status");
+    ServerLogger::logInfo("  GET  /models                 - List available models");
+    ServerLogger::logInfo("  POST /v1/chat/completions    - Chat completions (OpenAI compatible)");
+    ServerLogger::logInfo("  POST /v1/completions         - Text completions (OpenAI compatible)");
+    ServerLogger::logInfo("  POST /v1/embeddings          - Text embeddings (OpenAI compatible)");
+    ServerLogger::logInfo("  GET  /engines                - List engines");
+    ServerLogger::logInfo("  POST /engines                - Add new engine");
+    ServerLogger::logInfo("  GET  /engines/{id}/status    - Engine status");
+    ServerLogger::logInfo("  DELETE /engines/{id}         - Remove engine");
+
+    ServerLogger::logInfo("\nDownload endpoints:");
+    ServerLogger::logInfo("  GET  /downloads              - List all downloads status");
+    ServerLogger::logInfo("  GET  /downloads/{model_id}   - Get specific download progress");
+    ServerLogger::logInfo("  DELETE /downloads/{model_id} - Cancel specific download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/cancel - Cancel download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/pause  - Pause download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/resume - Resume download");
+
+    ServerLogger::logInfo("\nDocument & RAG endpoints:");
+    ServerLogger::logInfo("  POST /retrieve               - Document retrieval endpoint");
+    ServerLogger::logInfo("  GET  /retrieve/test          - Document retrieval diagnostic test");
+    ServerLogger::logInfo("  POST /api/v1/documents       - Add documents to collection");
+    ServerLogger::logInfo("  DELETE /api/v1/documents     - Remove documents from collection");
+    ServerLogger::logInfo("  POST /parse-pdf              - PDF parse endpoint");
+    ServerLogger::logInfo("  POST /parse-docx             - DOCX parse endpoint");
+
+    ServerLogger::logInfo("\nWorkflow endpoints:");
+    ServerLogger::logInfo("  POST /sequential-workflows   - Create sequential workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows   - List sequential workflows");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id} - Get workflow details");
+    ServerLogger::logInfo("  POST /sequential-workflows/{id}/execute - Execute workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id}/result - Get workflow result");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id}/status - Get workflow status");
+    ServerLogger::logInfo("  POST /sequential-workflows/{id}/cancel - Cancel workflow");
+    ServerLogger::logInfo("  DELETE /sequential-workflows/{id} - Delete workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows/metrics - Workflow executor metrics");
+    ServerLogger::logInfo("  POST /sequential-workflows/from-template - Create workflow from template");
+
+    ServerLogger::logInfo("\nOrchestration endpoints:");
+    ServerLogger::logInfo("  POST /orchestration/workflows        - Create orchestration workflow");
+    ServerLogger::logInfo("  POST /orchestration/execute          - Execute orchestration workflow");
+    ServerLogger::logInfo("  GET  /orchestration/status           - Orchestration status");
+
+    ServerLogger::logInfo("\nServer endpoints:");
+    ServerLogger::logInfo("  GET  /server-logs            - Retrieve server logs");
+    
+    if (config.search.enabled)
+    {
+        ServerLogger::logInfo("\nSearch endpoints:");
+        ServerLogger::logInfo("  POST /search                 - Internet search endpoint");
+    }
+    
+    if (agentManager) {
+        ServerLogger::logInfo("\nAgent System endpoints:");
+        ServerLogger::logInfo("  GET  /api/v1/agents          - List all agents");
+        ServerLogger::logInfo("  POST /api/v1/agents          - Create new agent");
+        ServerLogger::logInfo("  GET  /api/v1/agents/{id}     - Get agent details");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/start    - Start agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/stop     - Stop agent");
+        ServerLogger::logInfo("  DELETE /api/v1/agents/{id}        - Delete agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/execute  - Execute agent function");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/execute-async - Execute agent function async");
+        ServerLogger::logInfo("  GET  /api/v1/agents/jobs/{job_id}/status - Get async job status");
+        ServerLogger::logInfo("  GET  /api/v1/agents/jobs/{job_id}/result - Get async job result");
+        ServerLogger::logInfo("  POST /api/v1/agents/messages/send - Send message to agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/messages/broadcast - Broadcast message");
+        ServerLogger::logInfo("  POST /v1/agents/{id}/chat/completions - OpenAI compatible agent chat");
+        ServerLogger::logInfo("  GET  /api/v1/agents/system/status  - Agent system status");
+        ServerLogger::logInfo("  GET  /api/v1/agents/system/metrics - Agent system metrics");
+        if (agentOrchestrator) {
+            ServerLogger::logInfo("\nAgent Orchestration endpoints:");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/workflows     - Create workflow");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows     - List workflows");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/workflows/{id}/execute - Execute workflow");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/workflows/{id}/execute-async - Execute workflow async");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows/{id}/status - Get workflow status");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows/{id}/result - Get workflow result");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/collaboration-groups - Create collaboration group");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/collaboration-groups/{id}/execute - Execute group");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/status        - Orchestration status");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/metrics       - Orchestration metrics");
+            ServerLogger::logInfo("  POST /api/v1/agents/system/reload        - Reload agent system");
+        }
+    }
     if (config.auth.enableAuth)
     {
-        std::cout << "\nAuthentication endpoints:" << std::endl;
-        std::cout << "  GET  /v1/auth/config         - Get authentication configuration" << std::endl;
-        std::cout << "  PUT  /v1/auth/config         - Update authentication configuration" << std::endl;
-        std::cout << "  GET  /v1/auth/stats          - Get authentication statistics" << std::endl;
-        std::cout << "  POST /v1/auth/clear          - Clear rate limit data" << std::endl;
+        ServerLogger::logInfo("\nAuthentication endpoints:");
+        ServerLogger::logInfo("  GET  /v1/auth/config         - Get authentication configuration");
+        ServerLogger::logInfo("  PUT  /v1/auth/config         - Update authentication configuration");
+        ServerLogger::logInfo("  GET  /v1/auth/stats          - Get authentication statistics");
+        ServerLogger::logInfo("  POST /v1/auth/clear          - Clear rate limit data");
     }
-
+    if (config.enableMetrics)
+    {
+        ServerLogger::logInfo("\nMetrics endpoints:");
+        ServerLogger::logInfo("  GET  /metrics                - Combined system and completion metrics");
+        ServerLogger::logInfo("  GET  /v1/metrics             - Combined system and completion metrics");
+        ServerLogger::logInfo("  GET  /metrics/system         - System monitoring metrics only");
+        ServerLogger::logInfo("  GET  /v1/metrics/system      - System monitoring metrics only");
+        ServerLogger::logInfo("  GET  /metrics/completion     - Completion performance metrics only");
+        ServerLogger::logInfo("  GET  /v1/metrics/completion  - Completion performance metrics only");
+        ServerLogger::logInfo("  GET  /metrics/completion/{engine_id} - Engine-specific completion metrics");
+    }
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
+    std::cout.flush();
+    
+    // Log that we're entering the main loop
+    ServerLogger::logInfo("Entering main server loop");
 
     // Main server loop
     while (keep_running)
     {
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        // Check if server thread is still running
+        try {
+            server.checkServerThread();
+        } catch (const std::exception& e) {
+            std::cerr << "Server thread error detected: " << e.what() << std::endl;
+            ServerLogger::logError("Server thread error detected: %s", e.what());
+            keep_running = false;
+            break;
+        }
     }
 
     std::cout << "Shutting down server..." << std::endl;
+    ServerLogger::logInfo("Received shutdown signal, stopping server...");
+    
+    // Shutdown agent system first
+    if (agentOrchestrator) {
+        ServerLogger::logInfo("Stopping agent orchestrator...");
+        agentOrchestrator->stop();
+    }
+    if (agentManager) {
+        ServerLogger::logInfo("Stopping agent manager...");
+        agentManager->stop();
+    }
+    
     server.shutdown();
     std::cout << "Server stopped." << std::endl;
 

@@ -3,7 +3,6 @@
 #include "kolosal/server_api.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
-#include "kolosal/server_config.hpp"
 #include "kolosal/models/add_model_request_model.hpp"
 #include "kolosal/models/add_model_response_model.hpp"
 #include "kolosal/models/model_status_request_model.hpp"
@@ -17,23 +16,15 @@
 #include <iostream>
 #include <thread>
 #include <filesystem>
-#include <vector>
-#include <string>
-#include <chrono>
 
 using json = nlohmann::json;
 
 namespace kolosal
 {
-    ModelsRoute::ModelsRoute()
-        : modelsPattern_(R"(^/(v1/)?models/?$)")
-        , modelIdPattern_(R"(^/(v1/)?models/([^/]+)/?$)")
-        , modelStatusPattern_(R"(^/(v1/)?models/([^/]+)/status/?$)")
-    {
-        ServerLogger::logInfo("ModelsRoute initialized");
-    }
-
-    ModelsRoute::~ModelsRoute() = default;
+    // Initialize static regex patterns
+    const std::regex ModelsRoute::modelsPattern_(R"(^/(v1/)?models/?$)");
+    const std::regex ModelsRoute::modelIdPattern_(R"(^/(v1/)?models/([^/]+)/?$)");
+    const std::regex ModelsRoute::modelStatusPattern_(R"(^/(v1/)?models/([^/]+)/status/?$)");
 
     bool ModelsRoute::match(const std::string &method, const std::string &path)
     {
@@ -206,16 +197,7 @@ namespace kolosal
 
             std::string modelId = request.model_id;
             std::string modelPath = request.model_path;
-            
-            // Use the default inference engine from config if none is specified
-            std::string inferenceEngine = request.inference_engine;
-            if (inferenceEngine.empty())
-            {
-                auto& config = ServerConfig::getInstance();
-                inferenceEngine = config.defaultInferenceEngine.empty() ? "llama-cpu" : config.defaultInferenceEngine;
-            }
-            
-            std::string modelType = request.model_type;
+            std::string inferenceEngine = request.inference_engine.empty() ? "llama-cpu" : request.inference_engine;
             int mainGpuId = request.main_gpu_id;
             bool loadImmediately = request.load_immediately;
 
@@ -321,7 +303,6 @@ namespace kolosal
                     // Prepare engine creation parameters
                     EngineCreationParams engine_params;
                     engine_params.model_id = modelId;
-                    engine_params.model_type = modelType;
                     engine_params.load_immediately = loadImmediately;
                     engine_params.main_gpu_id = mainGpuId;
                     engine_params.loading_params = loadParams;
@@ -337,7 +318,6 @@ namespace kolosal
                             json jResponse = {
                                 {"message", "Model download already in progress. Use /downloads/" + modelId + " to check status."},
                                 {"model_id", modelId},
-                                {"model_type", modelType},
                                 {"status", "downloading"},
                                 {"download_url", modelPathStr},
                                 {"local_path", downloadPath}
@@ -358,7 +338,6 @@ namespace kolosal
                     // Return 202 Accepted for async download
                     json jResponse = {
                         {"model_id", modelId},
-                        {"model_type", modelType},
                         {"status", "downloading"},
                         {"message", "Download started in background"},
                         {"download_url", modelPathStr},
@@ -475,93 +454,39 @@ namespace kolosal
             bool success = false;
             if (loadImmediately)
             {
-                if (modelType == "embedding")
-                {
-                    success = nodeManager.addEmbeddingEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId);
-                }
-                else
-                {
-                    success = nodeManager.addEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId, inferenceEngine);
-                }
+                success = nodeManager.addEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId, inferenceEngine);
             }
             else
             {
                 // Register the engine for lazy loading - model will be loaded on first access
-                if (modelType == "embedding")
-                {
-                    success = nodeManager.registerEmbeddingEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId);
-                }
-                else
-                {
-                    success = nodeManager.registerEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId, inferenceEngine);
-                }
+                success = nodeManager.registerEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId, inferenceEngine);
                 ServerLogger::logInfo("Model '%s' registered with load_immediately=false (will load on first access)", modelId.c_str());
             }
 
             if (success)
             {
-                // Verify the engine is actually functional before updating config
-                bool engineFunctional = false;
-                try
-                {
-                    auto [exists, isLoaded] = nodeManager.getEngineStatus(modelId);
-                    engineFunctional = exists && (loadImmediately ? isLoaded : true);
-                }
-                catch (const std::exception &ex)
-                {
-                    ServerLogger::logWarning("[Thread %u] Failed to verify engine status for model '%s': %s", 
-                                           std::this_thread::get_id(), modelId.c_str(), ex.what());
-                    engineFunctional = false;
-                }
+                json response = {
+                    {"model_id", modelId},
+                    {"model_path", modelPath},
+                    {"status", loadImmediately ? "loaded" : "created"},
+                    {"load_immediately", loadImmediately},
+                    {"loading_parameters", request.loading_parameters.to_json()},
+                    {"main_gpu_id", mainGpuId},
+                    {"message", "Engine added successfully"}
+                };
 
-                if (engineFunctional)
+                // Add additional info if model was downloaded from URL
+                if (isUrl)
                 {
-                    json response = {
-                        {"model_id", modelId},
-                        {"model_path", modelPath},
-                        {"model_type", modelType},
-                        {"status", loadImmediately ? "loaded" : "created"},
-                        {"load_immediately", loadImmediately},
-                        {"loading_parameters", request.loading_parameters.to_json()},
-                        {"main_gpu_id", mainGpuId},
-                        {"message", "Engine added successfully"}
+                    response["download_info"] = {
+                        {"source_url", modelPath},
+                        {"local_path", actualModelPath},
+                        {"was_downloaded", !std::filesystem::exists(actualModelPath) || modelPath != actualModelPath}
                     };
-
-                    // Add additional info if model was downloaded from URL
-                    if (isUrl)
-                    {
-                        response["download_info"] = {
-                            {"source_url", modelPath},
-                            {"local_path", actualModelPath},
-                            {"was_downloaded", !std::filesystem::exists(actualModelPath) || modelPath != actualModelPath}
-                        };
-                    }
-
-                    send_response(sock, 201, response.dump());
-                    ServerLogger::logInfo("[Thread %u] Successfully added model '%s'", std::this_thread::get_id(), modelId.c_str());
                 }
-                else
-                {
-                    // Engine was added but is not functional, treat as failure
-                    ServerLogger::logError("[Thread %u] Engine for model '%s' was added but is not functional", 
-                                         std::this_thread::get_id(), modelId.c_str());
-                    
-                    // Try to remove the non-functional engine
-                    try
-                    {
-                        nodeManager.removeEngine(modelId);
-                        ServerLogger::logInfo("[Thread %u] Removed non-functional engine for model '%s'", 
-                                             std::this_thread::get_id(), modelId.c_str());
-                    }
-                    catch (const std::exception &ex)
-                    {
-                        ServerLogger::logWarning("[Thread %u] Failed to remove non-functional engine for model '%s': %s", 
-                                               std::this_thread::get_id(), modelId.c_str(), ex.what());
-                    }
-                    
-                    json jError = {{"error", {{"message", "Engine was created but failed functionality check"}, {"type", "model_loading_error"}, {"param", "model_path"}, {"code", "engine_not_functional"}}}};
-                    send_response(sock, 422, jError.dump());
-                }
+
+                send_response(sock, 201, response.dump());
+                ServerLogger::logInfo("[Thread %u] Successfully added model '%s'", std::this_thread::get_id(), modelId.c_str());
             }
             else
             {
@@ -606,91 +531,37 @@ namespace kolosal
                             bool retrySuccess = false;
                             if (loadImmediately)
                             {
-                                if (modelType == "embedding")
-                                {
-                                    retrySuccess = nodeManager.addEmbeddingEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId);
-                                }
-                                else
-                                {
-                                    retrySuccess = nodeManager.addEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId, inferenceEngine);
-                                }
+                                retrySuccess = nodeManager.addEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId, inferenceEngine);
                             }
                             else
                             {
-                                if (modelType == "embedding")
-                                {
-                                    retrySuccess = nodeManager.registerEmbeddingEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId);
-                                }
-                                else
-                                {
-                                    retrySuccess = nodeManager.registerEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId, inferenceEngine);
-                                }
+                                retrySuccess = nodeManager.registerEngine(modelId, actualModelPath.c_str(), loadParams, mainGpuId, inferenceEngine);
                             }
                             
                             if (retrySuccess)
                             {
-                                // Verify the engine is actually functional before updating config
-                                bool engineFunctional = false;
-                                try
-                                {
-                                    auto [exists, isLoaded] = nodeManager.getEngineStatus(modelId);
-                                    engineFunctional = exists && (loadImmediately ? isLoaded : true);
-                                }
-                                catch (const std::exception &ex)
-                                {
-                                    ServerLogger::logWarning("[Thread %u] Failed to verify engine status for model '%s' (retry): %s", 
-                                                           std::this_thread::get_id(), modelId.c_str(), ex.what());
-                                    engineFunctional = false;
-                                }
+                                json response = {
+                                    {"model_id", modelId},
+                                    {"model_path", modelPath},
+                                    {"status", loadImmediately ? "loaded" : "created"},
+                                    {"load_immediately", loadImmediately},
+                                    {"loading_parameters", request.loading_parameters.to_json()},
+                                    {"main_gpu_id", mainGpuId},
+                                    {"message", "Engine re-added successfully after removing previous failed configuration"}
+                                };
 
-                                if (engineFunctional)
+                                // Add additional info if model was downloaded from URL
+                                if (isUrl)
                                 {
-                                    json response = {
-                                        {"model_id", modelId},
-                                        {"model_path", modelPath},
-                                        {"model_type", modelType},
-                                        {"status", loadImmediately ? "loaded" : "created"},
-                                        {"load_immediately", loadImmediately},
-                                        {"loading_parameters", request.loading_parameters.to_json()},
-                                        {"main_gpu_id", mainGpuId},
-                                        {"message", "Engine re-added successfully after removing previous failed configuration"}
+                                    response["download_info"] = {
+                                        {"source_url", modelPath},
+                                        {"local_path", actualModelPath},
+                                        {"was_downloaded", !std::filesystem::exists(actualModelPath) || modelPath != actualModelPath}
                                     };
-
-                                    // Add additional info if model was downloaded from URL
-                                    if (isUrl)
-                                    {
-                                        response["download_info"] = {
-                                            {"source_url", modelPath},
-                                            {"local_path", actualModelPath},
-                                            {"was_downloaded", !std::filesystem::exists(actualModelPath) || modelPath != actualModelPath}
-                                        };
-                                    }
-
-                                    send_response(sock, 201, response.dump());
-                                    ServerLogger::logInfo("[Thread %u] Successfully re-added model '%s' after removing failed configuration", std::this_thread::get_id(), modelId.c_str());
                                 }
-                                else
-                                {
-                                    // Engine was added but is not functional
-                                    ServerLogger::logError("[Thread %u] Retry engine for model '%s' was added but is not functional", 
-                                                         std::this_thread::get_id(), modelId.c_str());
-                                    
-                                    // Try to remove the non-functional engine
-                                    try
-                                    {
-                                        nodeManager.removeEngine(modelId);
-                                        ServerLogger::logInfo("[Thread %u] Removed non-functional retry engine for model '%s'", 
-                                                             std::this_thread::get_id(), modelId.c_str());
-                                    }
-                                    catch (const std::exception &ex)
-                                    {
-                                        ServerLogger::logWarning("[Thread %u] Failed to remove non-functional retry engine for model '%s': %s", 
-                                                               std::this_thread::get_id(), modelId.c_str(), ex.what());
-                                    }
-                                    
-                                    json jError = {{"error", {{"message", "Retry engine was created but failed functionality check"}, {"type", "model_loading_error"}, {"param", "model_path"}, {"code", "retry_engine_not_functional"}}}};
-                                    send_response(sock, 422, jError.dump());
-                                }
+
+                                send_response(sock, 201, response.dump());
+                                ServerLogger::logInfo("[Thread %u] Successfully re-added model '%s' after removing failed configuration", std::this_thread::get_id(), modelId.c_str());
                                 return;
                             }
                         }

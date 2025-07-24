@@ -10,7 +10,7 @@ The internet search endpoint allows you to perform web searches through your ser
 
 ### YAML Configuration
 
-Add the following section to your `config.yaml` file:
+Add the following section to your `config/config.yaml` file:
 
 ```yaml
 search:

@@ -11,12 +11,24 @@
 #include <chrono>
 #include <memory>
 
+// Ensure we're building the library for this definition
+#ifndef KOLOSAL_SERVER_BUILD
+#define KOLOSAL_SERVER_BUILD
+#endif
+
 using json = nlohmann::json;
 
 namespace kolosal
 {
 
-std::atomic<long long> RetrieveRoute::request_counter_{0};
+// Define the static member - using workaround for MSVC DLL export issue
+// std::atomic<long long> RetrieveRoute::request_counter_{0};
+
+// Static function to get request counter - avoids DLL export issues
+static std::atomic<long long>& getRequestCounter() {
+    static std::atomic<long long> counter{0};
+    return counter;
+}
 
 RetrieveRoute::RetrieveRoute()
     // : monitor_(std::make_unique<CompletionMonitor>())
@@ -73,12 +85,23 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         // Validate the request
         if (!request.validate())
         {
-            sendErrorResponse(sock, 400, "Invalid request parameters");
+            std::string validation_error = "Invalid request parameters - ";
+            if (request.query.empty()) {
+                validation_error += "query cannot be empty";
+            } else if (request.k <= 0 || request.k > 1000) {
+                validation_error += "k must be between 1 and 1000 (got " + std::to_string(request.k) + ")";
+            } else if (request.score_threshold < 0.0f || request.score_threshold > 1.0f) {
+                validation_error += "score_threshold must be between 0.0 and 1.0 (got " + std::to_string(request.score_threshold) + ")";
+            } else {
+                validation_error += "check request parameters";
+            }
+            
+            sendErrorResponse(sock, 400, validation_error, "invalid_request_error");
             return;
         }
 
         // Generate unique request ID
-        requestId = "ret-" + std::to_string(++request_counter_) + "-" + 
+        requestId = "ret-" + std::to_string(++getRequestCounter()) + "-" + 
                    std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
                        std::chrono::system_clock::now().time_since_epoch()).count());
 
@@ -88,67 +111,94 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
         // Start monitoring
         // monitor_->startRequest("document-retrieval", "retrieve");
 
-        // Initialize document service if needed
-        {
-            std::lock_guard<std::mutex> lock(service_mutex_);
-            if (!document_service_)
+        // Get document service from ServerAPI
+        auto& serverAPI = ServerAPI::instance();
+        
+        try {
+            auto& document_service = serverAPI.getDocumentService();
+            
+            // Test connection first
+            ServerLogger::logDebug("[Thread %u] Testing database connection", std::this_thread::get_id());
+            bool connected = document_service.testConnection().get();
+            if (!connected)
             {
-                // Create a basic database config - in a production environment,
-                // this would be passed from the main server configuration
-                DatabaseConfig db_config;
-                db_config.qdrant.enabled = true;
-                db_config.qdrant.host = "localhost";
-                db_config.qdrant.port = 6333;
-                db_config.qdrant.collectionName = "documents";
-                db_config.qdrant.defaultEmbeddingModel = "text-embedding-3-small";
-                db_config.qdrant.timeout = 30;
-                db_config.qdrant.maxConnections = 10;
-                db_config.qdrant.connectionTimeout = 5;
-                
-                document_service_ = std::make_unique<kolosal::retrieval::DocumentService>(db_config);
-                
-                // Initialize service
-                bool initialized = document_service_->initialize().get();
-                if (!initialized)
-                {
-                    sendErrorResponse(sock, 500, "Failed to initialize document service", "service_error");
-                    return;
-                }
-                
-                ServerLogger::logInfo("DocumentService initialized successfully");
+                ServerLogger::logError("[Thread %u] Database connection test failed", std::this_thread::get_id());
+                sendErrorResponse(sock, 503, "Database connection failed - ensure Qdrant is running and accessible", "service_unavailable");
+                return;
             }
-        }
+            
+            ServerLogger::logDebug("[Thread %u] Database connection successful", std::this_thread::get_id());
 
-        // Test connection
-        bool connected = document_service_->testConnection().get();
-        if (!connected)
-        {
-            sendErrorResponse(sock, 503, "Database connection failed", "service_unavailable");
+            // Process retrieval
+            ServerLogger::logDebug("[Thread %u] Submitting retrieval for processing", std::this_thread::get_id());
+            
+            // Start detailed timing
+            auto retrieval_start_time = std::chrono::high_resolution_clock::now();
+            
+            auto response_future = document_service.retrieveDocuments(request);
+        
+            // Wait for processing to complete
+            kolosal::retrieval::RetrieveResponse response = response_future.get();
+            
+            // Calculate retrieval processing time
+            auto retrieval_end_time = std::chrono::high_resolution_clock::now();
+            auto retrieval_duration = std::chrono::duration_cast<std::chrono::milliseconds>(retrieval_end_time - retrieval_start_time);
+            int retrieval_time_ms = static_cast<int>(retrieval_duration.count());
+            
+            ServerLogger::logInfo("[Thread %u] Document retrieval completed in %d ms for query: '%s'", 
+                                 std::this_thread::get_id(), retrieval_time_ms, request.query.c_str());
+
+            // Complete monitoring
+            // monitor_->completeRequest(requestId);
+
+            // Check if we got any results and provide helpful information
+            if (response.total_found == 0)
+            {
+                ServerLogger::logInfo("[Thread %u] No documents found for query '%s' - this could be normal if no matching documents exist", 
+                                    std::this_thread::get_id(), request.query.c_str());
+            }
+
+            // Send successful response (even if no documents found)
+            std::map<std::string, std::string> headers = {
+                {"Content-Type", "application/json"},
+                {"Access-Control-Allow-Origin", "*"},
+                {"Access-Control-Allow-Methods", "POST, OPTIONS"},
+                {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"}
+            };
+            
+            // Add metadata to the response JSON
+            auto response_json = response.to_json();
+            response_json["metadata"] = {
+                {"processing_time_ms", retrieval_time_ms},
+                {"request_id", requestId}
+            };
+            
+            send_response(sock, 200, response_json.dump(), headers);
+
+            ServerLogger::logInfo("[Thread %u] Successfully processed retrieval request - returned %d documents", 
+                                  std::this_thread::get_id(), response.total_found);
+                                  
+        } catch (const std::runtime_error& ex) {
+            // Handle DocumentService specific errors with more context
+            std::string error_msg = ex.what();
+            ServerLogger::logError("[Thread %u] DocumentService error: %s", std::this_thread::get_id(), error_msg.c_str());
+            
+            // Provide specific error codes and helpful messages
+            if (error_msg.find("not initialized") != std::string::npos) {
+                sendErrorResponse(sock, 500, "Document service not initialized - server may be starting up. Check GET /health for status", "service_not_ready");
+            } else if (error_msg.find("Qdrant is disabled") != std::string::npos) {
+                sendErrorResponse(sock, 503, "Document retrieval is disabled in server configuration. Check GET /health for details", "service_disabled");
+            } else if (error_msg.find("embedding") != std::string::npos) {
+                sendErrorResponse(sock, 500, "Embedding generation failed - " + error_msg + ". Check GET /health for service status", "embedding_error");
+            } else if (error_msg.find("Vector search failed") != std::string::npos) {
+                sendErrorResponse(sock, 503, "Vector search failed - " + error_msg + ". Check GET /health for database status", "search_error");
+            } else if (error_msg.find("Collection") != std::string::npos && error_msg.find("does not exist") != std::string::npos) {
+                sendErrorResponse(sock, 404, "No documents collection found - please index some documents first. Check GET /health for collection status", "collection_not_found");
+            } else {
+                sendErrorResponse(sock, 500, "DocumentService error: " + error_msg + ". Check GET /health for detailed diagnostics", "service_error");
+            }
             return;
         }
-
-        // Process retrieval
-        ServerLogger::logDebug("[Thread %u] Submitting retrieval for processing", std::this_thread::get_id());
-        
-        auto response_future = document_service_->retrieveDocuments(request);
-        
-        // Wait for processing to complete
-        kolosal::retrieval::RetrieveResponse response = response_future.get();
-
-        // Complete monitoring
-        // monitor_->completeRequest(requestId);
-
-        // Send successful response
-        std::map<std::string, std::string> headers = {
-            {"Content-Type", "application/json"},
-            {"Access-Control-Allow-Origin", "*"},
-            {"Access-Control-Allow-Methods", "POST, OPTIONS"},
-            {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"}
-        };
-        send_response(sock, 200, response.to_json().dump(), headers);
-
-        ServerLogger::logInfo("[Thread %u] Successfully retrieved %d documents for query", 
-                              std::this_thread::get_id(), response.total_found);
     }
     catch (const json::exception& ex)
     {

@@ -159,7 +159,7 @@ namespace kolosal
 
     bool ParsePDFRoute::match(const std::string &method, const std::string &path)
     {
-        return (method == "POST" && path == "/parse_pdf");
+        return (method == "POST" && (path == "/parse_pdf" || path == "/parse-pdf"));
     }
 
     void ParsePDFRoute::handle(SocketType sock, const std::string &body)

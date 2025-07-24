@@ -20,7 +20,8 @@ using SocketType = int;
 
 namespace kolosal {
 
-    class KOLOSAL_SERVER_API Server {    public:
+    class KOLOSAL_SERVER_API Server {
+    public:
         explicit Server(const std::string& port, const std::string& host = "0.0.0.0");
         ~Server();
 

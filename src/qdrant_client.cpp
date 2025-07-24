@@ -31,7 +31,7 @@ struct HttpRequest
     std::string url;
     std::string body;
     std::map<std::string, std::string> headers;
-    int timeout = 30;
+    int timeout = 120; // Increased timeout for longer operations
     
     // Response data
     std::string response_body;

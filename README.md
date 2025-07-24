@@ -134,7 +134,7 @@ ls -la kolosal-server
 ./kolosal-server
 
 # Or specify a config file
-./kolosal-server --config ../config.yaml
+./kolosal-server --config ../config/config.yaml
 ```
 
 **Background Service:**
@@ -205,7 +205,7 @@ sudo useradd -r -s /bin/false kolosal
 # Install binary and config
 sudo mkdir -p /opt/kolosal-server /etc/kolosal-server
 sudo cp build/kolosal-server /opt/kolosal-server/
-sudo cp config.example.yaml /etc/kolosal-server/config.yaml
+sudo cp config/config.example.yaml /etc/kolosal-server/config.yaml
 sudo chown -R kolosal:kolosal /opt/kolosal-server
 
 # Enable and start service
@@ -273,7 +273,7 @@ sudo systemctl status kolosal-server
    make -j2
    
    # Set memory limits in config
-   echo "server.max_memory_mb: 4096" >> config.yaml
+   echo "server.max_memory_mb: 4096" >> config/config.yaml
    ```
 
 3. **GPU Memory:**
@@ -295,7 +295,7 @@ sudo systemctl status kolosal-server
 
 **Building:**
 ```bash
-git clone https://github.com/your-org/kolosal-server.git
+git clone https://github.com/KolosalAI/kolosal-server.git
 cd kolosal-server
 mkdir build && cd build
 cmake ..
@@ -316,7 +316,7 @@ Kolosal Server supports configuration through JSON and YAML files for advanced s
 
 ### Quick Configuration Examples
 
-#### Minimal Configuration (`config.yaml`)
+#### Minimal Configuration (`config/config.yaml`)
 
 ```yaml
 server:
@@ -915,4 +915,4 @@ We welcome contributions! Please see our [Developer Documentation](docs/) for de
 
 - **Issues**: Report bugs and feature requests on [GitHub Issues](https://github.com/KolosalAI/kolosal-server/issues)
 - **Documentation**: Check the [docs/](docs/) directory for comprehensive guides
-- **Discussions**: Join [GitHub Discussions](https://github.com/your-org/kolosal-server/discussions) for questions and community support
+- **Discussions**: Join [GitHub Discussions](https://github.com/KolosalAI/kolosal-server/discussions) for questions and community support

@@ -1,6 +1,6 @@
-#pragma once
+#ifndef KOLOSAL_ROUTES_MODELS_ROUTE_HPP
+#define KOLOSAL_ROUTES_MODELS_ROUTE_HPP
 
-#include "../export.hpp"
 #include "route_interface.hpp"
 #include <string>
 #include <regex>
@@ -11,18 +11,15 @@ namespace kolosal
      * @brief Unified route for all model management operations
      * 
      * Handles the following endpoints:
-     * - GET /models, /v1/models - List all models (including embedding models)
-     * - POST /models, /v1/models - Add a new model (supports both LLM and embedding models)
+     * - GET /models, /v1/models - List all models
+     * - POST /models, /v1/models - Add a new model
      * - GET /models/{id}, /v1/models/{id} - Get model status
      * - DELETE /models/{id}, /v1/models/{id} - Remove a model
      * - GET /models/{id}/status, /v1/models/{id}/status - Get detailed model status
      */
-    class KOLOSAL_SERVER_API ModelsRoute : public IRoute
+    class ModelsRoute : public IRoute
     {
     public:
-        ModelsRoute();
-        ~ModelsRoute() override;
-
         bool match(const std::string &method, const std::string &path) override;
         void handle(SocketType sock, const std::string &body) override;
 
@@ -43,9 +40,11 @@ namespace kolosal
         bool isStatusEndpoint(const std::string &path);
         
         // Regex patterns for path matching
-        const std::regex modelsPattern_;
-        const std::regex modelIdPattern_;
-        const std::regex modelStatusPattern_;
+        static const std::regex modelsPattern_;
+        static const std::regex modelIdPattern_;
+        static const std::regex modelStatusPattern_;
     };
 
 } // namespace kolosal
+
+#endif // KOLOSAL_ROUTES_MODELS_ROUTE_HPP

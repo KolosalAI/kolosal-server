@@ -101,7 +101,7 @@ void RemoveDocumentsRoute::handle(SocketType sock, const std::string& body)
                 db_config.qdrant.host = "localhost";
                 db_config.qdrant.port = 6333;
                 db_config.qdrant.collectionName = "documents";
-                db_config.qdrant.defaultEmbeddingModel = "text-embedding-3-small";
+                db_config.qdrant.defaultEmbeddingModel = "text-embedding-3-large";
                 db_config.qdrant.timeout = 30;
                 db_config.qdrant.maxConnections = 10;
                 db_config.qdrant.connectionTimeout = 5;

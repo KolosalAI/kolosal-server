@@ -1,3 +1,7 @@
+cmake_minimum_required(VERSION 3.14...3.27)
+cmake_policy(SET CMP0048 NEW)
+cmake_minimum_required(VERSION 3.14...3.27)
+cmake_policy(SET CMP0048 NEW)
 cmake_minimum_required(VERSION 3.14) # for add_link_options and implicit target directories.
 project("llama.cpp" C CXX)
 include(CheckIncludeFileCXX)

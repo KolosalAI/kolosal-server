@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <chrono>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -26,6 +27,66 @@
 
 namespace kolosal
 {
+	// Helper: check if a UTF-8 sequence is complete and fix incomplete sequences
+	static std::string fixIncompleteUtf8(const std::string& data) {
+		if (data.empty()) return data;
+		
+		// Validate and fix UTF-8 encoding
+		std::string result;
+		result.reserve(data.length());
+		
+		for (size_t i = 0; i < data.length(); ) {
+			unsigned char c = static_cast<unsigned char>(data[i]);
+			
+			// ASCII character (0xxxxxxx)
+			if ((c & 0x80) == 0) {
+				result += c;
+				i++;
+				continue;
+			}
+			
+			// Multi-byte UTF-8 sequence
+			size_t seqLen = 0;
+			if ((c & 0xE0) == 0xC0) {
+				seqLen = 2;  // 110xxxxx
+			} else if ((c & 0xF0) == 0xE0) {
+				seqLen = 3;  // 1110xxxx
+			} else if ((c & 0xF8) == 0xF0) {
+				seqLen = 4;  // 11110xxx
+			} else {
+				// Invalid start byte, skip it
+				i++;
+				continue;
+			}
+			
+			// Check if we have enough bytes
+			if (i + seqLen > data.length()) {
+				// Incomplete sequence at end, truncate here
+				break;
+			}
+			
+			// Validate continuation bytes
+			bool valid = true;
+			for (size_t j = 1; j < seqLen; j++) {
+				unsigned char cont = static_cast<unsigned char>(data[i + j]);
+				if ((cont & 0xC0) != 0x80) {
+					valid = false;
+					break;
+				}
+			}
+			
+			if (valid) {
+				// Valid UTF-8 sequence, copy it
+				result.append(data, i, seqLen);
+				i += seqLen;
+			} else {
+				// Invalid sequence, skip the start byte
+				i++;
+			}
+		}
+		
+		return result;
+	}
 
 	// Helper: extract client IP from socket address
 	static std::string extractClientIP(const struct sockaddr_storage &client_addr)
@@ -178,6 +239,7 @@ namespace kolosal
 		ServerLogger::logInfo("[Thread %u] Completed request for %s",
 							  std::this_thread::get_id(), path.c_str());
 	}
+	
 	Server::Server(const std::string &port, const std::string &host) : port(port), host(host), running(false)
 	{
 #ifdef _WIN32
@@ -303,40 +365,41 @@ namespace kolosal
 
 		while (running)
 		{
-			struct sockaddr_storage client_addr;
+			try {
+				struct sockaddr_storage client_addr;
 #ifdef _WIN32
-			int sin_size = sizeof(client_addr);
+				int sin_size = sizeof(client_addr);
 #else
-			socklen_t sin_size = sizeof(client_addr);
+				socklen_t sin_size = sizeof(client_addr);
 #endif
 
-			// Setup select for timeout to check running flag periodically
-			fd_set readfds;
-			FD_ZERO(&readfds);
-			FD_SET(listen_sock, &readfds);
+				// Setup select for timeout to check running flag periodically
+				fd_set readfds;
+				FD_ZERO(&readfds);
+				FD_SET(listen_sock, &readfds);
 
-			struct timeval tv;
-			tv.tv_sec = 1; // 1 second timeout
-			tv.tv_usec = 0;
+				struct timeval tv;
+				tv.tv_sec = 1; // 1 second timeout
+				tv.tv_usec = 0;
 
-			int select_result = select(static_cast<int>(listen_sock) + 1, &readfds, NULL, NULL, &tv);
+				int select_result = select(static_cast<int>(listen_sock) + 1, &readfds, NULL, NULL, &tv);
 
-			if (select_result == -1)
-			{
-				ServerLogger::logError("Select failed");
-				break;
-			}
+				if (select_result == -1)
+				{
+					ServerLogger::logError("Select failed - server loop will exit");
+					break;
+				}
 
-			if (select_result == 0)
-			{
-				// Timeout occurred, check if we should continue running
-				continue;
-			}
+				if (select_result == 0)
+				{
+					// Timeout occurred, check if we should continue running
+					continue;
+				}
 
-			if (!FD_ISSET(listen_sock, &readfds))
-			{
-				continue;
-			}
+				if (!FD_ISSET(listen_sock, &readfds))
+				{
+					continue;
+				}
 
 			SocketType client_sock = accept(listen_sock,
 											reinterpret_cast<struct sockaddr *>(&client_addr),
@@ -362,31 +425,48 @@ namespace kolosal
 			inet_ntop(client_addr.ss_family,
 					  client_addr.ss_family == AF_INET ? (void *)&(((struct sockaddr_in *)&client_addr)->sin_addr) : (void *)&(((struct sockaddr_in6 *)&client_addr)->sin6_addr),
 					  clientIP, sizeof(clientIP));
-#endif			ServerLogger::logDebug("New client connection from %s", clientIP);			// Spawn a thread to handle this client
+#endif
+			ServerLogger::logDebug("New client connection from %s", clientIP);
+			
+			// Spawn a thread to handle this client
 			std::thread([this, client_sock, clientIP]()
 						{
 							ServerLogger::logDebug("[Thread %d] Processing request from %s",
 												  std::this_thread::get_id(), clientIP);
 
-							// Read the HTTP request with improved error handling
+							// Read the HTTP request with improved error handling and security
 							const int bufferSize = 16384; // Increased buffer size for larger headers
-							char buffer[bufferSize];
+							std::vector<char> buffer(bufferSize);
 							std::string request;
 							
 							// Read data in chunks until we have the complete headers
 							bool headersComplete = false;
-							int totalBytesReceived = 0;
+							size_t totalBytesReceived = 0;
+							const size_t maxRequestSize = 32768; // Maximum request size (32KB)
 							
 							// Set socket timeout to prevent hanging
 							struct timeval timeout;
-							timeout.tv_sec = 30;  // 30 second timeout
+							timeout.tv_sec = 120;  // 120 second timeout to handle longer operations
 							timeout.tv_usec = 0;
-							setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+							if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout)) < 0) {
+								ServerLogger::logWarning("[Thread %d] Failed to set socket timeout", std::this_thread::get_id());
+							}
 							
-							while (!headersComplete && totalBytesReceived < bufferSize - 1)
+							while (!headersComplete && totalBytesReceived < bufferSize - 1 && totalBytesReceived < maxRequestSize)
 							{
-								int bytesReceived = recv(client_sock, buffer + totalBytesReceived, 
-														bufferSize - 1 - totalBytesReceived, 0);
+								size_t bufferSizeT = static_cast<size_t>(bufferSize);
+								size_t remaining1 = bufferSizeT - 1 - totalBytesReceived;
+								size_t remaining2 = maxRequestSize - totalBytesReceived;
+								size_t remaining = (remaining1 < remaining2) ? remaining1 : remaining2;
+								
+								if (remaining == 0) {
+									ServerLogger::logError("[Thread %d] Request too large from %s", 
+														   std::this_thread::get_id(), clientIP);
+									break;
+								}
+								
+								int bytesReceived = recv(client_sock, buffer.data() + totalBytesReceived, 
+														static_cast<int>(remaining), 0);
 								
 								if (bytesReceived <= 0)
 								{
@@ -403,13 +483,15 @@ namespace kolosal
 									break;
 								}
 								
-								totalBytesReceived += bytesReceived;
+								totalBytesReceived += static_cast<size_t>(bytesReceived);
 								buffer[totalBytesReceived] = '\0';
 								
-								// Check if we have complete headers (indicated by \r\n\r\n)
-								if (strstr(buffer, "\r\n\r\n") != nullptr)
-								{
-									headersComplete = true;
+								// Check if we have complete headers (indicated by \r\n\r\n) using safer method
+								if (totalBytesReceived >= 4) {
+									std::string tempStr(buffer.data(), totalBytesReceived);
+									if (tempStr.find("\r\n\r\n") != std::string::npos) {
+										headersComplete = true;
+									}
 								}
 							}
 							
@@ -425,185 +507,231 @@ namespace kolosal
 								return;
 							}
 							
-							request = std::string(buffer, totalBytesReceived);
+							request = std::string(buffer.data(), totalBytesReceived);
 
-							// Parse the HTTP request line
-							size_t endOfLine = request.find("\r\n");
-							if (endOfLine == std::string::npos)
-							{
-								ServerLogger::logWarning("[Thread %d] Malformed request received", std::this_thread::get_id());
-								send_response(client_sock, 400, "{\"error\":\"Bad Request\"}");
+				// Parse the HTTP request line
+				size_t endOfLine = request.find("\r\n");
+				if (endOfLine == std::string::npos) {
+					ServerLogger::logWarning("[Thread %d] Malformed request received", std::this_thread::get_id());
+					send_response(client_sock, 400, "{\"error\":\"Bad Request\"}");
 #ifdef _WIN32
-								closesocket(client_sock);
+					closesocket(client_sock);
 #else
-								close(client_sock);
+					close(client_sock);
 #endif
-								return;
-							}
+					return;
+				}
 
-							std::string requestLine = request.substr(0, endOfLine);
-							std::string method, path;
-							parse_request_line(requestLine, method, path);
+				std::string requestLine = request.substr(0, endOfLine);
+				std::string method, path;
+				parse_request_line(requestLine, method, path);
 
-							// Parse headers for authentication middleware
-							auto headers = parseHeaders(request);ServerLogger::logDebug("[Thread %d] Processing %s request for %s from %s",
-												  std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP); // Process authentication middleware
-							ServerLogger::logDebug("[Thread %d] Calling auth middleware for %s %s from %s",
-												  std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
+				// Parse headers for authentication middleware
+				auto headers = parseHeaders(request);
 
-							auth::AuthMiddleware::RequestInfo authRequest(method, path, clientIP);
-							authRequest.headers = headers;
+				ServerLogger::logInfo("[Thread %d] Processing %s request for %s from %s",
+					std::this_thread::get_id(), method.c_str(), path.c_str(), clientIP);
 
-							auto authResult = authMiddleware_->processRequest(authRequest);
+				// Process authentication middleware
+				auth::AuthMiddleware::RequestInfo authRequest(method, path, clientIP);
+				authRequest.headers = headers;
+				
+				auto authResult = authMiddleware_->processRequest(authRequest);
+				
+				ServerLogger::logInfo("[Thread %d] Auth middleware result - Allowed: %s, Status: %d, Reason: %s",
+					std::this_thread::get_id(),
+					authResult.allowed ? "true" : "false",
+					authResult.statusCode,
+					authResult.reason.c_str());
+				
+				// Add OpenAI-compatible response headers
+				std::map<std::string, std::string> responseHeaders = {
+					{"Content-Type", "application/json"},
+					{"Access-Control-Allow-Origin", "*"},
+					{"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
+					{"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-API-Key"},
+					{"X-Content-Type-Options", "nosniff"},
+					{"X-Frame-Options", "DENY"},
+					{"X-XSS-Protection", "1; mode=block"},
+					{"Referrer-Policy", "strict-origin-when-cross-origin"}
+				};
+				
+				// Merge authentication response headers
+				responseHeaders.insert(authResult.headers.begin(), authResult.headers.end());
+				
+				// Check if request is blocked by authentication
+				if (!authResult.allowed) {
+					nlohmann::json jError = {
+						{"error", {
+							{"message", authResult.reason},
+							{"type", authResult.statusCode == 429 ? "rate_limit_exceeded" : "authentication_error"},
+							{"code", authResult.statusCode}
+						}}
+					};
+					
+					send_response(client_sock, authResult.statusCode, jError.dump(), responseHeaders);
+					
+					ServerLogger::logWarning("[Thread %d] Request blocked: %s", 
+						std::this_thread::get_id(), authResult.reason.c_str());
+					
+#ifdef _WIN32
+					closesocket(client_sock);
+#else
+					close(client_sock);
+#endif
+					return;
+				}
+				
+				// Handle CORS preflight requests
+				if (authResult.isPreflight) {
+					send_response(client_sock, authResult.statusCode, "", responseHeaders);
+					
+					ServerLogger::logInfo("[Thread %d] CORS preflight request handled", 
+						std::this_thread::get_id());
+					
+#ifdef _WIN32
+					closesocket(client_sock);
+#else
+					close(client_sock);
+#endif
+					return;
+				}
 
-							ServerLogger::logDebug("[Thread %d] Auth middleware result - Allowed: %s, Status: %d, Reason: %s",
-												  std::this_thread::get_id(),
-												  authResult.allowed ? "true" : "false",
-												  authResult.statusCode,
-												  authResult.reason.c_str());							// Add OpenAI-compatible response headers
-							std::map<std::string, std::string> responseHeaders = {
-								{"Content-Type", "application/json"},
-								{"Access-Control-Allow-Origin", "*"},
-								{"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
-								{"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-API-Key"},
-								{"X-Content-Type-Options", "nosniff"},
-								{"X-Frame-Options", "DENY"},
-								{"X-XSS-Protection", "1; mode=block"},
-								{"Referrer-Policy", "strict-origin-when-cross-origin"}
+				// Find Content-Length header (case-insensitive) with validation
+				int contentLength = 0;
+				const size_t maxContentLength = 10 * 1024 * 1024; // 10MB maximum content length
+				auto it = headers.find("content-length");
+				if (it != headers.end()) {
+					try {
+						contentLength = std::stoi(it->second);
+						if (contentLength < 0) {
+							ServerLogger::logWarning("[Thread %d] Negative Content-Length from %s: %d",
+								std::this_thread::get_id(), clientIP, contentLength);
+							contentLength = 0;
+						} else if (static_cast<size_t>(contentLength) > maxContentLength) {
+							ServerLogger::logWarning("[Thread %d] Content-Length too large from %s: %d (max: %zu)",
+								std::this_thread::get_id(), clientIP, contentLength, maxContentLength);
+							// Send 413 Payload Too Large
+							nlohmann::json jError = {
+								{"error", {
+									{"message", "Payload too large"},
+									{"type", "payload_too_large_error"},
+									{"code", 413}
+								}}
 							};
-							
-							// Merge authentication response headers
-							responseHeaders.insert(authResult.headers.begin(), authResult.headers.end());
-
-							// Check if request is blocked by authentication
-							if (!authResult.allowed)
-							{
-								nlohmann::json jError = {
-									{"error", {{"message", authResult.reason}, {"type", authResult.statusCode == 429 ? "rate_limit_exceeded" : "authentication_error"}, {"code", authResult.statusCode}}}};
-
-								send_response(client_sock, authResult.statusCode, jError.dump(), responseHeaders);
-
-								ServerLogger::logWarning("[Thread %d] Request blocked: %s",
-														 std::this_thread::get_id(), authResult.reason.c_str());
-
-#ifdef _WIN32
-								closesocket(client_sock);
-#else
-								close(client_sock);
-#endif
-								return;
-							}
-
-							// Handle CORS preflight requests
-							if (authResult.isPreflight)
-							{
-								send_response(client_sock, authResult.statusCode, "", responseHeaders);								ServerLogger::logDebug("[Thread %d] CORS preflight request handled",
-													  std::this_thread::get_id());
-
-#ifdef _WIN32
-								closesocket(client_sock);
-#else
-								close(client_sock);
-#endif
-								return;
-							}							// Find Content-Length header (case-insensitive)
-							int contentLength = 0;
-							auto it = headers.find("content-length");
-							if (it != headers.end())
-							{
-								try
-								{
-									contentLength = std::stoi(it->second);
-									ServerLogger::logDebug("[Thread %d] Content-Length: %d",
-														   std::this_thread::get_id(), contentLength);
-								}
-								catch (const std::exception &)
-								{
-									ServerLogger::logWarning("[Thread %d] Invalid Content-Length header: %s",
-															 std::this_thread::get_id(), it->second.c_str());
-								}
-							}
-
-							// Find the start of the body
-							size_t bodyStart = request.find("\r\n\r\n");
-							std::string body;
-
-							if (bodyStart != std::string::npos)
-							{
-								// Extract the body we've already read
-								body = request.substr(bodyStart + 4);
-
-								// If Content-Length indicates there's more data to read
-								if (contentLength > 0 && body.length() < static_cast<size_t>(contentLength))
-								{
-									int remaining = static_cast<int>(contentLength - body.length());
-									std::vector<char> bodyBuffer(remaining + 1, 0);
-
-									int totalRead = 0;
-									while (totalRead < remaining)
-									{
-										int bytesRead = recv(client_sock, bodyBuffer.data() + totalRead,
-															 remaining - totalRead, 0);
-										if (bytesRead <= 0)
-										{
-											break; // Error or connection closed
-										}
-										totalRead += bytesRead;
-									}
-
-									if (totalRead > 0)
-									{
-										body.append(bodyBuffer.data(), totalRead);
-									}
-
-									ServerLogger::logDebug("[Thread %d] Read %d additional bytes for body",
-														   std::this_thread::get_id(), totalRead);
-								}
-							} // Route the request
-							bool routeFound = false;
-							for (auto &route : routes)
-							{
-								if (route->match(method, path))
-								{
-									routeFound = true;
-									try
-									{
-										// Note: Routes will need to be updated to handle authentication headers
-										// For now, they'll work as before but won't include auth headers
-										route->handle(client_sock, body);
-									}
-									catch (const std::exception &ex)
-									{
-										ServerLogger::logError("[Thread %d] Error in route handler: %s",
-															   std::this_thread::get_id(), ex.what());
-
-										// If we haven't sent a response yet, send an error
-										nlohmann::json jError = {{"error", {{"message", std::string("Internal error: ") + ex.what()}, {"type", "server_error"}, {"param", nullptr}, {"code", nullptr}}}};
-										send_response(client_sock, 500, jError.dump(), responseHeaders);
-									}
-									break;
-								}
-							}
-
-							if (!routeFound)
-							{
-								ServerLogger::logWarning("[Thread %d] No route found for %s %s",
-														 std::this_thread::get_id(), method.c_str(), path.c_str());
-
-								nlohmann::json jError = {{"error", {{"message", "Not found"}, {"type", "invalid_request_error"}, {"param", nullptr}, {"code", nullptr}}}};
-								send_response(client_sock, 404, jError.dump(), responseHeaders);
-							}							ServerLogger::logDebug("[Thread %d] Completed request for %s",
-												  std::this_thread::get_id(), path.c_str());
-
+							send_response(client_sock, 413, jError.dump(), responseHeaders);
 #ifdef _WIN32
 							closesocket(client_sock);
 #else
 							close(client_sock);
 #endif
-						})
-				.detach(); // Detach the thread to handle the request independently
-		}
+							return;
+						}
+						ServerLogger::logDebug("[Thread %d] Content-Length: %d",
+							std::this_thread::get_id(), contentLength);
+					}
+					catch (const std::exception& e) {
+						ServerLogger::logWarning("[Thread %d] Invalid Content-Length header from %s: %s",
+							std::this_thread::get_id(), clientIP, it->second.c_str());
+					}
+				}
 
+				// Find the start of the body
+				size_t bodyStart = request.find("\r\n\r\n");
+				std::string body;
+
+				if (bodyStart != std::string::npos) {
+					// Extract the body we've already read
+					body = request.substr(bodyStart + 4);
+
+					// If Content-Length indicates there's more data to read
+					if (contentLength > 0 && body.length() < static_cast<size_t>(contentLength)) {
+						size_t remaining = static_cast<size_t>(contentLength) - body.length();
+						
+						// Additional safety check
+						if (remaining > maxContentLength) {
+							ServerLogger::logError("[Thread %d] Calculated remaining size too large: %zu", 
+												   std::this_thread::get_id(), remaining);
+#ifdef _WIN32
+							closesocket(client_sock);
+#else
+							close(client_sock);
+#endif
+							return;
+						}
+						
+						std::vector<char> bodyBuffer(remaining);
+						size_t totalRead = 0;
+						
+						while (totalRead < remaining) {
+							int bytesRead = recv(client_sock, bodyBuffer.data() + totalRead,
+								static_cast<int>(remaining - totalRead), 0);
+							if (bytesRead <= 0) {
+								ServerLogger::logWarning("[Thread %d] Failed to read complete body from %s (expected: %zu, got: %zu)",
+														std::this_thread::get_id(), clientIP, remaining, totalRead);
+								break;  // Error or connection closed
+							}
+							totalRead += static_cast<size_t>(bytesRead);
+						}
+
+						if (totalRead > 0) {
+							body.append(bodyBuffer.data(), totalRead);
+						}
+					}
+				}
+
+				// Fix any incomplete UTF-8 sequences in the body
+				body = fixIncompleteUtf8(body);
+
+				// Extract body (if any) for route processing
+				bool routeFound = false;
+				for (const auto &route : routes)
+				{
+					if (route->match(method, path))
+					{
+						routeFound = true;
+						route->handle(client_sock, body);
+						break;
+					}
+				}
+
+				// Note: We no longer need explicit 404 handling here since NotFoundRoute
+				// is added as the last route and will match any unmatched requests
+				if (!routeFound) {
+					// This should not happen if NotFoundRoute is properly registered
+					ServerLogger::logError("[Thread %d] No route matched for %s %s - NotFoundRoute may not be registered",
+						std::this_thread::get_id(), method.c_str(), path.c_str());
+
+					nlohmann::json jError = { {"error", {
+					  {"message", "Internal routing error"},
+					  {"type", "server_error"},
+					  {"param", nullptr},
+					  {"code", nullptr}
+					}} };
+					send_response(client_sock, 500, jError.dump(), responseHeaders);
+				}
+
+				ServerLogger::logInfo("[Thread %d] Completed request for %s",
+					std::this_thread::get_id(), path.c_str());
+
+#ifdef _WIN32
+				closesocket(client_sock);
+#else
+				close(client_sock);
+#endif
+			}).detach(); // Detach the thread to handle the request independently
+			
+			} catch (const std::exception& e) {
+				ServerLogger::logError("Exception in server main loop: %s", e.what());
+				// Continue running unless it's a critical error
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			} catch (...) {
+				ServerLogger::logError("Unknown exception in server main loop");
+				// Continue running unless it's a critical error
+				std::this_thread::sleep_for(std::chrono::milliseconds(100));
+			}
+		}
+		
 		ServerLogger::logInfo("Server main loop exited");
 	}
 
