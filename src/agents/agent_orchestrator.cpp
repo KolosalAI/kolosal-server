@@ -5,6 +5,7 @@
 #include <chrono>
 #include <future>
 #include <random>
+#include <json.hpp>
 
 namespace kolosal::agents {
 
@@ -499,12 +500,126 @@ AgentData AgentOrchestrator::execute_pipeline_collaboration(const CollaborationG
 }
 
 AgentData AgentOrchestrator::execute_consensus_collaboration(const CollaborationGroup& group, const AgentData& input_data) {
-    auto parallel_result = execute_parallel_collaboration(group, input_data);
+    if (group.agent_ids.empty()) {
+        AgentData error_result;
+        error_result.set("error", "No agents available for consensus collaboration");
+        return error_result;
+    }
+
+    ServerLogger::logInfo("Starting consensus collaboration with %zu agents (threshold: %d)", 
+                         group.agent_ids.size(), group.consensus_threshold);
+
+    // Execute all agents in parallel to get their individual results
+    std::vector<std::future<FunctionResult>> futures;
+    std::vector<std::string> participating_agents;
     
-    // Simple consensus: majority vote
-    // TODO: Implement proper consensus mechanism
+    for (const auto& agent_id : group.agent_ids) {
+        futures.push_back(std::async(std::launch::async, [this, &agent_id, &input_data]() {
+            auto agent = agent_manager->get_agent(agent_id);
+            if (agent) {
+                return agent->execute_function("analyze_and_vote", input_data);
+            }
+            return FunctionResult(false, "Agent not found: " + agent_id);
+        }));
+        participating_agents.push_back(agent_id);
+    }
+
+    // Collect all results
+    std::vector<FunctionResult> agent_results;
+    std::vector<AgentData> valid_results;
+    std::map<std::string, std::vector<std::string>> vote_groups; // result_hash -> list of agent_ids
+    std::map<std::string, AgentData> result_candidates; // result_hash -> actual result
     
-    return parallel_result;
+    for (size_t i = 0; i < futures.size(); ++i) {
+        auto result = futures[i].get();
+        agent_results.push_back(result);
+        
+        if (result.success) {
+            valid_results.push_back(result.result_data);
+            
+            // Create a simple hash of the result for consensus grouping
+            std::string result_hash = std::to_string(std::hash<std::string>{}(result.result_data.to_json()));
+            vote_groups[result_hash].push_back(participating_agents[i]);
+            result_candidates[result_hash] = result.result_data;
+            
+            ServerLogger::logDebug("Agent %s provided result with hash %s", 
+                                  participating_agents[i].c_str(), result_hash.c_str());
+        } else {
+            ServerLogger::logWarning("Agent %s failed: %s", 
+                                   participating_agents[i].c_str(), result.error_message.c_str());
+        }
+    }
+
+    // Analyze consensus
+    AgentData consensus_result;
+    
+    if (valid_results.empty()) {
+        consensus_result.set("error", "No valid results from any agent");
+        consensus_result.set("consensus_achieved", false);
+        consensus_result.set("participating_agents", static_cast<int>(group.agent_ids.size()));
+        consensus_result.set("successful_agents", 0);
+        return consensus_result;
+    }
+
+    // Find the result with the most votes
+    std::string winning_hash;
+    int max_votes = 0;
+    bool consensus_achieved = false;
+    
+    for (const auto& [hash, voters] : vote_groups) {
+        int vote_count = static_cast<int>(voters.size());
+        if (vote_count > max_votes) {
+            max_votes = vote_count;
+            winning_hash = hash;
+        }
+        
+        // Check if this result meets the consensus threshold
+        if (vote_count >= group.consensus_threshold) {
+            consensus_achieved = true;
+        }
+    }
+
+    // Build consensus result
+    if (consensus_achieved && !winning_hash.empty()) {
+        consensus_result = result_candidates[winning_hash];
+        consensus_result.set("consensus_achieved", true);
+        consensus_result.set("consensus_votes", max_votes);
+        consensus_result.set("required_threshold", group.consensus_threshold);
+        consensus_result.set("winning_voters", vote_groups[winning_hash]);
+        
+        ServerLogger::logInfo("Consensus achieved! %d/%zu agents agreed (threshold: %d)", 
+                            max_votes, valid_results.size(), group.consensus_threshold);
+    } else {
+        // No consensus reached - use result aggregator if available, otherwise use majority result
+        if (group.result_aggregator) {
+            consensus_result = group.result_aggregator(agent_results);
+        } else if (!winning_hash.empty()) {
+            // Use the most popular result even if it didn't meet threshold
+            consensus_result = result_candidates[winning_hash];
+        } else {
+            // Fallback: combine all results
+            std::vector<std::string> result_strings;
+            for (const auto& result : valid_results) {
+                result_strings.push_back(result.to_json().dump());
+            }
+            consensus_result.set("combined_results", result_strings);
+        }
+        
+        consensus_result.set("consensus_achieved", false);
+        consensus_result.set("highest_agreement", max_votes);
+        consensus_result.set("required_threshold", group.consensus_threshold);
+        
+        ServerLogger::logInfo("No consensus reached. Highest agreement: %d/%zu agents (threshold: %d)", 
+                            max_votes, valid_results.size(), group.consensus_threshold);
+    }
+
+    // Add metadata about the consensus process
+    consensus_result.set("participating_agents", static_cast<int>(group.agent_ids.size()));
+    consensus_result.set("successful_agents", static_cast<int>(valid_results.size()));
+    consensus_result.set("total_vote_groups", static_cast<int>(vote_groups.size()));
+    consensus_result.set("collaboration_pattern", "consensus");
+
+    return consensus_result;
 }
 
 AgentData AgentOrchestrator::execute_hierarchy_collaboration(const CollaborationGroup& group, const AgentData& input_data) {

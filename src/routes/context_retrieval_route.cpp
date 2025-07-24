@@ -103,10 +103,33 @@ void ContextRetrievalRoute::handleContextRetrieval(SocketType sock, const std::s
 
         sendSuccessResponse(sock, response);
     }
+    catch (const std::runtime_error& ex)
+    {
+        // Handle service-specific errors with more context
+        std::string error_msg = ex.what();
+        ServerLogger::logError("DocumentService error in context retrieval: %s", error_msg.c_str());
+        
+        if (error_msg.find("not initialized") != std::string::npos) {
+            sendErrorResponse(sock, 503, "Context retrieval service not ready - server may be initializing. Please try again in a moment.", "service_not_ready");
+        } else if (error_msg.find("embedding") != std::string::npos) {
+            sendErrorResponse(sock, 500, "Failed to generate embeddings for query. Check if embedding model is loaded.", "embedding_generation_failed");
+        } else if (error_msg.find("Collection") != std::string::npos && error_msg.find("does not exist") != std::string::npos) {
+            sendErrorResponse(sock, 404, "The specified collection does not exist. Please verify the collection name or create it first.", "collection_not_found", "collection");
+        } else if (error_msg.find("timeout") != std::string::npos) {
+            sendErrorResponse(sock, 408, "Context retrieval request timed out. The query may be too complex or the system is under heavy load.", "request_timeout");
+        } else {
+            sendErrorResponse(sock, 500, "Context retrieval service error: " + error_msg, "service_error");
+        }
+    }
+    catch (const json::exception& ex)
+    {
+        ServerLogger::logError("JSON processing error in context retrieval: %s", ex.what());
+        sendErrorResponse(sock, 400, "Invalid request format or response generation failed", "json_processing_error");
+    }
     catch (const std::exception& ex)
     {
-        ServerLogger::logError("Error in context retrieval: %s", ex.what());
-        sendErrorResponse(sock, 500, "Failed to retrieve context");
+        ServerLogger::logError("Unexpected error in context retrieval: %s", ex.what());
+        sendErrorResponse(sock, 500, "An unexpected error occurred during context retrieval", "internal_server_error");
     }
 }
 

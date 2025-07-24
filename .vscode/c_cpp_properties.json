@@ -16,7 +16,8 @@
                 "${workspaceFolder}/external/mupdf/thirdparty/zlib",
                 "${workspaceFolder}/external/minizip",
                 "${workspaceFolder}/external/curl/include",
-                "${workspaceFolder}/external/yaml-cpp/include"
+                "${workspaceFolder}/external/yaml-cpp/include",
+                "${workspaceFolder}/external"
             ],
             "defines": [
                 "_DEBUG",

@@ -253,15 +253,43 @@ void BulkOperationsRoute::handleBulkRetrieval(SocketType sock, const std::string
 
                         response["results"].push_back(query_result);
                     }
+                    catch (const std::runtime_error& e)
+                    {
+                        // Handle DocumentService specific errors for individual queries
+                        std::string error_msg = e.what();
+                        std::string error_type = "service_error";
+                        
+                        if (error_msg.find("embedding") != std::string::npos) {
+                            error_type = "embedding_generation_failed";
+                        } else if (error_msg.find("Collection") != std::string::npos && error_msg.find("does not exist") != std::string::npos) {
+                            error_type = "collection_not_found";
+                        } else if (error_msg.find("timeout") != std::string::npos) {
+                            error_type = "request_timeout";
+                        }
+                        
+                        json query_result = {
+                            {"query_index", i},
+                            {"query", query},
+                            {"success", false},
+                            {"error", error_msg},
+                            {"error_type", error_type}
+                        };
+                        response["results"].push_back(query_result);
+                        
+                        ServerLogger::logWarning("Query %zu failed in bulk retrieval: %s", i, error_msg.c_str());
+                    }
                     catch (const std::exception& e)
                     {
                         json query_result = {
                             {"query_index", i},
                             {"query", query},
                             {"success", false},
-                            {"error", e.what()}
+                            {"error", e.what()},
+                            {"error_type", "unknown_error"}
                         };
                         response["results"].push_back(query_result);
+                        
+                        ServerLogger::logError("Unexpected error for query %zu in bulk retrieval: %s", i, e.what());
                     }
                 }
                 else
@@ -280,15 +308,29 @@ void BulkOperationsRoute::handleBulkRetrieval(SocketType sock, const std::string
         }
         catch (const std::runtime_error& e)
         {
-            ServerLogger::logError("DocumentService error in bulk retrieval: %s", e.what());
-            sendErrorResponse(sock, 503, "Document service not available: " + std::string(e.what()));
+            // Handle DocumentService specific errors with more context
+            std::string error_msg = e.what();
+            ServerLogger::logError("DocumentService error in bulk retrieval: %s", error_msg.c_str());
+            
+            if (error_msg.find("not initialized") != std::string::npos) {
+                sendErrorResponse(sock, 503, "Bulk retrieval service not ready - server may be initializing. Please try again in a moment.", "service_not_ready");
+            } else if (error_msg.find("Qdrant is disabled") != std::string::npos) {
+                sendErrorResponse(sock, 503, "Bulk retrieval is disabled in server configuration. Check server configuration.", "service_disabled");
+            } else {
+                sendErrorResponse(sock, 503, "Bulk retrieval service error: " + error_msg, "service_error");
+            }
             return;
         }
     }
+    catch (const json::exception& ex)
+    {
+        ServerLogger::logError("JSON processing error in bulk retrieval: %s", ex.what());
+        sendErrorResponse(sock, 400, "Invalid request format: " + std::string(ex.what()), "json_processing_error");
+    }
     catch (const std::exception& ex)
     {
-        ServerLogger::logError("Error in handleBulkRetrieval: %s", ex.what());
-        sendErrorResponse(sock, 500, "Internal server error");
+        ServerLogger::logError("Unexpected error in bulk retrieval: %s", ex.what());
+        sendErrorResponse(sock, 500, "An unexpected error occurred during bulk retrieval", "internal_server_error");
     }
 }
 

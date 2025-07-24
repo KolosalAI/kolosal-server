@@ -132,10 +132,21 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
             // Process retrieval
             ServerLogger::logDebug("[Thread %u] Submitting retrieval for processing", std::this_thread::get_id());
             
+            // Start detailed timing
+            auto retrieval_start_time = std::chrono::high_resolution_clock::now();
+            
             auto response_future = document_service.retrieveDocuments(request);
         
             // Wait for processing to complete
             kolosal::retrieval::RetrieveResponse response = response_future.get();
+            
+            // Calculate retrieval processing time
+            auto retrieval_end_time = std::chrono::high_resolution_clock::now();
+            auto retrieval_duration = std::chrono::duration_cast<std::chrono::milliseconds>(retrieval_end_time - retrieval_start_time);
+            int retrieval_time_ms = static_cast<int>(retrieval_duration.count());
+            
+            ServerLogger::logInfo("[Thread %u] Document retrieval completed in %d ms for query: '%s'", 
+                                 std::this_thread::get_id(), retrieval_time_ms, request.query.c_str());
 
             // Complete monitoring
             // monitor_->completeRequest(requestId);
@@ -154,7 +165,15 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
                 {"Access-Control-Allow-Methods", "POST, OPTIONS"},
                 {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"}
             };
-            send_response(sock, 200, response.to_json().dump(), headers);
+            
+            // Add metadata to the response JSON
+            auto response_json = response.to_json();
+            response_json["metadata"] = {
+                {"processing_time_ms", retrieval_time_ms},
+                {"request_id", requestId}
+            };
+            
+            send_response(sock, 200, response_json.dump(), headers);
 
             ServerLogger::logInfo("[Thread %u] Successfully processed retrieval request - returned %d documents", 
                                   std::this_thread::get_id(), response.total_found);
