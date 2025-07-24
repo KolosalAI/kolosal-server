@@ -1,0 +1,254 @@
+# Sequential Workflow Templates and Examples
+# This file contains example workflow configurations for the Kolosal Server
+# sequential workflow system.
+
+# Example 1: Content Creation Workflow
+content_creation_workflow:
+  workflow_id: "content_creation_pipeline"
+  workflow_name: "Content Creation Pipeline"
+  description: "Research, write, and review content in sequential steps"
+  stop_on_failure: true
+  max_execution_time_seconds: 300
+  global_context:
+    topic: "The Future of AI in Healthcare"
+    target_audience: "healthcare professionals"
+    content_length: "medium"
+    tone: "professional"
+  steps:
+    - step_id: "research_step"
+      step_name: "Research Information"
+      description: "Gather information about the topic"
+      agent_id: "research_assistant"
+      function_name: "inference"
+      timeout_seconds: 60
+      max_retries: 2
+      continue_on_failure: false
+      parameters:
+        prompt: "Research the latest developments in AI applications for healthcare. Focus on practical applications, benefits, and challenges. Provide a comprehensive overview suitable for healthcare professionals."
+        max_tokens: 1024
+        temperature: 0.3
+    - step_id: "content_writing_step"
+      step_name: "Write Content"
+      description: "Create content based on research"
+      agent_id: "content_creator"
+      function_name: "inference"
+      timeout_seconds: 90
+      max_retries: 2
+      continue_on_failure: false
+      parameters:
+        prompt: "Based on the research information, write a professional article about AI in healthcare. Make it engaging and informative for healthcare professionals. Include practical examples and future outlook."
+        max_tokens: 1500
+        temperature: 0.7
+    - step_id: "quality_review_step"
+      step_name: "Quality Review"
+      description: "Review and validate the content"
+      agent_id: "qa_specialist"
+      function_name: "text_processing"
+      timeout_seconds: 45
+      max_retries: 1
+      continue_on_failure: true
+      parameters:
+        operation: "quality_review"
+        criteria: "accuracy, clarity, professional tone"
+
+# Example 2: Data Analysis Workflow
+data_analysis_workflow:
+  workflow_id: "data_analysis_pipeline"
+  workflow_name: "Data Analysis Pipeline"
+  description: "Analyze data, generate insights, and create visualizations"
+  stop_on_failure: false
+  max_execution_time_seconds: 600
+  global_context:
+    dataset_topic: "healthcare performance metrics"
+    analysis_type: "statistical_summary"
+    output_format: "report"
+  steps:
+    - step_id: "data_preparation"
+      step_name: "Data Preparation"
+      description: "Prepare and validate data for analysis"
+      agent_id: "data_analyst"
+      function_name: "data_analysis"
+      timeout_seconds: 60
+      max_retries: 2
+      parameters:
+        operation: "data_validation"
+        data_source: "synthetic_healthcare_metrics"
+    - step_id: "statistical_analysis"
+      step_name: "Statistical Analysis"
+      description: "Perform statistical analysis on the data"
+      agent_id: "data_analyst"
+      function_name: "data_analysis"
+      timeout_seconds: 90
+      max_retries: 2
+      parameters:
+        operation: "statistical_summary"
+        include_charts: "true"
+    - step_id: "insight_generation"
+      step_name: "Generate Insights"
+      description: "Generate insights and recommendations from analysis"
+      agent_id: "research_assistant"
+      function_name: "inference"
+      timeout_seconds: 60
+      max_retries: 1
+      parameters:
+        prompt: "Based on the statistical analysis results, generate key insights and actionable recommendations for healthcare performance improvement."
+        max_tokens: 800
+        temperature: 0.4
+
+# Example 3: Code Development Workflow
+code_development_workflow:
+  workflow_id: "code_development_pipeline"
+  workflow_name: "Code Development Pipeline"
+  description: "Generate, review, and test code in sequential steps"
+  stop_on_failure: true
+  max_execution_time_seconds: 240
+  global_context:
+    project_type: "web_api"
+    language: "python"
+    framework: "fastapi"
+    requirements: "user authentication with JWT tokens"
+  steps:
+    - step_id: "code_generation"
+      step_name: "Generate Code"
+      description: "Generate code based on requirements"
+      agent_id: "code_assistant"
+      function_name: "inference"
+      timeout_seconds: 90
+      max_retries: 2
+      parameters:
+        prompt: "Create a FastAPI endpoint for user authentication with JWT tokens. Include proper error handling, input validation, and documentation."
+        max_tokens: 1200
+        temperature: 0.2
+    - step_id: "code_review"
+      step_name: "Code Review"
+      description: "Review the generated code for quality and best practices"
+      agent_id: "qa_specialist"
+      function_name: "text_processing"
+      timeout_seconds: 60
+      max_retries: 1
+      parameters:
+        operation: "code_review"
+        focus: "security, best_practices, documentation"
+    - step_id: "documentation_generation"
+      step_name: "Generate Documentation"
+      description: "Create documentation for the code"
+      agent_id: "content_creator"
+      function_name: "inference"
+      timeout_seconds: 45
+      max_retries: 1
+      parameters:
+        prompt: "Create comprehensive API documentation for the authentication endpoint including usage examples, request/response formats, and error codes."
+        max_tokens: 800
+        temperature: 0.3
+
+# Example 4: Multi-Agent Research Workflow
+research_workflow:
+  workflow_id: "comprehensive_research_pipeline"
+  workflow_name: "Comprehensive Research Pipeline"
+  description: "Multi-step research process with validation and synthesis"
+  stop_on_failure: false
+  max_execution_time_seconds: 480
+  global_context:
+    research_topic: "Emerging trends in artificial intelligence"
+    scope: "technical and business perspectives"
+    depth: "comprehensive"
+  steps:
+    - step_id: "initial_research"
+      step_name: "Initial Research"
+      description: "Conduct initial research on the topic"
+      agent_id: "research_assistant"
+      function_name: "inference"
+      timeout_seconds: 90
+      max_retries: 2
+      parameters:
+        prompt: "Conduct comprehensive research on emerging trends in artificial intelligence. Cover both technical innovations and business applications."
+        max_tokens: 1500
+        temperature: 0.3
+    - step_id: "fact_verification"
+      step_name: "Fact Verification"
+      description: "Verify and validate research findings"
+      agent_id: "qa_specialist"
+      function_name: "text_processing"
+      timeout_seconds: 60
+      max_retries: 1
+      parameters:
+        operation: "fact_checking"
+        focus: "accuracy, recency, source_reliability"
+    - step_id: "synthesis"
+      step_name: "Research Synthesis"
+      description: "Synthesize findings into coherent analysis"
+      agent_id: "data_analyst"
+      function_name: "inference"
+      timeout_seconds: 75
+      max_retries: 2
+      parameters:
+        prompt: "Synthesize the research findings into a coherent analysis highlighting key trends, implications, and future directions in AI."
+        max_tokens: 1200
+        temperature: 0.4
+    - step_id: "executive_summary"
+      step_name: "Executive Summary"
+      description: "Create executive summary for stakeholders"
+      agent_id: "content_creator"
+      function_name: "inference"
+      timeout_seconds: 45
+      max_retries: 1
+      parameters:
+        prompt: "Create an executive summary of the AI trends research that highlights key findings and strategic implications for business leaders."
+        max_tokens: 600
+        temperature: 0.5
+
+# Example 5: Project Management Workflow
+project_management_workflow:
+  workflow_id: "project_planning_pipeline"
+  workflow_name: "Project Planning Pipeline"
+  description: "Comprehensive project planning with risk assessment"
+  stop_on_failure: false
+  max_execution_time_seconds: 360
+  global_context:
+    project_type: "AI implementation project"
+    duration: "6 months"
+    team_size: "8 people"
+    budget: "medium"
+  steps:
+    - step_id: "requirements_analysis"
+      step_name: "Requirements Analysis"
+      description: "Analyze and document project requirements"
+      agent_id: "project_manager"
+      function_name: "inference"
+      timeout_seconds: 60
+      max_retries: 2
+      parameters:
+        prompt: "Analyze requirements for an AI implementation project. Include functional, technical, and business requirements."
+        max_tokens: 1000
+        temperature: 0.3
+    - step_id: "task_breakdown"
+      step_name: "Task Breakdown"
+      description: "Break down project into manageable tasks"
+      agent_id: "project_manager"
+      function_name: "text_processing"
+      timeout_seconds: 45
+      max_retries: 1
+      parameters:
+        operation: "task_decomposition"
+        level: "detailed"
+    - step_id: "risk_assessment"
+      step_name: "Risk Assessment"
+      description: "Identify and assess project risks"
+      agent_id: "qa_specialist"
+      function_name: "data_analysis"
+      timeout_seconds: 50
+      max_retries: 2
+      parameters:
+        operation: "risk_analysis"
+        categories: "technical, business, operational"
+    - step_id: "timeline_creation"
+      step_name: "Timeline Creation"
+      description: "Create project timeline and milestones"
+      agent_id: "project_manager"
+      function_name: "inference"
+      timeout_seconds: 40
+      max_retries: 1
+      parameters:
+        prompt: "Create a detailed project timeline with milestones, dependencies, and critical path for the AI implementation project."
+        max_tokens: 800
+        temperature: 0.2

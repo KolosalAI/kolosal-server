@@ -1,0 +1,61 @@
+# Build artifacts
+build/
+.vscode/
+*.log
+*.tmp
+
+# Git
+.git/
+.gitignore
+.gitmodules
+
+# Documentation that's not needed in container
+docs/
+README.md
+LICENSE
+*.md
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS specific files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Cache and temporary files
+.cache/
+tmp/
+temp/
+
+# Docker files (don't include in build context)
+Dockerfile
+.dockerignore
+docker-compose.yml
+docker-compose.override.yml
+
+# Local development files
+config.yaml
+server.log
+models/
+logs/
+
+# Windows specific
+*.exe
+*.dll
+*.pdb
+
+# Backup files
+*.bak
+*.backup
+*.old
+
+# Test files
+test/
+tests/
+*_test.cpp
+*_test.hpp

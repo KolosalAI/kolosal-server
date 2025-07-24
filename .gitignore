@@ -13,3 +13,5 @@ CMakeUserPresets.json
 .vs/
 out/
 build/
+models/**
+downloads/**

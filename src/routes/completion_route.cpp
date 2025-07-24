@@ -1,13 +1,9 @@
-#pragma once
-
 #include "kolosal/routes/completion_route.hpp"
 #include "kolosal/utils.hpp"
-#include "kolosal/models/completion_request_model.hpp"
-#include "kolosal/models/completion_response_model.hpp"
-#include "kolosal/models/completion_response_chunk_model.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/node_manager.h"
+
 #include "inference_interface.h"
 #include <json.hpp>
 #include <iostream>
@@ -18,7 +14,6 @@
 #include <chrono>
 #include <mutex>
 #include <memory>
-#include <variant>
 
 using json = nlohmann::json;
 
@@ -27,89 +22,174 @@ namespace kolosal
     namespace
     {
         /**
-         * @brief Builds CompletionParameters from a CompletionRequest
-         * Following the ModelManager pattern from the example
+         * @brief Parses ChatCompletionParameters from JSON request
          */
-        CompletionParameters buildCompletionParameters(const CompletionRequest &request)
+        ChatCompletionParameters parseChatCompletionParameters(const json& j)
         {
-            CompletionParameters params;
-
-            // Set prompt based on request format
-            if (std::holds_alternative<std::string>(request.prompt))
-            {
-                params.prompt = std::get<std::string>(request.prompt);
-            }
-            else if (std::holds_alternative<std::vector<std::string>>(request.prompt))
-            {
-                // Join multiple prompts with newlines if array is provided
-                const auto &prompts = std::get<std::vector<std::string>>(request.prompt);
-                std::ostringstream joined;
-                for (size_t i = 0; i < prompts.size(); ++i)
-                {
-                    joined << prompts[i];
-                    if (i < prompts.size() - 1)
-                    {
-                        joined << "\n";
+            ChatCompletionParameters params;
+            
+            // Required field: messages
+            if (j.contains("messages") && j["messages"].is_array()) {
+                for (const auto& msgJson : j["messages"]) {
+                    if (msgJson.contains("role") && msgJson.contains("content") &&
+                        msgJson["role"].is_string() && msgJson["content"].is_string()) {
+                        
+                        Message msg(msgJson["role"].get<std::string>(), 
+                                   msgJson["content"].get<std::string>());
+                        params.messages.push_back(msg);
+                    } else {
+                        throw std::invalid_argument("Invalid message format in messages array");
                     }
                 }
-                params.prompt = joined.str();
+            } else {
+                throw std::invalid_argument("Missing or invalid 'messages' field");
             }
-
-            // Map parameters from request to our format
-            if (request.seed.has_value())
-            {
-                params.randomSeed = request.seed.value();
+            
+            // Optional fields with defaults
+            if (j.contains("randomSeed") && j["randomSeed"].is_number_integer()) {
+                params.randomSeed = j["randomSeed"].get<int>();
             }
-
-            if (request.max_tokens.has_value())
-            {
-                params.maxNewTokens = request.max_tokens.value();
+            
+            if (j.contains("maxNewTokens") && j["maxNewTokens"].is_number_integer()) {
+                params.maxNewTokens = j["maxNewTokens"].get<int>();
             }
-            else
-            {
-                // Use a reasonable default if not specified (OpenAI default is 16)
-                params.maxNewTokens = 16;
+            
+            if (j.contains("minLength") && j["minLength"].is_number_integer()) {
+                params.minLength = j["minLength"].get<int>();
             }
-
-            // Copy other parameters
-            params.temperature = static_cast<float>(request.temperature);
-            params.topP = static_cast<float>(request.top_p);
-            params.streaming = request.stream;
-
-            // Set unique sequence ID based on timestamp
-            auto now = std::chrono::system_clock::now();
-            auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-            static int seqCounter = 0;
-            params.seqId = static_cast<int>(timestamp * 1000 + seqCounter++);
-
+            
+            if (j.contains("temperature") && j["temperature"].is_number()) {
+                params.temperature = j["temperature"].get<float>();
+            }
+            
+            if (j.contains("topP") && j["topP"].is_number()) {
+                params.topP = j["topP"].get<float>();
+            }
+            
+            if (j.contains("streaming") && j["streaming"].is_boolean()) {
+                params.streaming = j["streaming"].get<bool>();
+            }
+            
+            if (j.contains("kvCacheFilePath") && j["kvCacheFilePath"].is_string()) {
+                params.kvCacheFilePath = j["kvCacheFilePath"].get<std::string>();
+            }
+            
+            if (j.contains("seqId") && j["seqId"].is_number_integer()) {
+                params.seqId = j["seqId"].get<int>();
+            }
+            
+            if (j.contains("tools") && j["tools"].is_string()) {
+                params.tools = j["tools"].get<std::string>();
+            }
+            
+            if (j.contains("toolChoice") && j["toolChoice"].is_string()) {
+                params.toolChoice = j["toolChoice"].get<std::string>();
+            }
+            
             return params;
         }
 
         /**
-         * @brief Updates usage statistics for completion response
+         * @brief Parses CompletionParameters from JSON request
          */
-        void updateUsageStats(CompletionResponse &response, const CompletionResult &result, int promptTokens)
+        CompletionParameters parseCompletionParameters(const json& j)
         {
-            response.usage.prompt_tokens = promptTokens;
-            response.usage.completion_tokens = static_cast<int>(result.tokens.size());
-            response.usage.total_tokens = response.usage.prompt_tokens + response.usage.completion_tokens;
+            CompletionParameters params;
+            
+            // Required field
+            if (j.contains("prompt") && j["prompt"].is_string()) {
+                params.prompt = j["prompt"].get<std::string>();
+            } else {
+                throw std::invalid_argument("Missing or invalid 'prompt' field");
+            }
+            
+            // Optional fields with defaults
+            if (j.contains("randomSeed") && j["randomSeed"].is_number_integer()) {
+                params.randomSeed = j["randomSeed"].get<int>();
+            }
+            
+            if (j.contains("maxNewTokens") && j["maxNewTokens"].is_number_integer()) {
+                params.maxNewTokens = j["maxNewTokens"].get<int>();
+            }
+            
+            if (j.contains("minLength") && j["minLength"].is_number_integer()) {
+                params.minLength = j["minLength"].get<int>();
+            }
+            
+            if (j.contains("temperature") && j["temperature"].is_number()) {
+                params.temperature = j["temperature"].get<float>();
+            }
+            
+            if (j.contains("topP") && j["topP"].is_number()) {
+                params.topP = j["topP"].get<float>();
+            }
+            
+            if (j.contains("streaming") && j["streaming"].is_boolean()) {
+                params.streaming = j["streaming"].get<bool>();
+            }
+            
+            if (j.contains("kvCacheFilePath") && j["kvCacheFilePath"].is_string()) {
+                params.kvCacheFilePath = j["kvCacheFilePath"].get<std::string>();
+            }
+            
+            if (j.contains("seqId") && j["seqId"].is_number_integer()) {
+                params.seqId = j["seqId"].get<int>();
+            }
+            
+            return params;
         }
 
         /**
-         * @brief Estimates prompt token count (simple approximation)
+         * @brief Converts CompletionResult to JSON response
          */
-        int estimatePromptTokens(const std::string &prompt)
+        json completionResultToJson(const CompletionResult& result)
         {
-            return prompt.length() / 4; // Rough approximation: 4 chars per token
+            json response;
+            
+            response["tokens"] = result.tokens;
+            response["text"] = result.text;
+            response["tps"] = result.tps;
+            response["ttft"] = result.ttft;
+            
+            return response;
+        }
+
+        /**
+         * @brief Estimates prompt token count for chat messages (simple approximation)
+         */
+        int estimateChatPromptTokens(const std::vector<Message>& messages)
+        {
+            int totalChars = 0;
+            for (const auto& msg : messages)
+            {
+                totalChars += static_cast<int>(msg.content.length() + msg.role.length()) + 10; // +10 for formatting
+            }
+            return totalChars / 4; // Rough approximation: 4 chars per token
+        }
+
+        /**
+         * @brief Estimates prompt token count for text (simple approximation)
+         */
+        int estimateTextPromptTokens(const std::string& prompt)
+        {
+            return static_cast<int>(prompt.length() / 4); // Rough approximation: 4 chars per token
         }
     }
 
-    bool CompletionsRoute::match(const std::string &method, const std::string &path)
+    CompletionRoute::CompletionRoute()
     {
-        return (method == "POST" && (path == "/v1/completions" || path == "/completions"));
     }
-    
-    void CompletionsRoute::handle(SocketType sock, const std::string &body)
+
+    CompletionRoute::~CompletionRoute() = default;
+
+    bool CompletionRoute::match(const std::string& method, const std::string& path)
+    {
+        return (method == "POST" && 
+                (path == "/v1/inference/completions" || path == "/inference/completions" ||
+                 path == "/v1/inference/chat/completions" || path == "/inference/chat/completions"));
+    }
+
+    void CompletionRoute::handle(SocketType sock, const std::string& body)
     {
         try
         {
@@ -120,52 +200,98 @@ namespace kolosal
             }
 
             auto j = json::parse(body);
-            ServerLogger::logInfo("[Thread %u] Received completion request", std::this_thread::get_id());
-
-            // Parse the request
-            CompletionRequest request;
-            request.from_json(j);
-
-            if (!request.validate())
+            
+            // Determine the type of request based on the presence of 'messages' field in the JSON
+            if (j.contains("messages"))
             {
-                throw std::invalid_argument("Invalid request parameters");
+                handleChatCompletion(sock, body);
+            }
+            else if (j.contains("prompt"))
+            {
+                handleTextCompletion(sock, body);
+            }
+            else
+            {
+                throw std::invalid_argument("Invalid request: missing 'messages' or 'prompt' field");
+            }
+        }
+        catch (const json::parse_error &ex)
+        {
+            ServerLogger::logError("JSON parsing error: %s", ex.what());
+            json jError = {{"error", {{"message", std::string("Invalid JSON: ") + ex.what()}, {"type", "invalid_request_error"}}}};
+            send_response(sock, 400, jError.dump());
+        }
+        catch (const std::exception &ex)
+        {
+            ServerLogger::logError("Error handling completion request: %s", ex.what());
+            json jError = {{"error", {{"message", std::string("Error: ") + ex.what()}, {"type", "invalid_request_error"}}}};
+            send_response(sock, 400, jError.dump());
+        }
+    }
+
+    bool CompletionRoute::isTextCompletionPath(const std::string& path)
+    {
+        return (path == "/v1/inference/completions" || path == "/inference/completions");
+    }
+
+    bool CompletionRoute::isChatCompletionPath(const std::string& path)
+    {
+        return (path == "/v1/inference/chat/completions" || path == "/inference/chat/completions");
+    }
+
+    void CompletionRoute::handleChatCompletion(SocketType sock, const std::string& body)
+    {
+        try
+        {
+            auto j = json::parse(body);
+            ServerLogger::logInfo("[Thread %u] Received inference chat completion request", std::this_thread::get_id());
+
+            // Extract model name (required field)
+            std::string modelName;
+            if (j.contains("model") && j["model"].is_string()) {
+                modelName = j["model"].get<std::string>();
+            } else {
+                throw std::invalid_argument("Missing or invalid 'model' field");
+            }
+
+            // Parse the chat completion parameters
+            ChatCompletionParameters params = parseChatCompletionParameters(j);
+
+            if (!params.isValid())
+            {
+                throw std::invalid_argument("Invalid chat completion parameters");
             }
 
             // Get the NodeManager and inference engine
-            auto &nodeManager = ServerAPI::instance().getNodeManager();
-            auto engine = nodeManager.getEngine(request.model);
+            auto& nodeManager = ServerAPI::instance().getNodeManager();
+            auto engine = nodeManager.getEngine(modelName);
 
             if (!engine)
             {
-                throw std::runtime_error("Model '" + request.model + "' not found or could not be loaded");
+                throw std::runtime_error("Model '" + modelName + "' not found or could not be loaded");
             }
 
-            // Build inference parameters following ModelManager pattern
-            CompletionParameters inferenceParams = buildCompletionParameters(request);
-
             // Estimate prompt tokens for usage tracking
-            int estimatedPromptTokens = estimatePromptTokens(inferenceParams.prompt);
+            int estimatedPromptTokens = estimateChatPromptTokens(params.messages);
 
-            if (request.stream)
+            if (params.streaming)
             {
                 // Handle streaming response
-                ServerLogger::logInfo("[Thread %u] Processing streaming completion request for model '%s'",
-                                      std::this_thread::get_id(), request.model.c_str());
+                ServerLogger::logInfo("[Thread %u] Processing streaming inference chat completion request for model '%s'",
+                                      std::this_thread::get_id(), modelName.c_str());
 
                 // Submit job to inference engine
-                int jobId = engine->submitCompletionsJob(inferenceParams);
+                int jobId = engine->submitChatCompletionsJob(params);
 
                 if (jobId < 0)
                 {
-                    throw std::runtime_error("Failed to submit completion job to inference engine");
+                    throw std::runtime_error("Failed to submit chat completion job to inference engine");
                 }
-
-                // Create a persistent ID for this completion
-                std::string completionId = "cmpl-" + std::to_string(std::time(nullptr)) + "-" + std::to_string(jobId);
 
                 // Start the streaming response with proper SSE headers
                 begin_streaming_response(sock, 200, {{"Content-Type", "text/event-stream"}, {"Cache-Control", "no-cache"}});
 
+                bool firstTokenRecorded = false;
                 std::string previousText = "";
 
                 // Poll for results until job is finished
@@ -178,42 +304,54 @@ namespace kolosal
                         ServerLogger::logError("[Thread %u] Inference job error: %s", std::this_thread::get_id(), error.c_str());
 
                         // Send error as final chunk
-                        CompletionChunk errorChunk;
-                        errorChunk.id = completionId;
-                        errorChunk.model = request.model;
+                        json errorResponse;
+                        errorResponse["error"] = error;
+                        errorResponse["text"] = "";
+                        errorResponse["tokens"] = json::array();
+                        errorResponse["tps"] = 0.0f;
+                        errorResponse["ttft"] = 0.0f;
 
-                        CompletionChunkChoice choice;
-                        choice.index = 0;
-                        choice.text = "";
-                        choice.finish_reason = "error";
-                        errorChunk.choices.push_back(choice);
-
-                        std::string sseData = "data: " + errorChunk.to_json().dump() + "\n\n";
+                        std::string sseData = "data: " + errorResponse.dump() + "\n\n";
                         send_stream_chunk(sock, StreamChunk(sseData, false));
                         break;
                     }
 
                     // Get current result
                     CompletionResult result = engine->getJobResult(jobId);
-
+                    
                     // Check if we have new content to stream
                     if (result.text.length() > previousText.length())
                     {
+                        // Record first token if this is the first output
+                        if (!firstTokenRecorded && result.text.length() > 0)
+                        {
+                            firstTokenRecorded = true;
+                        }
+
                         std::string newContent = result.text.substr(previousText.length());
 
-                        CompletionChunk chunk;
-                        chunk.id = completionId;
-                        chunk.model = request.model;
+                        // Record output tokens (approximate by character count)
+                        int newTokens = static_cast<int>(newContent.length() / 4); // Rough approximation
+                        for (int i = 0; i < newTokens; ++i)
+                        {
+                        }
 
-                        CompletionChunkChoice choice;
-                        choice.index = 0;
-                        choice.text = newContent;
-                        choice.finish_reason = "";
+                        // Create partial result for streaming
+                        CompletionResult partialResult;
+                        partialResult.text = newContent;
+                        partialResult.tps = result.tps;
+                        partialResult.ttft = result.ttft;
+                        // Only include new tokens since last update
+                        if (result.tokens.size() > static_cast<size_t>(previousText.length() / 4)) {
+                            auto startIt = result.tokens.begin() + static_cast<int>(previousText.length() / 4);
+                            partialResult.tokens.assign(startIt, result.tokens.end());
+                        }
 
-                        chunk.choices.push_back(choice);
+                        json streamResponse = completionResultToJson(partialResult);
+                        streamResponse["partial"] = true;
 
                         // Format as SSE data message
-                        std::string sseData = "data: " + chunk.to_json().dump() + "\n\n";
+                        std::string sseData = "data: " + streamResponse.dump() + "\n\n";
                         send_stream_chunk(sock, StreamChunk(sseData, false));
 
                         previousText = result.text;
@@ -223,29 +361,29 @@ namespace kolosal
                     std::this_thread::sleep_for(std::chrono::milliseconds(50));
                 }
 
-                // Send final chunk with finish reason
+                // Send final result if no error occurred
                 if (!engine->hasJobError(jobId))
                 {
-                    CompletionChunk finalChunk;
-                    finalChunk.id = completionId;
-                    finalChunk.model = request.model;
+                    CompletionResult finalResult = engine->getJobResult(jobId);
+                    json finalResponse = completionResultToJson(finalResult);
+                    finalResponse["partial"] = false;
 
-                    CompletionChunkChoice choice;
-                    choice.index = 0;
-                    choice.text = "";
-                    choice.finish_reason = "stop";
-
-                    finalChunk.choices.push_back(choice);
-
-                    std::string sseData = "data: " + finalChunk.to_json().dump() + "\n\n";
+                    std::string sseData = "data: " + finalResponse.dump() + "\n\n";
                     send_stream_chunk(sock, StreamChunk(sseData, false));
                 }
 
-                // Send the final [DONE] marker required by OpenAI client
+                // Send the final [DONE] marker
                 send_stream_chunk(sock, StreamChunk("data: [DONE]\n\n", false));
 
                 // Then terminate the stream
                 send_stream_chunk(sock, StreamChunk("", true));
+
+                if (engine->hasJobError(jobId))
+                {
+                }
+                else
+                {
+                }
 
                 ServerLogger::logInfo("[Thread %u] Completed streaming response for job %d",
                                       std::this_thread::get_id(), jobId);
@@ -253,11 +391,226 @@ namespace kolosal
             else
             {
                 // Handle normal (non-streaming) response
-                ServerLogger::logInfo("[Thread %u] Processing non-streaming completion request for model '%s'",
-                                      std::this_thread::get_id(), request.model.c_str());
+                ServerLogger::logInfo("[Thread %u] Processing non-streaming inference chat completion request for model '%s'",
+                                      std::this_thread::get_id(), modelName.c_str());
 
                 // Submit job to inference engine
-                int jobId = engine->submitCompletionsJob(inferenceParams);
+                int jobId = engine->submitChatCompletionsJob(params);
+
+                if (jobId < 0)
+                {
+                    throw std::runtime_error("Failed to submit chat completion job to inference engine");
+                }
+
+                // Wait for job completion
+                engine->waitForJob(jobId);
+
+                // Check for errors
+                if (engine->hasJobError(jobId))
+                {
+                    std::string error = engine->getJobError(jobId);
+                    throw std::runtime_error("Inference error: " + error);
+                }
+
+                // Get the final result
+                CompletionResult result = engine->getJobResult(jobId);
+
+                // Record first token and output tokens for non-streaming
+                if (result.text.length() > 0)
+                {
+                    // Record output tokens based on token count
+                    int outputTokens = static_cast<int>(result.tokens.size());
+                    for (int i = 0; i < outputTokens; ++i)
+                    {
+                    }
+                }
+
+                // Convert result to JSON and send response
+                json response = completionResultToJson(result);
+                send_response(sock, 200, response.dump());
+
+                ServerLogger::logInfo("[Thread %u] Completed non-streaming response for job %d (%.2f tokens/sec)",
+                                      std::this_thread::get_id(), jobId, result.tps);
+            }
+        }
+        catch (const json::exception& ex)
+        {
+            // Specifically handle JSON parsing errors
+            ServerLogger::logError("[Thread %u] JSON parsing error: %s",
+                                   std::this_thread::get_id(), ex.what());
+
+            json jError = {{"error", {{"message", std::string("Invalid JSON: ") + ex.what()}, {"type", "invalid_request_error"}}}};
+
+            send_response(sock, 400, jError.dump());
+        }
+        catch (const std::exception& ex)
+        {
+            ServerLogger::logError("[Thread %u] Error handling inference chat completion: %s",
+                                   std::this_thread::get_id(), ex.what());
+
+            json jError = {{"error", {{"message", std::string("Error: ") + ex.what()}, {"type", "invalid_request_error"}}}};
+
+            send_response(sock, 400, jError.dump());
+        }
+    }
+
+    void CompletionRoute::handleTextCompletion(SocketType sock, const std::string& body)
+    {
+        try
+        {
+            auto j = json::parse(body);
+            ServerLogger::logInfo("[Thread %u] Received inference completion request", std::this_thread::get_id());
+
+            // Extract model name (required field)
+            std::string modelName;
+            if (j.contains("model") && j["model"].is_string()) {
+                modelName = j["model"].get<std::string>();
+            } else {
+                throw std::invalid_argument("Missing or invalid 'model' field");
+            }
+
+            // Parse the completion parameters
+            CompletionParameters params = parseCompletionParameters(j);
+
+            if (!params.isValid())
+            {
+                throw std::invalid_argument("Invalid completion parameters");
+            }
+
+            // Get the NodeManager and inference engine
+            auto& nodeManager = ServerAPI::instance().getNodeManager();
+            auto engine = nodeManager.getEngine(modelName);
+
+            if (!engine)
+            {
+                throw std::runtime_error("Model '" + modelName + "' not found or could not be loaded");
+            }
+
+            // Estimate prompt tokens for usage tracking
+            int estimatedPromptTokens = estimateTextPromptTokens(params.prompt);
+
+            if (params.streaming)
+            {
+                // Handle streaming response
+                ServerLogger::logInfo("[Thread %u] Processing streaming inference completion request for model '%s'",
+                                      std::this_thread::get_id(), modelName.c_str());
+
+                // Submit job to inference engine
+                int jobId = engine->submitCompletionsJob(params);
+
+                if (jobId < 0)
+                {
+                    throw std::runtime_error("Failed to submit completion job to inference engine");
+                }
+
+                // Start the streaming response with proper SSE headers
+                begin_streaming_response(sock, 200, {{"Content-Type", "text/event-stream"}, {"Cache-Control", "no-cache"}});
+
+                bool firstTokenRecorded = false;
+                std::string previousText = "";
+
+                // Poll for results until job is finished
+                while (!engine->isJobFinished(jobId))
+                {
+                    // Check for errors
+                    if (engine->hasJobError(jobId))
+                    {
+                        std::string error = engine->getJobError(jobId);
+                        ServerLogger::logError("[Thread %u] Inference job error: %s", std::this_thread::get_id(), error.c_str());
+
+                        // Send error as final chunk
+                        json errorResponse;
+                        errorResponse["error"] = error;
+                        errorResponse["text"] = "";
+                        errorResponse["tokens"] = json::array();
+                        errorResponse["tps"] = 0.0f;
+                        errorResponse["ttft"] = 0.0f;
+
+                        std::string sseData = "data: " + errorResponse.dump() + "\n\n";
+                        send_stream_chunk(sock, StreamChunk(sseData, false));
+                        break;
+                    }
+
+                    // Get current result
+                    CompletionResult result = engine->getJobResult(jobId);
+                    
+                    // Check if we have new content to stream
+                    if (result.text.length() > previousText.length())
+                    {
+                        // Record first token if this is the first output
+                        if (!firstTokenRecorded && result.text.length() > 0)
+                        {
+                            firstTokenRecorded = true;
+                        }
+
+                        std::string newContent = result.text.substr(previousText.length());
+
+                        // Record output tokens (approximate by character count)
+                        int newTokens = static_cast<int>(newContent.length() / 4); // Rough approximation
+                        for (int i = 0; i < newTokens; ++i)
+                        {
+                        }
+
+                        // Create partial result for streaming
+                        CompletionResult partialResult;
+                        partialResult.text = newContent;
+                        partialResult.tps = result.tps;
+                        partialResult.ttft = result.ttft;
+                        // Only include new tokens since last update
+                        if (result.tokens.size() > static_cast<size_t>(previousText.length() / 4)) {
+                            auto startIt = result.tokens.begin() + static_cast<int>(previousText.length() / 4);
+                            partialResult.tokens.assign(startIt, result.tokens.end());
+                        }
+
+                        json streamResponse = completionResultToJson(partialResult);
+                        streamResponse["partial"] = true;
+
+                        // Format as SSE data message
+                        std::string sseData = "data: " + streamResponse.dump() + "\n\n";
+                        send_stream_chunk(sock, StreamChunk(sseData, false));
+
+                        previousText = result.text;
+                    }
+
+                    // Brief sleep to avoid busy waiting
+                    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+                }
+
+                // Send final result if no error occurred
+                if (!engine->hasJobError(jobId))
+                {
+                    CompletionResult finalResult = engine->getJobResult(jobId);
+                    json finalResponse = completionResultToJson(finalResult);
+                    finalResponse["partial"] = false;
+
+                    std::string sseData = "data: " + finalResponse.dump() + "\n\n";
+                    send_stream_chunk(sock, StreamChunk(sseData, false));
+                }
+
+                // Send the final [DONE] marker
+                send_stream_chunk(sock, StreamChunk("data: [DONE]\n\n", false));
+
+                // Then terminate the stream
+                send_stream_chunk(sock, StreamChunk("", true));
+
+                if (engine->hasJobError(jobId))
+                {
+                }
+                else
+                {
+                }
+
+                ServerLogger::logInfo("[Thread %u] Completed streaming response for job %d",
+                                      std::this_thread::get_id(), jobId);
+            }
+            else
+            {
+                // Handle normal (non-streaming) response
+                ServerLogger::logInfo("[Thread %u] Processing non-streaming inference completion request for model '%s'",
+                                      std::this_thread::get_id(), modelName.c_str());
+
+                // Submit job to inference engine
+                int jobId = engine->submitCompletionsJob(params);
 
                 if (jobId < 0)
                 {
@@ -277,43 +630,40 @@ namespace kolosal
                 // Get the final result
                 CompletionResult result = engine->getJobResult(jobId);
 
-                // Build response
-                CompletionResponse response;
-                response.model = request.model;
+                // Record first token and output tokens for non-streaming
+                if (result.text.length() > 0)
+                {
+                    // Record output tokens based on token count
+                    int outputTokens = static_cast<int>(result.tokens.size());
+                    for (int i = 0; i < outputTokens; ++i)
+                    {
+                    }
+                }
 
-                CompletionChoice choice;
-                choice.index = 0;
-                choice.text = result.text;
-                choice.finish_reason = "stop";
-
-                response.choices.push_back(choice);
-
-                // Update usage statistics
-                updateUsageStats(response, result, estimatedPromptTokens);
-
-                // Send the response
-                send_response(sock, 200, response.to_json().dump());
+                // Convert result to JSON and send response
+                json response = completionResultToJson(result);
+                send_response(sock, 200, response.dump());
 
                 ServerLogger::logInfo("[Thread %u] Completed non-streaming response for job %d (%.2f tokens/sec)",
                                       std::this_thread::get_id(), jobId, result.tps);
             }
         }
-        catch (const json::exception &ex)
+        catch (const json::exception& ex)
         {
             // Specifically handle JSON parsing errors
             ServerLogger::logError("[Thread %u] JSON parsing error: %s",
                                    std::this_thread::get_id(), ex.what());
 
-            json jError = {{"error", {{"message", std::string("Invalid JSON: ") + ex.what()}, {"type", "invalid_request_error"}, {"param", nullptr}, {"code", nullptr}}}};
+            json jError = {{"error", {{"message", std::string("Invalid JSON: ") + ex.what()}, {"type", "invalid_request_error"}}}};
 
             send_response(sock, 400, jError.dump());
         }
-        catch (const std::exception &ex)
+        catch (const std::exception& ex)
         {
-            ServerLogger::logError("[Thread %u] Error handling completion: %s",
+            ServerLogger::logError("[Thread %u] Error handling inference completion: %s",
                                    std::this_thread::get_id(), ex.what());
 
-            json jError = {{"error", {{"message", std::string("Error: ") + ex.what()}, {"type", "invalid_request_error"}, {"param", nullptr}, {"code", nullptr}}}};
+            json jError = {{"error", {{"message", std::string("Error: ") + ex.what()}, {"type", "invalid_request_error"}}}};
 
             send_response(sock, 400, jError.dump());
         }

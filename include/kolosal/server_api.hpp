@@ -2,37 +2,56 @@
 
 #include <string>
 #include <memory>
+#include <chrono>
 
 #include "export.hpp"
+#include "server_config.hpp"
 
-namespace kolosal {
+namespace kolosal
+{
 
-    // Forward declaration
+    // Forward declarations
     class NodeManager;
+    namespace auth
+    {
+        class AuthMiddleware;
+    }
 
-    class KOLOSAL_SERVER_API ServerAPI {
+    class KOLOSAL_SERVER_API ServerAPI
+    {
     public:
         // Singleton pattern
-        static ServerAPI& instance();
+        static ServerAPI &instance();
 
         // Delete copy/move constructors and assignments
-        ServerAPI(const ServerAPI&) = delete;
-        ServerAPI& operator=(const ServerAPI&) = delete;
-        ServerAPI(ServerAPI&&) = delete;
-        ServerAPI& operator=(ServerAPI&&) = delete;        // Initialize and start server
-        bool init(const std::string& port);
+        ServerAPI(const ServerAPI &) = delete;
+        ServerAPI &operator=(const ServerAPI &) = delete;
+        ServerAPI(ServerAPI &&) = delete;
+        ServerAPI &operator=(ServerAPI &&) = delete;        // Initialize and start server
+        bool init(const std::string &port, const std::string &host = "0.0.0.0", std::chrono::seconds idleTimeout = std::chrono::seconds(300));
         void shutdown();
+        
+        // Feature management
+        void enableMetrics();
+        void enableSearch(const SearchConfig& config);
 
         // NodeManager access
-        NodeManager& getNodeManager();
-        const NodeManager& getNodeManager() const;
+        NodeManager &getNodeManager();
+        const NodeManager &getNodeManager() const;
+
+        // AuthMiddleware access
+        auth::AuthMiddleware &getAuthMiddleware();
+        const auth::AuthMiddleware &getAuthMiddleware() const;
 
     private:
         ServerAPI();
         ~ServerAPI();
 
         class Impl;
+#pragma warning(push)
+#pragma warning(disable: 4251)
         std::unique_ptr<Impl> pImpl;
+#pragma warning(pop)
     };
 
 } // namespace kolosal

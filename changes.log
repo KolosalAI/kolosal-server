@@ -1,0 +1,571 @@
+diff --git a/.vscode/c_cpp_properties.json b/.vscode/c_cpp_properties.json
+index 609ad18b..a905a332 100644
+--- a/.vscode/c_cpp_properties.json
++++ b/.vscode/c_cpp_properties.json
+@@ -16,7 +16,8 @@
+                 "${workspaceFolder}/external/mupdf/thirdparty/zlib",
+                 "${workspaceFolder}/external/minizip",
+                 "${workspaceFolder}/external/curl/include",
+-                "${workspaceFolder}/external/yaml-cpp/include"
++                "${workspaceFolder}/external/yaml-cpp/include",
++                "${workspaceFolder}/external"
+             ],
+             "defines": [
+                 "_DEBUG",
+@@ -36,4 +37,4 @@
+         }
+     ],
+     "version": 4
+-}
++}
+\ No newline at end of file
+diff --git a/src/agents/agent_orchestrator.cpp b/src/agents/agent_orchestrator.cpp
+index c6fa4439..60f2d1c6 100644
+--- a/src/agents/agent_orchestrator.cpp
++++ b/src/agents/agent_orchestrator.cpp
+@@ -5,6 +5,7 @@
+ #include <chrono>
+ #include <future>
+ #include <random>
++#include <json.hpp>
+ 
+ namespace kolosal::agents {
+ 
+@@ -499,12 +500,126 @@ AgentData AgentOrchestrator::execute_pipeline_collaboration(const CollaborationG
+ }
+ 
+ AgentData AgentOrchestrator::execute_consensus_collaboration(const CollaborationGroup& group, const AgentData& input_data) {
+-    auto parallel_result = execute_parallel_collaboration(group, input_data);
++    if (group.agent_ids.empty()) {
++        AgentData error_result;
++        error_result.set("error", "No agents available for consensus collaboration");
++        return error_result;
++    }
++
++    ServerLogger::logInfo("Starting consensus collaboration with %zu agents (threshold: %d)", 
++                         group.agent_ids.size(), group.consensus_threshold);
++
++    // Execute all agents in parallel to get their individual results
++    std::vector<std::future<FunctionResult>> futures;
++    std::vector<std::string> participating_agents;
++    
++    for (const auto& agent_id : group.agent_ids) {
++        futures.push_back(std::async(std::launch::async, [this, &agent_id, &input_data]() {
++            auto agent = agent_manager->get_agent(agent_id);
++            if (agent) {
++                return agent->execute_function("analyze_and_vote", input_data);
++            }
++            return FunctionResult(false, "Agent not found: " + agent_id);
++        }));
++        participating_agents.push_back(agent_id);
++    }
++
++    // Collect all results
++    std::vector<FunctionResult> agent_results;
++    std::vector<AgentData> valid_results;
++    std::map<std::string, std::vector<std::string>> vote_groups; // result_hash -> list of agent_ids
++    std::map<std::string, AgentData> result_candidates; // result_hash -> actual result
++    
++    for (size_t i = 0; i < futures.size(); ++i) {
++        auto result = futures[i].get();
++        agent_results.push_back(result);
++        
++        if (result.success) {
++            valid_results.push_back(result.result_data);
++            
++            // Create a simple hash of the result for consensus grouping
++            std::string result_hash = std::to_string(std::hash<std::string>{}(result.result_data.to_json()));
++            vote_groups[result_hash].push_back(participating_agents[i]);
++            result_candidates[result_hash] = result.result_data;
++            
++            ServerLogger::logDebug("Agent %s provided result with hash %s", 
++                                  participating_agents[i].c_str(), result_hash.c_str());
++        } else {
++            ServerLogger::logWarning("Agent %s failed: %s", 
++                                   participating_agents[i].c_str(), result.error_message.c_str());
++        }
++    }
++
++    // Analyze consensus
++    AgentData consensus_result;
+     
+-    // Simple consensus: majority vote
+-    // TODO: Implement proper consensus mechanism
++    if (valid_results.empty()) {
++        consensus_result.set("error", "No valid results from any agent");
++        consensus_result.set("consensus_achieved", false);
++        consensus_result.set("participating_agents", static_cast<int>(group.agent_ids.size()));
++        consensus_result.set("successful_agents", 0);
++        return consensus_result;
++    }
++
++    // Find the result with the most votes
++    std::string winning_hash;
++    int max_votes = 0;
++    bool consensus_achieved = false;
+     
+-    return parallel_result;
++    for (const auto& [hash, voters] : vote_groups) {
++        int vote_count = static_cast<int>(voters.size());
++        if (vote_count > max_votes) {
++            max_votes = vote_count;
++            winning_hash = hash;
++        }
++        
++        // Check if this result meets the consensus threshold
++        if (vote_count >= group.consensus_threshold) {
++            consensus_achieved = true;
++        }
++    }
++
++    // Build consensus result
++    if (consensus_achieved && !winning_hash.empty()) {
++        consensus_result = result_candidates[winning_hash];
++        consensus_result.set("consensus_achieved", true);
++        consensus_result.set("consensus_votes", max_votes);
++        consensus_result.set("required_threshold", group.consensus_threshold);
++        consensus_result.set("winning_voters", vote_groups[winning_hash]);
++        
++        ServerLogger::logInfo("Consensus achieved! %d/%zu agents agreed (threshold: %d)", 
++                            max_votes, valid_results.size(), group.consensus_threshold);
++    } else {
++        // No consensus reached - use result aggregator if available, otherwise use majority result
++        if (group.result_aggregator) {
++            consensus_result = group.result_aggregator(agent_results);
++        } else if (!winning_hash.empty()) {
++            // Use the most popular result even if it didn't meet threshold
++            consensus_result = result_candidates[winning_hash];
++        } else {
++            // Fallback: combine all results
++            std::vector<std::string> result_strings;
++            for (const auto& result : valid_results) {
++                result_strings.push_back(result.to_json().dump());
++            }
++            consensus_result.set("combined_results", result_strings);
++        }
++        
++        consensus_result.set("consensus_achieved", false);
++        consensus_result.set("highest_agreement", max_votes);
++        consensus_result.set("required_threshold", group.consensus_threshold);
++        
++        ServerLogger::logInfo("No consensus reached. Highest agreement: %d/%zu agents (threshold: %d)", 
++                            max_votes, valid_results.size(), group.consensus_threshold);
++    }
++
++    // Add metadata about the consensus process
++    consensus_result.set("participating_agents", static_cast<int>(group.agent_ids.size()));
++    consensus_result.set("successful_agents", static_cast<int>(valid_results.size()));
++    consensus_result.set("total_vote_groups", static_cast<int>(vote_groups.size()));
++    consensus_result.set("collaboration_pattern", "consensus");
++
++    return consensus_result;
+ }
+ 
+ AgentData AgentOrchestrator::execute_hierarchy_collaboration(const CollaborationGroup& group, const AgentData& input_data) {
+diff --git a/src/routes/bulk_operations_route.cpp b/src/routes/bulk_operations_route.cpp
+index 2a9419f4..a1b1c0ba 100644
+--- a/src/routes/bulk_operations_route.cpp
++++ b/src/routes/bulk_operations_route.cpp
+@@ -253,15 +253,43 @@ void BulkOperationsRoute::handleBulkRetrieval(SocketType sock, const std::string
+ 
+                         response["results"].push_back(query_result);
+                     }
++                    catch (const std::runtime_error& e)
++                    {
++                        // Handle DocumentService specific errors for individual queries
++                        std::string error_msg = e.what();
++                        std::string error_type = "service_error";
++                        
++                        if (error_msg.find("embedding") != std::string::npos) {
++                            error_type = "embedding_generation_failed";
++                        } else if (error_msg.find("Collection") != std::string::npos && error_msg.find("does not exist") != std::string::npos) {
++                            error_type = "collection_not_found";
++                        } else if (error_msg.find("timeout") != std::string::npos) {
++                            error_type = "request_timeout";
++                        }
++                        
++                        json query_result = {
++                            {"query_index", i},
++                            {"query", query},
++                            {"success", false},
++                            {"error", error_msg},
++                            {"error_type", error_type}
++                        };
++                        response["results"].push_back(query_result);
++                        
++                        ServerLogger::logWarning("Query %zu failed in bulk retrieval: %s", i, error_msg.c_str());
++                    }
+                     catch (const std::exception& e)
+                     {
+                         json query_result = {
+                             {"query_index", i},
+                             {"query", query},
+                             {"success", false},
+-                            {"error", e.what()}
++                            {"error", e.what()},
++                            {"error_type", "unknown_error"}
+                         };
+                         response["results"].push_back(query_result);
++                        
++                        ServerLogger::logError("Unexpected error for query %zu in bulk retrieval: %s", i, e.what());
+                     }
+                 }
+                 else
+@@ -280,15 +308,29 @@ void BulkOperationsRoute::handleBulkRetrieval(SocketType sock, const std::string
+         }
+         catch (const std::runtime_error& e)
+         {
+-            ServerLogger::logError("DocumentService error in bulk retrieval: %s", e.what());
+-            sendErrorResponse(sock, 503, "Document service not available: " + std::string(e.what()));
++            // Handle DocumentService specific errors with more context
++            std::string error_msg = e.what();
++            ServerLogger::logError("DocumentService error in bulk retrieval: %s", error_msg.c_str());
++            
++            if (error_msg.find("not initialized") != std::string::npos) {
++                sendErrorResponse(sock, 503, "Bulk retrieval service not ready - server may be initializing. Please try again in a moment.", "service_not_ready");
++            } else if (error_msg.find("Qdrant is disabled") != std::string::npos) {
++                sendErrorResponse(sock, 503, "Bulk retrieval is disabled in server configuration. Check server configuration.", "service_disabled");
++            } else {
++                sendErrorResponse(sock, 503, "Bulk retrieval service error: " + error_msg, "service_error");
++            }
+             return;
+         }
+     }
++    catch (const json::exception& ex)
++    {
++        ServerLogger::logError("JSON processing error in bulk retrieval: %s", ex.what());
++        sendErrorResponse(sock, 400, "Invalid request format: " + std::string(ex.what()), "json_processing_error");
++    }
+     catch (const std::exception& ex)
+     {
+-        ServerLogger::logError("Error in handleBulkRetrieval: %s", ex.what());
+-        sendErrorResponse(sock, 500, "Internal server error");
++        ServerLogger::logError("Unexpected error in bulk retrieval: %s", ex.what());
++        sendErrorResponse(sock, 500, "An unexpected error occurred during bulk retrieval", "internal_server_error");
+     }
+ }
+ 
+diff --git a/src/routes/context_retrieval_route.cpp b/src/routes/context_retrieval_route.cpp
+index 4ceb6308..6ce53127 100644
+--- a/src/routes/context_retrieval_route.cpp
++++ b/src/routes/context_retrieval_route.cpp
+@@ -103,10 +103,33 @@ void ContextRetrievalRoute::handleContextRetrieval(SocketType sock, const std::s
+ 
+         sendSuccessResponse(sock, response);
+     }
++    catch (const std::runtime_error& ex)
++    {
++        // Handle service-specific errors with more context
++        std::string error_msg = ex.what();
++        ServerLogger::logError("DocumentService error in context retrieval: %s", error_msg.c_str());
++        
++        if (error_msg.find("not initialized") != std::string::npos) {
++            sendErrorResponse(sock, 503, "Context retrieval service not ready - server may be initializing. Please try again in a moment.", "service_not_ready");
++        } else if (error_msg.find("embedding") != std::string::npos) {
++            sendErrorResponse(sock, 500, "Failed to generate embeddings for query. Check if embedding model is loaded.", "embedding_generation_failed");
++        } else if (error_msg.find("Collection") != std::string::npos && error_msg.find("does not exist") != std::string::npos) {
++            sendErrorResponse(sock, 404, "The specified collection does not exist. Please verify the collection name or create it first.", "collection_not_found", "collection");
++        } else if (error_msg.find("timeout") != std::string::npos) {
++            sendErrorResponse(sock, 408, "Context retrieval request timed out. The query may be too complex or the system is under heavy load.", "request_timeout");
++        } else {
++            sendErrorResponse(sock, 500, "Context retrieval service error: " + error_msg, "service_error");
++        }
++    }
++    catch (const json::exception& ex)
++    {
++        ServerLogger::logError("JSON processing error in context retrieval: %s", ex.what());
++        sendErrorResponse(sock, 400, "Invalid request format or response generation failed", "json_processing_error");
++    }
+     catch (const std::exception& ex)
+     {
+-        ServerLogger::logError("Error in context retrieval: %s", ex.what());
+-        sendErrorResponse(sock, 500, "Failed to retrieve context");
++        ServerLogger::logError("Unexpected error in context retrieval: %s", ex.what());
++        sendErrorResponse(sock, 500, "An unexpected error occurred during context retrieval", "internal_server_error");
+     }
+ }
+ 
+diff --git a/src/routes/retrieve_route.cpp b/src/routes/retrieve_route.cpp
+index dc58f3e3..5b2b6b99 100644
+--- a/src/routes/retrieve_route.cpp
++++ b/src/routes/retrieve_route.cpp
+@@ -132,10 +132,21 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
+             // Process retrieval
+             ServerLogger::logDebug("[Thread %u] Submitting retrieval for processing", std::this_thread::get_id());
+             
++            // Start detailed timing
++            auto retrieval_start_time = std::chrono::high_resolution_clock::now();
++            
+             auto response_future = document_service.retrieveDocuments(request);
+         
+             // Wait for processing to complete
+             kolosal::retrieval::RetrieveResponse response = response_future.get();
++            
++            // Calculate retrieval processing time
++            auto retrieval_end_time = std::chrono::high_resolution_clock::now();
++            auto retrieval_duration = std::chrono::duration_cast<std::chrono::milliseconds>(retrieval_end_time - retrieval_start_time);
++            int retrieval_time_ms = static_cast<int>(retrieval_duration.count());
++            
++            ServerLogger::logInfo("[Thread %u] Document retrieval completed in %d ms for query: '%s'", 
++                                 std::this_thread::get_id(), retrieval_time_ms, request.query.c_str());
+ 
+             // Complete monitoring
+             // monitor_->completeRequest(requestId);
+@@ -154,7 +165,15 @@ void RetrieveRoute::handle(SocketType sock, const std::string& body)
+                 {"Access-Control-Allow-Methods", "POST, OPTIONS"},
+                 {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"}
+             };
+-            send_response(sock, 200, response.to_json().dump(), headers);
++            
++            // Add metadata to the response JSON
++            auto response_json = response.to_json();
++            response_json["metadata"] = {
++                {"processing_time_ms", retrieval_time_ms},
++                {"request_id", requestId}
++            };
++            
++            send_response(sock, 200, response_json.dump(), headers);
+ 
+             ServerLogger::logInfo("[Thread %u] Successfully processed retrieval request - returned %d documents", 
+                                   std::this_thread::get_id(), response.total_found);
+diff --git a/src/routes/vector_search_route.cpp b/src/routes/vector_search_route.cpp
+index 45c5c4fa..e1b2c736 100644
+--- a/src/routes/vector_search_route.cpp
++++ b/src/routes/vector_search_route.cpp
+@@ -5,6 +5,9 @@
+ #include "kolosal/retrieval/retrieve_types.hpp"
+ #include <json.hpp>
+ #include <iostream>
++#include <chrono>
++#include <algorithm>
++#include <cmath>
+ 
+ using json = nlohmann::json;
+ 
+@@ -69,6 +72,30 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+         double threshold = request_data.value("threshold", 0.0);
+         std::string collection = request_data.value("collection", "default");
+ 
++        // Enhanced parameter validation
++        if (limit <= 0 || limit > 1000) {
++            sendErrorResponse(sock, 400, "limit must be between 1 and 1000 (got " + std::to_string(limit) + ")", "invalid_parameter", "limit");
++            return;
++        }
++        
++        if (threshold < 0.0 || threshold > 1.0) {
++            sendErrorResponse(sock, 400, "threshold must be between 0.0 and 1.0 (got " + std::to_string(threshold) + ")", "invalid_parameter", "threshold");
++            return;
++        }
++        
++        if (collection.empty()) {
++            sendErrorResponse(sock, 400, "collection name cannot be empty", "invalid_parameter", "collection");
++            return;
++        }
++        
++        // Validate collection name format (alphanumeric and underscores only)
++        if (!std::all_of(collection.begin(), collection.end(), [](char c) {
++            return std::isalnum(c) || c == '_' || c == '-';
++        })) {
++            sendErrorResponse(sock, 400, "collection name must contain only alphanumeric characters, underscores, and hyphens", "invalid_parameter", "collection");
++            return;
++        }
++
+         if (request_data.contains("vector"))
+         {
+             // Direct vector search
+@@ -81,7 +108,13 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+             try {
+                 for (const auto& val : request_data["vector"]) {
+                     if (val.is_number()) {
+-                        query_vector.push_back(val.get<float>());
++                        float float_val = val.get<float>();
++                        // Check for invalid float values
++                        if (std::isnan(float_val) || std::isinf(float_val)) {
++                            sendErrorResponse(sock, 400, "Vector elements cannot be NaN or infinite", "invalid_parameter", "vector");
++                            return;
++                        }
++                        query_vector.push_back(float_val);
+                     } else {
+                         sendErrorResponse(sock, 400, "All vector elements must be numbers", "invalid_parameter", "vector");
+                         return;
+@@ -97,14 +130,32 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+                 return;
+             }
+             
++            // Validate vector dimension (common embedding dimensions)
++            size_t vector_size = query_vector.size();
++            if (vector_size > 4096) {
++                sendErrorResponse(sock, 400, "Vector dimension too large (max 4096, got " + std::to_string(vector_size) + ")", "invalid_parameter", "vector");
++                return;
++            }
++            
+             ServerLogger::logInfo("Vector search request - Vector size: %zu, Limit: %d, Collection: %s", 
+                                  query_vector.size(), limit, collection.c_str());
+ 
+             try
+             {
++                // Start timing
++                auto start_time = std::chrono::high_resolution_clock::now();
++                
+                 auto& serverAPI = ServerAPI::instance();
+                 auto& documentService = serverAPI.getDocumentService();
+                 
++                // Calculate processing time (even for placeholder implementation)
++                auto end_time = std::chrono::high_resolution_clock::now();
++                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
++                int processing_time_ms = static_cast<int>(duration.count());
++                
++                ServerLogger::logInfo("Direct vector search processed in %d ms (vector size: %zu)", 
++                                     processing_time_ms, query_vector.size());
++                
+                 // Create a dummy query for vector search - this needs to be implemented in the document service
+                 // For now, return a basic response indicating vector search capability
+                 json response;
+@@ -114,7 +165,12 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+                     {"vector_size", query_vector.size()},
+                     {"results", json::array()},
+                     {"total_results", 0},
+-                    {"processing_time_ms", 0},
++                    {"processing_time_ms", processing_time_ms},
++                    {"search_metadata", {
++                        {"vector_preparation_time_ms", 0},
++                        {"similarity_search_time_ms", 0},
++                        {"total_time_ms", processing_time_ms}
++                    }},
+                     {"message", "Direct vector search with document service not fully implemented yet"}
+                 };
+ 
+@@ -122,11 +178,19 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+             }
+             catch (const std::runtime_error& e)
+             {
+-                // DocumentService not available
+-                json response;
+-                response["success"] = false;
+-                response["error"] = "Document service not available: " + std::string(e.what());
+-                sendSuccessResponse(sock, response);
++                // Handle DocumentService specific errors for direct vector search
++                std::string error_msg = e.what();
++                ServerLogger::logError("DocumentService error in direct vector search: %s", error_msg.c_str());
++                
++                if (error_msg.find("not initialized") != std::string::npos) {
++                    sendErrorResponse(sock, 503, "Vector search service not ready for direct vector queries", "service_not_ready");
++                } else if (error_msg.find("Collection") != std::string::npos && error_msg.find("does not exist") != std::string::npos) {
++                    sendErrorResponse(sock, 404, "Target collection for vector search does not exist", "collection_not_found", "collection");
++                } else if (error_msg.find("dimension") != std::string::npos) {
++                    sendErrorResponse(sock, 400, "Vector dimension mismatch with collection schema: " + error_msg, "dimension_mismatch", "vector");
++                } else {
++                    sendErrorResponse(sock, 500, "Direct vector search service error: " + error_msg, "service_error");
++                }
+             }
+         }
+         else if (request_data.contains("query"))
+@@ -134,11 +198,31 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+             // Text query to vector search using document service
+             std::string query = request_data["query"];
+             
++            // Enhanced query validation
++            if (query.empty()) {
++                sendErrorResponse(sock, 400, "Query cannot be empty", "invalid_parameter", "query");
++                return;
++            }
++            
++            if (query.length() > 10000) {
++                sendErrorResponse(sock, 400, "Query too long (max 10000 characters, got " + std::to_string(query.length()) + ")", "invalid_parameter", "query");
++                return;
++            }
++            
++            // Check for potentially malicious content (basic security)
++            if (query.find_first_of("<>\"'&") != std::string::npos) {
++                ServerLogger::logWarning("Potentially unsafe query received: %s", query.substr(0, 100).c_str());
++                // Don't reject but log for monitoring
++            }
++            
+             ServerLogger::logInfo("Vector search request - Query: %s, Limit: %d, Collection: %s", 
+                                  query.c_str(), limit, collection.c_str());
+ 
+             try
+             {
++                // Start timing
++                auto start_time = std::chrono::high_resolution_clock::now();
++                
+                 auto& serverAPI = ServerAPI::instance();
+                 auto& documentService = serverAPI.getDocumentService();
+                 
+@@ -152,6 +236,14 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+                 auto future_response = documentService.retrieveDocuments(retrieveRequest);
+                 auto retrieve_response = future_response.get();
+                 
++                // Calculate processing time
++                auto end_time = std::chrono::high_resolution_clock::now();
++                auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time - start_time);
++                int processing_time_ms = static_cast<int>(duration.count());
++                
++                ServerLogger::logInfo("Vector search completed in %d ms for query: %s", 
++                                     processing_time_ms, query.c_str());
++                
+                 // Convert to vector search response format
+                 json response;
+                 response["success"] = true;
+@@ -160,7 +252,12 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+                     {"query", query},
+                     {"results", json::array()},
+                     {"total_results", retrieve_response.total_found},
+-                    {"processing_time_ms", 0} // TODO: add actual timing
++                    {"processing_time_ms", processing_time_ms},
++                    {"search_metadata", {
++                        {"embedding_time_ms", 0}, // TODO: Get from document service if available
++                        {"vector_search_time_ms", 0}, // TODO: Get from document service if available
++                        {"total_time_ms", processing_time_ms}
++                    }}
+                 };
+                 
+                 // Convert retrieved documents to vector search result format
+@@ -179,18 +276,40 @@ void VectorSearchRoute::handleVectorSearch(SocketType sock, const std::string& b
+             }
+             catch (const std::runtime_error& e)
+             {
+-                // DocumentService not available
+-                json response;
+-                response["success"] = false;
+-                response["error"] = "Document service not available: " + std::string(e.what());
+-                sendSuccessResponse(sock, response);
++                // Handle DocumentService specific errors with more context
++                std::string error_msg = e.what();
++                ServerLogger::logError("DocumentService error in vector search: %s", error_msg.c_str());
++                
++                if (error_msg.find("not initialized") != std::string::npos) {
++                    sendErrorResponse(sock, 503, "Vector search service not ready - server may be initializing. Please try again in a moment.", "service_not_ready");
++                } else if (error_msg.find("embedding") != std::string::npos) {
++                    sendErrorResponse(sock, 500, "Failed to generate embeddings for query: " + error_msg, "embedding_generation_failed");
++                } else if (error_msg.find("Collection") != std::string::npos && error_msg.find("does not exist") != std::string::npos) {
++                    sendErrorResponse(sock, 404, "The specified collection does not exist. Please verify the collection name or index documents first.", "collection_not_found", "collection");
++                } else if (error_msg.find("Vector search failed") != std::string::npos) {
++                    sendErrorResponse(sock, 503, "Vector database search failed: " + error_msg + ". Check database connectivity.", "vector_search_failed");
++                } else if (error_msg.find("timeout") != std::string::npos) {
++                    sendErrorResponse(sock, 408, "Vector search request timed out. The query may be too complex or the system is under heavy load.", "request_timeout");
++                } else {
++                    sendErrorResponse(sock, 500, "Vector search service error: " + error_msg, "service_error");
++                }
+             }
+         }
+     }
++    catch (const json::exception& ex)
++    {
++        ServerLogger::logError("JSON processing error in vector search: %s", ex.what());
++        sendErrorResponse(sock, 400, "Invalid request format: " + std::string(ex.what()), "json_processing_error");
++    }
++    catch (const std::invalid_argument& ex)
++    {
++        ServerLogger::logError("Invalid argument in vector search: %s", ex.what());
++        sendErrorResponse(sock, 400, "Invalid request parameters: " + std::string(ex.what()), "invalid_parameter");
++    }
+     catch (const std::exception& ex)
+     {
+-        ServerLogger::logError("Error in vector search: %s", ex.what());
+-        sendErrorResponse(sock, 500, "Failed to perform vector search");
++        ServerLogger::logError("Unexpected error in vector search: %s", ex.what());
++        sendErrorResponse(sock, 500, "An unexpected error occurred during vector search", "internal_server_error");
+     }
+ }
+ 
