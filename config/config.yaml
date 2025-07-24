@@ -56,7 +56,7 @@ models:
   - id: qwen3-0.6b
     path: D:\Works\Genta\codes\kolosal-server\downloads\Qwen3-0.6B-UD-Q4_K_XL.gguf
     type: llm
-    load_immediately: false
+    load_immediately: true
     main_gpu_id: 0
     load_params:
       n_ctx: 2048
@@ -72,7 +72,7 @@ models:
   - id: gpt-3.5-turbo
     path: D:\Works\Genta\codes\kolosal-server\downloads\Qwen3-0.6B-UD-Q4_K_XL.gguf
     type: llm
-    load_immediately: false
+    load_immediately: true
     main_gpu_id: 0
     load_params:
       n_ctx: 4096
@@ -86,7 +86,7 @@ models:
       n_batch: 512
       n_ubatch: 128
   - id: text-embedding-3-small
-    path: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+    path: D:\Works\Genta\codes\kolosal-server\downloads\Qwen3-Embedding-0.6B-Q8_0.gguf
     type: embedding
     load_immediately: true
     main_gpu_id: 0
@@ -102,7 +102,7 @@ models:
       n_batch: 256
       n_ubatch: 64
   - id: text-embedding-3-large
-    path: ./downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+    path: D:\Works\Genta\codes\kolosal-server\downloads\Qwen3-Embedding-0.6B-Q8_0.gguf
     type: embedding
     load_immediately: true
     main_gpu_id: 0
@@ -117,6 +117,12 @@ models:
       n_gpu_layers: 100
       n_batch: 256
       n_ubatch: 64
+inference_engines:
+  - name: llama-cpu
+    library_path: D:\Works\Genta\codes\kolosal-server\build\Debug\llama-cpu.dll
+    version: 1.0.0
+    description: Llama.cpp CPU-based inference engine
+    load_on_startup: true
 features:
   health_check: true
   metrics: true

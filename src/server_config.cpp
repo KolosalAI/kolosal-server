@@ -629,6 +629,34 @@ namespace kolosal
                 }
             }
 
+            // Load inference engines configuration
+            if (config["inference_engines"])
+            {
+                auto enginesConfig = config["inference_engines"];
+                if (enginesConfig.IsSequence())
+                {
+                    for (const auto& engineConfig : enginesConfig)
+                    {
+                        InferenceEngineConfig engine;
+                        if (engineConfig["name"])
+                            engine.name = engineConfig["name"].as<std::string>();
+                        if (engineConfig["library_path"])
+                            engine.library_path = makeAbsolutePath(engineConfig["library_path"].as<std::string>());
+                        if (engineConfig["version"])
+                            engine.version = engineConfig["version"].as<std::string>();
+                        if (engineConfig["description"])
+                            engine.description = engineConfig["description"].as<std::string>();
+                        if (engineConfig["load_on_startup"])
+                            engine.load_on_startup = engineConfig["load_on_startup"].as<bool>();
+
+                        if (!engine.name.empty() && !engine.library_path.empty())
+                        {
+                            inferenceEngines.push_back(engine);
+                        }
+                    }
+                }
+            }
+
             // Load feature flags
             if (config["features"])
             {
@@ -737,6 +765,19 @@ namespace kolosal
                 modelNode["load_params"]["n_ubatch"] = model.loadParams.n_ubatch;
                 config["models"].push_back(modelNode);
             }
+
+            // Inference engines
+            for (const auto &engine : inferenceEngines)
+            {
+                YAML::Node engineNode;
+                engineNode["name"] = engine.name;
+                engineNode["library_path"] = engine.library_path;
+                engineNode["version"] = engine.version;
+                engineNode["description"] = engine.description;
+                engineNode["load_on_startup"] = engine.load_on_startup;
+                config["inference_engines"].push_back(engineNode);
+            }
+
             // Feature flags
             config["features"]["health_check"] = enableHealthCheck;
             config["features"]["metrics"] = enableMetrics;
