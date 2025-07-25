@@ -25,8 +25,14 @@ bool OrchestrationRoute::match(const std::string& method, const std::string& pat
     current_method = method;
     current_path = path;
     
+    // Debug logging
+    ServerLogger::logInfo("OrchestrationRoute::match called with method=%s, path=%s", method.c_str(), path.c_str());
+    
     // Match all orchestration API paths
-    return path.find("/api/v1/orchestration/") == 0;
+    bool matches = path.find("/api/v1/orchestration/") == 0;
+    ServerLogger::logInfo("OrchestrationRoute::match result: %s", matches ? "true" : "false");
+    
+    return matches;
 }
 
 void OrchestrationRoute::handle(SocketType sock, const std::string& body) {
@@ -35,23 +41,31 @@ void OrchestrationRoute::handle(SocketType sock, const std::string& body) {
         const std::string& method = current_method;
         const std::string& path = current_path;
         
+        ServerLogger::logInfo("OrchestrationRoute::handle called with method=%s, path=%s", method.c_str(), path.c_str());
+        
         // Route to appropriate handler based on path
         if (path.find("/api/v1/orchestration/workflows") == 0) {
+            ServerLogger::logInfo("Routing to workflow handler");
             handle_workflow_routes(sock, method, path, body);
         } else if (path.find("/api/v1/orchestration/collaboration-groups") == 0) {
+            ServerLogger::logInfo("Routing to collaboration handler");
             handle_collaboration_routes(sock, method, path, body);
         } else if (path.find("/api/v1/orchestration/coordinate") == 0 || 
                    path.find("/api/v1/orchestration/pipelines") == 0) {
+            ServerLogger::logInfo("Routing to coordination handler");
             handle_coordination_routes(sock, method, path, body);
         } else if (path.find("/api/v1/orchestration/metrics") == 0 || 
                    path.find("/api/v1/orchestration/status") == 0 ||
                    path.find("/api/v1/orchestration/active-workflows") == 0) {
+            ServerLogger::logInfo("Routing to monitoring handler");
             handle_monitoring_routes(sock, method, path, body);
         } else if (path.find("/api/v1/orchestration/select-agent") == 0 ||
                    path.find("/api/v1/orchestration/distribute-workload") == 0 ||
                    path.find("/api/v1/orchestration/optimize") == 0) {
+            ServerLogger::logInfo("Routing to loadbalancing handler");
             handle_loadbalancing_routes(sock, method, path, body);
         } else {
+            ServerLogger::logWarning("No handler found for path: %s", path.c_str());
             send_error_response(sock, 404, "Endpoint not found");
         }
     } catch (const std::exception& e) {

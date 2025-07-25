@@ -23,6 +23,10 @@ public:
 private:
     std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
     std::shared_ptr<agents::AgentOrchestrator> agent_orchestrator;
+    
+    // Store current request context
+    mutable std::string current_method;
+    mutable std::string current_path;
 
     // Route handlers
     void handle_agent_health(SocketType sock);

@@ -21,3 +21,4 @@ __pycache__
 models/**
 downloads/**
 *.log
+__pycache__/

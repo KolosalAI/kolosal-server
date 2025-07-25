@@ -30,6 +30,10 @@ AgentMonitoringRoute::AgentMonitoringRoute(
 }
 
 bool AgentMonitoringRoute::match(const std::string& method, const std::string& path) {
+    // Store current request context for use in handle()
+    current_method = method;
+    current_path = path;
+    
     return (method == "GET" && (
         // Old style paths
         path == "/agents/health" ||
@@ -42,8 +46,7 @@ bool AgentMonitoringRoute::match(const std::string& method, const std::string& p
         path == "/api/v1/agents/metrics" ||
         path == "/api/v1/agents/system/status" ||
         path == "/api/v1/agents/system/metrics" ||
-        path == "/api/v1/orchestration/status" ||
-        path == "/api/v1/orchestration/metrics" ||
+        // Note: Removed /api/v1/orchestration/* paths - these are handled by OrchestrationRoute
         // Global metrics endpoints
         path == "/metrics" ||
         path == "/completion-metrics" ||
@@ -55,16 +58,9 @@ bool AgentMonitoringRoute::match(const std::string& method, const std::string& p
 
 void AgentMonitoringRoute::handle(SocketType sock, const std::string& body) {
     try {
-        std::string path;
-        std::string method;
-        
-        // Extract path and method from the request
-        std::istringstream request_stream(body);
-        std::string request_line;
-        if (std::getline(request_stream, request_line)) {
-            std::istringstream line_stream(request_line);
-            line_stream >> method >> path;
-        }
+        // Use stored method and path from match()
+        const std::string& method = current_method;
+        const std::string& path = current_path;
 
         ServerLogger::logInfo("Agent monitoring request: %s %s", method.c_str(), path.c_str());
 
@@ -89,11 +85,8 @@ void AgentMonitoringRoute::handle(SocketType sock, const std::string& body) {
             handle_agent_health(sock);
         } else if (path == "/api/v1/agents/system/metrics") {
             handle_system_metrics(sock);
-        } else if (path == "/api/v1/orchestration/status") {
-            handle_orchestrator_status(sock);
-        } else if (path == "/api/v1/orchestration/metrics") {
-            handle_workflow_metrics(sock);
         }
+        // Note: Removed /api/v1/orchestration/* handlers - these are handled by OrchestrationRoute
         // Handle global metrics endpoints
         else if (path == "/metrics") {
             handle_system_metrics(sock);

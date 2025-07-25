@@ -71,6 +71,9 @@ namespace kolosal
         std::unique_ptr<routes::OrchestrationRoute> orchestrationRoute;
         ServerConfig config;
         
+        // Route management
+        std::atomic<bool> notFoundRouteAdded{false};
+        
         // Server thread management
         std::thread serverThread;
         std::atomic<bool> serverThreadRunning{true};
@@ -213,16 +216,17 @@ namespace kolosal
             auto sessionRoute = std::make_unique<routes::SessionRoute>();
             sessionRoute->setup_routes(*pImpl->server);
             
-            // Register catch-all 404 route (MUST BE LAST!)
-            pImpl->server->addRoute(std::make_unique<routes::NotFoundRoute>());
-
-            ServerLogger::logInfo("Routes registered successfully");
+            // Note: NotFoundRoute will be added after agent routes are registered
+            ServerLogger::logInfo("Core routes registered successfully");
 
             // Start server in a background thread with proper thread management
             pImpl->serverThread = std::thread([this]()
                         {
                 try {
                     ServerLogger::logInfo("Starting server main loop");
+                    
+                    // Don't add NotFoundRoute here - it will be added later when all routes are registered
+                    
                     pImpl->server->run();
                     ServerLogger::logInfo("Server main loop exited normally");
                 } catch (const std::exception& e) {
@@ -384,6 +388,10 @@ namespace kolosal
                 ServerLogger::logInfo("CollaborationRoute added");
                 
                 ServerLogger::logInfo("Agent routes registered successfully");
+                
+                // Don't add NotFoundRoute here - let it be added only after all routes are registered
+                // The orchestrator registration will handle adding it at the end
+                ServerLogger::logInfo("Deferring NotFoundRoute addition until all routes are registered");
             } catch (const std::exception& e) {
                 ServerLogger::logError("Exception registering agent routes: %s", e.what());
             }
@@ -396,21 +404,49 @@ namespace kolosal
 
     void ServerAPI::setAgentOrchestrator(std::shared_ptr<agents::AgentOrchestrator> orchestrator)
     {
+        ServerLogger::logInfo("ServerAPI::setAgentOrchestrator called");
         pImpl->agentOrchestrator = orchestrator;
         
         // Register orchestration and workflow routes if available
         if (pImpl->server && pImpl->agentOrchestrator) {
             ServerLogger::logInfo("Adding OrchestrationRoute to server...");
             
-            // Create and add OrchestrationRoute directly to server
-            auto orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator);
-            pImpl->server->addRoute(std::move(orchestrationRoute));
+            try {
+                // Create and add OrchestrationRoute directly to server
+                // The OrchestrationRoute implements IRoute and handles its own URL matching
+                auto orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(pImpl->agentOrchestrator);
+                ServerLogger::logInfo("OrchestrationRoute created successfully");
+                
+                pImpl->server->addRoute(std::move(orchestrationRoute));
+                ServerLogger::logInfo("OrchestrationRoute added to server successfully");
+            } catch (const std::exception& e) {
+                ServerLogger::logError("Exception creating OrchestrationRoute: %s", e.what());
+                throw;
+            }
             
             ServerLogger::logInfo("Adding SequentialWorkflowRoute to server...");
             // SequentialWorkflowRoute doesn't have setup_routes, so add it normally
-            pImpl->server->addRoute(std::make_unique<routes::SequentialWorkflowRoute>(pImpl->agentManager));
+            if (pImpl->agentManager) {
+                try {
+                    auto sequentialRoute = std::make_unique<routes::SequentialWorkflowRoute>(pImpl->agentManager);
+                    pImpl->server->addRoute(std::move(sequentialRoute));
+                    ServerLogger::logInfo("SequentialWorkflowRoute added successfully");
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Exception creating SequentialWorkflowRoute: %s", e.what());
+                    throw;
+                }
+            } else {
+                ServerLogger::logWarning("Cannot add SequentialWorkflowRoute: agentManager is null");
+            }
             
             ServerLogger::logInfo("Agent orchestration routes registered");
+        } else {
+            if (!pImpl->server) {
+                ServerLogger::logError("Cannot register orchestration routes: server is null");
+            }
+            if (!pImpl->agentOrchestrator) {
+                ServerLogger::logError("Cannot register orchestration routes: agentOrchestrator is null");
+            }
         }
         
         // Update monitoring route if it exists
@@ -418,6 +454,25 @@ namespace kolosal
             // The monitoring route will be updated when both manager and orchestrator are available
             ServerLogger::logInfo("Agent monitoring updated with orchestrator");
         }
+    }
+
+    void ServerAPI::finalizeRoutes()
+    {
+        ServerLogger::logInfo("Finalizing route registration...");
+        
+        // Add the catch-all NotFoundRoute as the very last route
+        if (pImpl->server && !pImpl->notFoundRouteAdded.exchange(true)) {
+            try {
+                pImpl->server->addRoute(std::make_unique<routes::NotFoundRoute>());
+                ServerLogger::logInfo("NotFoundRoute added as final catch-all route");
+            } catch (const std::exception& e) {
+                ServerLogger::logError("Exception adding NotFoundRoute: %s", e.what());
+            }
+        } else {
+            ServerLogger::logInfo("NotFoundRoute already added or server not available");
+        }
+        
+        ServerLogger::logInfo("Route registration finalized");
     }
 
     agents::YAMLConfigurableAgentManager& ServerAPI::getAgentManager()

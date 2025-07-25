@@ -545,15 +545,32 @@ int main(int argc, char *argv[])
         ServerLogger::logInfo("Registering agent manager with server...");
         try {
             server.setAgentManager(agentManager);
+            ServerLogger::logInfo("Agent manager set successfully");
+            
             if (agentOrchestrator) {
+                ServerLogger::logInfo("Setting agent orchestrator...");
+                std::cout << "DEBUG: About to call setAgentOrchestrator" << std::endl;
+                std::cout.flush();
+                
                 server.setAgentOrchestrator(agentOrchestrator);
+                
+                std::cout << "DEBUG: setAgentOrchestrator completed successfully" << std::endl;
+                std::cout.flush();
+                ServerLogger::logInfo("Agent orchestrator set successfully");
+            } else {
+                ServerLogger::logWarning("agentOrchestrator is null - orchestration routes will not be available");
+                std::cout << "WARNING: agentOrchestrator is null" << std::endl;
             }
             ServerLogger::logInfo("Agent manager registered with server");
         } catch (const std::exception& e) {
             ServerLogger::logError("Exception registering agent manager with server: %s", e.what());
             std::cerr << "Error registering agent manager with server: " << e.what() << std::endl;
+            std::cout << "DEBUG: Exception in agent registration: " << e.what() << std::endl;
             return 1;
         }
+    } else {
+        ServerLogger::logWarning("agentManager is null - agent routes will not be available");
+        std::cout << "WARNING: agentManager is null" << std::endl;
     }
     
     // Load models if specified
@@ -633,6 +650,9 @@ int main(int argc, char *argv[])
         }
     }
     std::cout << "\nServer started successfully!" << std::endl;
+    
+    // Finalize route registration (add catch-all routes)
+    server.finalizeRoutes();
 
     // Give the server thread a moment to fully start
     std::this_thread::sleep_for(std::chrono::milliseconds(100));

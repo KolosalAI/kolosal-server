@@ -700,7 +700,36 @@ namespace kolosal
 					if (route->match(method, path))
 					{
 						routeFound = true;
-						route->handle(client_sock, body);
+						try
+						{
+							route->handle(client_sock, body);
+						}
+						catch (const std::exception& ex)
+						{
+							ServerLogger::logError("[Thread %d] Exception in route handler for %s %s: %s",
+								std::this_thread::get_id(), method.c_str(), path.c_str(), ex.what());
+							
+							nlohmann::json jError = { {"error", {
+								{"message", "Internal server error: " + std::string(ex.what())},
+								{"type", "server_error"},
+								{"param", nullptr},
+								{"code", nullptr}
+							}} };
+							send_response(client_sock, 500, jError.dump(), responseHeaders);
+						}
+						catch (...)
+						{
+							ServerLogger::logError("[Thread %d] Unknown exception in route handler for %s %s",
+								std::this_thread::get_id(), method.c_str(), path.c_str());
+							
+							nlohmann::json jError = { {"error", {
+								{"message", "Internal server error"},
+								{"type", "server_error"},
+								{"param", nullptr},
+								{"code", nullptr}
+							}} };
+							send_response(client_sock, 500, jError.dump(), responseHeaders);
+						}
 						break;
 					}
 				}

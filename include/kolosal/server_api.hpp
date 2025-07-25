@@ -70,6 +70,9 @@ namespace kolosal {
         // Agent system setup
         void setAgentManager(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager);
         void setAgentOrchestrator(std::shared_ptr<agents::AgentOrchestrator> orchestrator);
+        
+        // Finalize route registration (should be called after all setup is complete)
+        void finalizeRoutes();
 
         // Auto-setup system access
         AutoSetupManager& getAutoSetupManager();
