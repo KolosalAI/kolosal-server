@@ -1,6 +1,12 @@
 # Sequential Workflow Templates and Examples
 # This file contains example workflow configurations for the Kolosal Server
 # sequential workflow system.
+#
+# LLM Configuration:
+# - default_llm: Set at workflow level to specify the default LLM for all steps
+# - llm_name: Set at individual step level to override the default LLM for that specific step
+# - Available LLMs should match the models configured in your system (e.g., "Qwen3-0.6B-UD-Q4_K_XL")
+# - If neither default_llm nor llm_name is specified, the system will use the default configured LLM
 
 # Example 1: Content Creation Workflow
 content_creation_workflow:
@@ -9,6 +15,7 @@ content_creation_workflow:
   description: "Research, write, and review content in sequential steps"
   stop_on_failure: true
   max_execution_time_seconds: 300
+  default_llm: "Qwen3-0.6B-UD-Q4_K_XL"  # Default LLM for this workflow
   global_context:
     topic: "The Future of AI in Healthcare"
     target_audience: "healthcare professionals"
@@ -36,6 +43,7 @@ content_creation_workflow:
       timeout_seconds: 90
       max_retries: 2
       continue_on_failure: false
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Specific LLM for this step
       parameters:
         prompt: "Based on the research information and retrieved context, provide a comprehensive overview of AI applications in healthcare. Focus on practical applications, benefits, and challenges suitable for healthcare professionals."
         max_tokens: 1500
@@ -48,6 +56,7 @@ content_creation_workflow:
       timeout_seconds: 90
       max_retries: 2
       continue_on_failure: false
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use creative LLM for content generation
       parameters:
         prompt: "Based on the research information, write a professional article about AI in healthcare. Make it engaging and informative for healthcare professionals. Include practical examples and future outlook."
         max_tokens: 1500
@@ -71,6 +80,7 @@ data_analysis_workflow:
   description: "Analyze data, generate insights, and create visualizations"
   stop_on_failure: false
   max_execution_time_seconds: 600
+  default_llm: "Qwen3-0.6B-UD-Q4_K_XL"  # Default LLM for this workflow
   global_context:
     dataset_topic: "healthcare performance metrics"
     analysis_type: "statistical_summary"
@@ -115,6 +125,7 @@ data_analysis_workflow:
       function_name: "inference"
       timeout_seconds: 60
       max_retries: 1
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use analytical LLM for insights
       parameters:
         prompt: "Based on the statistical analysis results and retrieved context, generate key insights and actionable recommendations for healthcare performance improvement."
         max_tokens: 800
@@ -127,6 +138,7 @@ code_development_workflow:
   description: "Generate, review, and test code in sequential steps"
   stop_on_failure: true
   max_execution_time_seconds: 240
+  default_llm: "Qwen3-0.6B-UD-Q4_K_XL"  # Default LLM for this workflow
   global_context:
     project_type: "web_api"
     language: "python"
@@ -140,6 +152,7 @@ code_development_workflow:
       function_name: "inference"
       timeout_seconds: 90
       max_retries: 2
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use precise LLM for code generation
       parameters:
         prompt: "Create a FastAPI endpoint for user authentication with JWT tokens. Include proper error handling, input validation, and documentation."
         max_tokens: 1200
@@ -161,6 +174,7 @@ code_development_workflow:
       function_name: "inference"
       timeout_seconds: 45
       max_retries: 1
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use documentation-focused LLM
       parameters:
         prompt: "Create comprehensive API documentation for the authentication endpoint including usage examples, request/response formats, and error codes."
         max_tokens: 800
@@ -173,6 +187,7 @@ research_workflow:
   description: "Multi-step research process with validation and synthesis"
   stop_on_failure: false
   max_execution_time_seconds: 480
+  default_llm: "Qwen3-0.6B-UD-Q4_K_XL"  # Default LLM for this workflow
   global_context:
     research_topic: "Emerging trends in artificial intelligence"
     scope: "technical and business perspectives"
@@ -197,6 +212,7 @@ research_workflow:
       function_name: "inference"
       timeout_seconds: 90
       max_retries: 2
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use research-oriented LLM
       parameters:
         prompt: "Conduct comprehensive research on emerging trends in artificial intelligence. Cover both technical innovations and business applications using retrieved context."
         max_tokens: 1500
@@ -218,6 +234,7 @@ research_workflow:
       function_name: "inference"
       timeout_seconds: 75
       max_retries: 2
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use analytical LLM for synthesis
       parameters:
         prompt: "Synthesize the research findings into a coherent analysis highlighting key trends, implications, and future directions in AI."
         max_tokens: 1200
@@ -229,6 +246,7 @@ research_workflow:
       function_name: "inference"
       timeout_seconds: 45
       max_retries: 1
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use business-focused LLM
       parameters:
         prompt: "Create an executive summary of the AI trends research that highlights key findings and strategic implications for business leaders."
         max_tokens: 600
@@ -241,6 +259,7 @@ project_management_workflow:
   description: "Comprehensive project planning with risk assessment"
   stop_on_failure: false
   max_execution_time_seconds: 360
+  default_llm: "Qwen3-0.6B-UD-Q4_K_XL"  # Default LLM for this workflow
   global_context:
     project_type: "AI implementation project"
     duration: "6 months"
@@ -254,6 +273,7 @@ project_management_workflow:
       function_name: "inference"
       timeout_seconds: 60
       max_retries: 2
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use structured LLM for requirements
       parameters:
         prompt: "Analyze requirements for an AI implementation project. Include functional, technical, and business requirements."
         max_tokens: 1000
@@ -297,6 +317,7 @@ project_management_workflow:
       function_name: "inference"
       timeout_seconds: 40
       max_retries: 1
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use planning-focused LLM
       parameters:
         prompt: "Create a detailed project timeline with milestones, dependencies, and critical path for the AI implementation project."
         max_tokens: 800
@@ -309,6 +330,7 @@ knowledge_enhanced_workflow:
   description: "Advanced RAG workflow using document management and knowledge agents"
   stop_on_failure: false
   max_execution_time_seconds: 420
+  default_llm: "Qwen3-0.6B-UD-Q4_K_XL"  # Default LLM for this workflow
   global_context:
     topic: "Machine Learning Best Practices"
     domain: "enterprise AI development"
@@ -345,6 +367,7 @@ knowledge_enhanced_workflow:
       function_name: "inference"
       timeout_seconds: 90
       max_retries: 2
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use analytical LLM for synthesis
       parameters:
         prompt: "Analyze the retrieved knowledge about machine learning best practices and provide insights on enterprise AI development challenges and solutions."
         max_tokens: 1500
@@ -356,6 +379,7 @@ knowledge_enhanced_workflow:
       function_name: "inference"
       timeout_seconds: 75
       max_retries: 2
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use creative LLM for content generation
       parameters:
         prompt: "Create a comprehensive guide on machine learning best practices for enterprise environments, incorporating the analyzed insights."
         max_tokens: 2000
@@ -376,6 +400,7 @@ simple_rag_test:
   description: "Basic test of RAG functionality with new agents"
   stop_on_failure: false
   max_execution_time_seconds: 180
+  default_llm: "Qwen3-0.6B-UD-Q4_K_XL"  # Default LLM for this workflow
   global_context:
     topic: "AI and Machine Learning"
     test_mode: true
@@ -411,6 +436,7 @@ simple_rag_test:
       function_name: "inference"
       timeout_seconds: 45
       max_retries: 1
+      llm_name: "Qwen3-0.6B-UD-Q4_K_XL"  # Use summarization LLM
       parameters:
         prompt: "Based on the retrieved information, create a concise summary of machine learning best practices."
         max_tokens: 200
