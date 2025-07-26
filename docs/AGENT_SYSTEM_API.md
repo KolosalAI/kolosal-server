@@ -301,6 +301,49 @@ POST /api/v1/agents/messages/broadcast
 GET /api/v1/agents/{agent_id}/messages
 ```
 
+### Agent Messaging with Model Selection
+
+#### Send Message to Agent with Model Selection
+```http
+POST /api/v1/agents/{agent_id}/message
+```
+
+**Description:** Send a message to an agent and specify which LLM model to use for processing. This allows flexible model selection per request rather than being locked to a single model per agent.
+
+**Request Body:**
+```json
+{
+  "message": "What are the key principles of software architecture?",
+  "model": "qwen3-0.6b",
+  "temperature": 0.7,
+  "max_tokens": 2048
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "agent_id": "research_assistant",
+    "message": "What are the key principles of software architecture?",
+    "model_used": "qwen3-0.6b",
+    "success": true,
+    "execution_time_ms": 1245.3,
+    "response": "The key principles of software architecture include: 1. Modularity - Dividing the system into distinct components...",
+    "tokens_generated": 156,
+    "tokens_per_second": 8.2,
+    "error_message": null
+  }
+}
+```
+
+**Parameters:**
+- `message` (required): The text message to send to the agent
+- `model` (optional): The specific LLM model to use (defaults to "qwen3-0.6b")
+- `temperature` (optional): Controls randomness in the response (0.0-2.0, default: 0.7)
+- `max_tokens` (optional): Maximum number of tokens to generate (default: 2048)
+
 ### Function Execution
 
 #### Execute Function Synchronously
@@ -868,6 +911,8 @@ GET /api/v1/agents/system/metrics
 
 ## Configuration
 
+**Important Change**: As of version 2.0, the `model_name` field in agent configurations is optional. Models can now be specified per request when interacting with agents, allowing for more flexible model selection.
+
 ### Agent Configuration (YAML)
 
 ```yaml
@@ -887,7 +932,7 @@ agents:
       - "text_processing"
       - "data_analysis"
     llm_config:
-      model_name: "test-qwen-0.6b"
+      # model_name is now optional - specify at request time
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are an expert research assistant."
       temperature: 0.7

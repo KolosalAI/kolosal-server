@@ -40,6 +40,9 @@ public:
     void handle_execute_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body);
     void handle_test_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body);
     
+    // Agent messaging with model selection
+    void handle_send_message_to_agent(SocketType sock, const std::string& agent_id, const std::string& body);
+    
     // Agent templates and presets
     void handle_list_agent_templates(SocketType sock);
     void handle_create_agent_from_template(SocketType sock, const std::string& template_name, const std::string& body);

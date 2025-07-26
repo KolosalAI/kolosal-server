@@ -512,17 +512,26 @@ FunctionResult LLMFunction::execute(const AgentData& params) {
     
     try {
         auto& nodeManager = ServerAPI::instance().getNodeManager();
-        auto engine = nodeManager.getEngine(llm_config.model_name);
+        
+        // Check for model override in parameters, otherwise use configured model
+        std::string model_to_use = params.get_string("model_id", llm_config.model_name);
+        if (model_to_use.empty()) {
+            model_to_use = "qwen3-0.6b";  // Final fallback
+        }
+        
+        auto engine = nodeManager.getEngine(model_to_use);
         
         // Enhanced fallback logic - try multiple engines
         if (!engine) {
             std::vector<std::string> fallback_engines = {"qwen3-0.6b", "default", "main"};
             for (const auto& fallback : fallback_engines) {
-                engine = nodeManager.getEngine(fallback);
-                if (engine) {
-                    ServerLogger::logInfo("LLMFunction: Using fallback engine '%s' instead of '%s'", 
-                                         fallback.c_str(), llm_config.model_name.c_str());
-                    break;
+                if (fallback != model_to_use) {
+                    engine = nodeManager.getEngine(fallback);
+                    if (engine) {
+                        ServerLogger::logInfo("LLMFunction: Using fallback engine '%s' instead of '%s'", 
+                                             fallback.c_str(), model_to_use.c_str());
+                        break;
+                    }
                 }
             }
         }
@@ -1169,16 +1178,54 @@ FunctionResult AddDocumentFunction::execute(const AgentData& params) {
     try {
         // Extract parameters - support both single document and multiple documents
         std::vector<std::string> texts;
-        std::string single_text = params.get_string("text", "");
+        std::vector<std::unordered_map<std::string, nlohmann::json>> metadata_list;
         
-        if (!single_text.empty()) {
-            texts.push_back(single_text);
-        } else {
+        // Check for documents parameter (new format)
+        if (params.has_key("documents")) {
+            // Handle documents array format by accessing raw data
+            const auto& raw_data = params.get_data();
+            auto it = raw_data.find("documents");
+            if (it != raw_data.end() && it->second.type == AgentDataValue::OBJECT_DATA && it->second.obj_val) {
+                // This would be for a single document object, but we need array support
+                // For now, let's convert the AgentData to JSON and parse it manually
+                nlohmann::json params_json = params.to_json();
+                if (params_json.contains("documents") && params_json["documents"].is_array()) {
+                    for (const auto& doc : params_json["documents"]) {
+                        if (doc.contains("text") && doc["text"].is_string()) {
+                            texts.push_back(doc["text"].get<std::string>());
+                            
+                            // Extract metadata if present
+                            std::unordered_map<std::string, nlohmann::json> metadata;
+                            if (doc.contains("metadata") && doc["metadata"].is_object()) {
+                                for (auto& [key, value] : doc["metadata"].items()) {
+                                    metadata[key] = value;
+                                }
+                            }
+                            metadata_list.push_back(metadata);
+                        }
+                    }
+                }
+            }
+        }
+        // Check for single text parameter (legacy format)
+        else if (params.has_key("text")) {
+            std::string single_text = params.get_string("text");
+            if (!single_text.empty()) {
+                texts.push_back(single_text);
+                metadata_list.push_back({});  // Empty metadata for single text
+            }
+        } 
+        // Check for texts array parameter (legacy format)
+        else if (params.has_key("texts")) {
             texts = params.get_array_string("texts");
+            // Initialize empty metadata for each text
+            for (size_t i = 0; i < texts.size(); ++i) {
+                metadata_list.push_back({});
+            }
         }
         
         if (texts.empty()) {
-            return FunctionResult(false, "Either 'text' or 'texts' parameter is required");
+            return FunctionResult(false, "Either 'text', 'texts', or 'documents' parameter is required");
         }
         
         std::string collection = params.get_string("collection_name", collection_name);
@@ -1221,8 +1268,12 @@ FunctionResult AddDocumentFunction::execute(const AgentData& params) {
             kolosal::retrieval::Document doc;
             doc.text = texts[i];
             
-            // Add metadata support removed as get_json method doesn't exist in AgentData
-            // TODO: Add metadata support when get_json is implemented
+            // Add extracted metadata if available
+            if (i < metadata_list.size()) {
+                for (const auto& [key, value] : metadata_list[i]) {
+                    doc.metadata[key] = value;
+                }
+            }
             
             // Add document index as metadata
             doc.metadata["document_index"] = static_cast<int>(i);

@@ -152,11 +152,7 @@ AgentConfigValidator::ValidationResult AgentConfigValidator::validate_agent_conf
         result.warnings.push_back("System prompt is empty for agent: " + agent.name + " - may affect LLM performance");
     }
     
-    // Validate LLM config
-    if (agent.llm_config.model_name.empty()) {
-        result.warnings.push_back("No model specified for agent: " + agent.name);
-    }
-    
+    // Validate LLM config - model_name is now optional since it can be specified at request time
     if (!is_valid_url(agent.llm_config.api_endpoint) && !agent.llm_config.api_endpoint.empty()) {
         result.warnings.push_back("Invalid API endpoint for agent " + agent.name + ": " + agent.llm_config.api_endpoint);
     }

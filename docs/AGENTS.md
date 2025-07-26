@@ -153,7 +153,6 @@ agents:
       - "retrieval"
       - "context_retrieval"    
     llm_config:
-      model_name: "test-qwen-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a research assistant. Provide accurate, well-researched answers."
       temperature: 0.3

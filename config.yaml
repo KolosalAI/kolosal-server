@@ -135,6 +135,7 @@ models:
 inference_engines:
   - name: llama-cpu
     library_path: D:\Works\Genta\codes\kolosal-server\build\Debug\llama-cpu.dll
+    model_path: downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
     version: 1.0.0
     description: Llama.cpp CPU-based inference engine
     load_on_startup: true
@@ -235,74 +236,74 @@ functions:
     
   - name: "retrieval"
     type: "builtin"
-    description: "Search and retrieve relevant documents from knowledge base"
+    description: "Search and retrieve relevant documents from the knowledge base"
     parameters:
       query: "Search query for document retrieval"
-      k: "Number of documents to retrieve"
-      score_threshold: "Minimum similarity score threshold"
+      k: "Number of documents to retrieve (default: 5)"
+      score_threshold: "Minimum similarity score (default: 0.0)"
       collection_name: "Collection name (optional)"
-    timeout_ms: 30000
+    timeout_ms: 60000
     
   - name: "context_retrieval"
     type: "builtin"
     description: "Retrieve and format documents as context for enhanced responses"
     parameters:
       query: "Search query for context retrieval"
-      k: "Number of context documents"
-      context_format: "Format for context (detailed/summary)"
-      score_threshold: "Minimum similarity score threshold"
-    timeout_ms: 30000
+      k: "Number of documents to retrieve (default: 3)"
+      context_format: "Format for context (summary or detailed)"
+      collection_name: "Collection name (optional)"
+    timeout_ms: 60000
     
   - name: "add_document"
     type: "builtin"
-    description: "Add documents to the knowledge base for future retrieval"
+    description: "Add documents to the knowledge base"
     parameters:
-      text: "Document text content (for single document)"
-      texts: "Array of document texts (for multiple documents)"
-      metadata: "Optional metadata object for the documents"
-      collection_name: "Collection name (optional, defaults to 'documents')"
-    timeout_ms: 60000
+      text: "Single document text to add"
+      texts: "Array of document texts to add"
+      documents: "Array of document objects with text and metadata (recommended format)"
+      collection_name: "Collection name (optional)"
+    timeout_ms: 120000
     
   - name: "remove_document"
     type: "builtin"
-    description: "Remove documents from the knowledge base using document IDs"
+    description: "Remove documents from the knowledge base"
     parameters:
-      id: "Document ID to remove (for single document)"
-      ids: "Array of document IDs to remove (for multiple documents)"
-      collection_name: "Collection name (optional, defaults to 'documents')"
-    timeout_ms: 30000
+      id: "Single document ID to remove"
+      ids: "Array of document IDs to remove"
+      collection_name: "Collection name (optional)"
+    timeout_ms: 60000
     
   - name: "parse_pdf"
     type: "builtin"
-    description: "Parse PDF files to extract text content"
+    description: "Parse PDF files and extract text content"
     parameters:
-      file_path: "Path to the PDF file to parse"
-      max_pages: "Maximum number of pages to process (-1 for all pages)"
-      extract_metadata: "Whether to extract metadata information"
+      file_path: "Path to the PDF file"
+      max_pages: "Maximum pages to process (default: all)"
+      extract_metadata: "Extract metadata (default: true)"
     timeout_ms: 120000
     
   - name: "parse_docx"
     type: "builtin"
-    description: "Parse DOCX files to extract text content"
+    description: "Parse DOCX files and extract text content"
     parameters:
-      file_path: "Path to the DOCX file to parse"
-      extract_metadata: "Whether to extract metadata information"
-      preserve_formatting: "Whether to preserve text formatting"
-    timeout_ms: 60000
+      file_path: "Path to the DOCX file"
+      extract_metadata: "Extract metadata (default: true)"
+      preserve_formatting: "Preserve formatting (default: false)"
+    timeout_ms: 120000
     
   - name: "get_embedding"
     type: "builtin"
-    description: "Generate embedding vectors for text content"
+    description: "Generate embeddings for text using configured models"
     parameters:
-      text: "Text content to generate embedding for"
-      model_id: "Embedding model ID (optional, uses default if empty)"
-    timeout_ms: 30000
+      text: "Text to generate embedding for"
+      model_id: "Model ID to use (optional)"
+    timeout_ms: 60000
     
   - name: "test_document_service"
     type: "builtin"
     description: "Test connection to the document service and vector database"
     parameters:
-      detailed: "Whether to perform detailed testing"
+      detailed: "Perform detailed test (default: false)"
     timeout_ms: 30000
 
   - name: "research"
@@ -394,9 +395,6 @@ agents:
       - "data_analysis"
       - "information_synthesis"
       - "document_retrieval"
-      - "context_retrieval"
-      - "document_management"
-      - "document_parsing"
     functions:
       - "inference"
       - "web_search"
@@ -404,14 +402,7 @@ agents:
       - "data_analysis"
       - "retrieval"
       - "context_retrieval"
-      - "add_document"
-      - "remove_document"
-      - "parse_pdf"
-      - "parse_docx"
-      - "get_embedding"
-      - "test_document_service"    
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a research assistant. Provide accurate, well-researched, and comprehensive answers."
       temperature: 0.3
@@ -443,7 +434,6 @@ agents:
       - "code_generation"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a software development assistant. Write clean, maintainable code and follow best practices."
       temperature: 0.2
@@ -467,15 +457,11 @@ agents:
       - "statistical_analysis"
       - "data_visualization"
       - "pattern_recognition"
-      - "document_retrieval"
     functions:
       - "inference"
       - "data_analysis"
       - "text_processing"
-      - "retrieval"
-      - "context_retrieval"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a data analyst. Extract insights from data and explain your analytical approach."
       temperature: 0.1
@@ -498,13 +484,14 @@ agents:
       knowledge bases. You can parse documents, add them to collections, retrieve relevant information,
       and maintain document databases. You ensure data quality and provide efficient document workflows.
     capabilities:
-      - "document_management"
       - "document_parsing"
-      - "document_retrieval"
       - "knowledge_base_management"
+      - "document_retrieval"
+      - "content_indexing"
       - "text_processing"
     functions:
       - "inference"
+      - "text_processing"
       - "add_document"
       - "remove_document"
       - "retrieval"
@@ -513,9 +500,7 @@ agents:
       - "parse_docx"
       - "get_embedding"
       - "test_document_service"
-      - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a document management specialist. Help organize and manage knowledge bases efficiently."
       temperature: 0.2
@@ -548,7 +533,6 @@ agents:
       - "inference"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a creative content writer. Adapt your tone and style to match the intended audience."
       temperature: 0.7
@@ -576,7 +560,6 @@ agents:
       - "inference"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a project manager. Focus on planning, organizing, and tracking progress."
       temperature: 0.4
@@ -608,7 +591,6 @@ agents:
       - "text_processing"
       - "data_analysis"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a QA specialist. Focus on quality, testing, and process improvement."
       temperature: 0.2
@@ -638,7 +620,6 @@ agents:
       - "inference"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a helpful AI assistant for testing. Be clear, accurate, and concise."
       temperature: 0.7
@@ -661,17 +642,18 @@ agents:
       then provide comprehensive answers based on the retrieved context.
       When you don't find relevant information, clearly state this limitation.
     capabilities:
-      - "document_retrieval"
-      - "context_integration"
       - "knowledge_synthesis"
       - "information_verification"
+      - "document_retrieval"
+      - "context_enhancement"
     functions:
       - "inference"
+      - "text_processing"
       - "retrieval"
       - "context_retrieval"
-      - "text_processing"
+      - "add_document"
+      - "test_document_service"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a knowledge-aware assistant. Always use retrieved context to provide accurate, comprehensive answers."
       temperature: 0.3
@@ -685,3 +667,43 @@ agents:
       retrieval_threshold: 0.1
       context_window: "large"
       fact_checking: "enabled"
+      
+  # RAG Specialist Agent
+  - name: "rag_specialist"
+    type: "research"
+    role: "Retrieval-Augmented Generation specialist"
+    system_prompt: >
+      You are a RAG (Retrieval-Augmented Generation) specialist who excels at combining
+      document retrieval with language generation. You always retrieve relevant context
+      before generating responses, ensuring accuracy and relevance. You can manage 
+      document collections, perform semantic search, and provide context-enhanced answers.
+    capabilities:
+      - "semantic_search"
+      - "context_retrieval" 
+      - "document_management"
+      - "knowledge_synthesis"
+      - "rag_workflows"
+    functions:
+      - "inference"
+      - "retrieval"
+      - "context_retrieval"
+      - "add_document"
+      - "remove_document"
+      - "get_embedding"
+      - "test_document_service"
+      - "text_processing"
+    llm_config:
+      api_endpoint: "http://localhost:8080/v1"
+      instruction: "You are a RAG specialist. Always retrieve relevant context before generating responses."
+      temperature: 0.2
+      max_tokens: 4096
+      timeout_seconds: 120
+      max_retries: 3
+    auto_start: true
+    max_concurrent_jobs: 6
+    heartbeat_interval_seconds: 12
+    custom_settings:
+      default_retrieval_k: 5
+      score_threshold: 0.1
+      context_format: "detailed"
+      auto_context_retrieval: true

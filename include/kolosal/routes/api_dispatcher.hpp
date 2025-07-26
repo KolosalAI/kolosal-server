@@ -59,6 +59,9 @@ private:
     void dispatch_agent_function_execute(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body);
     void dispatch_agent_function_test(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body);
     
+    // Agent messaging endpoints
+    void dispatch_agent_message(SocketType sock, const std::string& agent_id, const std::string& body);
+    
     // Agent templates endpoints
     void dispatch_agent_templates_list(SocketType sock);
     void dispatch_agent_template_create(SocketType sock, const std::string& template_name, const std::string& body);

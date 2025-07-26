@@ -9,15 +9,14 @@ namespace kolosal::agents {
 LLMConfig LLMConfig::from_yaml(const YAML::Node& node) {
     LLMConfig config;
     
-    // Validate required fields
-    if (!node["model_name"]) {
-        throw std::runtime_error("LLM config missing required 'model_name' field");
-    }
+    // Only require api_endpoint, model_name is now optional
     if (!node["api_endpoint"]) {
         throw std::runtime_error("LLM config missing required 'api_endpoint' field");
     }
     
-    config.model_name = node["model_name"].as<std::string>();
+    if (node["model_name"]) {
+        config.model_name = node["model_name"].as<std::string>();
+    }
     config.api_endpoint = node["api_endpoint"].as<std::string>();
     
     if (node["api_key"]) {
@@ -295,7 +294,9 @@ SystemConfig SystemConfig::from_file(const std::string& yaml_file) {
 YAML::Node LLMConfig::to_yaml() const {
     YAML::Node node;
     
-    node["model_name"] = model_name;
+    if (!model_name.empty()) {
+        node["model_name"] = model_name;
+    }
     node["api_endpoint"] = api_endpoint;
     
     if (!api_key.empty()) {

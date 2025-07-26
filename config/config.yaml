@@ -135,6 +135,7 @@ models:
 inference_engines:
   - name: llama-cpu
     library_path: D:\Works\Genta\codes\kolosal-server\build\Debug\llama-cpu.dll
+    model_path: downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
     version: 1.0.0
     description: Llama.cpp CPU-based inference engine
     load_on_startup: true
@@ -259,6 +260,7 @@ functions:
     parameters:
       text: "Document text content (for single document)"
       texts: "Array of document texts (for multiple documents)"
+      documents: "Array of document objects with text and metadata (recommended format)"
       metadata: "Optional metadata object for the documents"
       collection_name: "Collection name (optional, defaults to 'documents')"
     timeout_ms: 60000
@@ -411,7 +413,6 @@ agents:
       - "get_embedding"
       - "test_document_service"    
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a research assistant. Provide accurate, well-researched, and comprehensive answers."
       temperature: 0.3
@@ -443,7 +444,6 @@ agents:
       - "code_generation"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a software development assistant. Write clean, maintainable code and follow best practices."
       temperature: 0.2
@@ -475,7 +475,7 @@ agents:
       - "retrieval"
       - "context_retrieval"
     llm_config:
-      model_name: "qwen3-0.6b"
+
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a data analyst. Extract insights from data and explain your analytical approach."
       temperature: 0.1
@@ -515,7 +515,7 @@ agents:
       - "test_document_service"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
+
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a document management specialist. Help organize and manage knowledge bases efficiently."
       temperature: 0.2
@@ -548,7 +548,7 @@ agents:
       - "inference"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
+
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a creative content writer. Adapt your tone and style to match the intended audience."
       temperature: 0.7
@@ -576,7 +576,7 @@ agents:
       - "inference"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
+
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a project manager. Focus on planning, organizing, and tracking progress."
       temperature: 0.4
@@ -608,7 +608,7 @@ agents:
       - "text_processing"
       - "data_analysis"
     llm_config:
-      model_name: "qwen3-0.6b"
+
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a QA specialist. Focus on quality, testing, and process improvement."
       temperature: 0.2
@@ -638,7 +638,7 @@ agents:
       - "inference"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
+
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a helpful AI assistant for testing. Be clear, accurate, and concise."
       temperature: 0.7
@@ -671,7 +671,7 @@ agents:
       - "context_retrieval"
       - "text_processing"
     llm_config:
-      model_name: "qwen3-0.6b"
+
       api_endpoint: "http://localhost:8080/v1"
       instruction: "You are a knowledge-aware assistant. Always use retrieved context to provide accurate, comprehensive answers."
       temperature: 0.3

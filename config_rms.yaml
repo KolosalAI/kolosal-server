@@ -81,6 +81,7 @@ database:
 inference_engines:
   - name: llama-cpu
     library_path: ./build/Release/llama-cpu.dll  # Path to the inference engine library
+    model_path: downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
     version: 1.0.0
     description: CPU-based inference engine for LLaMA models
     load_on_startup: true            # Whether to load this engine when the server starts

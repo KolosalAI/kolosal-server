@@ -480,7 +480,62 @@ void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::stri
         
         if (!body.empty()) {
             auto json_params = json::parse(body);
-            function_data.set("parameters", json_params.dump());
+            
+            // If the JSON has a "parameters" object, extract its contents to root level
+            if (json_params.contains("parameters") && json_params["parameters"].is_object()) {
+                for (auto& [key, value] : json_params["parameters"].items()) {
+                    if (value.is_string()) {
+                        function_data.set(key, value.get<std::string>());
+                    } else if (value.is_number_integer()) {
+                        function_data.set(key, value.get<int>());
+                    } else if (value.is_number_float()) {
+                        function_data.set(key, value.get<double>());
+                    } else if (value.is_boolean()) {
+                        function_data.set(key, value.get<bool>());
+                    } else if (value.is_array()) {
+                        // Convert array to AgentData format
+                        std::vector<std::string> string_array;
+                        for (const auto& item : value) {
+                            if (item.is_string()) {
+                                string_array.push_back(item.get<std::string>());
+                            }
+                        }
+                        if (!string_array.empty()) {
+                            function_data.set(key, string_array);
+                        }
+                    } else {
+                        // For complex objects, store as JSON string
+                        function_data.set(key, value.dump());
+                    }
+                }
+            } else {
+                // If no "parameters" object, set the entire JSON at root level
+                for (auto& [key, value] : json_params.items()) {
+                    if (value.is_string()) {
+                        function_data.set(key, value.get<std::string>());
+                    } else if (value.is_number_integer()) {
+                        function_data.set(key, value.get<int>());
+                    } else if (value.is_number_float()) {
+                        function_data.set(key, value.get<double>());
+                    } else if (value.is_boolean()) {
+                        function_data.set(key, value.get<bool>());
+                    } else if (value.is_array()) {
+                        // Convert array to AgentData format
+                        std::vector<std::string> string_array;
+                        for (const auto& item : value) {
+                            if (item.is_string()) {
+                                string_array.push_back(item.get<std::string>());
+                            }
+                        }
+                        if (!string_array.empty()) {
+                            function_data.set(key, string_array);
+                        }
+                    } else {
+                        // For complex objects, store as JSON string
+                        function_data.set(key, value.dump());
+                    }
+                }
+            }
         }
         
         // Execute the function
@@ -552,6 +607,72 @@ void AgentsRoute::handle_test_agent_function(SocketType sock, const std::string&
         
         send_success_response(sock, test_result);
         
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+// Agent messaging with model selection
+void AgentsRoute::handle_send_message_to_agent(SocketType sock, const std::string& agent_id, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        if (!agent->is_running()) {
+            send_error_response(sock, 409, "Agent is not running");
+            return;
+        }
+        
+        // Parse the request
+        auto json_data = json::parse(body);
+        
+        if (!json_data.contains("message") || json_data["message"].empty()) {
+            send_error_response(sock, 400, "Message content is required");
+            return;
+        }
+        
+        std::string message = json_data["message"];
+        std::string model_name = json_data.value("model", "qwen3-0.6b");  // Default model
+        
+        // Extract optional parameters
+        double temperature = json_data.value("temperature", 0.7);
+        int max_tokens = json_data.value("max_tokens", 2048);
+        
+        // Execute inference function with the specified model
+        agents::AgentData function_data;
+        function_data.set("prompt", message);
+        function_data.set("model_id", model_name);
+        function_data.set("temperature", temperature);
+        function_data.set("max_tokens", max_tokens);
+        
+        auto result = agent->get_function_manager()->execute_function("inference", function_data);
+        
+        json response;
+        response["agent_id"] = agent_id;
+        response["message"] = message;
+        response["model_used"] = model_name;
+        response["success"] = result.success;
+        response["execution_time_ms"] = result.execution_time_ms;
+        response["error_message"] = result.error_message;
+        
+        if (result.success) {
+            response["response"] = result.result_data.get_string("text");
+            response["tokens_generated"] = result.result_data.get_int("tokens_generated", 0);
+            response["tokens_per_second"] = result.result_data.get_double("tokens_per_second", 0.0);
+        }
+        
+        send_success_response(sock, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     } catch (const std::exception& e) {
         send_error_response(sock, 500, e.what());
     }

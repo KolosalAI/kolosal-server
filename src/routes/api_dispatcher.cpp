@@ -147,6 +147,9 @@ void APIDispatcher::handle_agent_endpoints(SocketType sock, const std::string& m
                     } else {
                         send_error_response(sock, 405, "Method not allowed");
                     }
+                } else if (action == "message" && method == "POST") {
+                    // POST /api/v1/agents/{agent_id}/message - Send message to agent with model selection
+                    dispatch_agent_message(sock, agent_id, body);
                 } else {
                     send_error_response(sock, 404, "Agent endpoint not found");
                 }
@@ -349,6 +352,14 @@ void APIDispatcher::dispatch_agent_function_execute(SocketType sock, const std::
 void APIDispatcher::dispatch_agent_function_test(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body) {
     if (agents_route) {
         agents_route->handle_test_agent_function(sock, agent_id, function_name, body);
+    } else {
+        send_error_response(sock, 503, "Agent management not available");
+    }
+}
+
+void APIDispatcher::dispatch_agent_message(SocketType sock, const std::string& agent_id, const std::string& body) {
+    if (agents_route) {
+        agents_route->handle_send_message_to_agent(sock, agent_id, body);
     } else {
         send_error_response(sock, 503, "Agent management not available");
     }

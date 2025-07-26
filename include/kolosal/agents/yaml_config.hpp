@@ -13,7 +13,7 @@ namespace kolosal::agents {
  * @brief LLM configuration parameters
  */
 struct KOLOSAL_SERVER_API LLMConfig {
-    std::string model_name = "gpt-4";
+    std::string model_name = "";  // Empty default - will be specified at request time
     std::string api_endpoint = "";
     std::string api_key = "";
     std::string instruction = "";  // Added instruction field
