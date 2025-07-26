@@ -51,6 +51,13 @@ public:
     [[nodiscard]] bool load_configuration(const std::string& yaml_file);
 
     /**
+     * @brief Load configuration from SystemConfig object
+     * @param system_config SystemConfig object
+     * @return true on success, false on failure
+     */
+    [[nodiscard]] bool load_configuration(const SystemConfig& system_config);
+
+    /**
      * @brief Reload configuration from YAML file
      * @param yaml_file Path to YAML file
      * @return true on success, false on failure

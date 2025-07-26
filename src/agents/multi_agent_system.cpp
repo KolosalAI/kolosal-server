@@ -250,6 +250,69 @@ bool YAMLConfigurableAgentManager::load_configuration(const std::string& yaml_fi
     }
 }
 
+bool YAMLConfigurableAgentManager::load_configuration(const SystemConfig& system_config_param) {
+    try {
+        // Store the provided system configuration
+        system_config = system_config_param;
+        
+        // Validate configuration before proceeding
+        logger->info("Validating agent system configuration...");
+        
+        auto system_validation = AgentConfigValidator::validate_system_config(system_config);
+        auto engine_validation = AgentConfigValidator::validate_inference_engines(system_config.inference_engines);
+        auto function_validation = AgentConfigValidator::validate_function_configs(system_config.functions);
+        
+        // Log validation results
+        if (!system_validation.is_valid || !engine_validation.is_valid || !function_validation.is_valid) {
+            logger->error("Configuration validation failed:");
+            
+            for (const auto& error : system_validation.errors) {
+                logger->error("System config error: " + error);
+            }
+            for (const auto& error : engine_validation.errors) {
+                logger->error("Engine config error: " + error);
+            }
+            for (const auto& error : function_validation.errors) {
+                logger->error("Function config error: " + error);
+            }
+            
+            return false;
+        }
+        
+        // Log warnings
+        for (const auto& warning : system_validation.warnings) {
+            logger->warn("System config warning: " + warning);
+        }
+        for (const auto& warning : engine_validation.warnings) {
+            logger->warn("Engine config warning: " + warning);
+        }
+        for (const auto& warning : function_validation.warnings) {
+            logger->warn("Function config warning: " + warning);
+        }
+        
+        // Log suggestions
+        for (const auto& suggestion : system_validation.suggestions) {
+            logger->info("System config suggestion: " + suggestion);
+        }
+        for (const auto& suggestion : engine_validation.suggestions) {
+            logger->info("Engine config suggestion: " + suggestion);
+        }
+        for (const auto& suggestion : function_validation.suggestions) {
+            logger->info("Function config suggestion: " + suggestion);
+        }
+        
+        logger->info("Agent system configuration loaded successfully from SystemConfig");
+        logger->info("Found " + std::to_string(system_config.agents.size()) + " agent configurations");
+        logger->info("Found " + std::to_string(system_config.functions.size()) + " function configurations");
+        logger->info("Found " + std::to_string(system_config.inference_engines.size()) + " inference engine configurations");
+        
+        return true;
+    } catch (const std::exception& e) {
+        logger->error("Failed to load configuration from SystemConfig: " + std::string(e.what()));
+        return false;
+    }
+}
+
 void YAMLConfigurableAgentManager::start() {
     if (running.load()) {
         logger->warn("Agent manager is already running");

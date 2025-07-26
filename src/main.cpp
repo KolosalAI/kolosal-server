@@ -333,36 +333,36 @@ int main(int argc, char *argv[])
     // Initialize the server
     ServerAPI &server = ServerAPI::instance();
 
-    // Initialize agent system if agents configuration exists
+    // Initialize agent system from main configuration
     std::shared_ptr<kolosal::agents::YAMLConfigurableAgentManager> agentManager;
     std::shared_ptr<kolosal::agents::AgentOrchestrator> agentOrchestrator;
     
-    std::string agentsConfigPath = "config/agents.yaml";
-    
-    if (std::filesystem::exists(agentsConfigPath)) {
+    // Check if agent system configuration exists in the main config
+    if (!config.agentSystem.agents.empty() || !config.agentSystem.functions.empty()) {
         try {
-            ServerLogger::logInfo("Initializing agent system from: %s", agentsConfigPath.c_str());
+            ServerLogger::logInfo("Initializing agent system from main configuration");
             
             agentManager = std::make_shared<kolosal::agents::YAMLConfigurableAgentManager>();
             std::cout << "DEBUG: Agent manager created" << std::endl;
             std::cout.flush();
             
-            std::cout << "DEBUG: About to call load_configuration" << std::endl;
+            std::cout << "DEBUG: About to configure agent system from ServerConfig" << std::endl;
             std::cout.flush();
             
             bool configLoaded = false;
             try {
-                configLoaded = agentManager->load_configuration(agentsConfigPath);
-                std::cout << "DEBUG: load_configuration returned: " << (configLoaded ? "true" : "false") << std::endl;
+                // Load configuration directly from the ServerConfig's agent system
+                configLoaded = agentManager->load_configuration(config.agentSystem);
+                std::cout << "DEBUG: load_configuration(SystemConfig) returned: " << (configLoaded ? "true" : "false") << std::endl;
                 std::cout.flush();
             } catch (const std::exception& e) {
-                std::cout << "DEBUG: Exception in load_configuration: " << e.what() << std::endl;
+                std::cout << "DEBUG: Exception in load_configuration(SystemConfig): " << e.what() << std::endl;
                 std::cout.flush();
                 ServerLogger::logError("Exception loading agent configuration: %s", e.what());
                 std::cerr << "Error loading agent configuration: " << e.what() << std::endl;
                 return 1;
             } catch (...) {
-                std::cout << "DEBUG: Unknown exception in load_configuration" << std::endl;
+                std::cout << "DEBUG: Unknown exception in load_configuration(SystemConfig)" << std::endl;
                 std::cout.flush();
                 ServerLogger::logError("Unknown exception loading agent configuration");
                 std::cerr << "Unknown error loading agent configuration" << std::endl;
@@ -434,8 +434,8 @@ int main(int argc, char *argv[])
             // Continue without agent system
         }
     } else {
-        ServerLogger::logInfo("Agent system bypassed or configuration not found (%s) - continuing without agent system", agentsConfigPath.c_str());
-        std::cout << "Agent system bypassed - continuing without agent system" << std::endl;
+        ServerLogger::logInfo("No agent system configuration found in main config - continuing without agent system");
+        std::cout << "No agent system configuration found - continuing without agent system" << std::endl;
         std::cout.flush();
     }
     

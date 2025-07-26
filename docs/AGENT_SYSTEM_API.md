@@ -637,7 +637,7 @@ POST /api/v1/agents/system/reload
 **Request Body:**
 ```json
 {
-  "config_file": "/path/to/agents.yaml"
+  "config_file": "/path/to/config.yaml"
 }
 ```
 

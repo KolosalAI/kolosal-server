@@ -6,6 +6,7 @@
 #include "export.hpp"
 #include "auth/rate_limiter.hpp"
 #include "auth/cors_handler.hpp"
+#include "agents/yaml_config.hpp"
 #include "../../inference/include/inference_interface.h"
 
 namespace kolosal {
@@ -197,6 +198,9 @@ struct KOLOSAL_SERVER_API ServerConfig {    // Basic server settings
     
     // Internet search configuration
     SearchConfig search;
+    
+    // Agent system configuration
+    agents::SystemConfig agentSystem;
     
     // Feature flags
     bool enableHealthCheck = true;

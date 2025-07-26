@@ -707,6 +707,15 @@ namespace kolosal
                     enableMetrics = features["metrics"].as<bool>();
             }
 
+            // Load agent system configuration
+            try {
+                agentSystem = agents::SystemConfig::from_yaml(config);
+            } catch (const std::exception& e) {
+                std::cerr << "[Warning] Failed to load agent system configuration: " << e.what() << std::endl;
+                std::cerr << "[Info] Agent system will be disabled" << std::endl;
+                // Continue without agent system - this is not a fatal error
+            }
+
             // Load search configuration
             if (config["search"])
             {
@@ -832,6 +841,21 @@ namespace kolosal
             // Feature flags
             config["features"]["health_check"] = enableHealthCheck;
             config["features"]["metrics"] = enableMetrics;
+            
+            // Agent system configuration
+            try {
+                YAML::Node agentSystemNode = agentSystem.to_yaml();
+                if (agentSystemNode.size() > 0) {
+                    // Only add agent system sections if they exist
+                    if (agentSystemNode["system"]) config["system"] = agentSystemNode["system"];
+                    if (agentSystemNode["functions"]) config["functions"] = agentSystemNode["functions"];
+                    if (agentSystemNode["agents"]) config["agents"] = agentSystemNode["agents"];
+                    // Note: inference_engines in agent config are different from server inference_engines
+                    // We may want to merge them or keep them separate based on requirements
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "[Warning] Failed to save agent system configuration: " << e.what() << std::endl;
+            }
 
             std::ofstream file(configFile);
             if (!file.is_open())
