@@ -152,12 +152,16 @@ set(SOURCES
     src/agents/agent_orchestrator.cpp
     src/agents/multi_agent_system.cpp
     src/agents/sequential_workflow.cpp
+    src/agents/workflow_engine.cpp
     src/agents/yaml_config.cpp
     src/agents/message_router.cpp
     src/agents/function_manager.cpp
     src/agents/job_manager.cpp
     src/agents/event_system.cpp
     src/agents/builtin_functions.cpp
+
+    # Routes core
+    src/routes/api_dispatcher.cpp
 
     # Authentication and authorization
     src/auth/rate_limiter.cpp

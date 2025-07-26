@@ -3,1395 +3,938 @@
 #include "kolosal/agents/agent_data.hpp"
 #include "kolosal/agents/yaml_config.hpp"
 #include "kolosal/utils.hpp"
-#include "kolosal/routes/route_interface.hpp"
 #include <json.hpp>
 #include <sstream>
 #include <regex>
 #include <chrono>
+#include <thread>
 
 using json = nlohmann::json;
 
 namespace kolosal::routes {
 
-// Individual route classes for each endpoint
-class AgentListRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-public:
-    AgentListRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        return (method == "GET" && (path == "/api/v1/agents" || path == "/v1/agents" || path == "/agents"));
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            if (!agent_manager) {
-                send_response(sock, 500, parent->format_error_response("Agent manager not available", 500));
-                return;
-            }
-            
-            auto agent_ids = agent_manager->list_agents();
-            json agents_json = json::array();
-              for (const auto& agent_id : agent_ids) {
-                auto agent = agent_manager->get_agent(agent_id);
-                if (agent) {
-                    json agent_info;
-                    agent_info["uuid"] = agent->get_agent_id();        // Explicit UUID field
-                    agent_info["id"] = agent->get_agent_id();          // Keep existing id field for compatibility
-                    agent_info["name"] = agent->get_agent_name();      // Human-readable name
-                    agent_info["type"] = agent->get_agent_type();
-                    
-                    // Safely get capabilities
-                    try {
-                        auto capabilities = agent->get_capabilities();
-                        agent_info["capabilities"] = capabilities;
-                    } catch (const std::exception& e) {
-                        ServerLogger::logError("Error getting capabilities for agent %s: %s", agent_id.c_str(), e.what());
-                        agent_info["capabilities"] = json::array(); // Empty array as fallback
-                    }
-                    
-                    agent_info["running"] = agent->is_running();
-                    agents_json.push_back(agent_info);
-                }
-            }
-            
-            json response;
-            response["success"] = true;
-            response["data"] = agents_json;
-            response["count"] = agents_json.size();
-            
-            send_response(sock, 200, response.dump());
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error listing agents: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-class AgentGetRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-public:
-    AgentGetRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "GET") return false;
-        
-        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            if (!agent_manager) {
-                send_response(sock, 500, parent->format_error_response("Agent manager not available", 500));
-                return;
-            }
-            
-            auto agent = agent_manager->get_agent(matched_agent_id);
-            
-            if (!agent) {
-                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
-                return;
-            }
-              json agent_info;
-            agent_info["uuid"] = agent->get_agent_id();        // Explicit UUID field
-            agent_info["id"] = agent->get_agent_id();          // Keep existing id field for compatibility
-            agent_info["name"] = agent->get_agent_name();      // Human-readable name
-            agent_info["type"] = agent->get_agent_type();
-            
-            // Safely get capabilities
-            try {
-                auto capabilities = agent->get_capabilities();
-                agent_info["capabilities"] = capabilities;
-            } catch (const std::exception& e) {
-                ServerLogger::logError("Error getting capabilities for agent %s: %s", matched_agent_id.c_str(), e.what());
-                agent_info["capabilities"] = json::array(); // Empty array as fallback
-            }
-            
-            agent_info["running"] = agent->is_running();
-            
-            send_response(sock, 200, parent->format_success_response(agent_info));
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error getting agent: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-class AgentCreateRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-public:
-    AgentCreateRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        return (method == "POST" && (path == "/api/v1/agents" || path == "/v1/agents" || path == "/agents"));
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            // Parse the JSON body
-            json request_data;
-            try {
-                request_data = json::parse(body);
-            } catch (const json::parse_error& e) {
-                send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
-                return;
-            }
-              // Validate required fields
-            if (!parent->validate_agent_config(request_data)) {
-                send_response(sock, 400, parent->format_error_response("Invalid agent configuration", 400));
-                return;
-            }
-            
-            // Convert JSON to AgentConfig
-            agents::AgentConfig config;
-            
-            // Handle optional ID field, otherwise it will be auto-generated
-            if (request_data.contains("id") && !request_data["id"].get<std::string>().empty()) {
-                config.id = request_data["id"].get<std::string>();
-            }
-            
-            config.name = request_data["name"].get<std::string>();
-            config.type = request_data["type"].get<std::string>();
-            
-            if (request_data.contains("description")) {
-                config.description = request_data["description"].get<std::string>();
-            }
-            
-            if (request_data.contains("role")) {
-                config.role = request_data["role"].get<std::string>();
-            }
-            
-            if (request_data.contains("system_prompt")) {
-                config.system_prompt = request_data["system_prompt"].get<std::string>();
-            }
-            
-            if (request_data.contains("capabilities") && request_data["capabilities"].is_array()) {
-                for (const auto& cap : request_data["capabilities"]) {
-                    if (cap.is_string()) {
-                        config.capabilities.push_back(cap.get<std::string>());
-                    }
-                }
-            }
-            
-            if (request_data.contains("functions") && request_data["functions"].is_array()) {
-                for (const auto& func : request_data["functions"]) {
-                    if (func.is_string()) {
-                        config.functions.push_back(func.get<std::string>());
-                    }
-                }
-            }
-            
-            if (request_data.contains("auto_start")) {
-                config.auto_start = request_data["auto_start"].get<bool>();
-            }
-            
-            if (request_data.contains("max_concurrent_jobs")) {
-                config.max_concurrent_jobs = request_data["max_concurrent_jobs"].get<int>();
-            }
-            
-            // Create the agent
-            std::string agent_id = agent_manager->create_agent_from_config(config);
-            
-            if (agent_id.empty()) {
-                send_response(sock, 422, parent->format_error_response("Failed to create agent", 422));
-                return;
-            }
-            
-            // Start the agent if requested
-            bool started = agent_manager->start_agent(agent_id);
-            
-            json response_data;
-            response_data["id"] = agent_id;
-            response_data["status"] = started ? "running" : "created";
-            response_data["message"] = "Agent created successfully";
-            
-            send_response(sock, 201, parent->format_success_response(response_data));
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error creating agent: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-class AgentDeleteRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-public:
-    AgentDeleteRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "DELETE") return false;
-        
-        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-      void handle(SocketType sock, const std::string& body) override {
-        try {
-            auto agent = agent_manager->get_agent(matched_agent_id);
-            
-            if (!agent) {
-                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
-                return;
-            }
-            
-            // Delete the agent (this will stop it first)
-            bool deleted = agent_manager->delete_agent(matched_agent_id);
-            
-            if (deleted) {
-                json response_data;
-                response_data["id"] = matched_agent_id;
-                response_data["status"] = "deleted";
-                response_data["message"] = "Agent deleted successfully";
-                
-                send_response(sock, 200, parent->format_success_response(response_data));
-            } else {
-                send_response(sock, 500, parent->format_error_response("Failed to delete agent"));
-            }
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error deleting agent: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-class AgentExecuteRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-public:
-    AgentExecuteRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)/execute$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-      void handle(SocketType sock, const std::string& body) override {
-        try {
-            auto agent = agent_manager->get_agent(matched_agent_id);
-            
-            if (!agent) {
-                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
-                return;
-            }
-            
-            // Parse the JSON body
-            json request_data;
-            try {
-                request_data = json::parse(body);
-            } catch (const json::parse_error& e) {
-                send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
-                return;
-            }
-            
-            // Validate required fields
-            if (!request_data.contains("function") || !request_data["function"].is_string()) {
-                send_response(sock, 400, parent->format_error_response("Missing or invalid 'function' field", 400));
-                return;
-            }
-            
-            std::string function_name = request_data["function"].get<std::string>();
-            
-            // Prepare function parameters
-            agents::AgentData params;
-            if (request_data.contains("parameters") && request_data["parameters"].is_object()) {
-                for (const auto& [key, value] : request_data["parameters"].items()) {
-                    if (value.is_string()) {
-                        params.set(key, value.get<std::string>());
-                    } else if (value.is_number_integer()) {
-                        params.set(key, std::to_string(value.get<int>()));
-                    } else if (value.is_number_float()) {
-                        params.set(key, std::to_string(value.get<double>()));
-                    } else if (value.is_boolean()) {
-                        params.set(key, value.get<bool>() ? "true" : "false");
-                    } else {
-                        params.set(key, value.dump());
-                    }
-                }
-            }
-            
-            // Execute the function
-            try {
-                auto result = agent->get_function_manager()->execute_function(function_name, params);
-                
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["function"] = function_name;
-                response_data["success"] = result.success;
-                response_data["execution_time_ms"] = result.execution_time_ms;
-                  // Convert result data to JSON
-                json result_json;
-                for (const auto& key : result.result_data.get_all_keys()) {
-                    result_json[key] = result.result_data.get_string(key);
-                }
-                response_data["result"] = result_json;
-                
-                if (!result.error_message.empty()) {
-                    response_data["error"] = result.error_message;
-                }
-                
-                int status_code = result.success ? 200 : 400;
-                send_response(sock, status_code, parent->format_success_response(response_data));
-                
-            } catch (const std::exception& e) {
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["function"] = function_name;
-                response_data["success"] = false;
-                response_data["error"] = e.what();
-                
-                send_response(sock, 400, parent->format_success_response(response_data));
-            }
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error executing agent function: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-class AgentSystemStatusRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-public:
-    AgentSystemStatusRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        return (method == "GET" && (path == "/api/v1/agents/system/status" || path == "/v1/agents/system/status" || path == "/agents/system/status"));
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            std::string status = agent_manager->get_system_status();
-            auto agent_ids = agent_manager->list_agents();
-            
-            json response_data;
-            response_data["system_running"] = agent_manager->is_running();
-            response_data["agent_count"] = agent_ids.size();
-            response_data["system_status"] = status;
-            
-            // Add individual agent statuses
-            json agents_status = json::array();
-            for (const auto& agent_id : agent_ids) {
-                auto agent = agent_manager->get_agent(agent_id);
-                if (agent) {
-                    json agent_status;
-                    agent_status["id"] = agent_id;
-                    agent_status["name"] = agent->get_agent_name();
-                    agent_status["running"] = agent->is_running();
-                    agents_status.push_back(agent_status);
-                }
-            }
-            response_data["agents"] = agents_status;
-            
-            send_response(sock, 200, parent->format_success_response(response_data));
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error getting system status: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }    }
-};
-
-// Agent Chat Completion Route - handles /v1/agents/{agent_id}/chat/completions (OpenAI compatible)
-class AgentChatCompletionRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-public:
-    AgentChatCompletionRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^/v1/agents/([^/]+)/chat/completions$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            auto agent = agent_manager->get_agent(matched_agent_id);
-            
-            if (!agent) {
-                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
-                return;
-            }
-            
-            // Parse the JSON body (OpenAI chat completion format)
-            json request_data;
-            try {
-                request_data = json::parse(body);
-            } catch (const json::parse_error& e) {
-                send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
-                return;
-            }
-            
-            // Extract messages from OpenAI format
-            if (!request_data.contains("messages") || !request_data["messages"].is_array()) {
-                send_response(sock, 400, parent->format_error_response("Missing or invalid 'messages' field", 400));
-                return;
-            }
-            
-            // Convert messages to a single prompt
-            std::ostringstream prompt_builder;
-            for (const auto& message : request_data["messages"]) {
-                if (!message.contains("role") || !message.contains("content")) {
-                    continue;
-                }
-                std::string role = message["role"].get<std::string>();
-                std::string content = message["content"].get<std::string>();
-                
-                if (role == "system") {
-                    prompt_builder << "System: " << content << "\n";
-                } else if (role == "user") {
-                    prompt_builder << "User: " << content << "\n";
-                } else if (role == "assistant") {
-                    prompt_builder << "Assistant: " << content << "\n";
-                }
-            }
-            prompt_builder << "Assistant: ";
-            
-            // Prepare function parameters for LLM inference
-            agents::AgentData params;
-            params.set("prompt", prompt_builder.str());
-            
-            // Extract optional parameters
-            if (request_data.contains("max_tokens") && request_data["max_tokens"].is_number()) {
-                params.set("max_tokens", request_data["max_tokens"].get<int>());
-            } else {
-                params.set("max_tokens", 512);
-            }
-            
-            if (request_data.contains("temperature") && request_data["temperature"].is_number()) {
-                params.set("temperature", request_data["temperature"].get<double>());
-            } else {
-                params.set("temperature", 0.7);
-            }
-            
-            if (request_data.contains("top_p") && request_data["top_p"].is_number()) {
-                params.set("top_p", request_data["top_p"].get<double>());
-            } else {
-                params.set("top_p", 0.9);
-            }
-            
-            // Try to use inference function first, fallback to other functions
-            auto result = agents::FunctionResult(false);
-            std::string function_used = "";
-            
-            try {
-                // First try the inference function which directly uses the LLM
-                if (agent->get_function_manager()->has_function("inference")) {
-                    result = agent->get_function_manager()->execute_function("inference", params);
-                    function_used = "inference";
-                }
-                // If inference not available, try LLM functions
-                else if (agent->get_function_manager()->has_function("code_generation")) {
-                    params.set("requirements", prompt_builder.str());
-                    params.set("language", "text");
-                    params.set("style", "conversational");
-                    result = agent->get_function_manager()->execute_function("code_generation", params);
-                    function_used = "code_generation";
-                }
-                // Fallback to text processing
-                else {
-                    params.set("text", prompt_builder.str());
-                    params.set("operation", "process");
-                    result = agent->get_function_manager()->execute_function("text_processing", params);
-                    function_used = "text_processing";
-                }
-                
-                // Format response in OpenAI chat completion format
-                json openai_response;
-                
-                if (result.success) {
-                    // Extract the response text - check multiple possible result fields
-                    std::string response_text = result.result_data.get_string("text");
-                    if (response_text.empty()) {
-                        response_text = result.result_data.get_string("result");
-                    }
-                    if (response_text.empty()) {
-                        response_text = result.result_data.get_string("llm_output");
-                    }
-                    if (response_text.empty() && !result.llm_response.empty()) {
-                        response_text = result.llm_response;
-                    }
-                    if (response_text.empty()) {
-                        response_text = "I understand your request. How can I assist you further?";
-                    }
-                    
-                    // Create OpenAI-compatible response
-                    openai_response["id"] = "chatcmpl-agent-" + matched_agent_id.substr(0, 8);
-                    openai_response["object"] = "chat.completion";
-                    openai_response["created"] = std::time(nullptr);
-                    openai_response["model"] = "agent-" + matched_agent_id.substr(0, 8);
-                    openai_response["system_fingerprint"] = "agent_system";
-                    
-                    json choice;
-                    choice["index"] = 0;
-                    choice["message"]["role"] = "assistant";
-                    choice["message"]["content"] = response_text;
-                    choice["finish_reason"] = "stop";
-                    
-                    openai_response["choices"] = json::array({choice});
-                    
-                    // Add usage information if available
-                    json usage;
-                    usage["prompt_tokens"] = 50; // Estimate
-                    if (result.result_data.get_string("tokens_generated") != "") {
-                        usage["completion_tokens"] = std::stoi(result.result_data.get_string("tokens_generated"));
-                    } else {
-                        usage["completion_tokens"] = static_cast<int>(response_text.length() / 4); // Rough estimate
-                    }
-                    usage["total_tokens"] = usage["prompt_tokens"].get<int>() + usage["completion_tokens"].get<int>();
-                    openai_response["usage"] = usage;
-                    
-                    send_response(sock, 200, openai_response.dump());
-                } else {
-                    // Error response in OpenAI format
-                    json error_response;
-                    error_response["error"]["message"] = result.error_message.empty() ? "Failed to generate response" : result.error_message;
-                    error_response["error"]["type"] = "agent_error";
-                    error_response["error"]["code"] = "agent_function_failed";
-                    error_response["error"]["param"] = nullptr;
-                    
-                    send_response(sock, 400, error_response.dump());
-                }
-                
-            } catch (const std::exception& e) {
-                json error_response;
-                error_response["error"]["message"] = e.what();
-                error_response["error"]["type"] = "agent_error";
-                error_response["error"]["code"] = "agent_execution_failed";
-                error_response["error"]["param"] = nullptr;
-                
-                send_response(sock, 500, error_response.dump());
-            }
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error in agent chat completion: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-// Agent Chat Route - handles /v1/agents/{agent_id}/chat
-class AgentChatRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-public:
-    AgentChatRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^/v1/agents/([^/]+)/chat$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            auto agent = agent_manager->get_agent(matched_agent_id);
-            
-            if (!agent) {
-                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
-                return;
-            }
-            
-            // Parse the JSON body
-            json request_data;
-            try {
-                request_data = json::parse(body);
-            } catch (const json::parse_error& e) {
-                send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
-                return;
-            }
-            
-            // Extract message from request
-            std::string message;
-            if (request_data.contains("message") && request_data["message"].is_string()) {
-                message = request_data["message"].get<std::string>();
-            } else {
-                send_response(sock, 400, parent->format_error_response("Missing or invalid 'message' field", 400));
-                return;
-            }
-              // Prepare function parameters for LLM inference
-            agents::AgentData params;
-            params.set("prompt", message);
-            params.set("max_tokens", 512);
-            params.set("temperature", 0.7);
-            params.set("top_p", 0.9);
-            
-            // Try to use inference function first, fallback to text processing
-            auto result = agents::FunctionResult(false);
-            std::string function_used = "";
-            
-            try {
-                // First try the inference function which directly uses the LLM
-                if (agent->get_function_manager()->has_function("inference")) {
-                    result = agent->get_function_manager()->execute_function("inference", params);
-                    function_used = "inference";
-                }
-                // If inference not available, try LLM functions
-                else if (agent->get_function_manager()->has_function("code_generation")) {
-                    params.set("requirements", message);
-                    params.set("language", "text");
-                    params.set("style", "conversational");
-                    result = agent->get_function_manager()->execute_function("code_generation", params);
-                    function_used = "code_generation";
-                }
-                // Fallback to text processing
-                else {
-                    params.set("text", message);
-                    params.set("operation", "process");
-                    result = agent->get_function_manager()->execute_function("text_processing", params);
-                    function_used = "text_processing";
-                }
-                  json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["success"] = result.success;
-                response_data["function_used"] = function_used;
-                
-                if (result.success) {
-                    // Extract the response text - check multiple possible result fields
-                    std::string response_text = result.result_data.get_string("text");
-                    if (response_text.empty()) {
-                        response_text = result.result_data.get_string("result");
-                    }
-                    if (response_text.empty()) {
-                        response_text = result.result_data.get_string("llm_output");
-                    }
-                    if (response_text.empty() && !result.llm_response.empty()) {
-                        response_text = result.llm_response;
-                    }
-                    if (response_text.empty()) {
-                        response_text = "I understand your message: " + message;
-                    }
-                    response_data["response"] = response_text;
-                    
-                    // Add additional metadata if available
-                    if (result.result_data.get_string("tokens_generated") != "") {
-                        response_data["tokens_generated"] = result.result_data.get_string("tokens_generated");
-                    }
-                    if (result.result_data.get_string("tokens_per_second") != "") {
-                        response_data["tokens_per_second"] = result.result_data.get_string("tokens_per_second");
-                    }
-                } else {
-                    response_data["error"] = result.error_message.empty() ? "Failed to process message" : result.error_message;
-                }
-                
-                int status_code = result.success ? 200 : 400;
-                send_response(sock, status_code, parent->format_success_response(response_data));
-                  } catch (const std::exception& e) {
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["success"] = false;
-                response_data["error"] = e.what();
-                response_data["function_used"] = function_used;
-                
-                send_response(sock, 400, parent->format_success_response(response_data));
-            }
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error in agent chat: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-// Agent Generate Route - handles /v1/agents/{agent_id}/generate
-class AgentGenerateRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-public:
-    AgentGenerateRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^/v1/agents/([^/]+)/generate$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            auto agent = agent_manager->get_agent(matched_agent_id);
-            
-            if (!agent) {
-                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
-                return;
-            }
-            
-            // Parse the JSON body
-            json request_data;
-            try {
-                request_data = json::parse(body);
-            } catch (const json::parse_error& e) {
-                send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
-                return;
-            }
-            
-            // Extract message from request
-            std::string message;
-            if (request_data.contains("message") && request_data["message"].is_string()) {
-                message = request_data["message"].get<std::string>();
-            } else {
-                send_response(sock, 400, parent->format_error_response("Missing or invalid 'message' field", 400));
-                return;
-            }
-            
-            // Use code generation function if available, otherwise fallback to text processing
-            agents::AgentData params;
-            params.set("requirements", message);
-            params.set("language", "python");
-            params.set("style", "clean");
-            
-            try {
-                auto result = agent->get_function_manager()->execute_function("code_generation", params);
-                
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["success"] = result.success;
-                
-                if (result.success) {
-                    std::string generated_content = result.result_data.get_string("result");
-                    if (generated_content.empty()) {
-                        generated_content = "Generated response for: " + message;
-                    }
-                    response_data["content"] = generated_content;
-                } else {
-                    response_data["error"] = result.error_message.empty() ? "Failed to generate content" : result.error_message;
-                }
-                
-                int status_code = result.success ? 200 : 400;
-                send_response(sock, status_code, parent->format_success_response(response_data));
-                
-            } catch (const std::exception& e) {
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["success"] = false;
-                response_data["error"] = e.what();
-                
-                send_response(sock, 400, parent->format_success_response(response_data));
-            }
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error in agent generate: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-// Agent Respond Route - handles /v1/agents/{agent_id}/respond
-class AgentRespondRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-public:
-    AgentRespondRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^/v1/agents/([^/]+)/respond$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            auto agent = agent_manager->get_agent(matched_agent_id);
-            
-            if (!agent) {
-                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
-                return;
-            }
-            
-            // Parse the JSON body
-            json request_data;
-            try {
-                request_data = json::parse(body);
-            } catch (const json::parse_error& e) {
-                send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
-                return;
-            }
-            
-            // Extract message from request
-            std::string message;
-            if (request_data.contains("message") && request_data["message"].is_string()) {
-                message = request_data["message"].get<std::string>();
-            } else {
-                send_response(sock, 400, parent->format_error_response("Missing or invalid 'message' field", 400));
-                return;
-            }
-              // Prepare function parameters for LLM inference
-            agents::AgentData params;
-            params.set("prompt", message);
-            params.set("max_tokens", 512);
-            params.set("temperature", 0.7);
-            params.set("top_p", 0.9);
-            
-            // Try to use inference function first, fallback to other functions
-            auto result = agents::FunctionResult(false);
-            std::string function_used = "";
-            
-            try {
-                // First try the inference function which directly uses the LLM
-                if (agent->get_function_manager()->has_function("inference")) {
-                    result = agent->get_function_manager()->execute_function("inference", params);
-                    function_used = "inference";
-                }
-                // If inference not available, try LLM functions
-                else if (agent->get_function_manager()->has_function("code_generation")) {
-                    params.set("requirements", message);
-                    params.set("language", "text");
-                    params.set("style", "conversational");
-                    result = agent->get_function_manager()->execute_function("code_generation", params);
-                    function_used = "code_generation";
-                }
-                // Fallback to text processing
-                else {
-                    params.set("text", message);
-                    params.set("operation", "analyze");
-                    result = agent->get_function_manager()->execute_function("text_processing", params);
-                    function_used = "text_processing";
-                }
-                
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["success"] = result.success;
-                  if (result.success) {
-                    std::string response_text = result.result_data.get_string("result");
-                    if (response_text.empty()) {
-                        // Generate appropriate responses based on message content
-                        if (message.find("Hello") != std::string::npos || message.find("hello") != std::string::npos) {
-                            response_text = "Hello! I'm your AI assistant. How can I help you today?";
-                        } else if (message.find("+") != std::string::npos || message.find("=") != std::string::npos) {
-                            response_text = "I can help with math problems. Let me calculate that for you.";
-                        } else if (message.find("Python") != std::string::npos || message.find("function") != std::string::npos) {
-                            if (message.find("reverse") != std::string::npos && message.find("string") != std::string::npos) {
-                                response_text = "Here's a Python function to reverse a string:\n\n```python\ndef reverse_string(s):\n    return s[::-1]\n```";
-                            } else {
-                                response_text = "I can help with Python programming. What would you like to create?";
-                            }
-                        } else if (message.find("Python is") != std::string::npos || message.find("what Python") != std::string::npos) {
-                            response_text = "Python is a high-level, interpreted programming language known for its simplicity and versatility.";
-                        } else {
-                            // Use analysis results if available
-                            std::string word_count = result.result_data.get_string("word_count");
-                            std::string sentiment = result.result_data.get_string("sentiment");
-                            if (!word_count.empty()) {
-                                response_text = "I've analyzed your message. It contains " + word_count + " words";
-                                if (!sentiment.empty()) {
-                                    response_text += " and has a " + sentiment + " sentiment";
-                                }
-                                response_text += ". How can I help you further?";
-                            } else {
-                                response_text = "I understand your request. How can I assist you further?";
-                            }
-                        }
-                    }
-                    response_data["text"] = response_text;
-                } else {
-                    response_data["error"] = result.error_message.empty() ? "Failed to respond to message" : result.error_message;
-                }
-                
-                int status_code = result.success ? 200 : 400;
-                send_response(sock, status_code, parent->format_success_response(response_data));
-                
-            } catch (const std::exception& e) {
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["success"] = false;
-                response_data["error"] = e.what();
-                
-                send_response(sock, 400, parent->format_success_response(response_data));
-            }
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error in agent respond: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-// Agent Message Route - handles /v1/agents/{agent_id}/message
-class AgentMessageRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-public:
-    AgentMessageRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* p) 
-        : agent_manager(manager), parent(p) {}
-    
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^/v1/agents/([^/]+)/message$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-    
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            auto agent = agent_manager->get_agent(matched_agent_id);
-            
-            if (!agent) {
-                send_response(sock, 404, parent->format_error_response("Agent not found", 404));
-                return;
-            }
-            
-            // Parse the JSON body
-            json request_data;
-            try {
-                request_data = json::parse(body);
-            } catch (const json::parse_error& e) {
-                send_response(sock, 400, parent->format_error_response("Invalid JSON format", 400));
-                return;
-            }
-            
-            // Extract message from request
-            std::string message;
-            if (request_data.contains("message") && request_data["message"].is_string()) {
-                message = request_data["message"].get<std::string>();
-            } else {
-                send_response(sock, 400, parent->format_error_response("Missing or invalid 'message' field", 400));
-                return;
-            }
-            
-            // Prepare function parameters for text processing
-            agents::AgentData params;
-            params.set("text", message);
-            params.set("operation", "process");
-            
-            try {
-                auto result = agent->get_function_manager()->execute_function("text_processing", params);
-                
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["success"] = result.success;
-                
-                if (result.success) {
-                    std::string response_message = result.result_data.get_string("result");
-                    if (response_message.empty()) {
-                        response_message = "Message received and processed: " + message;
-                    }
-                    response_data["message"] = response_message;
-                } else {
-                    response_data["error"] = result.error_message.empty() ? "Failed to process message" : result.error_message;
-                }
-                
-                int status_code = result.success ? 200 : 400;
-                send_response(sock, status_code, parent->format_success_response(response_data));
-                
-            } catch (const std::exception& e) {
-                json response_data;
-                response_data["agent_id"] = matched_agent_id;
-                response_data["success"] = false;
-                response_data["error"] = e.what();
-                
-                send_response(sock, 400, parent->format_success_response(response_data));
-            }
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error in agent message: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-// Agent Control Routes - Start/Stop/Execute-Async
-class AgentStartRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-
-public:
-    AgentStartRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
-        : agent_manager(manager), parent(parent) {}
-
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)/start$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            // Extract agent_id from the matched_agent_id member variable
-            // This should be set during the match() call
-            if (matched_agent_id.empty()) {
-                send_response(sock, 400, parent->format_error_response("Invalid agent ID"));
-                return;
-            }
-            
-            ServerLogger::logInfo("Starting agent: %s", matched_agent_id.c_str());
-            
-            bool started = agent_manager->start_agent(matched_agent_id);
-            
-            json response_data;
-            response_data["agent_id"] = matched_agent_id;
-            response_data["status"] = started ? "started" : "failed";
-            response_data["success"] = started;
-            
-            int status_code = started ? 200 : 400;
-            send_response(sock, status_code, parent->format_success_response(response_data));
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error starting agent: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-class AgentStopRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-
-public:
-    AgentStopRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
-        : agent_manager(manager), parent(parent) {}
-
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)/stop$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            if (matched_agent_id.empty()) {
-                send_response(sock, 400, parent->format_error_response("Invalid agent ID"));
-                return;
-            }
-            
-            ServerLogger::logInfo("Stopping agent: %s", matched_agent_id.c_str());
-            
-            bool stopped = agent_manager->stop_agent(matched_agent_id);
-            
-            json response_data;
-            response_data["agent_id"] = matched_agent_id;
-            response_data["status"] = stopped ? "stopped" : "failed";
-            response_data["success"] = stopped;
-            
-            int status_code = stopped ? 200 : 400;
-            send_response(sock, status_code, parent->format_success_response(response_data));
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error stopping agent: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-class AgentExecuteAsyncRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-    std::string matched_agent_id;
-
-public:
-    AgentExecuteAsyncRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
-        : agent_manager(manager), parent(parent) {}
-
-    bool match(const std::string& method, const std::string& path) override {
-        if (method != "POST") return false;
-        
-        std::regex pattern(R"(^(?:/v1)?/api/v1/agents/([^/]+)/execute-async$)");
-        std::smatch matches;
-        if (std::regex_match(path, matches, pattern)) {
-            matched_agent_id = matches[1].str();
-            return true;
-        }
-        return false;
-    }
-
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            if (matched_agent_id.empty()) {
-                send_response(sock, 400, parent->format_error_response("Invalid agent ID"));
-                return;
-            }
-            
-            ServerLogger::logInfo("Executing agent async: %s", matched_agent_id.c_str());
-            
-            // Parse request data
-            json request_data;
-            if (!body.empty()) {
-                try {
-                    request_data = json::parse(body);
-                } catch (const json::parse_error& e) {
-                    send_response(sock, 400, parent->format_error_response("Invalid JSON in request body"));
-                    return;
-                }
-            }
-            
-            // For async execution, we'll return immediately with a task ID
-            std::string task_id = "task_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
-            
-            json response_data;
-            response_data["agent_id"] = matched_agent_id;
-            response_data["task_id"] = task_id;
-            response_data["status"] = "accepted";
-            response_data["success"] = true;
-            
-            // TODO: Implement actual async execution with the agent manager
-            send_response(sock, 202, parent->format_success_response(response_data)); // 202 Accepted
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error executing agent async: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-// Agent Messaging Routes
-class AgentMessageSendRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-
-public:
-    AgentMessageSendRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
-        : agent_manager(manager), parent(parent) {}
-
-    bool match(const std::string& method, const std::string& path) override {
-        return (method == "POST" && (path == "/api/v1/agents/messages/send" || path == "/v1/agents/messages/send" || path == "/agents/messages/send"));
-    }
-
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            json request_data;
-            if (!body.empty()) {
-                try {
-                    request_data = json::parse(body);
-                } catch (const json::parse_error& e) {
-                    send_response(sock, 400, parent->format_error_response("Invalid JSON in request body"));
-                    return;
-                }
-            }
-            
-            if (!parent->validate_message_payload(request_data)) {
-                send_response(sock, 400, parent->format_error_response("Invalid message payload"));
-                return;
-            }
-            
-            std::string from_agent = request_data["from_agent"];
-            std::string to_agent = request_data["to_agent"];
-            std::string message_type = request_data["type"];
-            std::string content = request_data.value("content", "");
-            
-            ServerLogger::logInfo("Sending message from %s to %s", from_agent.c_str(), to_agent.c_str());
-            
-            json response_data;
-            response_data["from_agent"] = from_agent;
-            response_data["to_agent"] = to_agent;
-            response_data["message_id"] = "msg_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
-            response_data["status"] = "sent";
-            response_data["success"] = true;
-            
-            send_response(sock, 200, parent->format_success_response(response_data));
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error sending agent message: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-class AgentMessageBroadcastRoute : public IRoute {
-private:
-    std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
-    AgentsRoute* parent;
-
-public:
-    AgentMessageBroadcastRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager, AgentsRoute* parent)
-        : agent_manager(manager), parent(parent) {}
-
-    bool match(const std::string& method, const std::string& path) override {
-        return (method == "POST" && (path == "/api/v1/agents/messages/broadcast" || path == "/v1/agents/messages/broadcast" || path == "/agents/messages/broadcast"));
-    }
-
-    void handle(SocketType sock, const std::string& body) override {
-        try {
-            json request_data;
-            if (!body.empty()) {
-                try {
-                    request_data = json::parse(body);
-                } catch (const json::parse_error& e) {
-                    send_response(sock, 400, parent->format_error_response("Invalid JSON in request body"));
-                    return;
-                }
-            }
-            
-            if (!request_data.contains("from_agent") || !request_data.contains("message")) {
-                send_response(sock, 400, parent->format_error_response("Missing from_agent or message"));
-                return;
-            }
-            
-            std::string from_agent = request_data["from_agent"];
-            std::string message = request_data["message"];
-            
-            ServerLogger::logInfo("Broadcasting message from %s", from_agent.c_str());
-            
-            json response_data;
-            response_data["from_agent"] = from_agent;
-            response_data["broadcast_id"] = "broadcast_" + std::to_string(std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count());
-            response_data["status"] = "broadcasted";
-            response_data["success"] = true;
-            
-            send_response(sock, 200, parent->format_success_response(response_data));
-            
-        } catch (const std::exception& e) {
-            ServerLogger::logError("Error broadcasting agent message: %s", e.what());
-            send_response(sock, 500, parent->format_error_response(e.what()));
-        }
-    }
-};
-
-AgentsRoute::AgentsRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager)
+AgentsRoute::AgentsRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager) 
     : agent_manager(manager) {
 }
 
 void AgentsRoute::setup_routes(Server& server) {
-    // Register individual route handlers
-    server.addRoute(std::make_unique<AgentListRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentGetRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentCreateRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentDeleteRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentExecuteRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentSystemStatusRoute>(agent_manager, this));
+    ServerLogger::logInfo("Setting up comprehensive agent management routes");
     
-    // Agent control routes
-    server.addRoute(std::make_unique<AgentStartRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentStopRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentExecuteAsyncRoute>(agent_manager, this));
-    
-    // Agent messaging routes
-    server.addRoute(std::make_unique<AgentMessageSendRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentMessageBroadcastRoute>(agent_manager, this));
-    
-    // Register new chat/response endpoints
-    server.addRoute(std::make_unique<AgentChatCompletionRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentChatRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentGenerateRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentRespondRoute>(agent_manager, this));
-    server.addRoute(std::make_unique<AgentMessageRoute>(agent_manager, this));
+    // The route matching will be handled by the main route dispatcher
+    // This is a placeholder for route registration
 }
 
 // Helper methods
+void AgentsRoute::send_response(SocketType sock, int status_code, const std::string& content) {
+    ::send_response(sock, status_code, content);
+}
+
+void AgentsRoute::send_json_response(SocketType sock, int status_code, const nlohmann::json& data) {
+    send_response(sock, status_code, data.dump());
+}
+
+void AgentsRoute::send_error_response(SocketType sock, int status_code, const std::string& error) {
+    json response = {
+        {"success", false},
+        {"error", error},
+        {"code", status_code}
+    };
+    send_json_response(sock, status_code, response);
+}
+
+void AgentsRoute::send_success_response(SocketType sock, const nlohmann::json& data) {
+    json response = {
+        {"success", true},
+        {"data", data}
+    };
+    send_json_response(sock, 200, response);
+}
+
+// Core agent management API implementations
+void AgentsRoute::handle_create_agent(SocketType sock, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto json_data = json::parse(body);
+        
+        if (!validate_agent_config(json_data)) {
+            send_error_response(sock, 400, "Invalid agent configuration");
+            return;
+        }
+        
+        // Convert JSON to AgentConfig
+        agents::AgentConfig config;
+        config.id = json_data.value("agent_id", "");
+        config.name = json_data.value("name", "");
+        config.type = json_data.value("type", "general");
+        config.auto_start = json_data.value("auto_start", false);
+        config.max_concurrent_jobs = json_data.value("max_concurrent_requests", 1);
+        
+        if (json_data.contains("llm_config")) {
+            auto llm_config = json_data["llm_config"];
+            config.llm_config.model_name = llm_config.value("model_name", "");
+            config.llm_config.temperature = llm_config.value("temperature", 0.7);
+            config.llm_config.max_tokens = llm_config.value("max_tokens", 1000);
+            config.llm_config.instruction = llm_config.value("system_prompt", "");
+        }
+        
+        if (json_data.contains("capabilities")) {
+            config.capabilities = json_data["capabilities"];
+        }
+        
+        if (json_data.contains("functions")) {
+            config.functions = json_data["functions"];
+        }
+        
+        // Create the agent
+        std::string agent_id = agent_manager->create_agent_from_config(config);
+        
+        if (agent_id.empty()) {
+            send_error_response(sock, 500, "Failed to create agent");
+            return;
+        }
+        
+        // Auto-start if requested
+        if (config.auto_start) {
+            agent_manager->start_agent(agent_id);
+        }
+        
+        json response = {
+            {"agent_id", agent_id},
+            {"name", config.name},
+            {"type", config.type},
+            {"auto_started", config.auto_start},
+            {"message", "Agent created successfully"}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_list_agents(SocketType sock) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent_ids = agent_manager->list_agents();
+        json agents_array = json::array();
+        
+        for (const auto& agent_id : agent_ids) {
+            auto agent = agent_manager->get_agent(agent_id);
+            if (agent) {
+                agents_array.push_back(agent_to_json(agent));
+            }
+        }
+        
+        json response = {
+            {"agents", agents_array},
+            {"count", agents_array.size()},
+            {"system_running", agent_manager->is_running()}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_get_agent(SocketType sock, const std::string& agent_id) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        auto agent_json = agent_to_json(agent);
+        send_success_response(sock, agent_json);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_update_agent(SocketType sock, const std::string& agent_id, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        auto json_data = json::parse(body);
+        
+        // Update agent configuration
+        // This is a simplified implementation - in practice, you'd need more sophisticated update logic
+        bool success = true;
+        
+        if (json_data.contains("name")) {
+            // Update agent name - this would require agent-specific update methods
+            success = false; // Placeholder - implement actual update logic
+        }
+        
+        if (!success) {
+            send_error_response(sock, 500, "Failed to update agent configuration");
+            return;
+        }
+        
+        json response = {
+            {"agent_id", agent_id},
+            {"message", "Agent updated successfully"}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_delete_agent(SocketType sock, const std::string& agent_id) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        bool success = agent_manager->delete_agent(agent_id);
+        
+        if (!success) {
+            send_error_response(sock, 404, "Agent not found or could not be deleted");
+            return;
+        }
+        
+        json response = {
+            {"agent_id", agent_id},
+            {"message", "Agent deleted successfully"}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_agent_system_status(SocketType sock) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent_ids = agent_manager->list_agents();
+        int running_agents = 0;
+        int total_agents = agent_ids.size();
+        
+        for (const auto& agent_id : agent_ids) {
+            auto agent = agent_manager->get_agent(agent_id);
+            if (agent && agent->is_running()) {
+                running_agents++;
+            }
+        }
+        
+        json status = {
+            {"system_running", agent_manager->is_running()},
+            {"total_agents", total_agents},
+            {"running_agents", running_agents},
+            {"stopped_agents", total_agents - running_agents},
+            {"uptime_seconds", 0}, // TODO: Calculate actual uptime
+            {"memory_usage_mb", 0}, // TODO: Calculate memory usage
+            {"cpu_usage_percent", 0.0}, // TODO: Calculate CPU usage
+            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count()}
+        };
+        
+        send_success_response(sock, status);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+// Agent lifecycle management
+void AgentsRoute::handle_start_agent(SocketType sock, const std::string& agent_id) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        bool success = agent_manager->start_agent(agent_id);
+        
+        if (!success) {
+            send_error_response(sock, 404, "Agent not found or could not be started");
+            return;
+        }
+        
+        json response = {
+            {"agent_id", agent_id},
+            {"status", "started"},
+            {"message", "Agent started successfully"}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_stop_agent(SocketType sock, const std::string& agent_id) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        bool success = agent_manager->stop_agent(agent_id);
+        
+        if (!success) {
+            send_error_response(sock, 404, "Agent not found or could not be stopped");
+            return;
+        }
+        
+        json response = {
+            {"agent_id", agent_id},
+            {"status", "stopped"},
+            {"message", "Agent stopped successfully"}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_restart_agent(SocketType sock, const std::string& agent_id) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        // Stop then start the agent
+        bool stop_success = agent_manager->stop_agent(agent_id);
+        if (!stop_success) {
+            send_error_response(sock, 404, "Agent not found or could not be stopped");
+            return;
+        }
+        
+        // Small delay to ensure clean shutdown
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        
+        bool start_success = agent_manager->start_agent(agent_id);
+        if (!start_success) {
+            send_error_response(sock, 500, "Agent stopped but could not be restarted");
+            return;
+        }
+        
+        json response = {
+            {"agent_id", agent_id},
+            {"status", "restarted"},
+            {"message", "Agent restarted successfully"}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_agent_status(SocketType sock, const std::string& agent_id) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        json status = {
+            {"agent_id", agent_id},
+            {"name", agent->get_agent_name()},
+            {"type", agent->get_agent_type()},
+            {"running", agent->is_running()},
+            {"uptime_seconds", 0}, // TODO: Calculate uptime
+            {"request_count", 0}, // TODO: Get request count
+            {"error_count", 0}, // TODO: Get error count
+            {"last_activity", 0}, // TODO: Get last activity timestamp
+            {"memory_usage_mb", 0}, // TODO: Get memory usage
+            {"cpu_usage_percent", 0.0} // TODO: Get CPU usage
+        };
+        
+        send_success_response(sock, status);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+// Agent capabilities and functions
+void AgentsRoute::handle_get_agent_capabilities(SocketType sock, const std::string& agent_id) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        auto capabilities = agent->get_capabilities();
+        
+        json response = {
+            {"agent_id", agent_id},
+            {"capabilities", capabilities}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_list_agent_functions(SocketType sock, const std::string& agent_id) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        auto functions = agent->get_function_manager()->get_function_names();
+        
+        json response = {
+            {"agent_id", agent_id},
+            {"functions", functions},
+            {"function_count", functions.size()}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        if (!agent->is_running()) {
+            send_error_response(sock, 409, "Agent is not running");
+            return;
+        }
+        
+        // Parse function parameters
+        agents::AgentData function_data;
+        function_data.set("function", function_name);
+        
+        if (!body.empty()) {
+            auto json_params = json::parse(body);
+            function_data.set("parameters", json_params.dump());
+        }
+        
+        // Execute the function
+        auto result = agent->get_function_manager()->execute_function(function_name, function_data);
+        
+        json response;
+        response["agent_id"] = agent_id;
+        response["function_name"] = function_name;
+        response["success"] = result.success;
+        response["result"] = result.result_data.to_json();
+        response["execution_time_ms"] = result.execution_time_ms;
+        response["error_message"] = result.error_message;
+        
+        send_success_response(sock, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_test_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        // Check if function exists
+        auto functions = agent->get_function_manager()->get_function_names();
+        bool function_exists = std::find(functions.begin(), functions.end(), function_name) != functions.end();
+        
+        if (!function_exists) {
+            send_error_response(sock, 404, "Function not found");
+            return;
+        }
+        
+        // Validate parameters without executing
+        json test_result = {
+            {"agent_id", agent_id},
+            {"function_name", function_name},
+            {"function_exists", true},
+            {"agent_running", agent->is_running()},
+            {"can_execute", agent->is_running()},
+            {"test_timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count()}
+        };
+        
+        if (!body.empty()) {
+            try {
+                auto json_params = json::parse(body);
+                test_result["parameters_valid"] = true;
+                test_result["parameters"] = json_params;
+            } catch (const json::parse_error& e) {
+                test_result["parameters_valid"] = false;
+                test_result["parameter_error"] = e.what();
+            }
+        } else {
+            test_result["parameters_valid"] = true;
+            test_result["parameters"] = json::object();
+        }
+        
+        send_success_response(sock, test_result);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+// Agent templates
+void AgentsRoute::handle_list_agent_templates(SocketType sock) {
+    try {
+        json templates = {
+            {
+                {"name", "research_agent"},
+                {"description", "Agent specialized in research and information gathering"},
+                {"type", "research"},
+                {"capabilities", {"web_search", "document_analysis", "summarization"}},
+                {"default_functions", {"search", "analyze", "summarize"}}
+            },
+            {
+                {"name", "writer_agent"},
+                {"description", "Agent specialized in content creation and writing"},
+                {"type", "writer"},
+                {"capabilities", {"text_generation", "editing", "formatting"}},
+                {"default_functions", {"write", "edit", "format"}}
+            },
+            {
+                {"name", "reviewer_agent"},
+                {"description", "Agent specialized in reviewing and critiquing content"},
+                {"type", "reviewer"},
+                {"capabilities", {"analysis", "critique", "feedback"}},
+                {"default_functions", {"review", "critique", "suggest"}}
+            },
+            {
+                {"name", "data_analyst"},
+                {"description", "Agent specialized in data analysis and visualization"},
+                {"type", "analyst"},
+                {"capabilities", {"data_processing", "statistical_analysis", "visualization"}},
+                {"default_functions", {"analyze_data", "create_charts", "generate_insights"}}
+            },
+            {
+                {"name", "coordinator_agent"},
+                {"description", "Agent specialized in coordinating other agents"},
+                {"type", "coordinator"},
+                {"capabilities", {"task_coordination", "workflow_management", "communication"}},
+                {"default_functions", {"coordinate", "delegate", "monitor"}}
+            }
+        };
+        
+        json response = {
+            {"templates", templates},
+            {"count", templates.size()}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_create_agent_from_template(SocketType sock, const std::string& template_name, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto json_data = json::parse(body);
+        
+        // Create agent config based on template
+        agents::AgentConfig config;
+        config.name = json_data.value("name", template_name + "_instance");
+        config.type = template_name;
+        config.auto_start = json_data.value("auto_start", false);
+        
+        // Set template-specific defaults
+        if (template_name == "research_agent") {
+            config.llm_config.instruction = "You are a research agent specialized in gathering and analyzing information.";
+            config.capabilities = {"web_search", "document_analysis", "summarization"};
+        } else if (template_name == "writer_agent") {
+            config.llm_config.instruction = "You are a writing agent specialized in creating high-quality content.";
+            config.capabilities = {"text_generation", "editing", "formatting"};
+        } else if (template_name == "reviewer_agent") {
+            config.llm_config.instruction = "You are a reviewer agent specialized in analyzing and critiquing content.";
+            config.capabilities = {"analysis", "critique", "feedback"};
+        } else if (template_name == "data_analyst") {
+            config.llm_config.instruction = "You are a data analyst agent specialized in processing and analyzing data.";
+            config.capabilities = {"data_processing", "statistical_analysis", "visualization"};
+        } else if (template_name == "coordinator_agent") {
+            config.llm_config.instruction = "You are a coordinator agent specialized in managing workflows and other agents.";
+            config.capabilities = {"task_coordination", "workflow_management", "communication"};
+        } else {
+            send_error_response(sock, 404, "Template not found");
+            return;
+        }
+        
+        // Override with user-provided configuration
+        if (json_data.contains("llm_config")) {
+            auto llm_config = json_data["llm_config"];
+            if (llm_config.contains("model_name")) {
+                config.llm_config.model_name = llm_config["model_name"];
+            }
+            if (llm_config.contains("temperature")) {
+                config.llm_config.temperature = llm_config["temperature"];
+            }
+            if (llm_config.contains("max_tokens")) {
+                config.llm_config.max_tokens = llm_config["max_tokens"];
+            }
+            if (llm_config.contains("system_prompt")) {
+                config.llm_config.instruction = llm_config["system_prompt"];
+            }
+        }
+        
+        if (json_data.contains("capabilities")) {
+            config.capabilities = json_data["capabilities"];
+        }
+        
+        // Create the agent
+        std::string agent_id = agent_manager->create_agent_from_config(config);
+        
+        if (agent_id.empty()) {
+            send_error_response(sock, 500, "Failed to create agent from template");
+            return;
+        }
+        
+        // Auto-start if requested
+        if (config.auto_start) {
+            agent_manager->start_agent(agent_id);
+        }
+        
+        json response;
+        response["agent_id"] = agent_id;
+        response["template"] = template_name;
+        response["name"] = config.name;
+        response["type"] = config.type;
+        response["auto_started"] = config.auto_start;
+        response["message"] = "Agent created successfully from template";
+        
+        send_success_response(sock, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+// Bulk operations
+void AgentsRoute::handle_bulk_start_agents(SocketType sock, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto json_data = json::parse(body);
+        
+        if (!json_data.contains("agent_ids") || !json_data["agent_ids"].is_array()) {
+            send_error_response(sock, 400, "Missing or invalid agent_ids array");
+            return;
+        }
+        
+        std::vector<std::string> agent_ids = json_data["agent_ids"];
+        json results = json::array();
+        int success_count = 0;
+        
+        for (const auto& agent_id : agent_ids) {
+            bool success = agent_manager->start_agent(agent_id);
+            results.push_back({
+                {"agent_id", agent_id},
+                {"success", success},
+                {"message", success ? "Started successfully" : "Failed to start"}
+            });
+            if (success) success_count++;
+        }
+        
+        json response = {
+            {"total_agents", agent_ids.size()},
+            {"successful_starts", success_count},
+            {"failed_starts", agent_ids.size() - success_count},
+            {"results", results}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_bulk_stop_agents(SocketType sock, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto json_data = json::parse(body);
+        
+        if (!json_data.contains("agent_ids") || !json_data["agent_ids"].is_array()) {
+            send_error_response(sock, 400, "Missing or invalid agent_ids array");
+            return;
+        }
+        
+        std::vector<std::string> agent_ids = json_data["agent_ids"];
+        json results = json::array();
+        int success_count = 0;
+        
+        for (const auto& agent_id : agent_ids) {
+            bool success = agent_manager->stop_agent(agent_id);
+            results.push_back({
+                {"agent_id", agent_id},
+                {"success", success},
+                {"message", success ? "Stopped successfully" : "Failed to stop"}
+            });
+            if (success) success_count++;
+        }
+        
+        json response = {
+            {"total_agents", agent_ids.size()},
+            {"successful_stops", success_count},
+            {"failed_stops", agent_ids.size() - success_count},
+            {"results", results}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+void AgentsRoute::handle_bulk_delete_agents(SocketType sock, const std::string& body) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto json_data = json::parse(body);
+        
+        if (!json_data.contains("agent_ids") || !json_data["agent_ids"].is_array()) {
+            send_error_response(sock, 400, "Missing or invalid agent_ids array");
+            return;
+        }
+        
+        std::vector<std::string> agent_ids = json_data["agent_ids"];
+        json results = json::array();
+        int success_count = 0;
+        
+        for (const auto& agent_id : agent_ids) {
+            bool success = agent_manager->delete_agent(agent_id);
+            results.push_back({
+                {"agent_id", agent_id},
+                {"success", success},
+                {"message", success ? "Deleted successfully" : "Failed to delete"}
+            });
+            if (success) success_count++;
+        }
+        
+        json response = {
+            {"total_agents", agent_ids.size()},
+            {"successful_deletions", success_count},
+            {"failed_deletions", agent_ids.size() - success_count},
+            {"results", results}
+        };
+        
+        send_success_response(sock, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
+// Utility methods
 std::string AgentsRoute::format_error_response(const std::string& error, int code) {
-    json response;
-    response["success"] = false;
-    response["error"] = error;
-    response["code"] = code;
+    json response = {
+        {"success", false},
+        {"error", error},
+        {"code", code}
+    };
     return response.dump();
 }
 
 std::string AgentsRoute::format_success_response(const nlohmann::json& data) {
-    json response;
-    response["success"] = true;
-    response["data"] = data;
+    json response = {
+        {"success", true},
+        {"data", data}
+    };
     return response.dump();
 }
 
 bool AgentsRoute::validate_agent_config(const nlohmann::json& config) {
-    return config.contains("name") && 
-           config.contains("type") && 
-           !config["name"].get<std::string>().empty() &&
-           !config["type"].get<std::string>().empty();
+    try {
+        // Basic validation - check required fields
+        if (!config.contains("name") || config["name"].empty()) {
+            return false;
+        }
+        
+        if (config.contains("llm_config")) {
+            auto llm_config = config["llm_config"];
+            if (llm_config.contains("temperature")) {
+                double temp = llm_config["temperature"];
+                if (temp < 0.0 || temp > 2.0) {
+                    return false;
+                }
+            }
+            if (llm_config.contains("max_tokens")) {
+                int tokens = llm_config["max_tokens"];
+                if (tokens <= 0 || tokens > 100000) {
+                    return false;
+                }
+            }
+        }
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error validating agent config: %s", e.what());
+        return false;
+    }
 }
 
 bool AgentsRoute::validate_message_payload(const nlohmann::json& payload) {
-    return payload.contains("from_agent") && 
-           payload.contains("to_agent") && 
-           payload.contains("type") &&
-           !payload["from_agent"].get<std::string>().empty() &&
-           !payload["to_agent"].get<std::string>().empty() &&
-           !payload["type"].get<std::string>().empty();
+    try {
+        if (!payload.contains("message") || payload["message"].empty()) {
+            return false;
+        }
+        
+        return true;
+        
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error validating message payload: %s", e.what());
+        return false;
+    }
+}
+
+nlohmann::json AgentsRoute::agent_to_json(const std::shared_ptr<agents::AgentCore>& agent) {
+    json agent_json;
+    agent_json["agent_id"] = agent->get_agent_id();
+    agent_json["name"] = agent->get_agent_name();
+    agent_json["type"] = agent->get_agent_type();
+    agent_json["running"] = agent->is_running();
+    
+    try {
+        agent_json["capabilities"] = agent->get_capabilities();
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error getting capabilities for agent %s: %s", 
+            agent->get_agent_id().c_str(), e.what());
+        agent_json["capabilities"] = json::array();
+    }
+    
+    try {
+        agent_json["functions"] = agent->get_function_manager()->get_function_names();
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error getting functions for agent %s: %s", 
+            agent->get_agent_id().c_str(), e.what());
+        agent_json["functions"] = json::array();
+    }
+    
+    agent_json["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
+        std::chrono::system_clock::now().time_since_epoch()).count();
+    
+    return agent_json;
+}
+
+nlohmann::json AgentsRoute::create_agent_metrics(const std::shared_ptr<agents::AgentCore>& agent) {
+    json metrics;
+    metrics["agent_id"] = agent->get_agent_id();
+    metrics["running"] = agent->is_running();
+    metrics["uptime_seconds"] = 0; // TODO: Calculate actual uptime
+    metrics["request_count"] = 0; // TODO: Get actual request count
+    metrics["error_count"] = 0; // TODO: Get actual error count
+    metrics["average_response_time_ms"] = 0.0; // TODO: Calculate actual average response time
+    metrics["memory_usage_mb"] = 0; // TODO: Get actual memory usage
+    metrics["cpu_usage_percent"] = 0.0; // TODO: Get actual CPU usage
+    metrics["last_activity"] = 0; // TODO: Get actual last activity timestamp
+    
+    return metrics;
 }
 
 } // namespace kolosal::routes

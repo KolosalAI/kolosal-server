@@ -265,7 +265,13 @@ std::future<AddDocumentsResponse> DocumentService::addDocuments(const AddDocumen
         {
             if (!pImpl->initialized_)
             {
-                throw std::runtime_error("DocumentService not initialized");
+                // Try to initialize automatically on first use
+                ServerLogger::logInfo("DocumentService not initialized, attempting auto-initialization...");
+                auto init_future = initialize();
+                bool initialized = init_future.get();
+                if (!initialized) {
+                    throw std::runtime_error("DocumentService not initialized");
+                }
             }
             
             if (!pImpl->config_.qdrant.enabled)
@@ -529,7 +535,13 @@ std::future<RetrieveResponse> DocumentService::retrieveDocuments(const RetrieveR
         {
             if (!pImpl->initialized_)
             {
-                throw std::runtime_error("DocumentService not initialized - please ensure the service is properly started");
+                // Try to initialize automatically on first use
+                ServerLogger::logInfo("DocumentService not initialized, attempting auto-initialization...");
+                auto init_future = initialize();
+                bool initialized = init_future.get();
+                if (!initialized) {
+                    throw std::runtime_error("DocumentService not initialized - please ensure the service is properly started");
+                }
             }
             
             if (!pImpl->config_.qdrant.enabled)
@@ -719,7 +731,13 @@ std::future<RemoveDocumentsResponse> DocumentService::removeDocuments(const Remo
         {
             if (!pImpl->initialized_)
             {
-                throw std::runtime_error("DocumentService not initialized");
+                // Try to initialize automatically on first use
+                ServerLogger::logInfo("DocumentService not initialized, attempting auto-initialization...");
+                auto init_future = initialize();
+                bool initialized = init_future.get();
+                if (!initialized) {
+                    throw std::runtime_error("DocumentService not initialized");
+                }
             }
             
             if (!pImpl->config_.qdrant.enabled)

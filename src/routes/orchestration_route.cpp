@@ -9,8 +9,9 @@ using json = nlohmann::json;
 
 namespace kolosal::routes {
 
-OrchestrationRoute::OrchestrationRoute(std::shared_ptr<agents::AgentOrchestrator> orch)
-    : orchestrator(orch) {
+OrchestrationRoute::OrchestrationRoute(std::shared_ptr<agents::AgentOrchestrator> orch,
+                                     std::shared_ptr<agents::WorkflowEngine> engine)
+    : orchestrator(orch), workflow_engine(engine) {
 }
 
 void OrchestrationRoute::setup_routes(Server& server) {
@@ -54,9 +55,16 @@ void OrchestrationRoute::handle(SocketType sock, const std::string& body) {
                    path.find("/api/v1/orchestration/pipelines") == 0) {
             ServerLogger::logInfo("Routing to coordination handler");
             handle_coordination_routes(sock, method, path, body);
-        } else if (path.find("/api/v1/orchestration/metrics") == 0 || 
-                   path.find("/api/v1/orchestration/status") == 0 ||
-                   path.find("/api/v1/orchestration/active-workflows") == 0) {
+        } else if (path.find("/api/v1/orchestration/metrics") == 0) {
+            ServerLogger::logInfo("Routing to metrics handler");
+            handle_metrics_routes(sock, method, path, body);
+        } else if (path.find("/api/v1/orchestration/status") == 0) {
+            ServerLogger::logInfo("Routing to status handler");
+            handle_status_routes(sock, method, path, body);
+        } else if (path.find("/api/v1/orchestration/history") == 0) {
+            ServerLogger::logInfo("Routing to history handler");
+            handle_history_routes(sock, method, path, body);
+        } else if (path.find("/api/v1/orchestration/active-workflows") == 0) {
             ServerLogger::logInfo("Routing to monitoring handler");
             handle_monitoring_routes(sock, method, path, body);
         } else if (path.find("/api/v1/orchestration/select-agent") == 0 ||
@@ -526,6 +534,67 @@ void OrchestrationRoute::handle_optimize_allocation(SocketType sock, const std::
     send_error_response(sock, 501, "Not implemented yet");
 }
 
+void OrchestrationRoute::handle_metrics_routes(SocketType sock, const std::string& method, const std::string& path, const std::string& body) {
+    if (method != "GET") {
+        send_error_response(sock, 405, "Method not allowed");
+        return;
+    }
+    
+    if (path == "/api/v1/orchestration/metrics") {
+        handle_get_orchestration_metrics(sock);
+    } else {
+        send_error_response(sock, 404, "Metrics endpoint not found");
+    }
+}
+
+void OrchestrationRoute::handle_status_routes(SocketType sock, const std::string& method, const std::string& path, const std::string& body) {
+    if (method != "GET") {
+        send_error_response(sock, 405, "Method not allowed");
+        return;
+    }
+    
+    if (path == "/api/v1/orchestration/status") {
+        handle_get_orchestrator_status(sock);
+    } else {
+        send_error_response(sock, 404, "Status endpoint not found");
+    }
+}
+
+void OrchestrationRoute::handle_history_routes(SocketType sock, const std::string& method, const std::string& path, const std::string& body) {
+    if (method != "GET") {
+        send_error_response(sock, 405, "Method not allowed");
+        return;
+    }
+    
+    if (path == "/api/v1/orchestration/history") {
+        handle_get_workflow_history(sock);
+    } else {
+        // Handle workflow-specific history
+        std::regex history_pattern(R"(/api/v1/orchestration/history/([^/]+))");
+        std::smatch matches;
+        
+        if (std::regex_match(path, matches, history_pattern)) {
+            handle_get_workflow_history(sock, matches[1]);
+        } else {
+            send_error_response(sock, 404, "History endpoint not found");
+        }
+    }
+}
+
+void OrchestrationRoute::handle_get_workflow_history(SocketType sock, const std::string& workflow_id) {
+    try {
+        json history_data = {
+            {"workflow_id", workflow_id},
+            {"history", json::array()},
+            {"message", "Workflow history not implemented yet"}
+        };
+        
+        send_success_response(sock, history_data);
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
 // Helper method implementations
 bool OrchestrationRoute::validate_workflow_definition(const nlohmann::json& workflow) {
     return workflow.contains("name") && 
@@ -572,6 +641,30 @@ nlohmann::json OrchestrationRoute::workflow_result_to_json(const agents::AgentOr
     result_json["step_results"] = step_results_json;
     
     return result_json;
+}
+
+nlohmann::json OrchestrationRoute::metrics_to_json(const agents::WorkflowMetrics& metrics) {
+    json metrics_json;
+    metrics_json["total_workflows"] = metrics.total_workflows;
+    metrics_json["running_workflows"] = metrics.running_workflows;
+    metrics_json["completed_workflows"] = metrics.completed_workflows;
+    metrics_json["failed_workflows"] = metrics.failed_workflows;
+    metrics_json["cancelled_workflows"] = metrics.cancelled_workflows;
+    metrics_json["average_execution_time_ms"] = metrics.average_execution_time_ms;
+    metrics_json["success_rate"] = metrics.success_rate;
+    
+    json error_counts_json;
+    for (const auto& [error_type, count] : metrics.error_counts) {
+        error_counts_json[error_type] = count;
+    }
+    metrics_json["error_counts"] = error_counts_json;
+    
+    // Convert time_point to milliseconds since epoch
+    auto time_since_epoch = metrics.last_updated.time_since_epoch();
+    auto milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(time_since_epoch).count();
+    metrics_json["last_updated"] = milliseconds;
+    
+    return metrics_json;
 }
 
 } // namespace kolosal::routes

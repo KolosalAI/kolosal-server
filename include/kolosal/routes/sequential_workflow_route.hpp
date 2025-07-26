@@ -18,9 +18,7 @@ private:
     std::shared_ptr<agents::SequentialWorkflowExecutor> workflow_executor;
     std::shared_ptr<agents::YAMLConfigurableAgentManager> agent_manager;
     
-    // Store current request context for routing
-    mutable std::string last_matched_method;
-    mutable std::string last_matched_path;
+    // Store current request context for routing (non-mutable, set in match())
     std::string current_method;
     std::string current_path;
 

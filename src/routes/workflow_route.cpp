@@ -111,10 +111,17 @@ public:
 };
 
 class WorkflowExecuteRoute : public IRoute {
+private:
+    std::string current_path;
+    
 public:
     bool match(const std::string& method, const std::string& path) override {
         std::regex pattern("/v1/workflows/([^/]+)/execute|/workflows/([^/]+)/execute|/api/v1/workflows/([^/]+)/execute");
-        return method == "POST" && std::regex_match(path, pattern);
+        bool matches = method == "POST" && std::regex_match(path, pattern);
+        if (matches) {
+            current_path = path;
+        }
+        return matches;
     }
     
     void handle(SocketType sock, const std::string& body) override {
@@ -122,10 +129,18 @@ public:
             ServerLogger::logInfo("Workflow Execute request received");
             
             // Extract workflow ID from path
-            std::string workflow_id = "unknown";
-            std::regex pattern("/(?:v1/|api/v1/)?workflows/([^/]+)/execute");
-            std::smatch matches;
-            std::string path = body; // We'd need the actual path here, but for now use body
+            std::string workflow_id = extract_workflow_id_from_path(current_path);
+            if (workflow_id.empty()) {
+                json error_response = {
+                    {"error", {
+                        {"message", "Invalid workflow ID in path"},
+                        {"type", "invalid_request_error"},
+                        {"code", 400}
+                    }}
+                };
+                send_response(sock, 400, error_response.dump());
+                return;
+            }
             
             json response = {
                 {"status", "success"},
@@ -153,23 +168,55 @@ public:
             send_response(sock, 500, error_response.dump());
         }
     }
+
+private:
+    std::string extract_workflow_id_from_path(const std::string& path) {
+        std::regex pattern(R"(/(?:v1/|api/v1/)?workflows/([^/]+)/execute)");
+        std::smatch matches;
+        if (std::regex_search(path, matches, pattern) && matches.size() > 1) {
+            return matches[1].str();
+        }
+        return "";
+    }
 };
 
 class WorkflowStatusRoute : public IRoute {
+private:
+    std::string current_path;
+    
 public:
     bool match(const std::string& method, const std::string& path) override {
         std::regex pattern("/v1/workflows/([^/]+)/status|/workflows/([^/]+)/status|/api/v1/workflows/([^/]+)/status");
-        return method == "GET" && std::regex_match(path, pattern);
+        bool matches = method == "GET" && std::regex_match(path, pattern);
+        if (matches) {
+            current_path = path;
+        }
+        return matches;
     }
     
     void handle(SocketType sock, const std::string& body) override {
         try {
             ServerLogger::logInfo("Workflow Status request received");
             
+            // Extract workflow ID from path
+            std::string workflow_id = extract_workflow_id_from_path(current_path);
+            
+            if (workflow_id.empty()) {
+                json error_response = {
+                    {"error", {
+                        {"message", "Invalid workflow ID in path"},
+                        {"type", "invalid_request_error"},
+                        {"code", 400}
+                    }}
+                };
+                send_response(sock, 400, error_response.dump());
+                return;
+            }
+            
             json response = {
                 {"status", "success"},
                 {"message", "Workflow status retrieved"},
-                {"workflow_id", "unknown"},
+                {"workflow_id", workflow_id},
                 {"state", "completed"},
                 {"progress", 100},
                 {"result", "Workflow completed successfully"},
@@ -191,21 +238,50 @@ public:
             send_response(sock, 500, error_response.dump());
         }
     }
+
+private:
+    std::string extract_workflow_id_from_path(const std::string& path) {
+        std::regex pattern(R"(/(?:v1/|api/v1/)?workflows/([^/]+)/status)");
+        std::smatch matches;
+        if (std::regex_search(path, matches, pattern) && matches.size() > 1) {
+            return matches[1].str();
+        }
+        return "";
+    }
 };
 
 class WorkflowDeleteRoute : public IRoute {
+private:
+    std::string current_path;
+    
 public:
     bool match(const std::string& method, const std::string& path) override {
         std::regex pattern("/v1/workflows/([^/]+)|/workflows/([^/]+)|/api/v1/workflows/([^/]+)");
-        return method == "DELETE" && std::regex_match(path, pattern);
+        bool matches = method == "DELETE" && std::regex_match(path, pattern);
+        if (matches) {
+            current_path = path;
+        }
+        return matches;
     }
     
     void handle(SocketType sock, const std::string& body) override {
         try {
             ServerLogger::logInfo("Workflow Delete request received");
             
-            // Extract workflow ID from path (simplified for now)
-            std::string workflow_id = "unknown";
+            // Extract workflow ID from path
+            std::string workflow_id = extract_workflow_id_from_path(current_path);
+            
+            if (workflow_id.empty()) {
+                json error_response = {
+                    {"error", {
+                        {"message", "Invalid workflow ID in path"},
+                        {"type", "invalid_request_error"},
+                        {"code", 400}
+                    }}
+                };
+                send_response(sock, 400, error_response.dump());
+                return;
+            }
             
             json response = {
                 {"status", "success"},
@@ -228,6 +304,16 @@ public:
             };
             send_response(sock, 500, error_response.dump());
         }
+    }
+
+private:
+    std::string extract_workflow_id_from_path(const std::string& path) {
+        std::regex pattern(R"(/(?:v1/|api/v1/)?workflows/([^/]+)/?$)");
+        std::smatch matches;
+        if (std::regex_search(path, matches, pattern) && matches.size() > 1) {
+            return matches[1].str();
+        }
+        return "";
     }
 };
 

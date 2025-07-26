@@ -1,0 +1,143 @@
+# Server Configuration
+server:
+  port: "8084"                        # Port number to run the server on
+  host: "0.0.0.0"                     # Host to bind the server; 0.0.0.0 means all available interfaces
+  idle_timeout: 300                  # Idle timeout in seconds
+  allow_public_access: false        # Allow access from other devices on the same network
+  allow_internet_access: false      # Allow internet access (requires proper port forwarding)
+
+# Logging Configuration
+logging:
+  level: INFO                        # Logging level (e.g., DEBUG, INFO, WARNING, ERROR)
+  file: ""                           # Path to log file (empty = no file logging)
+  access_log: false                 # Enable/disable access log
+  quiet_mode: false                # Suppress non-essential logs
+  show_request_details: true       # Show detailed logs for each request
+
+# Authentication & Security Settings
+auth:
+  enabled: true                      # Enable or disable authentication
+  require_api_key: false            # Require an API key for access
+  api_key_header: X-API-Key         # Header name to look for the API key
+  api_keys:                         # List of valid API keys
+    - your_api_key_here
+    - sk-1234567890abcdef
+
+  # Rate Limiting
+  rate_limit:
+    enabled: true                   # Enable rate limiting
+    max_requests: 100               # Maximum requests per window
+    window_size: 60                 # Time window in seconds
+
+  # CORS Configuration
+  cors:
+    enabled: true
+    allow_credentials: false
+    max_age: 86400                  # Cache duration for preflight request (in seconds)
+    allowed_origins:
+      - "*"                         # Allow all origins (use specific domains in production)
+    allowed_methods:
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      - HEAD
+      - PATCH
+    allowed_headers:
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+      - Accept
+      - Origin
+
+# Search Integration (e.g., with SearXNG)
+search:
+  enabled: true
+  searxng_url: http://localhost:8090  # URL of SearXNG or compatible search engine
+  timeout: 30                         # Search timeout in seconds
+  max_results: 20                     # Maximum number of results returned
+  default_engine: ""                  # Optional default search engine
+  api_key: ""                         # API key if search engine requires it
+  enable_safe_search: true
+  default_format: json
+  default_language: en
+  default_category: general
+
+# Vector Database (Qdrant) Configuration
+database:
+  qdrant:
+    enabled: true
+    host: "localhost"
+    port: 6333
+    collection_name: "documents"     # Qdrant collection name
+    default_embedding_model: "qwen3-embedding-4b"  # Default model for embedding
+    timeout: 30
+    api_key: ""                      # Optional API key if Qdrant requires authentication
+    max_connections: 10             # Max concurrent connections
+    connection_timeout: 5           # Timeout for new connections in seconds
+
+# Inference Engine Definitions
+inference_engines:
+  - name: llama-cpu
+    library_path: ./build/Release/llama-cpu.dll  # Path to the inference engine library
+    version: 1.0.0
+    description: CPU-based inference engine for LLaMA models
+    load_on_startup: true            # Whether to load this engine when the server starts
+
+# Default inference engine to use
+default_inference_engine: llama-cpu
+
+# General feature toggles
+features:
+  health_check: true                # Enable /health endpoint
+  metrics: true                     # Enable metrics collection and endpoint
+
+# Autoscaling Configuration for Embedding Models
+embedding_autoscaling:
+  enabled: true
+  min_instances: 1
+  max_instances: 4
+  scale_up_threshold: 10            # Scale up when RPS > 10
+  scale_down_threshold: 2           # Scale down when RPS < 2
+  scale_up_delay: 30                # Seconds to wait before scaling up
+  scale_down_delay: 300             # Seconds to wait before scaling down
+  check_interval: 15                # Frequency of autoscaling checks (in seconds)
+
+# Model Definitions
+models:
+  - id: qwen3-embedding-4b
+    path: https://huggingface.co/kolosal/qwen3-embedding-4b/resolve/main/Qwen3-Embedding-4B-Q4_K_M.gguf
+    type: embedding
+    load_immediately: true
+    main_gpu_id: 0
+    inference_engine: llama-cpu
+    load_params:
+      n_ctx: 4096
+      n_keep: 1024
+      use_mmap: true
+      use_mlock: false
+      n_parallel: 1
+      cont_batching: true
+      warmup: false
+      n_gpu_layers: 100
+      n_batch: 2048
+      n_ubatch: 512
+
+  - id: gemma3-4b
+    path: https://huggingface.co/kolosal/gemma-3-4b/resolve/main/google_gemma-3-4b-it_q4_k_m.gguf
+    type: llm
+    load_immediately: true
+    main_gpu_id: 0
+    inference_engine: llama-cpu
+    load_params:
+      n_ctx: 2048
+      n_keep: 1024
+      use_mmap: true
+      use_mlock: false
+      n_parallel: 1
+      cont_batching: true
+      warmup: false
+      n_gpu_layers: 100
+      n_batch: 2048
+      n_ubatch: 512

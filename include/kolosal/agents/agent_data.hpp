@@ -153,12 +153,6 @@ struct CollaborationGroup {
     std::string pattern_type;
 };
 
-struct WorkflowMetrics {
-    int active_workflows = 0;
-    int completed_workflows = 0;
-    int failed_workflows = 0;
-};
-
 } // namespace agents
 } // namespace kolosal
 

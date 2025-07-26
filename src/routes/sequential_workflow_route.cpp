@@ -49,9 +49,9 @@ SequentialWorkflowRoute::SequentialWorkflowRoute(std::shared_ptr<agents::YAMLCon
 }
 
 bool SequentialWorkflowRoute::match(const std::string& method, const std::string& path) {
-    // Store the method and path for use in handle()
-    last_matched_method = method;
-    last_matched_path = path;
+    // Store the method and path for use in handle() - using thread-safe approach
+    current_method = method;
+    current_path = path;
     
     // Match various sequential workflow endpoints
     std::vector<std::string> patterns = {
@@ -77,13 +77,8 @@ bool SequentialWorkflowRoute::match(const std::string& method, const std::string
 
 void SequentialWorkflowRoute::handle(SocketType sock, const std::string& body) {
     try {
-        // We need to get the method and path from the server infrastructure
-        // For now, we'll determine the action based on the content and path patterns
-        // This is a temporary solution - ideally the method and path should be passed as parameters
-        
-        // Store the current path for routing decisions
-        current_path = last_matched_path;
-        current_method = last_matched_method;
+        // Use the stored method and path from the match() call
+        // No need to reassign as they were set in match()
         
         // Route to appropriate handler based on method and path
         if (current_method == "GET" && current_path == "/api/v1/sequential-workflows") {
