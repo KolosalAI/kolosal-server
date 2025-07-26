@@ -19,13 +19,26 @@ content_creation_workflow:
       step_name: "Research Information"
       description: "Gather information about the topic"
       agent_id: "research_assistant"
-      function_name: "inference"
+      function_name: "context_retrieval"
       timeout_seconds: 60
       max_retries: 2
       continue_on_failure: false
       parameters:
-        prompt: "Research the latest developments in AI applications for healthcare. Focus on practical applications, benefits, and challenges. Provide a comprehensive overview suitable for healthcare professionals."
-        max_tokens: 1024
+        query: "AI applications in healthcare practical benefits challenges"
+        k: 5
+        context_format: "detailed"
+        score_threshold: 0.1
+    - step_id: "knowledge_synthesis"
+      step_name: "Knowledge Synthesis"
+      description: "Synthesize research findings with retrieved context"
+      agent_id: "knowledge_agent"
+      function_name: "inference"
+      timeout_seconds: 90
+      max_retries: 2
+      continue_on_failure: false
+      parameters:
+        prompt: "Based on the research information and retrieved context, provide a comprehensive overview of AI applications in healthcare. Focus on practical applications, benefits, and challenges suitable for healthcare professionals."
+        max_tokens: 1500
         temperature: 0.3
     - step_id: "content_writing_step"
       step_name: "Write Content"
@@ -73,6 +86,18 @@ data_analysis_workflow:
       parameters:
         operation: "data_validation"
         data_source: "synthetic_healthcare_metrics"
+    - step_id: "document_retrieval"
+      step_name: "Context Retrieval"
+      description: "Retrieve relevant documents for analysis context"
+      agent_id: "document_manager"
+      function_name: "context_retrieval"
+      timeout_seconds: 45
+      max_retries: 2
+      parameters:
+        query: "healthcare performance metrics analysis benchmarks"
+        k: 3
+        context_format: "summary"
+        score_threshold: 0.2
     - step_id: "statistical_analysis"
       step_name: "Statistical Analysis"
       description: "Perform statistical analysis on the data"
@@ -86,12 +111,12 @@ data_analysis_workflow:
     - step_id: "insight_generation"
       step_name: "Generate Insights"
       description: "Generate insights and recommendations from analysis"
-      agent_id: "research_assistant"
+      agent_id: "knowledge_agent"
       function_name: "inference"
       timeout_seconds: 60
       max_retries: 1
       parameters:
-        prompt: "Based on the statistical analysis results, generate key insights and actionable recommendations for healthcare performance improvement."
+        prompt: "Based on the statistical analysis results and retrieved context, generate key insights and actionable recommendations for healthcare performance improvement."
         max_tokens: 800
         temperature: 0.4
 
@@ -157,11 +182,23 @@ research_workflow:
       step_name: "Initial Research"
       description: "Conduct initial research on the topic"
       agent_id: "research_assistant"
+      function_name: "context_retrieval"
+      timeout_seconds: 90
+      max_retries: 2
+      parameters:
+        query: "emerging trends artificial intelligence technical innovations business applications"
+        k: 8
+        context_format: "detailed"
+        score_threshold: 0.1
+    - step_id: "knowledge_enhancement"
+      step_name: "Knowledge Enhancement"
+      description: "Enhance research with knowledge base context"
+      agent_id: "knowledge_agent"
       function_name: "inference"
       timeout_seconds: 90
       max_retries: 2
       parameters:
-        prompt: "Conduct comprehensive research on emerging trends in artificial intelligence. Cover both technical innovations and business applications."
+        prompt: "Conduct comprehensive research on emerging trends in artificial intelligence. Cover both technical innovations and business applications using retrieved context."
         max_tokens: 1500
         temperature: 0.3
     - step_id: "fact_verification"
@@ -221,6 +258,18 @@ project_management_workflow:
         prompt: "Analyze requirements for an AI implementation project. Include functional, technical, and business requirements."
         max_tokens: 1000
         temperature: 0.3
+    - step_id: "context_gathering"
+      step_name: "Context Gathering"
+      description: "Gather relevant project context and best practices"
+      agent_id: "document_manager"
+      function_name: "context_retrieval"
+      timeout_seconds: 45
+      max_retries: 2
+      parameters:
+        query: "AI implementation project planning best practices methodologies"
+        k: 5
+        context_format: "summary"
+        score_threshold: 0.2
     - step_id: "task_breakdown"
       step_name: "Task Breakdown"
       description: "Break down project into manageable tasks"
@@ -252,3 +301,117 @@ project_management_workflow:
         prompt: "Create a detailed project timeline with milestones, dependencies, and critical path for the AI implementation project."
         max_tokens: 800
         temperature: 0.2
+
+# Example 6: Knowledge-Enhanced RAG Workflow
+knowledge_enhanced_workflow:
+  workflow_id: "knowledge_rag_pipeline"
+  workflow_name: "Knowledge-Enhanced RAG Pipeline"
+  description: "Advanced RAG workflow using document management and knowledge agents"
+  stop_on_failure: false
+  max_execution_time_seconds: 420
+  global_context:
+    topic: "Machine Learning Best Practices"
+    domain: "enterprise AI development"
+    detail_level: "comprehensive"
+  steps:
+    - step_id: "document_ingestion"
+      step_name: "Document Ingestion"
+      description: "Ingest and process relevant documents"
+      agent_id: "document_manager"
+      function_name: "add_document"
+      timeout_seconds: 90
+      max_retries: 2
+      parameters:
+        texts: ["Machine learning model deployment requires careful consideration of scalability, monitoring, and maintenance.", "Enterprise AI systems must balance performance with interpretability and regulatory compliance."]
+        metadata: {"source": "ml_best_practices", "domain": "enterprise_ai"}
+        collection_name: "ml_knowledge_base"
+    - step_id: "knowledge_retrieval"
+      step_name: "Knowledge Retrieval"
+      description: "Retrieve relevant knowledge base content"
+      agent_id: "knowledge_agent"
+      function_name: "context_retrieval"
+      timeout_seconds: 60
+      max_retries: 2
+      parameters:
+        query: "machine learning deployment best practices enterprise AI scalability"
+        k: 6
+        context_format: "detailed"
+        score_threshold: 0.1
+        collection_name: "ml_knowledge_base"
+    - step_id: "analysis_synthesis"
+      step_name: "Analysis and Synthesis"
+      description: "Analyze and synthesize retrieved knowledge"
+      agent_id: "data_analyst"
+      function_name: "inference"
+      timeout_seconds: 90
+      max_retries: 2
+      parameters:
+        prompt: "Analyze the retrieved knowledge about machine learning best practices and provide insights on enterprise AI development challenges and solutions."
+        max_tokens: 1500
+        temperature: 0.3
+    - step_id: "content_generation"
+      step_name: "Content Generation"
+      description: "Generate comprehensive content based on knowledge"
+      agent_id: "content_creator"
+      function_name: "inference"
+      timeout_seconds: 75
+      max_retries: 2
+      parameters:
+        prompt: "Create a comprehensive guide on machine learning best practices for enterprise environments, incorporating the analyzed insights."
+        max_tokens: 2000
+        temperature: 0.5
+    - step_id: "quality_validation"
+      step_name: "Quality Validation"
+      description: "Validate the quality and accuracy of generated content"
+      agent_id: "qa_specialist"
+      function_name: "text_processing"
+      timeout_seconds: 60
+      max_retries: 1
+      parameters:
+        operation: "quality_review"
+# Example 7: Simple RAG Test Workflow
+simple_rag_test:
+  workflow_id: "simple_rag_test"
+  workflow_name: "Simple RAG Test"
+  description: "Basic test of RAG functionality with new agents"
+  stop_on_failure: false
+  max_execution_time_seconds: 180
+  global_context:
+    topic: "AI and Machine Learning"
+    test_mode: true
+  steps:
+    - step_id: "document_add"
+      step_name: "Add Test Document"
+      description: "Add a test document to the knowledge base"
+      agent_id: "document_manager"
+      function_name: "add_document"
+      timeout_seconds: 60
+      max_retries: 2
+      parameters:
+        texts: ["Machine learning models require proper training data, validation, and continuous monitoring for optimal performance."]
+        metadata: {"source": "test", "type": "ml_guide"}
+        collection_name: "test_collection"
+    - step_id: "knowledge_query"
+      step_name: "Query Knowledge Base"
+      description: "Retrieve knowledge from the added document"
+      agent_id: "knowledge_agent"
+      function_name: "context_retrieval"
+      timeout_seconds: 45
+      max_retries: 2
+      parameters:
+        query: "machine learning model training best practices"
+        k: 3
+        context_format: "detailed"
+        score_threshold: 0.1
+        collection_name: "test_collection"
+    - step_id: "content_summary"
+      step_name: "Create Summary"
+      description: "Summarize the retrieved knowledge"
+      agent_id: "content_creator"
+      function_name: "inference"
+      timeout_seconds: 45
+      max_retries: 1
+      parameters:
+        prompt: "Based on the retrieved information, create a concise summary of machine learning best practices."
+        max_tokens: 200
+        temperature: 0.4
