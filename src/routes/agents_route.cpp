@@ -1,95 +1,112 @@
 #include "kolosal/routes/agents_route.hpp"
-#include "kolosal/logger.hpp"
+#include "kolosal/agents/agent_core.hpp"
 #include "kolosal/agents/agent_data.hpp"
 #include "kolosal/agents/yaml_config.hpp"
-#include "kolosal/utils.hpp"
-#include <json.hpp>
+#include "kolosal/logger.hpp"
 #include <sstream>
 #include <regex>
-#include <chrono>
-#include <thread>
-
-using json = nlohmann::json;
 
 namespace kolosal::routes {
 
-AgentsRoute::AgentsRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager) 
-    : agent_manager(manager) {
+AgentsRoute::AgentsRoute(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager)
+    : agent_manager(manager)
+    , document_service(std::make_unique<agents::DocumentAgentService>())
+    , workflow_service(std::make_unique<agents::WorkflowAgentService>()) {
+}
+
+bool AgentsRoute::match(const std::string& method, const std::string& path) {
+    current_method = method;
+    current_path = path;
+    
+    // Match all agent-related paths
+    std::regex agent_pattern("^/api/v1/agents");
+    return std::regex_search(path, agent_pattern);
+}
+
+void AgentsRoute::handle(SocketType sock, const std::string& body) {
+    try {
+        // Basic routing logic based on path and method
+        if (current_path == "/api/v1/agents" && current_method == "GET") {
+            handle_list_agents(sock);
+        } else if (current_path == "/api/v1/agents" && current_method == "POST") {
+            handle_create_agent(sock, body);
+        } else if (current_path == "/api/v1/agents/system/status" && current_method == "GET") {
+            handle_agent_system_status(sock);
+        } else if (current_path == "/api/v1/agents/system/metrics" && current_method == "GET") {
+            handle_agent_system_metrics(sock);
+        } else {
+            // Try to extract agent ID from path
+            std::regex agent_id_pattern("^/api/v1/agents/([^/]+)(?:/(.*))?$");
+            std::smatch matches;
+            
+            if (std::regex_match(current_path, matches, agent_id_pattern)) {
+                std::string agent_id = matches[1].str();
+                std::string sub_path = matches.size() > 2 ? matches[2].str() : "";
+                
+                if (sub_path.empty() && current_method == "GET") {
+                    handle_get_agent(sock, agent_id);
+                } else if (sub_path.empty() && current_method == "PUT") {
+                    handle_update_agent(sock, agent_id, body);
+                } else if (sub_path.empty() && current_method == "DELETE") {
+                    handle_delete_agent(sock, agent_id);
+                } else if (sub_path == "start" && current_method == "POST") {
+                    handle_start_agent(sock, agent_id);
+                } else if (sub_path == "stop" && current_method == "POST") {
+                    handle_stop_agent(sock, agent_id);
+                } else if (sub_path == "restart" && current_method == "POST") {
+                    handle_restart_agent(sock, agent_id);
+                } else if (sub_path == "status" && current_method == "GET") {
+                    handle_agent_status(sock, agent_id);
+                } else if (sub_path == "message" && current_method == "POST") {
+                    handle_send_message_to_agent(sock, agent_id, body);
+                } else {
+                    send_error_response(sock, 404, "Endpoint not found");
+                }
+            } else {
+                send_error_response(sock, 404, "Endpoint not found");
+            }
+        }
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, "Internal server error: " + std::string(e.what()));
+    }
 }
 
 void AgentsRoute::setup_routes(Server& server) {
-    ServerLogger::logInfo("Setting up comprehensive agent management routes");
-    
-    // The route matching will be handled by the main route dispatcher
-    // This is a placeholder for route registration
+    // This method can be used to register routes with the server if needed
 }
 
-// Helper methods
-void AgentsRoute::send_response(SocketType sock, int status_code, const std::string& content) {
-    ::send_response(sock, status_code, content);
-}
-
-void AgentsRoute::send_json_response(SocketType sock, int status_code, const nlohmann::json& data) {
-    send_response(sock, status_code, data.dump());
-}
-
-void AgentsRoute::send_error_response(SocketType sock, int status_code, const std::string& error) {
-    json response = {
-        {"success", false},
-        {"error", error},
-        {"code", status_code}
-    };
-    send_json_response(sock, status_code, response);
-}
-
-void AgentsRoute::send_success_response(SocketType sock, const nlohmann::json& data) {
-    json response = {
-        {"success", true},
-        {"data", data}
-    };
-    send_json_response(sock, 200, response);
-}
-
-// Core agent management API implementations
+// Core agent management API endpoints
 void AgentsRoute::handle_create_agent(SocketType sock, const std::string& body) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
-        auto json_data = json::parse(body);
-        
-        if (!validate_agent_config(json_data)) {
+        nlohmann::json request = nlohmann::json::parse(body);
+        if (!validate_agent_config(request)) {
             send_error_response(sock, 400, "Invalid agent configuration");
             return;
         }
         
         // Convert JSON to AgentConfig
         agents::AgentConfig config;
-        config.id = json_data.value("agent_id", "");
-        config.name = json_data.value("name", "");
-        config.type = json_data.value("type", "general");
-        config.auto_start = json_data.value("auto_start", false);
-        config.max_concurrent_jobs = json_data.value("max_concurrent_requests", 1);
+        config.name = request.value("name", "");
+        config.type = request.value("type", "generic");
+        config.role = request.value("role", "");
+        config.system_prompt = request.value("system_prompt", "");
+        config.auto_start = request.value("auto_start", true);
+        config.max_concurrent_jobs = request.value("max_concurrent_jobs", 5);
+        config.heartbeat_interval_seconds = request.value("heartbeat_interval_seconds", 5);
         
-        if (json_data.contains("llm_config")) {
-            auto llm_config = json_data["llm_config"];
-            config.llm_config.model_name = llm_config.value("model_name", "");
-            config.llm_config.temperature = llm_config.value("temperature", 0.7);
-            config.llm_config.max_tokens = llm_config.value("max_tokens", 1000);
-            config.llm_config.instruction = llm_config.value("system_prompt", "");
+        if (request.contains("capabilities") && request["capabilities"].is_array()) {
+            for (const auto& cap : request["capabilities"]) {
+                config.capabilities.push_back(cap.get<std::string>());
+            }
         }
         
-        if (json_data.contains("capabilities")) {
-            config.capabilities = json_data["capabilities"];
+        if (request.contains("functions") && request["functions"].is_array()) {
+            for (const auto& func : request["functions"]) {
+                config.functions.push_back(func.get<std::string>());
+            }
         }
         
-        if (json_data.contains("functions")) {
-            config.functions = json_data["functions"];
-        }
-        
-        // Create the agent
+        // Create agent through agent_manager
         std::string agent_id = agent_manager->create_agent_from_config(config);
         
         if (agent_id.empty()) {
@@ -97,409 +114,376 @@ void AgentsRoute::handle_create_agent(SocketType sock, const std::string& body) 
             return;
         }
         
-        // Auto-start if requested
+        // Start agent if auto_start is true
         if (config.auto_start) {
             agent_manager->start_agent(agent_id);
         }
         
-        json response = {
-            {"agent_id", agent_id},
-            {"name", config.name},
-            {"type", config.type},
-            {"auto_started", config.auto_start},
-            {"message", "Agent created successfully"}
-        };
-        
-        send_success_response(sock, response);
-        
-    } catch (const json::parse_error& e) {
-        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["name"] = config.name;
+        response["type"] = config.type;
+        response["running"] = config.auto_start;
+        send_json_response(sock, 201, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_list_agents(SocketType sock) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent_ids = agent_manager->list_agents();
-        json agents_array = json::array();
+        nlohmann::json agents_array = nlohmann::json::array();
         
         for (const auto& agent_id : agent_ids) {
             auto agent = agent_manager->get_agent(agent_id);
             if (agent) {
-                agents_array.push_back(agent_to_json(agent));
+                nlohmann::json agent_info = agent_to_json(agent);
+                agent_info["id"] = agent_id;
+                agents_array.push_back(agent_info);
             }
         }
         
-        json response = {
-            {"agents", agents_array},
-            {"count", agents_array.size()},
-            {"system_running", agent_manager->is_running()}
-        };
-        
-        send_success_response(sock, response);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agents"] = agents_array;
+        response["total_count"] = agent_ids.size();
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to list agents: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_get_agent(SocketType sock, const std::string& agent_id) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent = agent_manager->get_agent(agent_id);
         if (!agent) {
             send_error_response(sock, 404, "Agent not found");
             return;
         }
         
-        auto agent_json = agent_to_json(agent);
-        send_success_response(sock, agent_json);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent"] = agent_to_json(agent);
+        response["agent"]["id"] = agent_id;
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to retrieve agent: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_update_agent(SocketType sock, const std::string& agent_id, const std::string& body) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent = agent_manager->get_agent(agent_id);
         if (!agent) {
             send_error_response(sock, 404, "Agent not found");
             return;
         }
         
-        auto json_data = json::parse(body);
+        nlohmann::json request = nlohmann::json::parse(body);
         
-        // Update agent configuration
-        // This is a simplified implementation - in practice, you'd need more sophisticated update logic
-        bool success = true;
-        
-        if (json_data.contains("name")) {
-            // Update agent name - this would require agent-specific update methods
-            success = false; // Placeholder - implement actual update logic
-        }
-        
-        if (!success) {
-            send_error_response(sock, 500, "Failed to update agent configuration");
+        // For now, we'll only support updating capabilities
+        // More sophisticated updates would require rebuilding the agent
+        if (request.contains("capabilities") && request["capabilities"].is_array()) {
+            // Note: AgentCore capabilities are read-only after creation
+            // This would require a more sophisticated update mechanism
+            send_error_response(sock, 501, "Agent capability updates not yet supported - recreate agent instead");
             return;
         }
         
-        json response = {
-            {"agent_id", agent_id},
-            {"message", "Agent updated successfully"}
-        };
-        
-        send_success_response(sock, response);
-        
-    } catch (const json::parse_error& e) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["message"] = "Agent configuration is read-only after creation. Delete and recreate for changes.";
+        send_json_response(sock, 200, response);
+    } catch (const nlohmann::json::parse_error& e) {
         send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to update agent: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_delete_agent(SocketType sock, const std::string& agent_id) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
             return;
         }
         
         bool success = agent_manager->delete_agent(agent_id);
-        
         if (!success) {
-            send_error_response(sock, 404, "Agent not found or could not be deleted");
+            send_error_response(sock, 500, "Failed to delete agent");
             return;
         }
         
-        json response = {
-            {"agent_id", agent_id},
-            {"message", "Agent deleted successfully"}
-        };
-        
-        send_success_response(sock, response);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["message"] = "Agent deleted successfully";
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to delete agent: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_agent_system_status(SocketType sock) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
+        std::string status = agent_manager->get_system_status();
         auto agent_ids = agent_manager->list_agents();
-        int running_agents = 0;
-        int total_agents = agent_ids.size();
         
+        int running_count = 0;
         for (const auto& agent_id : agent_ids) {
             auto agent = agent_manager->get_agent(agent_id);
             if (agent && agent->is_running()) {
-                running_agents++;
+                running_count++;
             }
         }
         
-        json status = {
-            {"system_running", agent_manager->is_running()},
-            {"total_agents", total_agents},
-            {"running_agents", running_agents},
-            {"stopped_agents", total_agents - running_agents},
-            {"uptime_seconds", 0}, // TODO: Calculate actual uptime
-            {"memory_usage_mb", 0}, // TODO: Calculate memory usage
-            {"cpu_usage_percent", 0.0}, // TODO: Calculate CPU usage
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()}
-        };
-        
-        send_success_response(sock, status);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["system_running"] = agent_manager->is_running();
+        response["total_agents"] = agent_ids.size();
+        response["running_agents"] = running_count;
+        response["stopped_agents"] = agent_ids.size() - running_count;
+        response["detailed_status"] = status;
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to get system status: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_agent_system_metrics(SocketType sock) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent_ids = agent_manager->list_agents();
+        nlohmann::json metrics;
+        nlohmann::json agent_metrics = nlohmann::json::array();
+        
+        int total_agents = 0;
         int running_agents = 0;
-        int total_agents = agent_ids.size();
+        int stopped_agents = 0;
         
         for (const auto& agent_id : agent_ids) {
             auto agent = agent_manager->get_agent(agent_id);
-            if (agent && agent->is_running()) {
-                running_agents++;
+            if (agent) {
+                total_agents++;
+                nlohmann::json agent_metric = create_agent_metrics(agent);
+                agent_metric["id"] = agent_id;
+                agent_metric["name"] = agent->get_agent_name();
+                agent_metric["type"] = agent->get_agent_type();
+                agent_metric["running"] = agent->is_running();
+                agent_metric["capabilities_count"] = agent->get_capabilities().size();
+                agent_metric["functions_count"] = agent->get_function_manager()->get_function_names().size();
+                
+                if (agent->is_running()) {
+                    running_agents++;
+                } else {
+                    stopped_agents++;
+                }
+                
+                agent_metrics.push_back(agent_metric);
             }
         }
         
-        json metrics = {
-            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()},
-            {"agent_system", {
-                {"manager_status", agent_manager->is_running() ? "running" : "stopped"},
-                {"total_agents", total_agents},
-                {"running_agents", running_agents},
-                {"stopped_agents", total_agents - running_agents},
-                {"orchestrator_status", "not_available"}
-            }}
-        };
+        metrics["total_agents"] = total_agents;
+        metrics["running_agents"] = running_agents;
+        metrics["stopped_agents"] = stopped_agents;
+        metrics["system_running"] = agent_manager->is_running();
+        metrics["agents"] = agent_metrics;
         
-        send_success_response(sock, metrics);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["metrics"] = metrics;
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to get system metrics: " + std::string(e.what()));
     }
 }
 
 // Agent lifecycle management
 void AgentsRoute::handle_start_agent(SocketType sock, const std::string& agent_id) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        if (agent->is_running()) {
+            nlohmann::json response;
+            response["status"] = "success";
+            response["agent_id"] = agent_id;
+            response["message"] = "Agent is already running";
+            response["running"] = true;
+            send_json_response(sock, 200, response);
             return;
         }
         
         bool success = agent_manager->start_agent(agent_id);
-        
         if (!success) {
-            send_error_response(sock, 404, "Agent not found or could not be started");
+            send_error_response(sock, 500, "Failed to start agent");
             return;
         }
         
-        json response = {
-            {"agent_id", agent_id},
-            {"status", "started"},
-            {"message", "Agent started successfully"}
-        };
-        
-        send_success_response(sock, response);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["message"] = "Agent started successfully";
+        response["running"] = true;
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to start agent: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_stop_agent(SocketType sock, const std::string& agent_id) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        if (!agent->is_running()) {
+            nlohmann::json response;
+            response["status"] = "success";
+            response["agent_id"] = agent_id;
+            response["message"] = "Agent is already stopped";
+            response["running"] = false;
+            send_json_response(sock, 200, response);
             return;
         }
         
         bool success = agent_manager->stop_agent(agent_id);
-        
         if (!success) {
-            send_error_response(sock, 404, "Agent not found or could not be stopped");
+            send_error_response(sock, 500, "Failed to stop agent");
             return;
         }
         
-        json response = {
-            {"agent_id", agent_id},
-            {"status", "stopped"},
-            {"message", "Agent stopped successfully"}
-        };
-        
-        send_success_response(sock, response);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["message"] = "Agent stopped successfully";
+        response["running"] = false;
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to stop agent: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_restart_agent(SocketType sock, const std::string& agent_id) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
             return;
         }
         
-        // Stop then start the agent
-        bool stop_success = agent_manager->stop_agent(agent_id);
-        if (!stop_success) {
-            send_error_response(sock, 404, "Agent not found or could not be stopped");
-            return;
+        // Stop the agent first if it's running
+        bool was_running = agent->is_running();
+        if (was_running) {
+            bool stop_success = agent_manager->stop_agent(agent_id);
+            if (!stop_success) {
+                send_error_response(sock, 500, "Failed to stop agent for restart");
+                return;
+            }
         }
         
-        // Small delay to ensure clean shutdown
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
-        
+        // Start the agent
         bool start_success = agent_manager->start_agent(agent_id);
         if (!start_success) {
-            send_error_response(sock, 500, "Agent stopped but could not be restarted");
+            send_error_response(sock, 500, "Failed to start agent after restart");
             return;
         }
         
-        json response = {
-            {"agent_id", agent_id},
-            {"status", "restarted"},
-            {"message", "Agent restarted successfully"}
-        };
-        
-        send_success_response(sock, response);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["message"] = "Agent restarted successfully";
+        response["was_running"] = was_running;
+        response["running"] = true;
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to restart agent: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_agent_status(SocketType sock, const std::string& agent_id) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent = agent_manager->get_agent(agent_id);
         if (!agent) {
             send_error_response(sock, 404, "Agent not found");
             return;
         }
         
-        json status = {
-            {"agent_id", agent_id},
-            {"name", agent->get_agent_name()},
-            {"type", agent->get_agent_type()},
-            {"running", agent->is_running()},
-            {"uptime_seconds", 0}, // TODO: Calculate uptime
-            {"request_count", 0}, // TODO: Get request count
-            {"error_count", 0}, // TODO: Get error count
-            {"last_activity", 0}, // TODO: Get last activity timestamp
-            {"memory_usage_mb", 0}, // TODO: Get memory usage
-            {"cpu_usage_percent", 0.0} // TODO: Get CPU usage
-        };
-        
-        send_success_response(sock, status);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["name"] = agent->get_agent_name();
+        response["type"] = agent->get_agent_type();
+        response["running"] = agent->is_running();
+        response["capabilities"] = agent->get_capabilities();
+        response["function_count"] = agent->get_function_manager()->get_function_names().size();
+        response["functions"] = agent->get_function_manager()->get_function_names();
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to get agent status: " + std::string(e.what()));
     }
 }
 
-// Agent capabilities and functions
+// Agent capabilities and functions (stub implementations)
 void AgentsRoute::handle_get_agent_capabilities(SocketType sock, const std::string& agent_id) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent = agent_manager->get_agent(agent_id);
         if (!agent) {
             send_error_response(sock, 404, "Agent not found");
             return;
         }
         
-        auto capabilities = agent->get_capabilities();
-        
-        json response = {
-            {"agent_id", agent_id},
-            {"capabilities", capabilities}
-        };
-        
-        send_success_response(sock, response);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["capabilities"] = agent->get_capabilities();
+        response["capability_count"] = agent->get_capabilities().size();
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to get agent capabilities: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_list_agent_functions(SocketType sock, const std::string& agent_id) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent = agent_manager->get_agent(agent_id);
         if (!agent) {
             send_error_response(sock, 404, "Agent not found");
             return;
         }
         
-        auto functions = agent->get_function_manager()->get_function_names();
+        auto function_names = agent->get_function_manager()->get_function_names();
+        nlohmann::json functions_array = nlohmann::json::array();
         
-        json response = {
-            {"agent_id", agent_id},
-            {"functions", functions},
-            {"function_count", functions.size()}
-        };
+        for (const auto& func_name : function_names) {
+            nlohmann::json func_info;
+            func_info["name"] = func_name;
+            func_info["description"] = agent->get_function_manager()->get_function_description(func_name);
+            functions_array.push_back(func_info);
+        }
         
-        send_success_response(sock, response);
-        
+        nlohmann::json response;
+        response["status"] = "success";
+        response["agent_id"] = agent_id;
+        response["functions"] = functions_array;
+        response["function_count"] = function_names.size();
+        response["tools_summary"] = agent->get_function_manager()->get_available_tools_summary();
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to list agent functions: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent = agent_manager->get_agent(agent_id);
         if (!agent) {
             send_error_response(sock, 404, "Agent not found");
@@ -507,156 +491,72 @@ void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::stri
         }
         
         if (!agent->is_running()) {
-            send_error_response(sock, 409, "Agent is not running");
+            send_error_response(sock, 400, "Agent is not running");
             return;
         }
         
-        // Parse function parameters
-        agents::AgentData function_data;
-        function_data.set("function", function_name);
+        if (!agent->get_function_manager()->has_function(function_name)) {
+            send_error_response(sock, 404, "Function not found on agent: " + function_name);
+            return;
+        }
         
+        kolosal::agents::AgentData params;
         if (!body.empty()) {
-            auto json_params = json::parse(body);
-            
-            // If the JSON has a "parameters" object, extract its contents to root level
-            if (json_params.contains("parameters") && json_params["parameters"].is_object()) {
-                for (auto& [key, value] : json_params["parameters"].items()) {
+            try {
+                nlohmann::json request = nlohmann::json::parse(body);
+                // Convert JSON parameters to AgentData
+                for (auto& [key, value] : request.items()) {
                     if (value.is_string()) {
-                        function_data.set(key, value.get<std::string>());
-                    } else if (value.is_number_integer()) {
-                        function_data.set(key, value.get<int>());
-                    } else if (value.is_number_float()) {
-                        function_data.set(key, value.get<double>());
-                    } else if (value.is_boolean()) {
-                        function_data.set(key, value.get<bool>());
-                    } else if (value.is_array()) {
-                        // Convert array to AgentData format
-                        std::vector<std::string> string_array;
-                        for (const auto& item : value) {
-                            if (item.is_string()) {
-                                string_array.push_back(item.get<std::string>());
-                            }
-                        }
-                        if (!string_array.empty()) {
-                            function_data.set(key, string_array);
-                        }
+                        params.set(key, value.get<std::string>());
+                    } else if (value.is_number()) {
+                        params.set(key, std::to_string(value.get<double>()));
                     } else {
-                        // For complex objects, store as JSON string
-                        function_data.set(key, value.dump());
+                        params.set(key, value.dump());
                     }
                 }
-            } else {
-                // If no "parameters" object, set the entire JSON at root level
-                for (auto& [key, value] : json_params.items()) {
-                    if (value.is_string()) {
-                        function_data.set(key, value.get<std::string>());
-                    } else if (value.is_number_integer()) {
-                        function_data.set(key, value.get<int>());
-                    } else if (value.is_number_float()) {
-                        function_data.set(key, value.get<double>());
-                    } else if (value.is_boolean()) {
-                        function_data.set(key, value.get<bool>());
-                    } else if (value.is_array()) {
-                        // Convert array to AgentData format
-                        std::vector<std::string> string_array;
-                        for (const auto& item : value) {
-                            if (item.is_string()) {
-                                string_array.push_back(item.get<std::string>());
-                            }
-                        }
-                        if (!string_array.empty()) {
-                            function_data.set(key, string_array);
-                        }
-                    } else {
-                        // For complex objects, store as JSON string
-                        function_data.set(key, value.dump());
-                    }
-                }
+            } catch (const nlohmann::json::parse_error& e) {
+                send_error_response(sock, 400, "Invalid JSON parameters: " + std::string(e.what()));
+                return;
             }
         }
         
-        // Execute the function
-        auto result = agent->get_function_manager()->execute_function(function_name, function_data);
+        auto result = agent->execute_function(function_name, params);
         
-        json response;
+        nlohmann::json response;
+        response["status"] = "success";
         response["agent_id"] = agent_id;
         response["function_name"] = function_name;
-        response["success"] = result.success;
-        response["result"] = result.result_data.to_json();
+        response["execution_success"] = result.success;
         response["execution_time_ms"] = result.execution_time_ms;
-        response["error_message"] = result.error_message;
         
-        send_success_response(sock, response);
+        if (!result.success) {
+            response["error_message"] = result.error_message;
+        }
         
-    } catch (const json::parse_error& e) {
-        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+        if (!result.llm_response.empty()) {
+            response["llm_response"] = result.llm_response;
+        }
+        
+        // Convert result data back to JSON (placeholder for now)
+        nlohmann::json result_data;
+        response["result_data"] = result_data;
+        
+        send_json_response(sock, 200, response);
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to execute agent function: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_test_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body) {
-    try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
-        auto agent = agent_manager->get_agent(agent_id);
-        if (!agent) {
-            send_error_response(sock, 404, "Agent not found");
-            return;
-        }
-        
-        // Check if function exists
-        auto functions = agent->get_function_manager()->get_function_names();
-        bool function_exists = std::find(functions.begin(), functions.end(), function_name) != functions.end();
-        
-        if (!function_exists) {
-            send_error_response(sock, 404, "Function not found");
-            return;
-        }
-        
-        // Validate parameters without executing
-        json test_result = {
-            {"agent_id", agent_id},
-            {"function_name", function_name},
-            {"function_exists", true},
-            {"agent_running", agent->is_running()},
-            {"can_execute", agent->is_running()},
-            {"test_timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
-                std::chrono::system_clock::now().time_since_epoch()).count()}
-        };
-        
-        if (!body.empty()) {
-            try {
-                auto json_params = json::parse(body);
-                test_result["parameters_valid"] = true;
-                test_result["parameters"] = json_params;
-            } catch (const json::parse_error& e) {
-                test_result["parameters_valid"] = false;
-                test_result["parameter_error"] = e.what();
-            }
-        } else {
-            test_result["parameters_valid"] = true;
-            test_result["parameters"] = json::object();
-        }
-        
-        send_success_response(sock, test_result);
-        
-    } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
-    }
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
 }
 
 // Agent messaging with model selection
 void AgentsRoute::handle_send_message_to_agent(SocketType sock, const std::string& agent_id, const std::string& body) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
         auto agent = agent_manager->get_agent(agent_id);
         if (!agent) {
             send_error_response(sock, 404, "Agent not found");
@@ -664,435 +564,680 @@ void AgentsRoute::handle_send_message_to_agent(SocketType sock, const std::strin
         }
         
         if (!agent->is_running()) {
-            send_error_response(sock, 409, "Agent is not running");
+            send_error_response(sock, 400, "Agent is not running");
             return;
         }
         
-        // Parse the request
-        auto json_data = json::parse(body);
-        
-        if (!json_data.contains("message") || json_data["message"].empty()) {
-            send_error_response(sock, 400, "Message content is required");
+        nlohmann::json request = nlohmann::json::parse(body);
+        if (!validate_message_payload(request)) {
+            send_error_response(sock, 400, "Invalid message payload");
             return;
         }
         
-        std::string message = json_data["message"];
-        std::string model_name = json_data.value("model", "qwen3-0.6b");  // Default model
+        std::string message = request.value("message", "");
+        std::string function_name = request.value("function", "");
         
-        // Extract optional parameters
-        double temperature = json_data.value("temperature", 0.7);
-        int max_tokens = json_data.value("max_tokens", 2048);
+        if (function_name.empty()) {
+            // If no specific function, try to send as a general message
+            // This would require implementing a general message handler
+            send_error_response(sock, 400, "Function name required for agent communication");
+            return;
+        }
         
-        // Execute inference function with the specified model
-        agents::AgentData function_data;
-        function_data.set("prompt", message);
-        function_data.set("model_id", model_name);
-        function_data.set("temperature", temperature);
-        function_data.set("max_tokens", max_tokens);
+        // Execute function on the agent
+        kolosal::agents::AgentData params;
+        if (request.contains("parameters")) {
+            // Convert JSON parameters to AgentData
+            for (auto& [key, value] : request["parameters"].items()) {
+                if (value.is_string()) {
+                    params.set(key, value.get<std::string>());
+                } else if (value.is_number()) {
+                    params.set(key, std::to_string(value.get<double>()));
+                } else {
+                    params.set(key, value.dump());
+                }
+            }
+        }
         
-        auto result = agent->get_function_manager()->execute_function("inference", function_data);
+        if (!message.empty()) {
+            params.set("message", message);
+        }
         
-        json response;
+        auto result = agent->execute_function(function_name, params);
+        
+        nlohmann::json response;
+        response["status"] = "success";
         response["agent_id"] = agent_id;
-        response["message"] = message;
-        response["model_used"] = model_name;
-        response["success"] = result.success;
+        response["function_executed"] = function_name;
+        response["execution_success"] = result.success;
         response["execution_time_ms"] = result.execution_time_ms;
-        response["error_message"] = result.error_message;
         
-        if (result.success) {
-            response["response"] = result.result_data.get_string("text");
-            response["tokens_generated"] = result.result_data.get_int("tokens_generated", 0);
-            response["tokens_per_second"] = result.result_data.get_double("tokens_per_second", 0.0);
+        if (!result.success) {
+            response["error"] = result.error_message;
         }
         
-        send_success_response(sock, response);
+        if (!result.llm_response.empty()) {
+            response["llm_response"] = result.llm_response;
+        }
         
-    } catch (const json::parse_error& e) {
+        // Convert result data back to JSON
+        nlohmann::json result_data;
+        // Note: AgentData doesn't have a direct JSON conversion method
+        // This would need to be implemented based on AgentData structure
+        response["result_data"] = result_data; // Placeholder
+        
+        send_json_response(sock, 200, response);
+    } catch (const nlohmann::json::parse_error& e) {
         send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to send message to agent: " + std::string(e.what()));
     }
 }
 
-// Agent templates
+// Agent templates and presets (stub implementations)
 void AgentsRoute::handle_list_agent_templates(SocketType sock) {
-    try {
-        json templates = {
-            {
-                {"name", "research_agent"},
-                {"description", "Agent specialized in research and information gathering"},
-                {"type", "research"},
-                {"capabilities", {"web_search", "document_analysis", "summarization"}},
-                {"default_functions", {"search", "analyze", "summarize"}}
-            },
-            {
-                {"name", "writer_agent"},
-                {"description", "Agent specialized in content creation and writing"},
-                {"type", "writer"},
-                {"capabilities", {"text_generation", "editing", "formatting"}},
-                {"default_functions", {"write", "edit", "format"}}
-            },
-            {
-                {"name", "reviewer_agent"},
-                {"description", "Agent specialized in reviewing and critiquing content"},
-                {"type", "reviewer"},
-                {"capabilities", {"analysis", "critique", "feedback"}},
-                {"default_functions", {"review", "critique", "suggest"}}
-            },
-            {
-                {"name", "data_analyst"},
-                {"description", "Agent specialized in data analysis and visualization"},
-                {"type", "analyst"},
-                {"capabilities", {"data_processing", "statistical_analysis", "visualization"}},
-                {"default_functions", {"analyze_data", "create_charts", "generate_insights"}}
-            },
-            {
-                {"name", "coordinator_agent"},
-                {"description", "Agent specialized in coordinating other agents"},
-                {"type", "coordinator"},
-                {"capabilities", {"task_coordination", "workflow_management", "communication"}},
-                {"default_functions", {"coordinate", "delegate", "monitor"}}
-            }
-        };
-        
-        json response = {
-            {"templates", templates},
-            {"count", templates.size()}
-        };
-        
-        send_success_response(sock, response);
-        
-    } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
-    }
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
 }
 
 void AgentsRoute::handle_create_agent_from_template(SocketType sock, const std::string& template_name, const std::string& body) {
-    try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
-        
-        auto json_data = json::parse(body);
-        
-        // Create agent config based on template
-        agents::AgentConfig config;
-        config.name = json_data.value("name", template_name + "_instance");
-        config.type = template_name;
-        config.auto_start = json_data.value("auto_start", false);
-        
-        // Set template-specific defaults
-        if (template_name == "research_agent") {
-            config.llm_config.instruction = "You are a research agent specialized in gathering and analyzing information.";
-            config.capabilities = {"web_search", "document_analysis", "summarization"};
-        } else if (template_name == "writer_agent") {
-            config.llm_config.instruction = "You are a writing agent specialized in creating high-quality content.";
-            config.capabilities = {"text_generation", "editing", "formatting"};
-        } else if (template_name == "reviewer_agent") {
-            config.llm_config.instruction = "You are a reviewer agent specialized in analyzing and critiquing content.";
-            config.capabilities = {"analysis", "critique", "feedback"};
-        } else if (template_name == "data_analyst") {
-            config.llm_config.instruction = "You are a data analyst agent specialized in processing and analyzing data.";
-            config.capabilities = {"data_processing", "statistical_analysis", "visualization"};
-        } else if (template_name == "coordinator_agent") {
-            config.llm_config.instruction = "You are a coordinator agent specialized in managing workflows and other agents.";
-            config.capabilities = {"task_coordination", "workflow_management", "communication"};
-        } else {
-            send_error_response(sock, 404, "Template not found");
-            return;
-        }
-        
-        // Override with user-provided configuration
-        if (json_data.contains("llm_config")) {
-            auto llm_config = json_data["llm_config"];
-            if (llm_config.contains("model_name")) {
-                config.llm_config.model_name = llm_config["model_name"];
-            }
-            if (llm_config.contains("temperature")) {
-                config.llm_config.temperature = llm_config["temperature"];
-            }
-            if (llm_config.contains("max_tokens")) {
-                config.llm_config.max_tokens = llm_config["max_tokens"];
-            }
-            if (llm_config.contains("system_prompt")) {
-                config.llm_config.instruction = llm_config["system_prompt"];
-            }
-        }
-        
-        if (json_data.contains("capabilities")) {
-            config.capabilities = json_data["capabilities"];
-        }
-        
-        // Create the agent
-        std::string agent_id = agent_manager->create_agent_from_config(config);
-        
-        if (agent_id.empty()) {
-            send_error_response(sock, 500, "Failed to create agent from template");
-            return;
-        }
-        
-        // Auto-start if requested
-        if (config.auto_start) {
-            agent_manager->start_agent(agent_id);
-        }
-        
-        json response;
-        response["agent_id"] = agent_id;
-        response["template"] = template_name;
-        response["name"] = config.name;
-        response["type"] = config.type;
-        response["auto_started"] = config.auto_start;
-        response["message"] = "Agent created successfully from template";
-        
-        send_success_response(sock, response);
-        
-    } catch (const json::parse_error& e) {
-        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
-    } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
-    }
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
 }
 
-// Bulk operations
+// Bulk operations (stub implementations)
 void AgentsRoute::handle_bulk_start_agents(SocketType sock, const std::string& body) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
+        nlohmann::json request = nlohmann::json::parse(body);
         
-        auto json_data = json::parse(body);
-        
-        if (!json_data.contains("agent_ids") || !json_data["agent_ids"].is_array()) {
+        if (!request.contains("agent_ids") || !request["agent_ids"].is_array()) {
             send_error_response(sock, 400, "Missing or invalid agent_ids array");
             return;
         }
         
-        std::vector<std::string> agent_ids = json_data["agent_ids"];
-        json results = json::array();
+        nlohmann::json results = nlohmann::json::array();
         int success_count = 0;
+        int error_count = 0;
         
-        for (const auto& agent_id : agent_ids) {
-            bool success = agent_manager->start_agent(agent_id);
-            results.push_back({
-                {"agent_id", agent_id},
-                {"success", success},
-                {"message", success ? "Started successfully" : "Failed to start"}
-            });
-            if (success) success_count++;
+        for (const auto& agent_id_json : request["agent_ids"]) {
+            if (!agent_id_json.is_string()) {
+                continue;
+            }
+            
+            std::string agent_id = agent_id_json.get<std::string>();
+            nlohmann::json result;
+            result["agent_id"] = agent_id;
+            
+            auto agent = agent_manager->get_agent(agent_id);
+            if (!agent) {
+                result["success"] = false;
+                result["error"] = "Agent not found";
+                error_count++;
+            } else if (agent->is_running()) {
+                result["success"] = true;
+                result["message"] = "Agent already running";
+                success_count++;
+            } else {
+                bool started = agent_manager->start_agent(agent_id);
+                result["success"] = started;
+                if (started) {
+                    result["message"] = "Started successfully";
+                    success_count++;
+                } else {
+                    result["error"] = "Failed to start";
+                    error_count++;
+                }
+            }
+            
+            results.push_back(result);
         }
         
-        json response = {
-            {"total_agents", agent_ids.size()},
-            {"successful_starts", success_count},
-            {"failed_starts", agent_ids.size() - success_count},
-            {"results", results}
-        };
-        
-        send_success_response(sock, response);
-        
-    } catch (const json::parse_error& e) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["results"] = results;
+        response["success_count"] = success_count;
+        response["error_count"] = error_count;
+        response["total_processed"] = success_count + error_count;
+        send_json_response(sock, 200, response);
+    } catch (const nlohmann::json::parse_error& e) {
         send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to bulk start agents: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_bulk_stop_agents(SocketType sock, const std::string& body) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
+        nlohmann::json request = nlohmann::json::parse(body);
         
-        auto json_data = json::parse(body);
-        
-        if (!json_data.contains("agent_ids") || !json_data["agent_ids"].is_array()) {
+        if (!request.contains("agent_ids") || !request["agent_ids"].is_array()) {
             send_error_response(sock, 400, "Missing or invalid agent_ids array");
             return;
         }
         
-        std::vector<std::string> agent_ids = json_data["agent_ids"];
-        json results = json::array();
+        nlohmann::json results = nlohmann::json::array();
         int success_count = 0;
+        int error_count = 0;
         
-        for (const auto& agent_id : agent_ids) {
-            bool success = agent_manager->stop_agent(agent_id);
-            results.push_back({
-                {"agent_id", agent_id},
-                {"success", success},
-                {"message", success ? "Stopped successfully" : "Failed to stop"}
-            });
-            if (success) success_count++;
+        for (const auto& agent_id_json : request["agent_ids"]) {
+            if (!agent_id_json.is_string()) {
+                continue;
+            }
+            
+            std::string agent_id = agent_id_json.get<std::string>();
+            nlohmann::json result;
+            result["agent_id"] = agent_id;
+            
+            auto agent = agent_manager->get_agent(agent_id);
+            if (!agent) {
+                result["success"] = false;
+                result["error"] = "Agent not found";
+                error_count++;
+            } else if (!agent->is_running()) {
+                result["success"] = true;
+                result["message"] = "Agent already stopped";
+                success_count++;
+            } else {
+                bool stopped = agent_manager->stop_agent(agent_id);
+                result["success"] = stopped;
+                if (stopped) {
+                    result["message"] = "Stopped successfully";
+                    success_count++;
+                } else {
+                    result["error"] = "Failed to stop";
+                    error_count++;
+                }
+            }
+            
+            results.push_back(result);
         }
         
-        json response = {
-            {"total_agents", agent_ids.size()},
-            {"successful_stops", success_count},
-            {"failed_stops", agent_ids.size() - success_count},
-            {"results", results}
-        };
-        
-        send_success_response(sock, response);
-        
-    } catch (const json::parse_error& e) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["results"] = results;
+        response["success_count"] = success_count;
+        response["error_count"] = error_count;
+        response["total_processed"] = success_count + error_count;
+        send_json_response(sock, 200, response);
+    } catch (const nlohmann::json::parse_error& e) {
         send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to bulk stop agents: " + std::string(e.what()));
     }
 }
 
 void AgentsRoute::handle_bulk_delete_agents(SocketType sock, const std::string& body) {
     try {
-        if (!agent_manager) {
-            send_error_response(sock, 503, "Agent manager not available");
-            return;
-        }
+        nlohmann::json request = nlohmann::json::parse(body);
         
-        auto json_data = json::parse(body);
-        
-        if (!json_data.contains("agent_ids") || !json_data["agent_ids"].is_array()) {
+        if (!request.contains("agent_ids") || !request["agent_ids"].is_array()) {
             send_error_response(sock, 400, "Missing or invalid agent_ids array");
             return;
         }
         
-        std::vector<std::string> agent_ids = json_data["agent_ids"];
-        json results = json::array();
+        nlohmann::json results = nlohmann::json::array();
         int success_count = 0;
+        int error_count = 0;
         
-        for (const auto& agent_id : agent_ids) {
-            bool success = agent_manager->delete_agent(agent_id);
-            results.push_back({
-                {"agent_id", agent_id},
-                {"success", success},
-                {"message", success ? "Deleted successfully" : "Failed to delete"}
-            });
-            if (success) success_count++;
+        for (const auto& agent_id_json : request["agent_ids"]) {
+            if (!agent_id_json.is_string()) {
+                continue;
+            }
+            
+            std::string agent_id = agent_id_json.get<std::string>();
+            nlohmann::json result;
+            result["agent_id"] = agent_id;
+            
+            auto agent = agent_manager->get_agent(agent_id);
+            if (!agent) {
+                result["success"] = false;
+                result["error"] = "Agent not found";
+                error_count++;
+            } else {
+                bool deleted = agent_manager->delete_agent(agent_id);
+                result["success"] = deleted;
+                if (deleted) {
+                    result["message"] = "Deleted successfully";
+                    success_count++;
+                } else {
+                    result["error"] = "Failed to delete";
+                    error_count++;
+                }
+            }
+            
+            results.push_back(result);
         }
         
-        json response = {
-            {"total_agents", agent_ids.size()},
-            {"successful_deletions", success_count},
-            {"failed_deletions", agent_ids.size() - success_count},
-            {"results", results}
-        };
-        
-        send_success_response(sock, response);
-        
-    } catch (const json::parse_error& e) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["results"] = results;
+        response["success_count"] = success_count;
+        response["error_count"] = error_count;
+        response["total_processed"] = success_count + error_count;
+        send_json_response(sock, 200, response);
+    } catch (const nlohmann::json::parse_error& e) {
         send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     } catch (const std::exception& e) {
-        send_error_response(sock, 500, e.what());
+        send_error_response(sock, 500, "Failed to bulk delete agents: " + std::string(e.what()));
     }
 }
 
-// Utility methods
+// Document agent service endpoints (delegate to service)
+void AgentsRoute::handle_bulk_documents(SocketType sock, const std::string& body) {
+    if (document_service) {
+        // Implementation would delegate to document_service
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Document service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Document service not available");
+    }
+}
+
+void AgentsRoute::handle_bulk_retrieval(SocketType sock, const std::string& body) {
+    if (document_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Document service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Document service not available");
+    }
+}
+
+void AgentsRoute::handle_document_search(SocketType sock, const std::string& body) {
+    if (document_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Document service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Document service not available");
+    }
+}
+
+void AgentsRoute::handle_document_upload(SocketType sock, const std::string& body) {
+    if (document_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Document service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Document service not available");
+    }
+}
+
+void AgentsRoute::handle_list_collections(SocketType sock) {
+    if (document_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Document service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Document service not available");
+    }
+}
+
+void AgentsRoute::handle_create_collection(SocketType sock, const std::string& body) {
+    if (document_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Document service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Document service not available");
+    }
+}
+
+void AgentsRoute::handle_delete_collection(SocketType sock, const std::string& collection_name) {
+    if (document_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Document service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Document service not available");
+    }
+}
+
+void AgentsRoute::handle_get_collection_info(SocketType sock, const std::string& collection_name) {
+    if (document_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Document service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Document service not available");
+    }
+}
+
+// Workflow agent service endpoints (delegate to service)
+void AgentsRoute::handle_create_workflow(SocketType sock, const std::string& body) {
+    if (workflow_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Workflow service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Workflow service not available");
+    }
+}
+
+void AgentsRoute::handle_execute_workflow(SocketType sock, const std::string& body) {
+    if (workflow_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Workflow service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Workflow service not available");
+    }
+}
+
+void AgentsRoute::handle_get_workflow_status(SocketType sock, const std::string& workflow_id) {
+    if (workflow_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Workflow service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Workflow service not available");
+    }
+}
+
+void AgentsRoute::handle_list_workflows(SocketType sock) {
+    if (workflow_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Workflow service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Workflow service not available");
+    }
+}
+
+void AgentsRoute::handle_delete_workflow(SocketType sock, const std::string& workflow_id) {
+    if (workflow_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Workflow service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Workflow service not available");
+    }
+}
+
+void AgentsRoute::handle_rag_workflow(SocketType sock, const std::string& body) {
+    if (workflow_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Workflow service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Workflow service not available");
+    }
+}
+
+void AgentsRoute::handle_rag_search(SocketType sock, const std::string& body) {
+    if (workflow_service) {
+        nlohmann::json response;
+        response["status"] = "success";
+        response["message"] = "Workflow service delegation not yet implemented";
+        send_json_response(sock, 501, response);
+    } else {
+        send_error_response(sock, 500, "Workflow service not available");
+    }
+}
+
+// Session management endpoints (stub implementations)
+void AgentsRoute::handle_create_session(SocketType sock, const std::string& body) {
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
+}
+
+void AgentsRoute::handle_get_session(SocketType sock, const std::string& session_id) {
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
+}
+
+void AgentsRoute::handle_list_sessions(SocketType sock) {
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
+}
+
+void AgentsRoute::handle_delete_session(SocketType sock, const std::string& session_id) {
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
+}
+
+void AgentsRoute::handle_session_history(SocketType sock, const std::string& session_id) {
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
+}
+
+// Orchestration endpoints (stub implementations)
+void AgentsRoute::handle_create_orchestration(SocketType sock, const std::string& body) {
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
+}
+
+void AgentsRoute::handle_execute_orchestration(SocketType sock, const std::string& plan_id, const std::string& body) {
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
+}
+
+void AgentsRoute::handle_orchestration_status(SocketType sock, const std::string& plan_id) {
+    nlohmann::json response;
+    response["status"] = "success";
+    response["message"] = "Not yet implemented";
+    send_json_response(sock, 501, response);
+}
+
+// Helper methods
 std::string AgentsRoute::format_error_response(const std::string& error, int code) {
-    json response = {
-        {"success", false},
-        {"error", error},
-        {"code", code}
-    };
+    nlohmann::json response;
+    response["status"] = "error";
+    response["error"] = error;
+    response["code"] = code;
     return response.dump();
 }
 
 std::string AgentsRoute::format_success_response(const nlohmann::json& data) {
-    json response = {
-        {"success", true},
-        {"data", data}
-    };
+    nlohmann::json response;
+    response["status"] = "success";
+    if (!data.empty()) {
+        response["data"] = data;
+    }
     return response.dump();
 }
 
 bool AgentsRoute::validate_agent_config(const nlohmann::json& config) {
-    try {
-        // Basic validation - check required fields
-        if (!config.contains("name") || config["name"].empty()) {
-            return false;
-        }
-        
-        if (config.contains("llm_config")) {
-            auto llm_config = config["llm_config"];
-            if (llm_config.contains("temperature")) {
-                double temp = llm_config["temperature"];
-                if (temp < 0.0 || temp > 2.0) {
-                    return false;
-                }
-            }
-            if (llm_config.contains("max_tokens")) {
-                int tokens = llm_config["max_tokens"];
-                if (tokens <= 0 || tokens > 100000) {
-                    return false;
-                }
-            }
-        }
-        
-        return true;
-        
-    } catch (const std::exception& e) {
-        ServerLogger::logError("Error validating agent config: %s", e.what());
+    // Check for required fields
+    if (!config.contains("name") || !config["name"].is_string() || config["name"].get<std::string>().empty()) {
         return false;
     }
+    
+    // Type is optional, defaults to "generic"
+    if (config.contains("type") && (!config["type"].is_string() || config["type"].get<std::string>().empty())) {
+        return false;
+    }
+    
+    // Validate capabilities array if present
+    if (config.contains("capabilities")) {
+        if (!config["capabilities"].is_array()) {
+            return false;
+        }
+        for (const auto& cap : config["capabilities"]) {
+            if (!cap.is_string()) {
+                return false;
+            }
+        }
+    }
+    
+    // Validate functions array if present
+    if (config.contains("functions")) {
+        if (!config["functions"].is_array()) {
+            return false;
+        }
+        for (const auto& func : config["functions"]) {
+            if (!func.is_string()) {
+                return false;
+            }
+        }
+    }
+    
+    // Validate boolean fields if present
+    if (config.contains("auto_start") && !config["auto_start"].is_boolean()) {
+        return false;
+    }
+    
+    // Validate numeric fields if present
+    if (config.contains("max_concurrent_jobs") && !config["max_concurrent_jobs"].is_number_integer()) {
+        return false;
+    }
+    
+    if (config.contains("heartbeat_interval_seconds") && !config["heartbeat_interval_seconds"].is_number_integer()) {
+        return false;
+    }
+    
+    return true;
 }
 
 bool AgentsRoute::validate_message_payload(const nlohmann::json& payload) {
-    try {
-        if (!payload.contains("message") || payload["message"].empty()) {
-            return false;
-        }
-        
-        return true;
-        
-    } catch (const std::exception& e) {
-        ServerLogger::logError("Error validating message payload: %s", e.what());
+    // Check for either message or function field
+    bool has_message = payload.contains("message") && payload["message"].is_string();
+    bool has_function = payload.contains("function") && payload["function"].is_string();
+    
+    if (!has_message && !has_function) {
         return false;
     }
+    
+    // Validate parameters if present
+    if (payload.contains("parameters")) {
+        if (!payload["parameters"].is_object()) {
+            return false;
+        }
+    }
+    
+    return true;
 }
 
 nlohmann::json AgentsRoute::agent_to_json(const std::shared_ptr<agents::AgentCore>& agent) {
-    json agent_json;
-    agent_json["agent_id"] = agent->get_agent_id();
-    agent_json["name"] = agent->get_agent_name();
-    agent_json["type"] = agent->get_agent_type();
-    agent_json["running"] = agent->is_running();
-    
-    try {
-        agent_json["capabilities"] = agent->get_capabilities();
-    } catch (const std::exception& e) {
-        ServerLogger::logError("Error getting capabilities for agent %s: %s", 
-            agent->get_agent_id().c_str(), e.what());
-        agent_json["capabilities"] = json::array();
+    if (!agent) {
+        return nlohmann::json::object();
     }
     
-    try {
-        agent_json["functions"] = agent->get_function_manager()->get_function_names();
-    } catch (const std::exception& e) {
-        ServerLogger::logError("Error getting functions for agent %s: %s", 
-            agent->get_agent_id().c_str(), e.what());
-        agent_json["functions"] = json::array();
-    }
+    nlohmann::json result;
+    result["name"] = agent->get_agent_name();
+    result["type"] = agent->get_agent_type();
+    result["running"] = agent->is_running();
+    result["capabilities"] = agent->get_capabilities();
+    result["capability_count"] = agent->get_capabilities().size();
     
-    agent_json["timestamp"] = std::chrono::duration_cast<std::chrono::milliseconds>(
-        std::chrono::system_clock::now().time_since_epoch()).count();
+    auto function_names = agent->get_function_manager()->get_function_names();
+    result["functions"] = function_names;
+    result["function_count"] = function_names.size();
     
-    return agent_json;
+    return result;
 }
 
 nlohmann::json AgentsRoute::create_agent_metrics(const std::shared_ptr<agents::AgentCore>& agent) {
-    json metrics;
-    metrics["agent_id"] = agent->get_agent_id();
-    metrics["running"] = agent->is_running();
-    metrics["uptime_seconds"] = 0; // TODO: Calculate actual uptime
-    metrics["request_count"] = 0; // TODO: Get actual request count
-    metrics["error_count"] = 0; // TODO: Get actual error count
-    metrics["average_response_time_ms"] = 0.0; // TODO: Calculate actual average response time
-    metrics["memory_usage_mb"] = 0; // TODO: Get actual memory usage
-    metrics["cpu_usage_percent"] = 0.0; // TODO: Get actual CPU usage
-    metrics["last_activity"] = 0; // TODO: Get actual last activity timestamp
+    if (!agent) {
+        return nlohmann::json::object();
+    }
     
-    return metrics;
+    nlohmann::json result;
+    result["name"] = agent->get_agent_name();
+    result["type"] = agent->get_agent_type();
+    result["running"] = agent->is_running();
+    result["capabilities_count"] = agent->get_capabilities().size();
+    result["functions_count"] = agent->get_function_manager()->get_function_names().size();
+    
+    // Additional metrics that could be useful
+    result["has_function_manager"] = (agent->get_function_manager() != nullptr);
+    result["has_job_manager"] = (agent->get_job_manager() != nullptr);
+    result["has_event_system"] = (agent->get_event_system() != nullptr);
+    
+    return result;
+}
+
+// Private helper methods
+void AgentsRoute::send_response(SocketType sock, int status_code, const std::string& content) {
+    std::ostringstream response;
+    response << "HTTP/1.1 " << status_code << " ";
+    
+    switch (status_code) {
+        case 200: response << "OK"; break;
+        case 201: response << "Created"; break;
+        case 400: response << "Bad Request"; break;
+        case 404: response << "Not Found"; break;
+        case 500: response << "Internal Server Error"; break;
+        case 501: response << "Not Implemented"; break;
+        default: response << "Unknown"; break;
+    }
+    
+    response << "\r\n";
+    response << "Content-Type: application/json\r\n";
+    response << "Content-Length: " << content.length() << "\r\n";
+    response << "\r\n";
+    response << content;
+    
+    std::string response_str = response.str();
+    send(sock, response_str.c_str(), response_str.length(), 0);
+}
+
+void AgentsRoute::send_json_response(SocketType sock, int status_code, const nlohmann::json& data) {
+    send_response(sock, status_code, data.dump());
+}
+
+void AgentsRoute::send_error_response(SocketType sock, int status_code, const std::string& error) {
+    nlohmann::json response;
+    response["status"] = "error";
+    response["error"] = error;
+    send_json_response(sock, status_code, response);
+}
+
+void AgentsRoute::send_success_response(SocketType sock, const nlohmann::json& data) {
+    nlohmann::json response;
+    response["status"] = "success";
+    if (!data.empty()) {
+        response["data"] = data;
+    }
+    send_json_response(sock, 200, response);
+}
+
+// Route parsing helpers
+std::string AgentsRoute::extractIdFromPath(const std::string& path, const std::string& base_pattern) {
+    std::regex pattern(base_pattern + "/([^/]+)");
+    std::smatch matches;
+    if (std::regex_match(path, matches, pattern)) {
+        return matches[1].str();
+    }
+    return "";
+}
+
+bool AgentsRoute::matchesPattern(const std::string& path, const std::string& pattern) {
+    std::regex regex_pattern(pattern);
+    return std::regex_match(path, regex_pattern);
 }
 
 } // namespace kolosal::routes

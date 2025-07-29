@@ -67,6 +67,7 @@ set(SOURCES
     src/inference_loader.cpp
     src/inference_interface_impl.cpp
     src/gpu_detection.cpp
+    src/auto_setup_manager.cpp
 
     # Route files
     src/routes/oai_completions_route.cpp
@@ -83,6 +84,25 @@ set(SOURCES
     src/routes/documents_route.cpp
     src/routes/downloads_route.cpp
     src/routes/chunking_route.cpp
+    src/routes/agents_route.cpp
+    
+    # Agent files
+    src/agents/agent_core.cpp
+    src/agents/agent_data.cpp
+    src/agents/agent_interfaces.cpp
+    src/agents/agent_orchestrator.cpp
+    src/agents/agent_config_validator.cpp
+    src/agents/builtin_functions.cpp
+    src/agents/document_agent_service.cpp
+    src/agents/event_system.cpp
+    src/agents/function_manager.cpp
+    src/agents/job_manager.cpp
+    src/agents/message_router.cpp
+    src/agents/multi_agent_system.cpp
+    src/agents/sequential_workflow.cpp
+    src/agents/workflow_agent_service.cpp
+    src/agents/workflow_engine.cpp
+    src/agents/yaml_config.cpp
     
     # Retrieval files
     src/retrieval/add_document_types.cpp
@@ -512,6 +532,42 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
             )
         endif()
         
+        # Set up OpenSSL for PoDoFo
+        set(OPENSSL_INCLUDE_DIR "${PODOFO_DEPS_DIR}/openssl/include")
+        set(OPENSSL_INCLUDE_DIRS ${OPENSSL_INCLUDE_DIR})
+        if(WIN32)
+            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(OPENSSL_CRYPTO_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/cryptod.lib")
+                set(OPENSSL_SSL_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/ssld.lib")
+            else()
+                set(OPENSSL_CRYPTO_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/crypto.lib")
+                set(OPENSSL_SSL_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/ssl.lib")
+            endif()
+        else()
+            set(OPENSSL_CRYPTO_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/libcrypto.a")
+            set(OPENSSL_SSL_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/libssl.a")
+        endif()
+        set(OPENSSL_LIBRARIES ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY})
+        set(OPENSSL_ROOT_DIR "${PODOFO_DEPS_DIR}/openssl")
+        
+        # Create imported targets for OpenSSL
+        if(NOT TARGET OpenSSL::Crypto)
+            add_library(OpenSSL::Crypto STATIC IMPORTED)
+            set_target_properties(OpenSSL::Crypto PROPERTIES
+                IMPORTED_LOCATION ${OPENSSL_CRYPTO_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES "${OPENSSL_INCLUDE_DIR}"
+            )
+        endif()
+        
+        if(NOT TARGET OpenSSL::SSL)
+            add_library(OpenSSL::SSL STATIC IMPORTED)
+            set_target_properties(OpenSSL::SSL PROPERTIES
+                IMPORTED_LOCATION ${OPENSSL_SSL_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES "${OPENSSL_INCLUDE_DIR}"
+                INTERFACE_LINK_LIBRARIES OpenSSL::Crypto
+            )
+        endif()
+        
         # Set found flags
         if(EXISTS "${FREETYPE_LIBRARY}")
             set(FREETYPE_FOUND TRUE)
@@ -543,6 +599,18 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
             message(STATUS "Found PoDoFo Fontconfig: ${Fontconfig_LIBRARY}")
         endif()
         
+        if(EXISTS "${OPENSSL_CRYPTO_LIBRARY}" AND EXISTS "${OPENSSL_SSL_LIBRARY}")
+            set(OPENSSL_FOUND TRUE)
+            # Set additional OpenSSL variables that find_package expects
+            set(OPENSSL_VERSION "1.1.1s")
+            set(OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIR}")
+            message(STATUS "Found PoDoFo OpenSSL: ${OPENSSL_CRYPTO_LIBRARY}, ${OPENSSL_SSL_LIBRARY}")
+        else()
+            # If OpenSSL libraries don't exist, disable PoDoFo SSL support
+            set(OPENSSL_FOUND FALSE)
+            message(WARNING "OpenSSL libraries not found, PoDoFo will be built without SSL support")
+        endif()
+        
         # Configure PoDoFo options
         set(PODOFO_BUILD_STATIC ON CACHE BOOL "Build PoDoFo as static library" FORCE)
         set(PODOFO_BUILD_TEST OFF CACHE BOOL "Disable PoDoFo tests" FORCE)
@@ -550,8 +618,13 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
         set(PODOFO_BUILD_UNSUPPORTED_TOOLS OFF CACHE BOOL "Disable PoDoFo tools" FORCE)
         set(PODOFO_BUILD_LIB_ONLY ON CACHE BOOL "Build only PoDoFo library" FORCE)
         
-        # Disable installation and exports to avoid target export issues
-        set(CMAKE_SKIP_INSTALL_RULES ON CACHE BOOL "Skip install rules for PoDoFo" FORCE)
+        # Disable OpenSSL requirement if not available
+        if(NOT OPENSSL_FOUND)
+            set(PODOFO_REQUIRE_OPENSSL OFF CACHE BOOL "Make OpenSSL optional for PoDoFo" FORCE)
+            set(WANT_OPENSSL OFF CACHE BOOL "Disable OpenSSL for PoDoFo" FORCE)
+        endif()
+        
+        # Disable installation to avoid export issues
         set(PODOFO_BUILD_INSTALL OFF CACHE BOOL "Disable PoDoFo installation" FORCE)
         
         # Temporarily override add_custom_target to ignore uninstall target
@@ -559,15 +632,15 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
             if(target_name STREQUAL "uninstall")
                 message(STATUS "Skipping duplicate uninstall target from PoDoFo")
             else()
-                # Call the original add_custom_target
-                _add_custom_target(${target_name} ${ARGN})
+                # Just ignore all add_custom_target calls from PoDoFo to avoid issues
+                message(STATUS "Skipping add_custom_target ${target_name} from PoDoFo")
             endif()
         endfunction()
         
         # Temporarily override install function to prevent export issues
         function(install)
             # Ignore all install commands from PoDoFo to avoid export conflicts
-            message(STATUS "Skipping install command from PoDoFo: ${ARGN}")
+            message(STATUS "Skipping install command from PoDoFo")
         endfunction()
         
         add_subdirectory(external/podofo EXCLUDE_FROM_ALL)

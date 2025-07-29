@@ -1248,4 +1248,14 @@ namespace kolosal
         return currentConfigFilePath;
     }
 
+    void ServerConfig::setAutoSaveEnabled(bool enabled)
+    {
+        autoSaveEnabled = enabled;
+    }
+
+    bool ServerConfig::isAutoSaveEnabled() const
+    {
+        return autoSaveEnabled;
+    }
+
 } // namespace kolosal

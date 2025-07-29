@@ -773,6 +773,7 @@ int main(int argc, char *argv[])
     ServerLogger::logInfo("  DELETE /api/v1/documents             - Remove documents from collection");
     ServerLogger::logInfo("  POST /parse-pdf                     - PDF parse endpoint");
     ServerLogger::logInfo("  POST /parse-docx                    - DOCX parse endpoint");
+    ServerLogger::logInfo("  POST /chunking                      - Document chunking endpoint");
 
     ServerLogger::logInfo("\nWorkflow endpoints:");
     ServerLogger::logInfo("  POST /sequential-workflows                  - Create sequential workflow");
