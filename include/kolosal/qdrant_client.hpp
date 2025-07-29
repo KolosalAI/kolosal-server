@@ -156,6 +156,19 @@ public:
         int limit = 10,
         float score_threshold = 0.0f
     );
+    
+    /**
+     * @brief Scroll through all points in a collection (for listing)
+     * @param collection_name Name of the collection
+     * @param limit Maximum number of points to retrieve per request
+     * @param offset Offset for pagination
+     * @return Future with points data
+     */
+    std::future<QdrantResult> scrollPoints(
+        const std::string& collection_name,
+        int limit = 1000,
+        const std::string& offset = ""
+    );
 
 private:
     class Impl;

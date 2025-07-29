@@ -10,6 +10,8 @@
 #include <iomanip>
 #include <random>
 #include <set>
+#include <algorithm>
+#include <algorithm>
 
 namespace kolosal
 {
@@ -157,6 +159,117 @@ public:
             }
         });
     }
+
+    // New batch embedding generation method
+    std::future<std::vector<std::pair<size_t, std::vector<float>>>> generateEmbeddingsBatch(
+        const std::vector<std::pair<size_t, std::string>>& texts, const std::string& model_id)
+    {
+        return std::async(std::launch::async, [this, texts, model_id]() -> std::vector<std::pair<size_t, std::vector<float>>> {
+            std::vector<std::pair<size_t, std::vector<float>>> results;
+            
+            if (texts.empty()) {
+                return results;
+            }
+            
+            try {
+                std::string effective_model_id = model_id.empty() ? config_.qdrant.defaultEmbeddingModel : model_id;
+                
+                ServerLogger::logInfo("Generating embeddings for batch of %zu texts using model: %s", 
+                                     texts.size(), effective_model_id.c_str());
+                
+                // Get the NodeManager and inference engine
+                auto& nodeManager = ServerAPI::instance().getNodeManager();
+                auto engine = nodeManager.getEngine(effective_model_id);
+                
+                if (!engine) {
+                    throw std::runtime_error("Embedding model '" + effective_model_id + "' not found or could not be loaded");
+                }
+                
+                // Process texts in this batch concurrently, but limit concurrency to avoid resource exhaustion
+                std::vector<std::future<std::vector<float>>> embedding_futures;
+                
+                for (const auto& [index, text] : texts) {
+                    embedding_futures.push_back(std::async(std::launch::async, [this, text, effective_model_id]() -> std::vector<float> {
+                        try {
+                            // Get engine instance for this thread
+                            auto& nodeManager = ServerAPI::instance().getNodeManager();
+                            auto engine = nodeManager.getEngine(effective_model_id);
+                            
+                            if (!engine) {
+                                throw std::runtime_error("Embedding model not available");
+                            }
+                            
+                            // Prepare embedding parameters
+                            EmbeddingParameters params;
+                            params.input = text;
+                            params.seqId = 0;
+                            
+                            if (!params.isValid()) {
+                                throw std::runtime_error("Invalid embedding parameters");
+                            }
+                            
+                            // Submit embedding job
+                            int jobId = engine->submitEmbeddingJob(params);
+                            if (jobId < 0) {
+                                throw std::runtime_error("Failed to submit embedding job");
+                            }
+                            
+                            // Wait for completion with timeout
+                            const int max_wait_seconds = 30;
+                            int wait_count = 0;
+                            
+                            while (!engine->isJobFinished(jobId) && wait_count < max_wait_seconds * 10) {
+                                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                                wait_count++;
+                            }
+                            
+                            if (!engine->isJobFinished(jobId)) {
+                                throw std::runtime_error("Embedding job timed out after " + std::to_string(max_wait_seconds) + " seconds");
+                            }
+                            
+                            // Check for errors
+                            if (engine->hasJobError(jobId)) {
+                                std::string error = engine->getJobError(jobId);
+                                throw std::runtime_error("Inference error: " + error);
+                            }
+                            
+                            // Get result
+                            EmbeddingResult result = engine->getEmbeddingResult(jobId);
+                            
+                            if (result.embedding.empty()) {
+                                throw std::runtime_error("Empty embedding result");
+                            }
+                            
+                            return result.embedding;
+                        } catch (const std::exception& ex) {
+                            ServerLogger::logError("Error generating embedding in batch: %s", ex.what());
+                            throw;
+                        }
+                    }));
+                }
+                
+                // Collect results
+                for (size_t i = 0; i < embedding_futures.size(); ++i) {
+                    try {
+                        auto embedding = embedding_futures[i].get();
+                        results.emplace_back(texts[i].first, std::move(embedding));
+                    } catch (const std::exception& ex) {
+                        ServerLogger::logError("Failed to get embedding result for text %zu in batch: %s", 
+                                             texts[i].first, ex.what());
+                        // Continue processing other embeddings
+                    }
+                }
+                
+                ServerLogger::logInfo("Completed batch embedding generation: %zu/%zu successful", 
+                                     results.size(), texts.size());
+                
+                return results;
+            } catch (const std::exception& ex) {
+                ServerLogger::logError("Error in batch embedding generation: %s", ex.what());
+                throw;
+            }
+        });
+    }
     
     std::future<bool> ensureCollection(const std::string& collection_name, int vector_size)
     {
@@ -286,62 +399,99 @@ std::future<AddDocumentsResponse> DocumentService::addDocuments(const AddDocumen
             ServerLogger::logInfo("Processing %zu documents for collection '%s'", 
                                   request.documents.size(), collection_name.c_str());
             
-            // Generate embeddings for all documents
-            std::vector<std::future<std::vector<float>>> embedding_futures;
+            // Use batching to generate embeddings
+            const int batch_size = pImpl->config_.qdrant.embeddingBatchSize;
+            ServerLogger::logInfo("Using embedding batch size: %d", batch_size);
+            
             std::vector<std::string> document_ids;
-            
-            for (size_t i = 0; i < request.documents.size(); ++i)
-            {
-                std::string doc_id = pImpl->generateDocumentId();
-                document_ids.push_back(doc_id);
-                
-                embedding_futures.push_back(
-                    pImpl->generateEmbedding(request.documents[i].text, "")
-                );
-            }
-            
-            // Wait for all embeddings and prepare points
             std::vector<QdrantPoint> points;
             int vector_size = 0;
             
-            for (size_t i = 0; i < embedding_futures.size(); ++i)
+            // Generate document IDs first
+            for (size_t i = 0; i < request.documents.size(); ++i) {
+                document_ids.push_back(pImpl->generateDocumentId());
+            }
+            
+            // Process documents in batches
+            for (size_t batch_start = 0; batch_start < request.documents.size(); batch_start += batch_size)
             {
-                try
-                {
-                    auto embedding = embedding_futures[i].get();
-                    
-                    if (vector_size == 0)
-                    {
-                        vector_size = static_cast<int>(embedding.size());
-                    }
-                    else if (static_cast<int>(embedding.size()) != vector_size)
-                    {
-                        throw std::runtime_error("Inconsistent embedding dimensions");
-                    }
-                    
-                    QdrantPoint point;
-                    point.id = document_ids[i];
-                    point.vector = std::move(embedding);
-                    
-                    // Add document metadata
-                    point.payload["text"] = request.documents[i].text;
-                    for (const auto& [key, value] : request.documents[i].metadata)
-                    {
-                        point.payload[key] = value;
-                    }
-                    
-                    // Add timestamp
-                    auto now = std::chrono::system_clock::now();
-                    auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
-                    point.payload["indexed_at"] = timestamp;
-                    
-                    points.push_back(std::move(point));
-                    response.addSuccess(document_ids[i]);
+                size_t batch_end = std::min(batch_start + batch_size, request.documents.size());
+                size_t current_batch_size = batch_end - batch_start;
+                
+                ServerLogger::logInfo("Processing batch %zu-%zu (%zu documents)", 
+                                     batch_start, batch_end - 1, current_batch_size);
+                
+                // Prepare texts for this batch with their original indices
+                std::vector<std::pair<size_t, std::string>> batch_texts;
+                for (size_t i = batch_start; i < batch_end; ++i) {
+                    batch_texts.emplace_back(i, request.documents[i].text);
                 }
-                catch (const std::exception& ex)
-                {
-                    ServerLogger::logError("Failed to generate embedding for document %zu: %s", i, ex.what());
-                    response.addFailure("Failed to generate embedding: " + std::string(ex.what()));
+                
+                // Generate embeddings for this batch
+                try {
+                    auto batch_future = pImpl->generateEmbeddingsBatch(batch_texts, "");
+                    auto batch_results = batch_future.get();
+                    
+                    // Process batch results
+                    for (const auto& [original_index, embedding] : batch_results) {
+                        try {
+                            if (vector_size == 0) {
+                                vector_size = static_cast<int>(embedding.size());
+                            } else if (static_cast<int>(embedding.size()) != vector_size) {
+                                throw std::runtime_error("Inconsistent embedding dimensions");
+                            }
+                            
+                            QdrantPoint point;
+                            point.id = document_ids[original_index];
+                            point.vector = embedding;
+                            
+                            // Add document metadata
+                            point.payload["text"] = request.documents[original_index].text;
+                            for (const auto& [key, value] : request.documents[original_index].metadata) {
+                                point.payload[key] = value;
+                            }
+                            
+                            // Add timestamp
+                            auto now = std::chrono::system_clock::now();
+                            auto timestamp = std::chrono::duration_cast<std::chrono::seconds>(now.time_since_epoch()).count();
+                            point.payload["indexed_at"] = timestamp;
+                            
+                            points.push_back(std::move(point));
+                            response.addSuccess(document_ids[original_index]);
+                            
+                        } catch (const std::exception& ex) {
+                            ServerLogger::logError("Failed to process embedding result for document %zu: %s", 
+                                                 original_index, ex.what());
+                            response.addFailure("Failed to process embedding: " + std::string(ex.what()));
+                        }
+                    }
+                    
+                    // Handle any documents in this batch that failed to get embeddings
+                    std::set<size_t> successful_indices;
+                    for (const auto& [index, _] : batch_results) {
+                        successful_indices.insert(index);
+                    }
+                    
+                    for (size_t i = batch_start; i < batch_end; ++i) {
+                        if (successful_indices.find(i) == successful_indices.end()) {
+                            ServerLogger::logError("Failed to generate embedding for document %zu", i);
+                            response.addFailure("Failed to generate embedding");
+                        }
+                    }
+                    
+                } catch (const std::exception& ex) {
+                    ServerLogger::logError("Failed to process embedding batch %zu-%zu: %s", 
+                                         batch_start, batch_end - 1, ex.what());
+                    
+                    // Mark all documents in this batch as failed
+                    for (size_t i = batch_start; i < batch_end; ++i) {
+                        response.addFailure("Batch processing failed: " + std::string(ex.what()));
+                    }
+                }
+                
+                // Add a small delay between batches to prevent overwhelming the system
+                if (batch_end < request.documents.size()) {
+                    std::this_thread::sleep_for(std::chrono::milliseconds(100));
                 }
             }
             
@@ -862,6 +1012,197 @@ std::future<RemoveDocumentsResponse> DocumentService::removeDocuments(const Remo
             }
             
             return response;
+        }
+    });
+}
+
+std::future<std::vector<std::string>> DocumentService::listDocuments(const std::string& collection_name)
+{
+    return std::async(std::launch::async, [this, collection_name]() -> std::vector<std::string> {
+        try
+        {
+            std::string effective_collection_name = collection_name.empty() ? 
+                pImpl->config_.qdrant.collectionName : collection_name;
+            
+            std::vector<std::string> all_ids;
+            std::string offset = "";
+            const int batch_size = 1000;
+            
+            ServerLogger::logDebug("Starting to list documents from collection '%s'", 
+                                   effective_collection_name.c_str());
+            
+            // Use scroll API to get all points
+            do {
+                auto result_future = pImpl->qdrant_client_->scrollPoints(effective_collection_name, batch_size, offset);
+                QdrantResult result = result_future.get();
+                
+                if (!result.success)
+                {
+                    throw std::runtime_error("Failed to scroll points: " + result.error_message);
+                }
+                
+                // Parse response to extract point IDs
+                if (!result.response_data.contains("result") || 
+                    !result.response_data["result"].contains("points") ||
+                    !result.response_data["result"]["points"].is_array())
+                {
+                    break; // No more points
+                }
+                
+                auto points = result.response_data["result"]["points"];
+                if (points.empty())
+                {
+                    break;
+                }
+                
+                // Extract IDs from points
+                for (const auto& point : points)
+                {
+                    if (point.contains("id"))
+                    {
+                        std::string id = point["id"].is_string() ? 
+                            point["id"].get<std::string>() : 
+                            std::to_string(point["id"].get<int64_t>());
+                        all_ids.push_back(id);
+                    }
+                }
+                
+                // Update offset for next batch
+                if (result.response_data["result"].contains("next_page_offset") &&
+                    !result.response_data["result"]["next_page_offset"].is_null())
+                {
+                    if (result.response_data["result"]["next_page_offset"].is_string())
+                    {
+                        offset = result.response_data["result"]["next_page_offset"].get<std::string>();
+                    }
+                    else if (result.response_data["result"]["next_page_offset"].is_number())
+                    {
+                        offset = std::to_string(result.response_data["result"]["next_page_offset"].get<int64_t>());
+                    }
+                    else
+                    {
+                        break; // No more pages
+                    }
+                }
+                else
+                {
+                    break; // No next page
+                }
+                
+            } while (!offset.empty() && offset != "null");
+            
+            ServerLogger::logInfo("Listed %zu documents from collection '%s'", 
+                                  all_ids.size(), effective_collection_name.c_str());
+            
+            return all_ids;
+        }
+        catch (const std::exception& ex)
+        {
+            ServerLogger::logError("Error listing documents: %s", ex.what());
+            throw;
+        }
+    });
+}
+
+std::future<std::vector<std::pair<std::string, std::optional<std::pair<std::string, std::unordered_map<std::string, nlohmann::json>>>>>> 
+DocumentService::getDocumentsInfo(const std::vector<std::string>& ids, const std::string& collection_name)
+{
+    return std::async(std::launch::async, [this, ids, collection_name]() {
+        try
+        {
+            std::string effective_collection_name = collection_name.empty() ? 
+                pImpl->config_.qdrant.collectionName : collection_name;
+            
+            ServerLogger::logDebug("Getting info for %zu documents from collection '%s'", 
+                                   ids.size(), effective_collection_name.c_str());
+            
+            std::vector<std::pair<std::string, std::optional<std::pair<std::string, std::unordered_map<std::string, nlohmann::json>>>>> results;
+            
+            // Process in batches to avoid overwhelming the server
+            const size_t batch_size = 100;
+            for (size_t i = 0; i < ids.size(); i += batch_size)
+            {
+                std::vector<std::string> batch_ids;
+                for (size_t j = i; j < std::min(i + batch_size, ids.size()); ++j)
+                {
+                    batch_ids.push_back(ids[j]);
+                }
+                
+                auto result_future = pImpl->qdrant_client_->getPoints(effective_collection_name, batch_ids);
+                QdrantResult result = result_future.get();
+                
+                if (!result.success)
+                {
+                    ServerLogger::logWarning("Failed to get batch of points: %s", result.error_message.c_str());
+                    
+                    // Mark all points in this batch as not found
+                    for (const auto& id : batch_ids)
+                    {
+                        results.emplace_back(id, std::nullopt);
+                    }
+                    continue;
+                }
+                
+                // Parse response to extract point data
+                std::set<std::string> found_ids;
+                
+                if (result.response_data.contains("result") &&
+                    result.response_data["result"].is_array())
+                {
+                    for (const auto& point : result.response_data["result"])
+                    {
+                        if (point.contains("id") && point.contains("payload"))
+                        {
+                            std::string id = point["id"].is_string() ? 
+                                point["id"].get<std::string>() : 
+                                std::to_string(point["id"].get<int64_t>());
+                            
+                            found_ids.insert(id);
+                            
+                            // Extract text and metadata from payload
+                            std::string text = "";
+                            std::unordered_map<std::string, nlohmann::json> metadata;
+                            
+                            if (point["payload"].contains("text") && point["payload"]["text"].is_string())
+                            {
+                                text = point["payload"]["text"].get<std::string>();
+                            }
+                            
+                            // Extract metadata (everything except text)
+                            for (auto it = point["payload"].begin(); it != point["payload"].end(); ++it)
+                            {
+                                if (it.key() != "text")
+                                {
+                                    metadata[it.key()] = it.value();
+                                }
+                            }
+                            
+                            results.emplace_back(id, std::make_pair(text, metadata));
+                        }
+                    }
+                }
+                
+                // Mark any IDs that weren't found
+                for (const auto& id : batch_ids)
+                {
+                    if (found_ids.find(id) == found_ids.end())
+                    {
+                        results.emplace_back(id, std::nullopt);
+                    }
+                }
+            }
+            
+            ServerLogger::logInfo("Retrieved info for %zu/%zu documents from collection '%s'", 
+                                  std::count_if(results.begin(), results.end(), 
+                                               [](const auto& pair) { return pair.second.has_value(); }),
+                                  ids.size(), effective_collection_name.c_str());
+            
+            return results;
+        }
+        catch (const std::exception& ex)
+        {
+            ServerLogger::logError("Error getting documents info: %s", ex.what());
+            throw;
         }
     });
 }

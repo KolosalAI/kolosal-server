@@ -104,10 +104,17 @@ private:
      */
     bool validateChunkingModel(const std::string& model_name) const;
 
+    /**
+     * @brief Handles OPTIONS requests for CORS preflight
+     * @param sock Socket for the connection
+     */
+    void handleOptions(SocketType sock);
+
     // Private members
     std::unique_ptr<retrieval::ChunkingService> chunking_service_;
     std::atomic<uint64_t> request_counter_;
     std::mutex service_mutex_;
+    std::string current_method_;
 };
 
 } // namespace kolosal

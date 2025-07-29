@@ -28,17 +28,32 @@ ChunkingRoute::~ChunkingRoute() = default;
 
 bool ChunkingRoute::match(const std::string& method, const std::string& path)
 {
-    return (method == "POST" && path == "/chunking");
+    if ((method == "POST" || method == "OPTIONS") && path == "/chunking")
+    {
+        current_method_ = method;
+        return true;
+    }
+    return false;
 }
 
 void ChunkingRoute::handle(SocketType sock, const std::string& body)
 {
-    std::string requestId;
-    auto start_time = std::chrono::high_resolution_clock::now();
-
     try
     {
-        ServerLogger::logInfo("[Thread %u] Received chunking request", std::this_thread::get_id());
+        ServerLogger::logInfo("[Thread %u] Received %s request for /chunking", 
+                              std::this_thread::get_id(), current_method_.c_str());
+
+        // Handle OPTIONS request for CORS preflight
+        if (current_method_ == "OPTIONS")
+        {
+            handleOptions(sock);
+            return;
+        }
+
+        std::string requestId;
+        auto start_time = std::chrono::high_resolution_clock::now();
+
+        ServerLogger::logInfo("[Thread %u] Processing chunking request", std::this_thread::get_id());
 
         // Check for empty body
         if (body.empty())
@@ -157,7 +172,13 @@ void ChunkingRoute::handle(SocketType sock, const std::string& body)
         response.setUsage(original_tokens, total_chunk_tokens, processing_time_ms);
 
         // Send successful response
-        send_response(sock, 200, response.to_json().dump());
+        std::map<std::string, std::string> headers = {
+            {"Content-Type", "application/json"},
+            {"Access-Control-Allow-Origin", "*"},
+            {"Access-Control-Allow-Methods", "POST, OPTIONS"},
+            {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"}
+        };
+        send_response(sock, 200, response.to_json().dump(), headers);
 
         ServerLogger::logInfo("[Thread %u] Successfully processed chunking request '%s': %zu chunks generated in %.2fms",
                               std::this_thread::get_id(), requestId.c_str(), chunks.size(), processing_time_ms);
@@ -232,6 +253,34 @@ std::future<std::vector<std::string>> ChunkingRoute::processSemanticChunking(
     });
 }
 
+void ChunkingRoute::handleOptions(SocketType sock)
+{
+    try
+    {
+        ServerLogger::logDebug("[Thread %u] Handling OPTIONS request for /chunking endpoint", 
+                               std::this_thread::get_id());
+
+        std::map<std::string, std::string> headers = {
+            {"Content-Type", "text/plain"},
+            {"Access-Control-Allow-Origin", "*"},
+            {"Access-Control-Allow-Methods", "POST, OPTIONS"},
+            {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"},
+            {"Access-Control-Max-Age", "86400"} // Cache preflight for 24 hours
+        };
+        
+        send_response(sock, 200, "", headers);
+        
+        ServerLogger::logDebug("[Thread %u] Successfully handled OPTIONS request", 
+                               std::this_thread::get_id());
+    }
+    catch (const std::exception& ex)
+    {
+        ServerLogger::logError("[Thread %u] Error handling OPTIONS request: %s", 
+                               std::this_thread::get_id(), ex.what());
+        sendErrorResponse(sock, 500, "Internal server error: " + std::string(ex.what()), "server_error");
+    }
+}
+
 void ChunkingRoute::sendErrorResponse(
     SocketType sock,
     int status_code,
@@ -250,7 +299,13 @@ void ChunkingRoute::sendErrorResponse(
         errorResponse["error"]["param"] = param;
     }
 
-    send_response(sock, status_code, errorResponse.dump());
+    std::map<std::string, std::string> headers = {
+        {"Content-Type", "application/json"},
+        {"Access-Control-Allow-Origin", "*"},
+        {"Access-Control-Allow-Methods", "POST, OPTIONS"},
+        {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"}
+    };
+    send_response(sock, status_code, errorResponse.dump(), headers);
     
     ServerLogger::logError("[Thread %u] Chunking request error (%d): %s", 
                            std::this_thread::get_id(), status_code, error_message.c_str());

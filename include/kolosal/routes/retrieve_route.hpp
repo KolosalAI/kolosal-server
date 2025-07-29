@@ -60,8 +60,17 @@ private:
                           const std::string& error_type = "invalid_request_error", 
                           const std::string& param = "");
 
-    // static std::atomic<long long> request_counter_; // Moved to implementation to avoid DLL export issues
+    /**
+     * @brief Handles OPTIONS requests for CORS preflight
+     * @param sock Socket for the connection
+     */
+    void handleOptions(SocketType sock);
+
+    static std::atomic<long long> request_counter_;
     // std::unique_ptr<CompletionMonitor> monitor_;
+    std::unique_ptr<kolosal::retrieval::DocumentService> document_service_;
+    std::mutex service_mutex_;
+    std::string current_method_;
 };
 
 } // namespace kolosal

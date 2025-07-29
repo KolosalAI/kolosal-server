@@ -1,3 +1,12 @@
 [submodule "beast"]
 	path = beast
 	url = https://github.com/boostorg/beast
+[submodule "external/pugixml"]
+	path = external/pugixml
+	url = https://github.com/zeux/pugixml.git
+[submodule "external/zlib"]
+	path = external/zlib
+	url = https://github.com/madler/zlib
+[submodule "external/podofo"]
+	path = external/podofo
+	url = https://github.com/podofo/podofo

@@ -76,6 +76,7 @@ struct DatabaseConfig {
         std::string apiKey = "";
         int maxConnections = 10;
         int connectionTimeout = 5;
+        int embeddingBatchSize = 5;
     } qdrant;
     
     /**

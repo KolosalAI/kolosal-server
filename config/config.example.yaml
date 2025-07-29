@@ -20,12 +20,14 @@ database:
     port: 6333
     collection_name: "documents"
     default_embedding_model: "text-embedding-3-small"  # Model to use for embedding documents
-    timeout: 60
+    timeout: 30
     # Optional authentication
     api_key: ""
     # Connection pooling
-    max_connections: 20
-    connection_timeout: 10
+    max_connections: 10
+    connection_timeout: 5
+    # Embedding batch processing
+    embedding_batch_size: 5
 
 # Internet search configuration
 search:
@@ -110,14 +112,15 @@ models:
   - id: "text-embedding-3-small"
     type: "embedding"
     path: "./models/all-MiniLM-L6-v2-Q4_K_M.gguf"
-    load_at_startup: true
+    load_immediately: true
     main_gpu_id: 0
+    inference_engine: "llama-cpu"
     preload_context: false
     embedding_config:
       dimensions: 384
       normalize: true
       pooling_type: "mean"  # mean, cls, or none
-      max_input_length: 8192
+      max_input_length: 512
     load_params:
       n_ctx: 512
       n_keep: 0
@@ -127,46 +130,6 @@ models:
       cont_batching: true
       n_batch: 512
       n_ubatch: 128
-  - id: "mini-lm-l6-v2"
-    type: "embedding"
-    path: "https://huggingface.co/Mungert/all-MiniLM-L6-v2-GGUF/blob/main/all-MiniLM-L6-v2-bf16-q4_k.gguf"
-    load_at_startup: false
-    main_gpu_id: 0
-    preload_context: false
-    embedding_config:
-      dimensions: 768
-      normalize: true
-      pooling_type: "mean"
-      max_input_length: 8192
-    load_params:
-      n_ctx: 512
-      n_keep: 0
-      use_mmap: true
-      use_mlock: false
-      n_parallel: 2
-      cont_batching: true
-      n_batch: 256
-      n_ubatch: 64
-  - id: "qwen3-embedding-0.6b"
-    type: "embedding"
-    path: "https://huggingface.co/kolosal/qwen3-embedding-0.6b/blob/main/Qwen3-Embedding-0.6B-Q8_0.gguf"
-    load_at_startup: false
-    main_gpu_id: 0
-    preload_context: false
-    embedding_config:
-      dimensions: 768
-      normalize: true
-      pooling_type: "mean"
-      max_input_length: 8192
-    load_params:
-      n_ctx: 512
-      n_keep: 0
-      use_mmap: true
-      use_mlock: false
-      n_parallel: 2
-      cont_batching: true
-      n_batch: 256
-      n_ubatch: 64
 
 # Embedding-specific autoscaling configuration
 embedding_autoscaling:

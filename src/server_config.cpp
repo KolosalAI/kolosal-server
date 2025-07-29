@@ -3,55 +3,175 @@
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <fstream>
-#include <sstream>
 #include <thread>
-#include "../../inference/include/inference_interface.h"
+#include <filesystem>
+
 #ifdef _WIN32
-#include <cstdlib>
 #include <windows.h>
+#include <stdlib.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#include <unistd.h>
+#include <limits.h>
 #else
 #include <unistd.h>
+#include <limits.h>
 #endif
 
 namespace kolosal
-{    bool ServerConfig::loadFromArgs(int argc, char *argv[])
+{
+    /**
+     * @brief Convert a relative path to an absolute path with fallback to executable directory
+     * @param path The path to convert (can be relative or already absolute)
+     * @return Absolute path as string
+     */
+    /*static*/ std::string ServerConfig::makeAbsolutePath(const std::string& path) {
+        if (path.empty()) {
+            return path;
+        }
+        
+        try {
+            std::filesystem::path fsPath(path);
+            
+            // If already absolute, return as-is
+            if (fsPath.is_absolute()) {
+                return fsPath.string();
+            }
+            
+            // First try: Convert to absolute path relative to current working directory
+            std::filesystem::path absolutePath = std::filesystem::absolute(fsPath);
+            if (std::filesystem::exists(absolutePath)) {
+                return absolutePath.string();
+            }
+            
+            // Second try: Check relative to the executable directory
+            try {
+                // Get the executable path
+                std::filesystem::path executablePath;
+                
+#ifdef _WIN32
+                char execPath[MAX_PATH];
+                if (GetModuleFileNameA(NULL, execPath, MAX_PATH) != 0) {
+                    executablePath = std::filesystem::path(execPath).parent_path();
+                }
+#elif defined(__APPLE__)
+                // On macOS, use _NSGetExecutablePath
+                uint32_t size = PATH_MAX;
+                char execPath[PATH_MAX];
+                if (_NSGetExecutablePath(execPath, &size) == 0) {
+                    // Resolve any symlinks
+                    char resolvedPath[PATH_MAX];
+                    if (realpath(execPath, resolvedPath) != nullptr) {
+                        executablePath = std::filesystem::path(resolvedPath).parent_path();
+                    } else {
+                        executablePath = std::filesystem::path(execPath).parent_path();
+                    }
+                }
+#else
+                // On Linux, use /proc/self/exe
+                char execPath[PATH_MAX];
+                ssize_t len = readlink("/proc/self/exe", execPath, sizeof(execPath) - 1);
+                if (len != -1) {
+                    execPath[len] = '\0';
+                    executablePath = std::filesystem::path(execPath).parent_path();
+                }
+#endif
+                
+                if (!executablePath.empty()) {
+                    std::filesystem::path execRelativePath = executablePath / fsPath;
+                    if (std::filesystem::exists(execRelativePath)) {
+                        ServerLogger::instance().info("Found path relative to executable: " + execRelativePath.string());
+                        return execRelativePath.string();
+                    }
+                }
+            } catch (const std::exception& e) {
+                ServerLogger::instance().info("Failed to get executable path: " + std::string(e.what()));
+            }
+            
+            // If file doesn't exist in either location, return the absolute path anyway
+            // (it might be created later or be a URL)
+            return absolutePath.string();
+            
+        } catch (const std::filesystem::filesystem_error& e) {
+            // If filesystem operations fail, return the original path
+            ServerLogger::instance().info("Warning: Failed to convert path to absolute: " + path + " - " + e.what());
+            return path;
+        }
+    }
+
+    bool ServerConfig::loadFromArgs(int argc, char *argv[])
     {
         // Automatically detect and load configuration files
         // Check for config files in this order: 
         // 1. System-wide installation (/etc/kolosal/config.yaml) - preferred for installed versions
-        // 2. Local config directory (config/config.yaml, config/config.json) - for development
+        // 2. Local working directory (config.yaml, config.json) - for development
         // 3. User home directory (~/.kolosal/config.yaml)
         bool configLoaded = false;
         
         // First try system-wide config (installed version)
+#ifdef __APPLE__
+        // On macOS, check /usr/local/etc for Homebrew installations and /etc for system-wide
+        std::vector<std::string> systemPaths = {
+            "/usr/local/etc/kolosal/config.yaml",  // Homebrew/user installed
+            "/etc/kolosal/config.yaml"             // System-wide
+        };
+        
+        for (const auto& systemPath : systemPaths) {
+            std::ifstream systemFile(systemPath);
+            if (systemFile.good()) {
+                systemFile.close();
+                if (loadFromFile(systemPath)) {
+                    ServerLogger::instance().info("Loaded configuration from " + systemPath);
+                    currentConfigFilePath = systemPath;
+                    ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                    ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
+                    configLoaded = true;
+                    break;
+                }
+            }
+        }
+#else
+        // On Linux, use standard system path
         std::ifstream systemFile("/etc/kolosal/config.yaml");
         if (systemFile.good()) {
             systemFile.close();
             if (loadFromFile("/etc/kolosal/config.yaml")) {
-                std::cout << "Loaded configuration from /etc/kolosal/config.yaml" << std::endl;
+                ServerLogger::instance().info("Loaded configuration from /etc/kolosal/config.yaml");
+                currentConfigFilePath = "/etc/kolosal/config.yaml"; // Store exact path used
+                ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
                 configLoaded = true;
             }
         }
+#endif
         
-        // If no system config found, try config.yaml in config directory (development)
+        // If no system config found, try config.yaml in working directory (development)
         if (!configLoaded) {
-            std::ifstream yamlFile("config/config.yaml");
+            std::ifstream yamlFile("config.yaml");
             if (yamlFile.good()) {
                 yamlFile.close();
-                if (loadFromFile("config/config.yaml")) {
-                    std::cout << "Loaded configuration from config/config.yaml" << std::endl;
+                if (loadFromFile("config.yaml")) {
+                    ServerLogger::instance().info("Loaded configuration from config.yaml");
+                    // For relative paths, store the absolute path to ensure we can always find it later
+                    currentConfigFilePath = std::filesystem::absolute("config.yaml").string();
+                    ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                    ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
                     configLoaded = true;
                 }
             }
         }
         
-        // If config.yaml not found, try config.json in config directory
+        // If config.yaml not found, try config.json in working directory
         if (!configLoaded) {
-            std::ifstream jsonFile("config/config.json");
+            std::ifstream jsonFile("config.json");
             if (jsonFile.good()) {
                 jsonFile.close();
-                if (loadFromFile("config/config.json")) {
-                    std::cout << "Loaded configuration from config/config.json" << std::endl;
+                if (loadFromFile("config.json")) {
+                    ServerLogger::instance().info("Loaded configuration from config.json");
+                    // For relative paths, store the absolute path to ensure we can always find it later
+                    currentConfigFilePath = std::filesystem::absolute("config.json").string();
+                    ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                    ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
                     configLoaded = true;
                 }
             }
@@ -59,31 +179,67 @@ namespace kolosal
         
         // If still no config found, try user home directory
         if (!configLoaded) {
+            std::string userConfigPath;
+            
 #ifdef _WIN32
-            char* homeDir = nullptr;
+            // On Windows, try user's AppData\Roaming directory first
+            char* userProfile = nullptr;
             size_t len = 0;
-            // On Windows, use USERPROFILE instead of HOME
-            if (_dupenv_s(&homeDir, &len, "USERPROFILE") == 0 && homeDir != nullptr) {
-                std::string userConfigPath = std::string(homeDir) + "/.kolosal/config.yaml";
-                free(homeDir);
-#else
-            const char* homeDir = getenv("HOME");
-            if (homeDir) {
-                std::string userConfigPath = std::string(homeDir) + "/.kolosal/config.yaml";
-#endif
+            if (_dupenv_s(&userProfile, &len, "USERPROFILE") == 0 && userProfile != nullptr) {
+                userConfigPath = std::string(userProfile) + "\\AppData\\Roaming\\Kolosal\\config.yaml";
+                free(userProfile);
+                
                 std::ifstream userFile(userConfigPath);
                 if (userFile.good()) {
                     userFile.close();
                     if (loadFromFile(userConfigPath)) {
-                        std::cout << "Loaded configuration from " << userConfigPath << std::endl;
+                        ServerLogger::instance().info("Loaded configuration from " + userConfigPath);
+                        currentConfigFilePath = userConfigPath; // Store exact path used
+                        ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                        ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
                         configLoaded = true;
                     }
                 }
             }
+#elif defined(__APPLE__)
+            // On macOS, use standard Application Support directory
+            const char* homeDir = getenv("HOME");
+            if (homeDir) {
+                userConfigPath = std::string(homeDir) + "/Library/Application Support/Kolosal/config.yaml";
+                std::ifstream userFile(userConfigPath);
+                if (userFile.good()) {
+                    userFile.close();
+                    if (loadFromFile(userConfigPath)) {
+                        ServerLogger::instance().info("Loaded configuration from " + userConfigPath);
+                        currentConfigFilePath = userConfigPath; // Store exact path used
+                        ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                        ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
+                        configLoaded = true;
+                    }
+                }
+            }
+#else
+            // On Unix/Linux systems
+            const char* homeDir = getenv("HOME");
+            if (homeDir) {
+                userConfigPath = std::string(homeDir) + "/.kolosal/config.yaml";
+                std::ifstream userFile(userConfigPath);
+                if (userFile.good()) {
+                    userFile.close();
+                    if (loadFromFile(userConfigPath)) {
+                        ServerLogger::instance().info("Loaded configuration from " + userConfigPath);
+                        currentConfigFilePath = userConfigPath; // Store exact path used
+                        ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                        ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
+                        configLoaded = true;
+                    }
+                }
+            }
+#endif
         }
         
         if (!configLoaded) {
-            std::cout << "No configuration file found, using default settings" << std::endl;
+            ServerLogger::instance().info("No configuration file found, using default settings");
         }
 
         // Process command line arguments (they can override config file settings)
@@ -102,10 +258,20 @@ namespace kolosal
             }
             else if ((arg == "-c" || arg == "--config") && i + 1 < argc)
             {
-                if (!loadFromFile(argv[++i]))
+                std::string configFile = argv[++i];
+                if (!loadFromFile(configFile))
                 {
                     return false;
                 }
+                // Handle both relative and absolute paths from command line
+                if (std::filesystem::path(configFile).is_absolute()) {
+                    currentConfigFilePath = configFile; // Store exact absolute path
+                } else {
+                    currentConfigFilePath = std::filesystem::absolute(configFile).string(); // Convert relative to absolute
+                }
+                ServerLogger::instance().info("Loaded configuration from " + configFile);
+                ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
             }
 
             // Logging options
@@ -186,7 +352,7 @@ namespace kolosal
             {
                 ModelConfig model;
                 model.id = argv[++i];
-                model.path = argv[++i];
+                model.path = ServerConfig::makeAbsolutePath(argv[++i]);
                 model.loadImmediately = true;
                 models.push_back(model);
             }
@@ -194,7 +360,7 @@ namespace kolosal
             {
                 ModelConfig model;
                 model.id = argv[++i];
-                model.path = argv[++i];
+                model.path = ServerConfig::makeAbsolutePath(argv[++i]);
                 model.loadImmediately = false;
                 models.push_back(model);
             }
@@ -290,14 +456,6 @@ namespace kolosal
             {
                 search.enable_safe_search = false;
             }
-            else if (arg == "--auto-save")
-            {
-                autoSaveEnabled = true;
-            }
-            else if (arg == "--no-auto-save")
-            {
-                autoSaveEnabled = false;
-            }
             
             // Help and version
             else if (arg == "-h" || arg == "--help")
@@ -319,6 +477,18 @@ namespace kolosal
             }
         }
 
+        // Apply default inference engine to models that don't have one specified
+        if (!defaultInferenceEngine.empty())
+        {
+            for (auto &model : models)
+            {
+                if (model.inferenceEngine.empty() || model.inferenceEngine == "llama-cpu")
+                {
+                    model.inferenceEngine = defaultInferenceEngine;
+                }
+            }
+        }
+
         return validate();
     }
 
@@ -326,37 +496,6 @@ namespace kolosal
     {
         try
         {
-            // First, validate that the file exists and is readable
-            std::ifstream testFile(configFile);
-            if (!testFile.is_open()) {
-                std::cerr << "[Error] Cannot open config file: " << configFile << std::endl;
-                return false;
-            }
-            testFile.close();
-
-            // Validate YAML syntax before parsing
-            try {
-                YAML::LoadFile(configFile);
-            } catch (const YAML::Exception& e) {
-                std::cerr << "[Error] Invalid YAML syntax in config file " << configFile << ": " << e.what() << std::endl;
-                
-                // Try to load backup if it exists
-                std::string backupPath = configFile + ".backup";
-                std::ifstream backupFile(backupPath);
-                if (backupFile.is_open()) {
-                    backupFile.close();
-                    std::cerr << "[Info] Attempting to load from backup: " << backupPath << std::endl;
-                    try {
-                        YAML::LoadFile(backupPath);
-                        // If backup is valid, suggest using it
-                        std::cerr << "[Info] Backup file is valid. Consider restoring from backup." << std::endl;
-                    } catch (const YAML::Exception& backupError) {
-                        std::cerr << "[Error] Backup file is also invalid: " << backupError.what() << std::endl;
-                    }
-                }
-                return false;
-            }
-
             YAML::Node config = YAML::LoadFile(configFile); // Load basic server settings
             if (config["server"])
             {
@@ -493,129 +632,27 @@ namespace kolosal
                 auto databaseConfig = config["database"];
                 if (databaseConfig["qdrant"])
                 {
-                    auto qdrant = databaseConfig["qdrant"];
-                    if (qdrant["enabled"])
-                        database.qdrant.enabled = qdrant["enabled"].as<bool>();
-                    if (qdrant["host"])
-                        database.qdrant.host = qdrant["host"].as<std::string>();
-                    if (qdrant["port"])
-                        database.qdrant.port = qdrant["port"].as<int>();
-                    if (qdrant["collection_name"])
-                        database.qdrant.collectionName = qdrant["collection_name"].as<std::string>();
-                    if (qdrant["default_embedding_model"])
-                        database.qdrant.defaultEmbeddingModel = qdrant["default_embedding_model"].as<std::string>();
-                    if (qdrant["timeout"])
-                        database.qdrant.timeout = qdrant["timeout"].as<int>();
-                    if (qdrant["api_key"])
-                        database.qdrant.apiKey = qdrant["api_key"].as<std::string>();
-                    if (qdrant["max_connections"])
-                        database.qdrant.maxConnections = qdrant["max_connections"].as<int>();
-                    if (qdrant["connection_timeout"])
-                        database.qdrant.connectionTimeout = qdrant["connection_timeout"].as<int>();
-                }
-                
-                // Load document management configuration
-                if (databaseConfig["document_management"])
-                {
-                    auto docMgmt = databaseConfig["document_management"];
-                    if (docMgmt["enabled"])
-                        database.documentManagement.enabled = docMgmt["enabled"].as<bool>();
-                    if (docMgmt["default_collection"])
-                        database.documentManagement.defaultCollection = docMgmt["default_collection"].as<std::string>();
-                    
-                    // Processing configuration
-                    if (docMgmt["processing"])
-                    {
-                        auto processing = docMgmt["processing"];
-                        if (processing["max_file_size_mb"])
-                            database.documentManagement.processing.maxFileSizeMb = processing["max_file_size_mb"].as<int>();
-                        if (processing["max_batch_size"])
-                            database.documentManagement.processing.maxBatchSize = processing["max_batch_size"].as<int>();
-                        
-                        // PDF parsing
-                        if (processing["pdf_parsing"])
-                        {
-                            auto pdfParsing = processing["pdf_parsing"];
-                            if (pdfParsing["enabled"])
-                                database.documentManagement.processing.pdfParsing.enabled = pdfParsing["enabled"].as<bool>();
-                            if (pdfParsing["max_pages"])
-                                database.documentManagement.processing.pdfParsing.maxPages = pdfParsing["max_pages"].as<int>();
-                            if (pdfParsing["extract_images"])
-                                database.documentManagement.processing.pdfParsing.extractImages = pdfParsing["extract_images"].as<bool>();
-                            if (pdfParsing["extract_tables"])
-                                database.documentManagement.processing.pdfParsing.extractTables = pdfParsing["extract_tables"].as<bool>();
-                        }
-                        
-                        // DOCX parsing
-                        if (processing["docx_parsing"])
-                        {
-                            auto docxParsing = processing["docx_parsing"];
-                            if (docxParsing["enabled"])
-                                database.documentManagement.processing.docxParsing.enabled = docxParsing["enabled"].as<bool>();
-                            if (docxParsing["preserve_formatting"])
-                                database.documentManagement.processing.docxParsing.preserveFormatting = docxParsing["preserve_formatting"].as<bool>();
-                            if (docxParsing["extract_images"])
-                                database.documentManagement.processing.docxParsing.extractImages = docxParsing["extract_images"].as<bool>();
-                            if (docxParsing["extract_tables"])
-                                database.documentManagement.processing.docxParsing.extractTables = docxParsing["extract_tables"].as<bool>();
-                        }
-                        
-                        // Text preprocessing
-                        if (processing["text_preprocessing"])
-                        {
-                            auto textPreproc = processing["text_preprocessing"];
-                            if (textPreproc["min_text_length"])
-                                database.documentManagement.processing.textPreprocessing.minTextLength = textPreproc["min_text_length"].as<int>();
-                            if (textPreproc["max_chunk_size"])
-                                database.documentManagement.processing.textPreprocessing.maxChunkSize = textPreproc["max_chunk_size"].as<int>();
-                            if (textPreproc["remove_extra_whitespace"])
-                                database.documentManagement.processing.textPreprocessing.removeExtraWhitespace = textPreproc["remove_extra_whitespace"].as<bool>();
-                            if (textPreproc["normalize_unicode"])
-                                database.documentManagement.processing.textPreprocessing.normalizeUnicode = textPreproc["normalize_unicode"].as<bool>();
-                        }
-                    }
-                    
-                    // Embedding configuration
-                    if (docMgmt["embedding"])
-                    {
-                        auto embedding = docMgmt["embedding"];
-                        if (embedding["chunk_overlap"])
-                            database.documentManagement.embedding.chunkOverlap = embedding["chunk_overlap"].as<int>();
-                        if (embedding["embedding_batch_size"])
-                            database.documentManagement.embedding.embeddingBatchSize = embedding["embedding_batch_size"].as<int>();
-                        if (embedding["max_retries"])
-                            database.documentManagement.embedding.maxRetries = embedding["max_retries"].as<int>();
-                        if (embedding["retry_delay_ms"])
-                            database.documentManagement.embedding.retryDelayMs = embedding["retry_delay_ms"].as<int>();
-                    }
-                    
-                    // Storage configuration
-                    if (docMgmt["storage"])
-                    {
-                        auto storage = docMgmt["storage"];
-                        if (storage["auto_generate_ids"])
-                            database.documentManagement.storage.autoGenerateIds = storage["auto_generate_ids"].as<bool>();
-                        if (storage["id_strategy"])
-                            database.documentManagement.storage.idStrategy = storage["id_strategy"].as<std::string>();
-                        if (storage["store_metadata"])
-                            database.documentManagement.storage.storeMetadata = storage["store_metadata"].as<bool>();
-                        if (storage["max_metadata_size"])
-                            database.documentManagement.storage.maxMetadataSize = storage["max_metadata_size"].as<int>();
-                    }
-                    
-                    // Search configuration
-                    if (docMgmt["search"])
-                    {
-                        auto search = docMgmt["search"];
-                        if (search["default_k"])
-                            database.documentManagement.search.defaultK = search["default_k"].as<int>();
-                        if (search["default_score_threshold"])
-                            database.documentManagement.search.defaultScoreThreshold = search["default_score_threshold"].as<float>();
-                        if (search["max_k"])
-                            database.documentManagement.search.maxK = search["max_k"].as<int>();
-                        if (search["enable_reranking"])
-                            database.documentManagement.search.enableReranking = search["enable_reranking"].as<bool>();
-                    }
+                    auto qdrantConfig = databaseConfig["qdrant"];
+                    if (qdrantConfig["enabled"])
+                        database.qdrant.enabled = qdrantConfig["enabled"].as<bool>();
+                    if (qdrantConfig["host"])
+                        database.qdrant.host = qdrantConfig["host"].as<std::string>();
+                    if (qdrantConfig["port"])
+                        database.qdrant.port = qdrantConfig["port"].as<int>();
+                    if (qdrantConfig["collection_name"])
+                        database.qdrant.collectionName = qdrantConfig["collection_name"].as<std::string>();
+                    if (qdrantConfig["default_embedding_model"])
+                        database.qdrant.defaultEmbeddingModel = qdrantConfig["default_embedding_model"].as<std::string>();
+                    if (qdrantConfig["timeout"])
+                        database.qdrant.timeout = qdrantConfig["timeout"].as<int>();
+                    if (qdrantConfig["api_key"])
+                        database.qdrant.apiKey = qdrantConfig["api_key"].as<std::string>();
+                    if (qdrantConfig["max_connections"])
+                        database.qdrant.maxConnections = qdrantConfig["max_connections"].as<int>();
+                    if (qdrantConfig["connection_timeout"])
+                        database.qdrant.connectionTimeout = qdrantConfig["connection_timeout"].as<int>();
+                    if (qdrantConfig["embedding_batch_size"])
+                        database.qdrant.embeddingBatchSize = qdrantConfig["embedding_batch_size"].as<int>();
                 }
             }
 
@@ -628,7 +665,7 @@ namespace kolosal
                     if (modelConfig["id"])
                         model.id = modelConfig["id"].as<std::string>();
                     if (modelConfig["path"])
-                        model.path = modelConfig["path"].as<std::string>();
+                        model.path = ServerConfig::makeAbsolutePath(modelConfig["path"].as<std::string>());
                     if (modelConfig["type"])
                         model.type = modelConfig["type"].as<std::string>();
                     // Support both new and old field names for backward compatibility
@@ -669,30 +706,46 @@ namespace kolosal
                 }
             }
 
-            // Load inference engines configuration
+            // Load inference engines
             if (config["inference_engines"])
             {
-                auto enginesConfig = config["inference_engines"];
-                if (enginesConfig.IsSequence())
+                inferenceEngines.clear();
+                for (const auto &engineConfig : config["inference_engines"])
                 {
-                    for (const auto& engineConfig : enginesConfig)
-                    {
-                        InferenceEngineConfig engine;
-                        if (engineConfig["name"])
-                            engine.name = engineConfig["name"].as<std::string>();
-                        if (engineConfig["library_path"])
-                            engine.library_path = makeAbsolutePath(engineConfig["library_path"].as<std::string>());
-                        if (engineConfig["version"])
-                            engine.version = engineConfig["version"].as<std::string>();
-                        if (engineConfig["description"])
-                            engine.description = engineConfig["description"].as<std::string>();
-                        if (engineConfig["load_on_startup"])
-                            engine.load_on_startup = engineConfig["load_on_startup"].as<bool>();
+                    InferenceEngineConfig engine;
+                    if (engineConfig["name"])
+                        engine.name = engineConfig["name"].as<std::string>();
+                    if (engineConfig["library_path"])
+                        engine.library_path = ServerConfig::makeAbsolutePath(engineConfig["library_path"].as<std::string>());
+                    if (engineConfig["version"])
+                        engine.version = engineConfig["version"].as<std::string>();
+                    if (engineConfig["description"])
+                        engine.description = engineConfig["description"].as<std::string>();
+                    if (engineConfig["load_on_startup"])
+                        engine.load_on_startup = engineConfig["load_on_startup"].as<bool>();
 
-                        if (!engine.name.empty() && !engine.library_path.empty())
-                        {
-                            inferenceEngines.push_back(engine);
-                        }
+                    // Only add engines with valid name and library path
+                    if (!engine.name.empty() && !engine.library_path.empty())
+                    {
+                        inferenceEngines.push_back(engine);
+                    }
+                }
+            }
+
+            // Load default inference engine
+            if (config["default_inference_engine"])
+            {
+                defaultInferenceEngine = config["default_inference_engine"].as<std::string>();
+            }
+
+            // Apply default inference engine to models that don't have one specified
+            if (!defaultInferenceEngine.empty())
+            {
+                for (auto &model : models)
+                {
+                    if (model.inferenceEngine.empty() || model.inferenceEngine == "llama-cpu")
+                    {
+                        model.inferenceEngine = defaultInferenceEngine;
                     }
                 }
             }
@@ -705,15 +758,6 @@ namespace kolosal
                     enableHealthCheck = features["health_check"].as<bool>();
                 if (features["metrics"])
                     enableMetrics = features["metrics"].as<bool>();
-            }
-
-            // Load agent system configuration
-            try {
-                agentSystem = agents::SystemConfig::from_yaml(config);
-            } catch (const std::exception& e) {
-                std::cerr << "[Warning] Failed to load agent system configuration: " << e.what() << std::endl;
-                std::cerr << "[Info] Agent system will be disabled" << std::endl;
-                // Continue without agent system - this is not a fatal error
             }
 
             // Load search configuration
@@ -740,8 +784,6 @@ namespace kolosal
                     search.api_key = searchConfig["api_key"].as<std::string>();
             }
 
-            // Store the config file path for future saves
-            currentConfigFilePath = configFile;
             return validate();
         }
         catch (const std::exception &e)
@@ -803,16 +845,18 @@ namespace kolosal
             config["database"]["qdrant"]["api_key"] = database.qdrant.apiKey;
             config["database"]["qdrant"]["max_connections"] = database.qdrant.maxConnections;
             config["database"]["qdrant"]["connection_timeout"] = database.qdrant.connectionTimeout;
+            config["database"]["qdrant"]["embedding_batch_size"] = database.qdrant.embeddingBatchSize;
 
             // Models
             for (const auto &model : models)
             {
                 YAML::Node modelNode;
                 modelNode["id"] = model.id;
-                modelNode["path"] = model.path;
+                modelNode["path"] = ServerConfig::makeAbsolutePath(model.path);  // Convert to absolute path
                 modelNode["type"] = model.type;
                 modelNode["load_immediately"] = model.loadImmediately;
                 modelNode["main_gpu_id"] = model.mainGpuId;
+                modelNode["inference_engine"] = model.inferenceEngine;
                 modelNode["load_params"]["n_ctx"] = model.loadParams.n_ctx;
                 modelNode["load_params"]["n_keep"] = model.loadParams.n_keep;
                 modelNode["load_params"]["use_mmap"] = model.loadParams.use_mmap;
@@ -831,31 +875,22 @@ namespace kolosal
             {
                 YAML::Node engineNode;
                 engineNode["name"] = engine.name;
-                engineNode["library_path"] = engine.library_path;
+                engineNode["library_path"] = ServerConfig::makeAbsolutePath(engine.library_path);  // Convert to absolute path
                 engineNode["version"] = engine.version;
                 engineNode["description"] = engine.description;
                 engineNode["load_on_startup"] = engine.load_on_startup;
                 config["inference_engines"].push_back(engineNode);
             }
 
+            // Default inference engine
+            if (!defaultInferenceEngine.empty())
+            {
+                config["default_inference_engine"] = defaultInferenceEngine;
+            }
+
             // Feature flags
             config["features"]["health_check"] = enableHealthCheck;
             config["features"]["metrics"] = enableMetrics;
-            
-            // Agent system configuration
-            try {
-                YAML::Node agentSystemNode = agentSystem.to_yaml();
-                if (agentSystemNode.size() > 0) {
-                    // Only add agent system sections if they exist
-                    if (agentSystemNode["system"]) config["system"] = agentSystemNode["system"];
-                    if (agentSystemNode["functions"]) config["functions"] = agentSystemNode["functions"];
-                    if (agentSystemNode["agents"]) config["agents"] = agentSystemNode["agents"];
-                    // Note: inference_engines in agent config are different from server inference_engines
-                    // We may want to merge them or keep them separate based on requirements
-                }
-            } catch (const std::exception& e) {
-                std::cerr << "[Warning] Failed to save agent system configuration: " << e.what() << std::endl;
-            }
 
             std::ofstream file(configFile);
             if (!file.is_open())
@@ -864,31 +899,7 @@ namespace kolosal
                 return false;
             }
 
-            // Validate the generated YAML before writing
-            std::stringstream yamlStream;
-            yamlStream << config;
-            std::string yamlContent = yamlStream.str();
-            
-            // Try to parse it back to validate structure
-            try {
-                YAML::Load(yamlContent);
-            } catch (const YAML::Exception& e) {
-                std::cerr << "[Error] Generated YAML is invalid: " << e.what() << std::endl;
-                file.close();
-                return false;
-            }
-
-            file << yamlContent;
-            file.close();
-            
-            // Verify the file was written successfully by trying to read it back
-            std::ifstream verifyFile(configFile);
-            if (!verifyFile.is_open()) {
-                std::cerr << "[Error] Failed to verify saved config file: " << configFile << std::endl;
-                return false;
-            }
-            verifyFile.close();
-
+            file << config;
             return true;
         }
         catch (const std::exception &e)
@@ -1019,6 +1030,23 @@ namespace kolosal
             std::cout << "    Origins: " << auth.cors.allowedOrigins.size() << " configured" << std::endl;
         }
 
+        std::cout << "\nInference Engines:" << std::endl;
+        if (inferenceEngines.empty())
+        {
+            std::cout << "  No inference engines configured" << std::endl;
+        }
+        else
+        {
+            for (const auto &engine : inferenceEngines)
+            {
+                std::cout << "  " << engine.name << ":" << std::endl;
+                std::cout << "    Library: " << engine.library_path << std::endl;
+                std::cout << "    Version: " << engine.version << std::endl;
+                std::cout << "    Description: " << engine.description << std::endl;
+                std::cout << "    Load on startup: " << (engine.load_on_startup ? "Yes" : "No") << std::endl;
+            }
+        }
+
         std::cout << "\nModels:" << std::endl;
         if (models.empty())
         {
@@ -1110,10 +1138,6 @@ namespace kolosal
         std::cout << "    --search-safe-search      Enable safe search (restrict explicit content)\n";
         std::cout << "    --no-search-safe-search   Disable safe search\n\n";
 
-        std::cout << "  Configuration Management:\n";
-        std::cout << "    --auto-save               Enable automatic saving of configuration changes\n";
-        std::cout << "    --no-auto-save            Disable automatic saving (default)\n\n";
-
         std::cout << "  Help:\n";
         std::cout << "    -h, --help                Show this help message\n";
         std::cout << "    -v, --version             Show version information\n\n";
@@ -1140,102 +1164,6 @@ namespace kolosal
         std::cout << "Built with C++14, supports multiple models and authentication\n";
     }
 
-    bool ServerConfig::saveToCurrentFile() const
-    {
-        if (currentConfigFilePath.empty()) {
-            std::cerr << "[Error] No current config file path set - cannot save configuration" << std::endl;
-            return false;
-        }
-        
-        // Create a backup of the current config before saving
-        try {
-            std::string backupPath = currentConfigFilePath + ".backup";
-            std::ifstream src(currentConfigFilePath, std::ios::binary);
-            std::ofstream dst(backupPath, std::ios::binary);
-            if (src && dst) {
-                dst << src.rdbuf();
-                src.close();
-                dst.close();
-            }
-        } catch (const std::exception& e) {
-            std::cerr << "[Warning] Failed to create config backup: " << e.what() << std::endl;
-        }
-        
-        return saveToFile(currentConfigFilePath);
-    }
-
-    const std::string& ServerConfig::getCurrentConfigFilePath() const
-    {
-        return currentConfigFilePath;
-    }
-
-    void ServerConfig::setAutoSaveEnabled(bool enabled)
-    {
-        autoSaveEnabled = enabled;
-        if (enabled) {
-            std::cout << "Auto-save enabled: Configuration changes will be automatically saved to file" << std::endl;
-        } else {
-            std::cout << "Auto-save disabled: Configuration changes will not be automatically saved to file" << std::endl;
-        }
-    }
-
-    bool ServerConfig::isAutoSaveEnabled() const
-    {
-        return autoSaveEnabled;
-    }
-
-    std::string ServerConfig::makeAbsolutePath(const std::string& path)
-    {
-        if (path.empty()) {
-            return path;
-        }
-
-        // Check if path is already absolute
-#ifdef _WIN32
-        if (path.length() >= 2 && path[1] == ':') {
-            return path; // Already absolute on Windows (e.g., C:\path)
-        }
-        if (path.length() >= 2 && (path[0] == '\\' || path[0] == '/')) {
-            return path; // UNC path or root path
-        }
-#else
-        if (path[0] == '/') {
-            return path; // Already absolute on Unix-like systems
-        }
-#endif
-
-        // Convert relative path to absolute
-        try {
-#ifdef _WIN32
-            char buffer[MAX_PATH];
-            if (GetFullPathNameA(path.c_str(), MAX_PATH, buffer, nullptr) != 0) {
-                return std::string(buffer);
-            }
-#endif
-            
-            // Fallback: get current working directory and append path
-            char cwd[1024];
-#ifdef _WIN32
-            if (GetCurrentDirectoryA(sizeof(cwd), cwd) != 0) {
-#else
-            if (getcwd(cwd, sizeof(cwd)) != nullptr) {
-#endif
-                std::string result = std::string(cwd);
-#ifdef _WIN32
-                if (result.back() != '\\') result += '\\';
-#else
-                if (result.back() != '/') result += '/';
-#endif
-                result += path;
-                return result;
-            }
-        } catch (...) {
-            // If all else fails, return the original path
-        }
-        
-        return path;
-    }
-
     ServerConfig& ServerConfig::getInstance()
     {
         static ServerConfig instance;
@@ -1245,6 +1173,79 @@ namespace kolosal
     void ServerConfig::setInstance(const ServerConfig& config)
     {
         getInstance() = config;
+    }
+
+    bool ServerConfig::saveToCurrentFile() const
+    {
+        ServerLogger::instance().info("saveToCurrentFile called. currentConfigFilePath: '" + currentConfigFilePath + "'");
+        ServerLogger::instance().info("ServerConfig instance address: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
+        
+        if (currentConfigFilePath.empty())
+        {
+            ServerLogger::instance().info("currentConfigFilePath is empty, using fallback logic");
+            
+            // If no config file was loaded, try to determine a reasonable default location
+            // based on the same priority order used during loading
+            
+            std::vector<std::string> candidatePaths;
+            
+#ifdef _WIN32
+            // On Windows, try user's AppData\Roaming directory first (same as loading logic)
+            char* userProfile = nullptr;
+            size_t len = 0;
+            if (_dupenv_s(&userProfile, &len, "USERPROFILE") == 0 && userProfile != nullptr) {
+                std::string userConfigPath = std::string(userProfile) + "\\AppData\\Roaming\\Kolosal\\config.yaml";
+                candidatePaths.push_back(userConfigPath);
+                free(userProfile);
+            }
+#else
+            // On Unix/Linux systems, try user home directory
+            const char* homeDir = getenv("HOME");
+            if (homeDir) {
+                std::string userConfigPath = std::string(homeDir) + "/.kolosal/config.yaml";
+                candidatePaths.push_back(userConfigPath);
+            }
+#endif
+            
+            // Then try current working directory
+            candidatePaths.push_back("config.yaml");
+            
+            // Try each candidate path in order
+            for (const auto& path : candidatePaths) {
+                ServerLogger::instance().info("Trying fallback path: " + path);
+                try {
+                    // Create directory if it doesn't exist
+                    std::filesystem::path filePath(path);
+                    std::filesystem::path dirPath = filePath.parent_path();
+                    
+                    if (!dirPath.empty() && !std::filesystem::exists(dirPath)) {
+                        std::filesystem::create_directories(dirPath);
+                    }
+                    
+                    // Test if we can write to this location
+                    std::ofstream testFile(path, std::ios::app);
+                    if (testFile.is_open()) {
+                        testFile.close();
+                        ServerLogger::instance().info("No config file path available, using fallback: " + path);
+                        return saveToFile(path);
+                    }
+                } catch (const std::exception& e) {
+                    ServerLogger::instance().info("Cannot write to " + path + ": " + e.what());
+                    continue;
+                }
+            }
+            
+            std::cerr << "Error: No config file path available for saving and cannot write to any fallback location. Use saveToFile() with explicit path instead." << std::endl;
+            return false;
+        }
+        
+        ServerLogger::instance().info("Saving to current config file: " + currentConfigFilePath);
+        return saveToFile(currentConfigFilePath);
+    }
+
+    const std::string& ServerConfig::getCurrentConfigFilePath() const
+    {
+        return currentConfigFilePath;
     }
 
 } // namespace kolosal

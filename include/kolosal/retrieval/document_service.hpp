@@ -10,6 +10,9 @@
 #include <future>
 #include <string>
 #include <vector>
+#include <optional>
+#include <unordered_map>
+#include <json.hpp>
 
 namespace kolosal
 {
@@ -90,6 +93,21 @@ public:
      * @return Future with retrieve response containing similar documents
      */
     std::future<RetrieveResponse> retrieveDocuments(const RetrieveRequest& request);
+    
+    /**
+     * @brief List all document IDs in the collection
+     * @param collection_name Collection name (optional, uses default if empty)
+     * @return Future with list of document IDs
+     */
+    std::future<std::vector<std::string>> listDocuments(const std::string& collection_name = "");
+    
+    /**
+     * @brief Get full document information by IDs
+     * @param ids Document IDs to retrieve
+     * @param collection_name Collection name (optional, uses default if empty)
+     * @return Future with document information response
+     */
+    std::future<std::vector<std::pair<std::string, std::optional<std::pair<std::string, std::unordered_map<std::string, nlohmann::json>>>>>> getDocumentsInfo(const std::vector<std::string>& ids, const std::string& collection_name = "");
 
 private:
     class Impl;

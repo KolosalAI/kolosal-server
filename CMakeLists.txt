@@ -4,43 +4,8 @@ project(KolosalServer VERSION 1.0.0 LANGUAGES CXX)
 # Include UCM for runtime library management
 include(${CMAKE_SOURCE_DIR}/cmake/ucm.cmake)
 
-# Configure runtime library for consistency
-if(MSVC)
-    # WORKAROUND: Use Release runtime (/MD) for all builds to match pre-compiled MuPDF libraries
-    # This prevents LNK2038 runtime library mismatch errors
-    set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL")
-    
-    # Clear any existing runtime flags first for all configurations
-    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG}")
-    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG}")
-    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE}")
-    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE}")
-    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO}")
-    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO}")
-    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL}")
-    string(REGEX REPLACE "/M[TD]d?" "" CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL}")
-    
-    # Set Release runtime (/MD) for ALL build configurations to match MuPDF
-    set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} /MD")
-    set(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} /MD")
-    set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /MD")
-    set(CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /MD")
-    set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /MD")
-    set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /MD")
-    set(CMAKE_CXX_FLAGS_MINSIZEREL "${CMAKE_CXX_FLAGS_MINSIZEREL} /MD")
-    set(CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS_MINSIZEREL} /MD")
-    
-    # Also disable iterator debug level in Debug builds to match MuPDF
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        add_compile_definitions(_ITERATOR_DEBUG_LEVEL=0)
-        message(STATUS "Using Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 for Debug build to match MuPDF")
-    else()
-        message(STATUS "Using Release runtime (/MD) for Release build")
-    endif()
-else()
-    # For non-MSVC compilers, use dynamic linking
-    set(BUILD_SHARED_LIBS ON)
-endif()
+# Static link the runtime libraries
+ucm_set_runtime(DYNAMIC)
 
 # Use C++17 for this project (required for std::filesystem)
 set(CMAKE_CXX_STANDARD 17)
@@ -59,14 +24,21 @@ if (MINGW)
     add_compile_definitions(_WIN32_WINNT=0x602)
 endif()
 
+if (WIN32)
+    add_compile_definitions(WIN32_LEAN_AND_MEAN)
+    add_compile_definitions(NOMINMAX)
+endif()
+
 # Print UCM flags for debugging
 ucm_print_flags()
 
 # Options for inference engine
 option(USE_CUDA   "Compile with CUDA support" OFF)
 option(USE_VULKAN "Compile with VULKAN support" OFF)
+option(USE_METAL  "Compile with Metal support (macOS only)" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
+option(USE_PODOFO "Compile with PoDoFo PDF support" ON)
 
 # Define include directories.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -77,10 +49,10 @@ include_directories(${CMAKE_CURRENT_SOURCE_DIR}/inference/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/common)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/llama.cpp/ggml/include)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/pugixml/src)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/thirdparty/zlib/contrib/minizip)
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf/thirdparty/zlib)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/zlib/contrib/minizip)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/maddy/include)
+include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/zlib)
 
 # Define source files.
 set(SOURCES
@@ -90,14 +62,13 @@ set(SOURCES
     src/logger.cpp
     src/download_utils.cpp
     src/download_manager.cpp
+    src/qdrant_client.cpp
+    src/node_manager.cpp
     src/inference_loader.cpp
     src/inference_interface_impl.cpp
+    src/gpu_detection.cpp
 
-    # Model implementations
-    src/models/embedding_request_model.cpp
-    src/models/embedding_response_model.cpp
-
-    # Basic routes
+    # Route files
     src/routes/oai_completions_route.cpp
     src/routes/completion_route.cpp
     src/routes/models_route.cpp
@@ -105,159 +76,54 @@ set(SOURCES
     src/routes/health_status_route.cpp    
     src/routes/auth_config_route.cpp    
     src/routes/server_logs_route.cpp    
-    src/routes/downloads_route.cpp
-
-    # Agent-related routes
-    src/routes/agents_route.cpp
-    src/routes/agent_monitoring_route.cpp
-    src/routes/orchestration_route.cpp
-    src/routes/sequential_workflow_route.cpp
-    src/routes/function_execution_route.cpp
-    src/routes/collaboration_route.cpp
-    src/routes/agent_documents_route.cpp
-
-    # Document retrieval routes
-    src/routes/retrieve_route.cpp
-    src/routes/retrieve_test_route.cpp
-    src/routes/add_documents_route.cpp
-    src/routes/parse_pdf_route.cpp
-    src/routes/parse_docx_route.cpp
-    src/routes/parse_html_route.cpp
-    src/routes/parse_pdf_file_route.cpp
-    src/routes/parse_docx_file_route.cpp
-    src/routes/remove_documents_route.cpp
     src/routes/embedding_route.cpp
     src/routes/internet_search_route.cpp
-    src/routes/auto_setup_route.cpp
+    src/routes/parse_document_route.cpp
+    src/routes/retrieve_route.cpp
     src/routes/documents_route.cpp
-    src/routes/documents_upload_route.cpp
-    src/routes/document_search_route.cpp
-    src/routes/collections_route.cpp
-    src/routes/collections_list_route.cpp
-    src/routes/collections_delete_route.cpp
-    src/routes/bulk_operations_route.cpp
-    src/routes/context_retrieval_route.cpp
-    src/routes/vector_search_route.cpp
-    src/routes/qdrant_route.cpp
-    src/routes/not_found_route.cpp
-    src/routes/rag_route.cpp
-    src/routes/workflow_route.cpp
-    src/routes/session_route.cpp
+    src/routes/downloads_route.cpp
+    src/routes/chunking_route.cpp
+    
+    # Retrieval files
+    src/retrieval/add_document_types.cpp
+    src/retrieval/remove_document_types.cpp
+    src/retrieval/document_list_types.cpp
+    src/retrieval/retrieve_types.cpp
+    src/retrieval/document_service.cpp
+    src/retrieval/parse_docx.cpp
+    src/retrieval/parse_pdf.cpp
+    src/retrieval/parse_html.cpp
+    src/retrieval/chunking_types.cpp
+    
+    # Model files
+    src/models/embedding_request_model.cpp
+    src/models/embedding_response_model.cpp
+    src/models/chunking_request_model.cpp
+    src/models/chunking_response_model.cpp
 
-    # Agent system core
-    src/agents/agent_core.cpp
-    src/agents/agent_data.cpp
-    src/agents/agent_config_validator.cpp
-    src/agents/agent_interfaces.cpp
-    src/agents/agent_orchestrator.cpp
-    src/agents/multi_agent_system.cpp
-    src/agents/sequential_workflow.cpp
-    src/agents/workflow_engine.cpp
-    src/agents/yaml_config.cpp
-    src/agents/message_router.cpp
-    src/agents/function_manager.cpp
-    src/agents/job_manager.cpp
-    src/agents/event_system.cpp
-    src/agents/builtin_functions.cpp
-
-    # Authentication and authorization
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp
     src/auth/auth_middleware.cpp
     
-    # Other core files
-    src/node_manager.cpp
-    src/auto_setup_manager.cpp
-    src/qdrant_client.cpp
-    src/gpu_detection.cpp
-
-    # Document retrieval system
-    src/retrieval/document_service.cpp
-    src/retrieval/parse_pdf.cpp
-    src/retrieval/parse_docx.cpp
-    src/retrieval/parse_html.cpp
-    src/retrieval/add_document_types.cpp
-    src/retrieval/remove_document_types.cpp
-    src/retrieval/retrieve_types.cpp
-
-    # External dependencies
-    external/pugixml/src/pugixml.cpp
-    
-    # zlib source files (needed for minizip)
-    external/mupdf/thirdparty/zlib/adler32.c
-    external/mupdf/thirdparty/zlib/compress.c
-    external/mupdf/thirdparty/zlib/crc32.c
-    external/mupdf/thirdparty/zlib/deflate.c
-    external/mupdf/thirdparty/zlib/gzclose.c
-    external/mupdf/thirdparty/zlib/gzlib.c
-    external/mupdf/thirdparty/zlib/gzread.c
-    external/mupdf/thirdparty/zlib/gzwrite.c
-    external/mupdf/thirdparty/zlib/infback.c
-    external/mupdf/thirdparty/zlib/inffast.c
-    external/mupdf/thirdparty/zlib/inflate.c
-    external/mupdf/thirdparty/zlib/inftrees.c
-    external/mupdf/thirdparty/zlib/trees.c
-    external/mupdf/thirdparty/zlib/uncompr.c
-    external/mupdf/thirdparty/zlib/zutil.c
-    
-    # minizip files
-    external/mupdf/thirdparty/zlib/contrib/minizip/unzip.c
-    external/mupdf/thirdparty/zlib/contrib/minizip/ioapi.c
+    # src/completion_monitor.cpp
 )
 
 # Create shared library instead of static library.
 add_library(kolosal_server SHARED ${SOURCES})
-target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD)
+target_compile_definitions(kolosal_server PRIVATE KOLOSAL_SERVER_BUILD INFERENCE_EXPORTS)
 
-# Add MSVC-specific compile options to fix PDB file access issues
-if(MSVC)
-    target_compile_options(kolosal_server PRIVATE /FS /bigobj)
-    # Completely disable parallel compilation to prevent PDB conflicts
-    target_compile_options(kolosal_server PRIVATE /MP1)
-    
-    # Set runtime library to match MuPDF (always use Release runtime)
+# Set macOS-specific properties for the shared library
+if(APPLE)
     set_target_properties(kolosal_server PROPERTIES
-        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
+        MACOSX_RPATH TRUE
+        INSTALL_NAME_DIR "@rpath"
     )
-    target_compile_options(kolosal_server PRIVATE
-        $<$<CONFIG:Debug>:/MD>
-        $<$<CONFIG:Release>:/MD>
-        $<$<CONFIG:RelWithDebInfo>:/MD>
-        $<$<CONFIG:MinSizeRel>:/MD>
-    )
-    # Disable iterator debug level for all configurations to match MuPDF
-    target_compile_definitions(kolosal_server PRIVATE _ITERATOR_DEBUG_LEVEL=0)
-    message(STATUS "Using Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 for kolosal_server to match MuPDF")
-    
-    message(STATUS "Added /FS, /bigobj, /MP1, and runtime library options to kolosal_server target for MSVC")
 endif()
 
 # Create executable
 add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
-
-# Add MSVC-specific compile options to the executable as well
-if(MSVC)
-    target_compile_options(kolosal_server_exe PRIVATE /FS /bigobj)
-    target_compile_options(kolosal_server_exe PRIVATE /MP1)
-    
-    # Set runtime library to match MuPDF (always use Release runtime)
-    set_target_properties(kolosal_server_exe PROPERTIES
-        MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-    )
-    target_compile_options(kolosal_server_exe PRIVATE
-        $<$<CONFIG:Debug>:/MD>
-        $<$<CONFIG:Release>:/MD>
-        $<$<CONFIG:RelWithDebInfo>:/MD>
-        $<$<CONFIG:MinSizeRel>:/MD>
-    )
-    # Disable iterator debug level for all configurations to match MuPDF
-    target_compile_definitions(kolosal_server_exe PRIVATE _ITERATOR_DEBUG_LEVEL=0)
-    message(STATUS "Using Release runtime (/MD) and _ITERATOR_DEBUG_LEVEL=0 for kolosal_server_exe to match MuPDF")
-    
-    message(STATUS "Added /FS, /bigobj, /MP1, and runtime library options to kolosal_server_exe target for MSVC")
-endif()
 
 # Function to copy DLLs to executable directory
 function(copy_dll_to_output target_name dll_path)
@@ -273,7 +139,7 @@ function(copy_dll_to_output target_name dll_path)
     endif()
 endfunction()
 
-# Copy necessary DLLs to the executable directory on Windows
+# Copy necessary libraries to the executable directory
 if(WIN32)
     # Copy the main server DLL
     add_custom_command(TARGET kolosal_server_exe POST_BUILD
@@ -282,9 +148,31 @@ if(WIN32)
         "$<TARGET_FILE_DIR:kolosal_server_exe>/"
         COMMENT "Copying kolosal_server.dll to executable directory"
     )
+elseif(APPLE)
+    # Copy the main server dylib for macOS
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:kolosal_server>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying libkolosal_server.dylib to executable directory"
+    )
     
-    # Note: Inference engine DLLs are now loaded at runtime and should be placed
-    # in the plugins directory or same directory as the executable manually
+    # Fix the install name of the dylib to use @rpath
+    add_custom_command(TARGET kolosal_server POST_BUILD
+        COMMAND install_name_tool -id "@rpath/libkolosal_server.dylib" "$<TARGET_FILE:kolosal_server>"
+        COMMENT "Setting install name for libkolosal_server.dylib"
+    )
+endif()
+
+# Copy additional libraries for Windows
+if(WIN32)
+    # Copy inference engine DLL to executable directory
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:llama-cpu>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying llama-cpu.dll to executable directory"
+    )
     
     # Copy CURL DLL if it exists
     set(CURL_DLL_PATHS
@@ -300,14 +188,6 @@ if(WIN32)
             break()
         endif()
     endforeach()
-    
-    # Copy inference engine DLL (llama-cpu.dll) to executable directory
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:llama-cpu>"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying llama-cpu.dll to executable directory"
-    )
     
     # Copy yaml-cpp DLL if it's built as shared library
     if(BUILD_SHARED_LIBS)
@@ -339,121 +219,16 @@ set(YAML_CPP_BUILD_TOOLS OFF CACHE BOOL "Disable yaml-cpp tools" FORCE)
 set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "Disable yaml-cpp contrib" FORCE)
 set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static library" FORCE)
 
-# Configure yaml-cpp runtime library to match our project
-if(MSVC)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set(YAML_CPP_MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL" CACHE STRING "yaml-cpp runtime library" FORCE)
-    else()
-        set(YAML_CPP_MSVC_RUNTIME_LIBRARY "MultiThreadedDLL" CACHE STRING "yaml-cpp runtime library" FORCE)
-    endif()
-endif()
-
 # Add yaml-cpp subdirectory
 add_subdirectory(${YAML_CPP_PATH})
 
-# Configure yaml-cpp runtime library after it's been added
-if(MSVC AND TARGET yaml-cpp)
-    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-        set_target_properties(yaml-cpp PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL"
-        )
-        target_compile_options(yaml-cpp PRIVATE
-            $<$<CONFIG:Debug>:/MDd>
-        )
-        message(STATUS "Configured yaml-cpp to use Debug runtime (/MDd)")
-    else()
-        set_target_properties(yaml-cpp PROPERTIES
-            MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-        )
-        target_compile_options(yaml-cpp PRIVATE
-            $<$<CONFIG:Release>:/MD>
-            $<$<CONFIG:RelWithDebInfo>:/MD>
-            $<$<CONFIG:MinSizeRel>:/MD>
-        )
-        message(STATUS "Configured yaml-cpp to use Release runtime (/MD)")
-    endif()
-endif()
-
-# Note: yaml-cpp is still needed for server configuration
-if(NOT TARGET yaml-cpp)
-    add_subdirectory(external/yaml-cpp EXCLUDE_FROM_ALL)
-    # Ensure yaml-cpp is built with -fPIC if needed
-    if(CMAKE_POSITION_INDEPENDENT_CODE)
-        set_target_properties(yaml-cpp PROPERTIES POSITION_INDEPENDENT_CODE ON)
-        message(STATUS "Applied -fPIC to yaml-cpp static library")
-    endif()
-    
-    # Configure runtime library for fallback yaml-cpp as well
-    if(MSVC)
-        if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-            set_target_properties(yaml-cpp PROPERTIES
-                MSVC_RUNTIME_LIBRARY "MultiThreadedDebugDLL"
-            )
-            target_compile_options(yaml-cpp PRIVATE
-                $<$<CONFIG:Debug>:/MDd>
-            )
-        else()
-            set_target_properties(yaml-cpp PROPERTIES
-                MSVC_RUNTIME_LIBRARY "MultiThreadedDLL"
-            )
-            target_compile_options(yaml-cpp PRIVATE
-                $<$<CONFIG:Release>:/MD>
-                $<$<CONFIG:RelWithDebInfo>:/MD>
-                $<$<CONFIG:MinSizeRel>:/MD>
-            )
-        endif()
-    endif()
-endif()
-
-# Link the main server library with yaml-cpp only
-target_link_libraries(kolosal_server PUBLIC yaml-cpp)
-
-# Add inference subdirectory and link
+# Build the inference engine as a subdirectory
+# This will create the llama-<cpu/cuda/vulkan> shared library
+# All llama.cpp, CUDA, Vulkan, and MPI dependencies are handled by the inference library
 add_subdirectory(inference)
-# Link with the inference library
-target_link_libraries(kolosal_server PRIVATE ${INFERENCE_TARGET_NAME})
 
-# Configure MuPDF library linking
-set(MUPDF_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/mupdf")
-if(WIN32)
-    # Try different paths for MuPDF libraries
-    set(MUPDF_LIB_PATHS 
-        "${MUPDF_PATH}/platform/win32/x64/Release"
-        "${MUPDF_PATH}/platform/win32/x64/Debug"
-        "${MUPDF_PATH}/platform/win32/Release"
-        "${MUPDF_PATH}/platform/win32/Debug"
-        "${MUPDF_PATH}/build/x64/Release"
-        "${MUPDF_PATH}/build/x64/Debug"
-        "${MUPDF_PATH}/lib"
-    )
-    
-    set(MUPDF_LIB_FOUND FALSE)
-    foreach(MUPDF_LIB_PATH ${MUPDF_LIB_PATHS})
-        if(EXISTS "${MUPDF_LIB_PATH}/libmupdf.lib")
-            target_link_libraries(kolosal_server PRIVATE 
-                "${MUPDF_LIB_PATH}/libmupdf.lib"
-            )
-            # Try to find libthirdparty.lib in the same directory
-            if(EXISTS "${MUPDF_LIB_PATH}/libthirdparty.lib")
-                target_link_libraries(kolosal_server PRIVATE 
-                    "${MUPDF_LIB_PATH}/libthirdparty.lib"
-                )
-            endif()
-            message(STATUS "Linking with MuPDF libraries from ${MUPDF_LIB_PATH}")
-            set(MUPDF_LIB_FOUND TRUE)
-            break()
-        endif()
-    endforeach()
-    
-    if(NOT MUPDF_LIB_FOUND)
-        message(WARNING "MuPDF libraries not found in any of the searched paths")
-        message(STATUS "Searched paths: ${MUPDF_LIB_PATHS}")
-        message(STATUS "PDF parsing features will not be available")
-    endif()
-else()
-    # For Linux, we might need to build MuPDF or use system packages
-    message(STATUS "MuPDF configuration for Linux not yet implemented")
-endif()
+# Link the main server library with yaml-cpp
+target_link_libraries(kolosal_server PUBLIC yaml-cpp)
 
 # Configure CURL for main server (download utilities need it)
 set(CURL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/curl")
@@ -497,9 +272,379 @@ if(EXISTS "${CURL_PATH}/include/curl/curl.h")
             endif()
         endif()
     endif()
-else()
-    message(WARNING "CURL headers not found at ${CURL_PATH}/include/curl/curl.h")
-    message(STATUS "Download utilities will be disabled")
+endif()
+
+# Define inference-related compile definitions
+target_compile_definitions(kolosal_server PUBLIC
+  $<$<BOOL:${USE_CUDA}>:USE_CUDA>
+  $<$<BOOL:${USE_VULKAN}>:USE_VULKAN>
+  $<$<BOOL:${USE_MPI}>:USE_MPI>
+  $<$<BOOL:${DEBUG}>:DEBUG>
+  $<$<BOOL:${USE_CPPUPROFILE_GPU}>:USE_CPPUPROFILE_GPU>
+  $<$<BOOL:${USE_PODOFO}>:USE_PODOFO>
+)
+
+# Add subdirectories for external libraries
+# llama.cpp is handled by the inference subdirectory, not directly
+
+# Add zlib (disable minizip for now due to config issues)
+if(NOT TARGET zlibstatic)
+    # Configure zlib options
+    set(ZLIB_BUILD_TESTING OFF CACHE BOOL "Disable zlib tests" FORCE)
+    set(ZLIB_BUILD_MINIZIP OFF CACHE BOOL "Disable building libminizip contrib library" FORCE)
+    set(ZLIB_BUILD_SHARED OFF CACHE BOOL "Build zlib as static library" FORCE)
+    set(ZLIB_BUILD_STATIC ON CACHE BOOL "Build zlib static library" FORCE)
+    
+    # Set ZLIB installation to OFF since we're building in-tree
+    set(ZLIB_INSTALL OFF CACHE BOOL "Disable zlib installation" FORCE)
+    
+    add_subdirectory(external/zlib EXCLUDE_FROM_ALL)
+endif()
+
+# Add minizip manually
+if(NOT TARGET minizip_static)
+    set(MINIZIP_SOURCES
+        external/zlib/contrib/minizip/ioapi.c
+        external/zlib/contrib/minizip/mztools.c
+        external/zlib/contrib/minizip/unzip.c
+        external/zlib/contrib/minizip/zip.c
+    )
+    
+    # Add Windows-specific source if on Windows
+    if(WIN32)
+        list(APPEND MINIZIP_SOURCES external/zlib/contrib/minizip/iowin32.c)
+    endif()
+    
+    add_library(minizip_static STATIC ${MINIZIP_SOURCES})
+    target_include_directories(minizip_static PUBLIC external/zlib/contrib/minizip external/zlib)
+    target_link_libraries(minizip_static PUBLIC zlibstatic)
+    
+    # Set compiler definitions for minizip
+    target_compile_definitions(minizip_static PRIVATE
+        $<$<BOOL:${WIN32}>:_CRT_SECURE_NO_WARNINGS>
+        $<$<BOOL:${WIN32}>:_CRT_NONSTDC_NO_DEPRECATE>
+    )
+    
+    set_target_properties(minizip_static PROPERTIES
+        OUTPUT_NAME minizip
+        POSITION_INDEPENDENT_CODE ON
+    )
+endif()
+
+# Set up ZLIB variables for other libraries (like PoDoFo) to find
+if(TARGET zlibstatic)
+    # Set ZLIB variables so find_package(ZLIB) works for dependencies
+    get_target_property(ZLIB_INCLUDE_DIR zlibstatic INTERFACE_INCLUDE_DIRECTORIES)
+    if(NOT ZLIB_INCLUDE_DIR)
+        set(ZLIB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/zlib;${CMAKE_CURRENT_BINARY_DIR}/external/zlib")
+    endif()
+    set(ZLIB_LIBRARY zlibstatic)
+    set(ZLIB_LIBRARIES ${ZLIB_LIBRARY})
+    set(ZLIB_FOUND TRUE)
+    set(ZLIB_VERSION_STRING "1.2.11") # Adjust if needed
+    
+    # Also set for the ZLIB target to be found
+    set_target_properties(zlibstatic PROPERTIES
+        INTERFACE_INCLUDE_DIRECTORIES "${ZLIB_INCLUDE_DIR}"
+    )
+    
+    # Create ZLIB::ZLIB imported target for modern CMake
+    if(NOT TARGET ZLIB::ZLIB)
+        add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    endif()
+    
+    message(STATUS "ZLIB variables set for PoDoFo: ${ZLIB_INCLUDE_DIR}")
+endif()
+
+# Add PoDoFo
+if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
+    # Check if PoDoFo has its own CMakeLists.txt
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/CMakeLists.txt")
+        # Set up paths to PoDoFo dependencies
+        set(PODOFO_DEPS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/extern/deps/3rdparty")
+        
+        # Determine platform-specific library directory
+        if(WIN32)
+            if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+                set(PODOFO_LIB_SUBDIR "Win64")
+            else()
+                set(PODOFO_LIB_SUBDIR "Win32")
+            endif()
+        elseif(APPLE)
+            set(PODOFO_LIB_SUBDIR "macosx-x86_64")
+        else()
+            set(PODOFO_LIB_SUBDIR "linux-x86_64")
+        endif()
+        
+        # Set up Freetype
+        set(FREETYPE_INCLUDE_DIRS "${PODOFO_DEPS_DIR}/freetype/include/freetype2;${PODOFO_DEPS_DIR}/freetype/include")
+        set(FREETYPE_INCLUDE_DIR "${PODOFO_DEPS_DIR}/freetype/include/freetype2")
+        if(WIN32)
+            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/freetyped.lib")
+            else()
+                set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/freetype.lib")
+            endif()
+        else()
+            set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/libfreetype.a")
+        endif()
+        set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARY})
+        
+        # Create an imported target for Freetype so PoDoFo can find it properly
+        if(NOT TARGET Freetype::Freetype)
+            add_library(Freetype::Freetype STATIC IMPORTED)
+            set_target_properties(Freetype::Freetype PROPERTIES
+                IMPORTED_LOCATION ${FREETYPE_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES "${FREETYPE_INCLUDE_DIRS}"
+            )
+        endif()
+        
+        # Set up JPEG
+        set(JPEG_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libjpeg/include")
+        if(WIN32)
+            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/jpegd.lib")
+            else()
+                set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/jpeg.lib")
+            endif()
+        else()
+            set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/libjpeg.a")
+        endif()
+        set(JPEG_LIBRARIES ${JPEG_LIBRARY})
+        
+        # Create an imported target for JPEG
+        if(NOT TARGET JPEG::JPEG)
+            add_library(JPEG::JPEG STATIC IMPORTED)
+            set_target_properties(JPEG::JPEG PROPERTIES
+                IMPORTED_LOCATION ${JPEG_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES "${JPEG_INCLUDE_DIR}"
+            )
+        endif()
+        
+        # Set up PNG
+        set(PNG_PNG_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libpng/include")
+        set(PNG_INCLUDE_DIR ${PNG_PNG_INCLUDE_DIR})
+        if(WIN32)
+            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/pngd.lib")
+            else()
+                set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/png.lib")
+            endif()
+        else()
+            set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/libpng.a")
+        endif()
+        set(PNG_LIBRARIES ${PNG_LIBRARY})
+        
+        # Create an imported target for PNG
+        if(NOT TARGET PNG::PNG)
+            add_library(PNG::PNG STATIC IMPORTED)
+            set_target_properties(PNG::PNG PROPERTIES
+                IMPORTED_LOCATION ${PNG_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES "${PNG_INCLUDE_DIR}"
+            )
+        endif()
+        
+        # Set up TIFF
+        set(TIFF_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libtiff/include")
+        if(WIN32)
+            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/tiffd.lib")
+            else()
+                set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/tiff.lib")
+            endif()
+        else()
+            set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/libtiff.a")
+        endif()
+        set(TIFF_LIBRARIES ${TIFF_LIBRARY})
+        
+        # Create an imported target for TIFF
+        if(NOT TARGET TIFF::TIFF)
+            add_library(TIFF::TIFF STATIC IMPORTED)
+            set_target_properties(TIFF::TIFF PROPERTIES
+                IMPORTED_LOCATION ${TIFF_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES "${TIFF_INCLUDE_DIR}"
+            )
+        endif()
+        
+        # Set up LibXml2
+        set(LIBXML2_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libxml2/include")
+        set(LIBXML2_INCLUDE_DIRS ${LIBXML2_INCLUDE_DIR})
+        if(WIN32)
+            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2d.lib")
+            else()
+                set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2.lib")
+            endif()
+        else()
+            set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2.a")
+        endif()
+        set(LIBXML2_LIBRARIES ${LIBXML2_LIBRARY})
+        
+        # Create an imported target for LibXml2
+        if(NOT TARGET LibXml2::LibXml2)
+            add_library(LibXml2::LibXml2 STATIC IMPORTED)
+            set_target_properties(LibXml2::LibXml2 PROPERTIES
+                IMPORTED_LOCATION ${LIBXML2_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES "${LIBXML2_INCLUDE_DIR}"
+            )
+        endif()
+        
+        # Set up Fontconfig
+        set(Fontconfig_INCLUDE_DIR "${PODOFO_DEPS_DIR}/fontconfig/include")
+        set(Fontconfig_INCLUDE_DIRS ${Fontconfig_INCLUDE_DIR})
+        if(WIN32)
+            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/fontconfigd.lib")
+            else()
+                set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/fontconfig.lib")
+            endif()
+        else()
+            set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/libfontconfig.a")
+        endif()
+        set(Fontconfig_LIBRARIES ${Fontconfig_LIBRARY})
+        
+        # Create an imported target for Fontconfig
+        if(NOT TARGET Fontconfig::Fontconfig)
+            add_library(Fontconfig::Fontconfig STATIC IMPORTED)
+            set_target_properties(Fontconfig::Fontconfig PROPERTIES
+                IMPORTED_LOCATION ${Fontconfig_LIBRARY}
+                INTERFACE_INCLUDE_DIRECTORIES "${Fontconfig_INCLUDE_DIR}"
+            )
+        endif()
+        
+        # Set found flags
+        if(EXISTS "${FREETYPE_LIBRARY}")
+            set(FREETYPE_FOUND TRUE)
+            message(STATUS "Found PoDoFo Freetype: ${FREETYPE_LIBRARY}")
+        endif()
+        
+        if(EXISTS "${JPEG_LIBRARY}")
+            set(JPEG_FOUND TRUE)
+            message(STATUS "Found PoDoFo JPEG: ${JPEG_LIBRARY}")
+        endif()
+        
+        if(EXISTS "${PNG_LIBRARY}")
+            set(PNG_FOUND TRUE)
+            message(STATUS "Found PoDoFo PNG: ${PNG_LIBRARY}")
+        endif()
+        
+        if(EXISTS "${TIFF_LIBRARY}")
+            set(TIFF_FOUND TRUE)
+            message(STATUS "Found PoDoFo TIFF: ${TIFF_LIBRARY}")
+        endif()
+        
+        if(EXISTS "${LIBXML2_LIBRARY}")
+            set(LIBXML2_FOUND TRUE)
+            message(STATUS "Found PoDoFo LibXml2: ${LIBXML2_LIBRARY}")
+        endif()
+        
+        if(EXISTS "${Fontconfig_LIBRARY}")
+            set(Fontconfig_FOUND TRUE)
+            message(STATUS "Found PoDoFo Fontconfig: ${Fontconfig_LIBRARY}")
+        endif()
+        
+        # Configure PoDoFo options
+        set(PODOFO_BUILD_STATIC ON CACHE BOOL "Build PoDoFo as static library" FORCE)
+        set(PODOFO_BUILD_TEST OFF CACHE BOOL "Disable PoDoFo tests" FORCE)
+        set(PODOFO_BUILD_EXAMPLES OFF CACHE BOOL "Disable PoDoFo examples" FORCE)
+        set(PODOFO_BUILD_UNSUPPORTED_TOOLS OFF CACHE BOOL "Disable PoDoFo tools" FORCE)
+        set(PODOFO_BUILD_LIB_ONLY ON CACHE BOOL "Build only PoDoFo library" FORCE)
+        
+        # Disable installation and exports to avoid target export issues
+        set(CMAKE_SKIP_INSTALL_RULES ON CACHE BOOL "Skip install rules for PoDoFo" FORCE)
+        set(PODOFO_BUILD_INSTALL OFF CACHE BOOL "Disable PoDoFo installation" FORCE)
+        
+        # Temporarily override add_custom_target to ignore uninstall target
+        function(add_custom_target target_name)
+            if(target_name STREQUAL "uninstall")
+                message(STATUS "Skipping duplicate uninstall target from PoDoFo")
+            else()
+                # Call the original add_custom_target
+                _add_custom_target(${target_name} ${ARGN})
+            endif()
+        endfunction()
+        
+        # Temporarily override install function to prevent export issues
+        function(install)
+            # Ignore all install commands from PoDoFo to avoid export conflicts
+            message(STATUS "Skipping install command from PoDoFo: ${ARGN}")
+        endfunction()
+        
+        add_subdirectory(external/podofo EXCLUDE_FROM_ALL)
+        
+        # Restore original functions by unsetting our overrides
+        unset(add_custom_target)
+        unset(install)
+        
+        # Set target properties for position independent code
+        if(TARGET podofo_static)
+            set_target_properties(podofo_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        endif()
+        
+        message(STATUS "PoDoFo library added")
+    else()
+        message(WARNING "PoDoFo CMakeLists.txt not found. PoDoFo support will be disabled")
+    endif()
+elseif(NOT USE_PODOFO)
+    message(STATUS "PoDoFo support disabled")
+endif()
+
+# Add PugiXML
+if(NOT TARGET pugixml)
+    # Check if PugiXML has its own CMakeLists.txt
+    if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/pugixml/CMakeLists.txt")
+        # Configure PugiXML options
+        set(PUGIXML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build PugiXML as static library" FORCE)
+        set(PUGIXML_BUILD_TESTS OFF CACHE BOOL "Disable PugiXML tests" FORCE)
+        set(PUGIXML_BUILD_PKGCONFIG OFF CACHE BOOL "Disable PugiXML pkgconfig" FORCE)
+        
+        add_subdirectory(external/pugixml EXCLUDE_FROM_ALL)
+    else()
+        # Build manually if no CMakeLists.txt
+        add_library(pugixml STATIC external/pugixml/src/pugixml.cpp)
+        target_include_directories(pugixml PUBLIC external/pugixml/src)
+        set_target_properties(pugixml PROPERTIES POSITION_INDEPENDENT_CODE ON)
+    endif()
+endif()
+
+# Add cppuprofile if GPU monitoring is enabled
+if(USE_CPPUPROFILE_GPU)
+    # Configure cppuprofile with NVIDIA support
+    set(GPU_MONITOR_NVIDIA ON CACHE BOOL "Enable NVIDIA GPU monitoring in cppuprofile" FORCE)
+    add_subdirectory(external/cppuprofile/lib)
+    message(STATUS "cppuprofile GPU monitoring enabled")
+endif()
+
+# Link libraries - llama components are handled by inference library
+set(KOLOSAL_LINK_LIBRARIES yaml-cpp llama-cpu zlibstatic minizip_static pugixml)
+
+# Add PoDoFo if available and enabled
+if(USE_PODOFO AND TARGET podofo_static)
+    list(APPEND KOLOSAL_LINK_LIBRARIES podofo_static)
+    message(STATUS "PoDoFo library will be linked")
+endif()
+
+# Add cppuprofile if enabled
+if(USE_CPPUPROFILE_GPU)
+    list(APPEND KOLOSAL_LINK_LIBRARIES cppuprofile)
+endif()
+
+target_link_libraries(kolosal_server PRIVATE ${KOLOSAL_LINK_LIBRARIES})
+
+# Link CURL libraries and include directories
+if(CURL_LIBRARY)
+    target_include_directories(kolosal_server PRIVATE ${CURL_PATH}/include)
+    target_link_libraries(kolosal_server PRIVATE ${CURL_LIBRARY})
+endif()
+
+# Add PoDoFo include directories if enabled
+if(USE_PODOFO AND TARGET podofo_static)
+    target_include_directories(kolosal_server PRIVATE 
+        ${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/src
+        ${CMAKE_CURRENT_BINARY_DIR}/external/podofo/src/podofo/podofo/auxiliary
+    )
+    # Define PODOFO_STATIC for static linking
+    target_compile_definitions(kolosal_server PRIVATE PODOFO_STATIC)
 endif()
 
 # Find and link thread library for the main library.
@@ -508,7 +653,16 @@ target_link_libraries(kolosal_server PRIVATE Threads::Threads)
 
 # Platform-specific link libraries for the main library.
 if(WIN32)
-    target_link_libraries(kolosal_server PRIVATE ws2_32)
+    target_link_libraries(kolosal_server PRIVATE ws2_32 wbemuuid)
+elseif(APPLE)
+    # For macOS, link with required system libraries
+    target_link_libraries(kolosal_server PRIVATE dl pthread)
+    
+    # Add required macOS frameworks for system operations
+    find_library(COREFOUNDATION_FRAMEWORK CoreFoundation)
+    if(COREFOUNDATION_FRAMEWORK)
+        target_link_libraries(kolosal_server PRIVATE ${COREFOUNDATION_FRAMEWORK})
+    endif()
 else()
     # For Linux, link with required system libraries
     target_link_libraries(kolosal_server PRIVATE dl rt pthread)
@@ -522,18 +676,7 @@ else()
     endif()
 endif()
 
-# Add MSVC-specific compiler flags to fix PDB file access issues
-if(MSVC)
-    # Add /FS flag to fix "cannot open program database" errors during parallel compilation
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /FS /EHsc /bigobj")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /FS /bigobj")
-    # Completely disable multiprocessor compilation to prevent PDB conflicts
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP1")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP1")
-    message(STATUS "Added /FS, /EHsc, /bigobj, and /MP1 flags for MSVC to handle parallel compilation PDB access")
-endif()
-
-# Add aggressive optimization flags for better performance
+# Add acggressive optimization flags for better performance
 if(CMAKE_BUILD_TYPE STREQUAL "Release" OR NOT CMAKE_BUILD_TYPE)
     if(MSVC)
         set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /O2 /Ob2 /DNDEBUG")
@@ -595,7 +738,60 @@ if(UNIX AND NOT APPLE)
         INSTALL_RPATH_USE_LINK_PATH TRUE
     )
     
+elseif(APPLE)
+    # macOS-specific configurations
+    message(STATUS "Configuring for macOS")
+    
+    # Add macOS-specific compile definitions
+    target_compile_definitions(kolosal_server PRIVATE 
+        _DARWIN_C_SOURCE
+        __APPLE__
+    )
+    
+    # Enable large file support
+    target_compile_definitions(kolosal_server PRIVATE
+        _FILE_OFFSET_BITS=64
+        _LARGEFILE_SOURCE
+        _LARGEFILE64_SOURCE
+    )
+    
+    # Set RPATH for proper library loading
+    set_target_properties(kolosal_server_exe PROPERTIES
+        INSTALL_RPATH "@executable_path"
+        BUILD_WITH_INSTALL_RPATH TRUE
+        INSTALL_RPATH_USE_LINK_PATH TRUE
+        MACOSX_RPATH TRUE
+    )
+    
+    # Also add the other paths separately if needed
+    set_property(TARGET kolosal_server_exe APPEND PROPERTY INSTALL_RPATH "@executable_path/../lib")
+    set_property(TARGET kolosal_server_exe APPEND PROPERTY INSTALL_RPATH "/usr/local/lib")
+    set_property(TARGET kolosal_server_exe APPEND PROPERTY INSTALL_RPATH "/opt/homebrew/lib")
+    
+    set_target_properties(kolosal_server PROPERTIES
+        INSTALL_RPATH "@loader_path"
+        BUILD_WITH_INSTALL_RPATH TRUE
+        INSTALL_RPATH_USE_LINK_PATH TRUE
+        MACOSX_RPATH TRUE
+    )
+    
+    # Also add the other paths separately for the library
+    set_property(TARGET kolosal_server APPEND PROPERTY INSTALL_RPATH "@loader_path/../lib")
+    set_property(TARGET kolosal_server APPEND PROPERTY INSTALL_RPATH "/usr/local/lib")
+    set_property(TARGET kolosal_server APPEND PROPERTY INSTALL_RPATH "/opt/homebrew/lib")
+    
 endif()
+
+# Build inference engines
+message(STATUS "Building inference engines...")
+
+# On Apple systems, enable Metal by default
+if(APPLE AND NOT DEFINED USE_METAL)
+    message(STATUS "Apple system detected - enabling Metal acceleration by default")
+    set(USE_METAL ON CACHE BOOL "Enable Metal acceleration on Apple systems" FORCE)
+endif()
+
+# Note: inference subdirectory is already added earlier in the CMakeLists.txt
 
 # Install header files only for development packages
 option(INSTALL_HEADERS "Install header files for development" OFF)

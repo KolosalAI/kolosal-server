@@ -384,4 +384,25 @@ std::future<QdrantResult> QdrantClient::search(
     return pImpl->makeRequest("POST", "/collections/" + collection_name + "/points/search", body.dump());
 }
 
+std::future<QdrantResult> QdrantClient::scrollPoints(const std::string& collection_name, int limit, const std::string& offset)
+{
+    nlohmann::json body;
+    body["limit"] = limit;
+    body["with_payload"] = true;
+    body["with_vector"] = false; // We don't need vectors for listing
+    
+    if (!offset.empty())
+    {
+        // Try to parse offset as number first, then as string
+        try {
+            uint64_t num_offset = std::stoull(offset);
+            body["offset"] = num_offset;
+        } catch (...) {
+            body["offset"] = offset;
+        }
+    }
+    
+    return pImpl->makeRequest("POST", "/collections/" + collection_name + "/points/scroll", body.dump());
+}
+
 } // namespace kolosal

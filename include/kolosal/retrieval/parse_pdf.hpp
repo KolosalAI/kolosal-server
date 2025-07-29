@@ -1,12 +1,16 @@
 #pragma once
 
 #include "../export.hpp"
-#include <mupdf/fitz.h>
 #include <string>
 #include <future>
 #include <memory>
 #include <functional>
 #include <vector>
+
+namespace PoDoFo
+{
+    class PdfMemDocument;
+}
 
 namespace retrieval
 {
@@ -30,48 +34,6 @@ namespace retrieval
     };
 
     using ProgressCallback = std::function<void(size_t current_page, size_t total_pages)>;
-
-    // Helper classes for RAII resource management
-    class MuPDFContext
-    {
-    public:
-        MuPDFContext();
-        ~MuPDFContext();
-
-        // Non-copyable, movable
-        MuPDFContext(const MuPDFContext &) = delete;
-        MuPDFContext &operator=(const MuPDFContext &) = delete;
-        MuPDFContext(MuPDFContext &&other) noexcept;
-        MuPDFContext &operator=(MuPDFContext &&other) noexcept;
-
-        fz_context *get() const { return ctx_; }
-        bool is_valid() const { return ctx_ != nullptr; }
-
-    private:
-        fz_context *ctx_;
-    };
-    class MuPDFDocument
-    {
-    public:
-        MuPDFDocument(fz_context *ctx, const std::string &filepath);
-        MuPDFDocument(fz_context *ctx, const unsigned char *data, size_t size);
-        ~MuPDFDocument();
-
-        // Non-copyable, movable
-        MuPDFDocument(const MuPDFDocument &) = delete;
-        MuPDFDocument &operator=(const MuPDFDocument &) = delete;
-        MuPDFDocument(MuPDFDocument &&other) noexcept;
-        MuPDFDocument &operator=(MuPDFDocument &&other) noexcept;
-
-        fz_document *get() const { return doc_; }
-        bool is_valid() const { return doc_ != nullptr; }
-        int page_count() const;
-
-    private:
-        fz_context *ctx_;
-        fz_document *doc_;
-        fz_stream *stream_; // Added for memory stream support
-    };
 
     class DocumentParser
     {
@@ -129,7 +91,7 @@ namespace retrieval
                                                        ProgressCallback progress_cb = nullptr);
 
         // Utility functions
-        static std::string extract_text_from_page(fz_context *ctx, fz_document *doc, int page_num);
+        static std::string extract_text_from_page(const PoDoFo::PdfMemDocument& doc, int page_num);
         static bool file_exists(const std::string &file_path);
         static bool has_pdf_extension(const std::string &file_path);
     };

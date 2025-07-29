@@ -5,15 +5,22 @@
 #include "../retrieval/document_service.hpp"
 #include <string>
 #include <memory>
-#include <json.hpp>
+#include <atomic>
+#include <mutex>
 
-namespace kolosal::routes
+namespace kolosal
 {
 
 /**
- * @brief Route handler for document management endpoints
+ * @brief Combined route handler for document operations
  * 
- * Implements the /api/v1/documents endpoints for CRUD operations on documents
+ * This route implements multiple document endpoints:
+ * - POST /add_documents - Add documents to vector database
+ * - POST /remove_documents - Remove documents by IDs
+ * - GET /list_documents - List all document IDs
+ * - POST /documents_info - Get full document information by IDs
+ * 
+ * All implementations are fully async and thread-safe.
  */
 class KOLOSAL_SERVER_API DocumentsRoute : public IRoute
 {
@@ -37,7 +44,7 @@ public:
     bool match(const std::string& method, const std::string& path) override;
 
     /**
-     * @brief Handles the document management request
+     * @brief Handles the document request based on the endpoint
      * @param sock Socket for the connection
      * @param body Request body JSON
      */
@@ -45,59 +52,61 @@ public:
 
 private:
     /**
+     * @brief Handles add documents request
+     * @param sock Socket for the connection
+     * @param body Request body JSON
+     */
+    void handleAddDocuments(SocketType sock, const std::string& body);
+
+    /**
+     * @brief Handles remove documents request
+     * @param sock Socket for the connection
+     * @param body Request body JSON
+     */
+    void handleRemoveDocuments(SocketType sock, const std::string& body);
+
+    /**
+     * @brief Handles list documents request
+     * @param sock Socket for the connection
+     */
+    void handleListDocuments(SocketType sock);
+
+    /**
+     * @brief Handles documents info request
+     * @param sock Socket for the connection
+     * @param body Request body JSON
+     */
+    void handleDocumentsInfo(SocketType sock, const std::string& body);
+
+    /**
+     * @brief Handles OPTIONS requests for CORS preflight
+     * @param sock Socket for the connection
+     */
+    void handleOptions(SocketType sock);
+
+    /**
      * @brief Sends error response to client
      * @param sock Socket for the connection
      * @param status HTTP status code
      * @param message Error message
      * @param error_type Error type
      * @param param Parameter that caused the error (optional)
-     */
+     */    
     void sendErrorResponse(SocketType sock, int status, const std::string& message, 
                           const std::string& error_type = "invalid_request_error", 
                           const std::string& param = "");
 
     /**
-     * @brief Sends success response to client
-     * @param sock Socket for the connection
-     * @param data Response data
+     * @brief Initializes the document service if needed
+     * @return true if service is ready, false otherwise
      */
-    void sendSuccessResponse(SocketType sock, const nlohmann::json& data);
+    bool ensureDocumentService();
 
-    /**
-     * @brief Handle GET requests for listing documents
-     * @param sock Socket for the connection
-     * @param path Request path
-     */
-    void handleGetDocuments(SocketType sock, const std::string& path);
-
-    /**
-     * @brief Handle POST requests for creating documents
-     * @param sock Socket for the connection
-     * @param body Request body
-     */
-    void handlePostDocuments(SocketType sock, const std::string& body);
-
-    /**
-     * @brief Handle PUT requests for updating documents
-     * @param sock Socket for the connection
-     * @param path Request path
-     * @param body Request body
-     */
-    void handlePutDocuments(SocketType sock, const std::string& path, const std::string& body);
-
-    /**
-     * @brief Handle DELETE requests for removing documents
-     * @param sock Socket for the connection
-     * @param path Request path
-     */
-    void handleDeleteDocuments(SocketType sock, const std::string& path);
-
-    /**
-     * @brief Extract document ID from path
-     * @param path Request path
-     * @return Document ID or empty string if not found
-     */
-    std::string extractDocumentId(const std::string& path);
+    static std::atomic<long long> request_counter_;
+    std::unique_ptr<kolosal::retrieval::DocumentService> document_service_;
+    std::mutex service_mutex_;
+    std::string current_endpoint_;
+    std::string current_method_;
 };
 
-} // namespace kolosal::routes
+} // namespace kolosal
