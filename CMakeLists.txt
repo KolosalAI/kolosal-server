@@ -160,9 +160,6 @@ set(SOURCES
     src/agents/event_system.cpp
     src/agents/builtin_functions.cpp
 
-    # Routes core
-    src/routes/api_dispatcher.cpp
-
     # Authentication and authorization
     src/auth/rate_limiter.cpp
     src/auth/cors_handler.cpp

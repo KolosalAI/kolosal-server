@@ -42,7 +42,6 @@
 #include "kolosal/routes/workflow_route.hpp"
 #include "kolosal/routes/session_route.hpp"
 #include "kolosal/routes/agents_route.hpp"
-#include "kolosal/routes/api_dispatcher.hpp"
 #include "kolosal/download_manager.hpp"
 #include "kolosal/node_manager.h"
 #include "kolosal/logger.hpp"
@@ -71,10 +70,8 @@ namespace kolosal
         std::unique_ptr<AutoSetupManager> autoSetupManager;
         std::unique_ptr<retrieval::DocumentService> documentService;
         std::unique_ptr<routes::AgentsRoute> agentsRoute;
-        std::unique_ptr<routes::AgentsRoute> AgentsRoute;
         std::unique_ptr<routes::AgentDocumentsRoute> agentDocumentsRoute;
         std::unique_ptr<routes::OrchestrationRoute> orchestrationRoute;
-        std::unique_ptr<routes::APIDispatcher> apiDispatcher;
         ServerConfig config;
         
         // Route management
@@ -369,22 +366,13 @@ namespace kolosal
             }
         }
         
-        // Register API dispatcher if manager is available
-        if (pImpl->server && pImpl->agentManager && pImpl->workflowEngine) {
+        // Register agent routes if manager is available
+        if (pImpl->server && pImpl->agentManager) {
             try {
-                ServerLogger::logInfo("Creating and adding APIDispatcher...");
-                
-                // Add the API dispatcher to handle all /api/v1/agents and /api/v1/orchestration endpoints
-                ServerLogger::logInfo("Adding APIDispatcher to server...");
-                pImpl->server->addRoute(std::make_unique<routes::APIDispatcher>(
-                    pImpl->agentManager, pImpl->workflowEngine));
-                ServerLogger::logInfo("APIDispatcher added to server successfully");
-                
-                // Still create the old routes for backward compatibility if needed
-                ServerLogger::logInfo("Creating legacy AgentsRoute for backward compatibility...");
+                ServerLogger::logInfo("Creating AgentsRoute...");
                 pImpl->agentsRoute = std::make_unique<routes::AgentsRoute>(pImpl->agentManager);
                 pImpl->agentsRoute->setup_routes(*pImpl->server);
-                ServerLogger::logInfo("Legacy AgentsRoute setup completed");
+                ServerLogger::logInfo("AgentsRoute setup completed");
                 
                 ServerLogger::logInfo("Creating AgentDocumentsRoute...");
                 pImpl->agentDocumentsRoute = std::make_unique<routes::AgentDocumentsRoute>(pImpl->agentManager);
@@ -400,28 +388,15 @@ namespace kolosal
                 ServerLogger::logInfo("Adding CollaborationRoute...");
                 pImpl->server->addRoute(std::make_unique<routes::CollaborationRoute>(pImpl->agentManager));
                 
-                ServerLogger::logInfo("Agent management system initialized with comprehensive API dispatcher");
+                ServerLogger::logInfo("Agent management system initialized");
                 
             } catch (const std::exception& e) {
-                ServerLogger::logError("Exception registering API dispatcher: %s", e.what());
-                // Fall back to individual routes if dispatcher fails
-                try {
-                    ServerLogger::logInfo("Falling back to individual route registration...");
-                    pImpl->agentsRoute = std::make_unique<routes::AgentsRoute>(pImpl->agentManager);
-                    pImpl->agentsRoute->setup_routes(*pImpl->server);
-                    pImpl->AgentsRoute = std::make_unique<routes::AgentsRoute>(pImpl->agentManager);
-                    pImpl->agentDocumentsRoute = std::make_unique<routes::AgentDocumentsRoute>(pImpl->agentManager);
-                    pImpl->agentDocumentsRoute->setup_routes(*pImpl->server);
-                    ServerLogger::logInfo("Fallback route registration completed");
-                } catch (const std::exception& fallback_e) {
-                    ServerLogger::logError("Fallback route registration also failed: %s", fallback_e.what());
-                }
+                ServerLogger::logError("Exception registering agent routes: %s", e.what());
             }
         } else {
-            ServerLogger::logError("Cannot register API dispatcher - server: %s, manager: %s, workflow_engine: %s", 
+            ServerLogger::logError("Cannot register agent routes - server: %s, manager: %s", 
                                  pImpl->server ? "valid" : "null", 
-                                 pImpl->agentManager ? "valid" : "null",
-                                 pImpl->workflowEngine ? "valid" : "null");
+                                 pImpl->agentManager ? "valid" : "null");
         }
     }
 
@@ -430,22 +405,20 @@ namespace kolosal
         ServerLogger::logInfo("ServerAPI::setAgentOrchestrator called");
         pImpl->agentOrchestrator = orchestrator;
         
-        // Note: Orchestration endpoints are now handled by APIDispatcher
-        // We still register the legacy OrchestrationRoute for backward compatibility
+        // Register the OrchestrationRoute
         if (pImpl->server && pImpl->agentOrchestrator) {
-            ServerLogger::logInfo("Adding legacy OrchestrationRoute for backward compatibility...");
+            ServerLogger::logInfo("Adding OrchestrationRoute...");
             
             try {
                 // Create and add OrchestrationRoute with workflow engine support
                 auto orchestrationRoute = std::make_unique<routes::OrchestrationRoute>(
                     pImpl->agentOrchestrator, pImpl->workflowEngine);
-                ServerLogger::logInfo("Legacy OrchestrationRoute created successfully");
+                ServerLogger::logInfo("OrchestrationRoute created successfully");
                 
                 pImpl->server->addRoute(std::move(orchestrationRoute));
-                ServerLogger::logInfo("Legacy OrchestrationRoute added to server successfully");
+                ServerLogger::logInfo("OrchestrationRoute added to server successfully");
             } catch (const std::exception& e) {
-                ServerLogger::logError("Exception creating legacy OrchestrationRoute: %s", e.what());
-                // Don't throw here since APIDispatcher handles the main functionality
+                ServerLogger::logError("Exception creating OrchestrationRoute: %s", e.what());
             }
             
             ServerLogger::logInfo("Adding SequentialWorkflowRoute to server...");
@@ -458,11 +431,19 @@ namespace kolosal
                     ServerLogger::logError("Exception creating SequentialWorkflowRoute: %s", e.what());
                 }
             } else {
-                ServerLogger::logWarning("Cannot add SequentialWorkflowRoute: agentManager is null");
+                ServerLogger::logWarning("agentManager is null, creating minimal agent manager for SequentialWorkflowRoute");
+                try {
+                    // Create a minimal agent manager for sequential workflows
+                    auto minimalAgentManager = std::make_shared<agents::YAMLConfigurableAgentManager>();
+                    auto sequentialRoute = std::make_unique<routes::SequentialWorkflowRoute>(minimalAgentManager);
+                    pImpl->server->addRoute(std::move(sequentialRoute));
+                    ServerLogger::logInfo("SequentialWorkflowRoute added successfully with minimal agent manager");
+                } catch (const std::exception& e) {
+                    ServerLogger::logError("Exception creating SequentialWorkflowRoute with minimal agent manager: %s", e.what());
+                }
             }
             
-            ServerLogger::logInfo("Agent orchestration routes registered (legacy compatibility)");
-            ServerLogger::logInfo("Main orchestration functionality is provided by APIDispatcher");
+            ServerLogger::logInfo("Agent orchestration routes registered");
         } else {
             if (!pImpl->server) {
                 ServerLogger::logError("Cannot register orchestration routes: server is null");

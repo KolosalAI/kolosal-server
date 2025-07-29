@@ -276,6 +276,43 @@ void AgentsRoute::handle_agent_system_status(SocketType sock) {
     }
 }
 
+void AgentsRoute::handle_agent_system_metrics(SocketType sock) {
+    try {
+        if (!agent_manager) {
+            send_error_response(sock, 503, "Agent manager not available");
+            return;
+        }
+        
+        auto agent_ids = agent_manager->list_agents();
+        int running_agents = 0;
+        int total_agents = agent_ids.size();
+        
+        for (const auto& agent_id : agent_ids) {
+            auto agent = agent_manager->get_agent(agent_id);
+            if (agent && agent->is_running()) {
+                running_agents++;
+            }
+        }
+        
+        json metrics = {
+            {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::system_clock::now().time_since_epoch()).count()},
+            {"agent_system", {
+                {"manager_status", agent_manager->is_running() ? "running" : "stopped"},
+                {"total_agents", total_agents},
+                {"running_agents", running_agents},
+                {"stopped_agents", total_agents - running_agents},
+                {"orchestrator_status", "not_available"}
+            }}
+        };
+        
+        send_success_response(sock, metrics);
+        
+    } catch (const std::exception& e) {
+        send_error_response(sock, 500, e.what());
+    }
+}
+
 // Agent lifecycle management
 void AgentsRoute::handle_start_agent(SocketType sock, const std::string& agent_id) {
     try {

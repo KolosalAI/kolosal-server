@@ -26,38 +26,54 @@ void ConfigurableAgentFactory::register_function_config(const FunctionConfig& co
 
 std::unique_ptr<AgentFunction> ConfigurableAgentFactory::create_function(const std::string& function_name) {
     auto it = function_configs.find(function_name);
-    if (it == function_configs.end()) {
-        logger->error("Function config not found: " + function_name);
+    if (it != function_configs.end()) {
+        // Found explicit function config
+        const FunctionConfig& config = it->second;
+        
+        if (config.type == "llm") {
+            LLMConfig llm_config; // Use default or parse from config
+            return std::make_unique<LLMFunction>(
+                config.name, 
+                config.description,
+                "You are a helpful AI assistant performing the function: " + config.description,
+                llm_config
+            );
+        } else if (config.type == "external_api") {
+            return std::make_unique<ExternalAPIFunction>(
+                config.name, 
+                config.description,
+                config.endpoint
+            );
+        } else if (config.type == "builtin") {
+            return create_builtin_function(config);
+        } else if (config.type == "inference") {
+            return std::make_unique<InferenceFunction>();
+        } else if (config.type == "retrieval") {
+            return std::make_unique<RetrievalFunction>();
+        } else if (config.type == "context_retrieval") {
+            return std::make_unique<ContextRetrievalFunction>();
+        }
+        
+        logger->warn("Unknown function type: " + config.type);
         return nullptr;
     }
-
-    const FunctionConfig& config = it->second;
     
-    if (config.type == "llm") {
-        LLMConfig llm_config; // Use default or parse from config
-        return std::make_unique<LLMFunction>(
-            config.name, 
-            config.description,
-            "You are a helpful AI assistant performing the function: " + config.description,
-            llm_config
-        );
-    } else if (config.type == "external_api") {
-        return std::make_unique<ExternalAPIFunction>(
-            config.name, 
-            config.description,
-            config.endpoint
-        );
-    } else if (config.type == "builtin") {
-        return create_builtin_function(config);
-    } else if (config.type == "inference") {
-        return std::make_unique<InferenceFunction>();
-    } else if (config.type == "retrieval") {
-        return std::make_unique<RetrievalFunction>();
-    } else if (config.type == "context_retrieval") {
-        return std::make_unique<ContextRetrievalFunction>();
+    // If no explicit config found, try to create as builtin function
+    logger->debug("No explicit config found for function '" + function_name + "', attempting to create as builtin");
+    
+    // Create a default config for builtin functions
+    FunctionConfig default_config;
+    default_config.name = function_name;
+    default_config.type = "builtin";
+    default_config.description = "Built-in function: " + function_name;
+    
+    auto builtin_function = create_builtin_function(default_config);
+    if (builtin_function) {
+        logger->info("Successfully created builtin function: " + function_name);
+        return builtin_function;
     }
-
-    logger->warn("Unknown function type: " + config.type);
+    
+    logger->error("Function config not found and could not create as builtin: " + function_name);
     return nullptr;
 }
 

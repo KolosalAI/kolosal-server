@@ -27,6 +27,7 @@ public:
     void handle_update_agent(SocketType sock, const std::string& agent_id, const std::string& body);
     void handle_delete_agent(SocketType sock, const std::string& agent_id);
     void handle_agent_system_status(SocketType sock);
+    void handle_agent_system_metrics(SocketType sock);
     
     // Agent lifecycle management
     void handle_start_agent(SocketType sock, const std::string& agent_id);

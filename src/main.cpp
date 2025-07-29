@@ -759,96 +759,96 @@ int main(int argc, char *argv[])
     ServerLogger::logInfo("  DELETE /engines/{id}         - Remove engine");
 
     ServerLogger::logInfo("\nDownload endpoints:");
-    ServerLogger::logInfo("  GET  /downloads              - List all downloads status");
-    ServerLogger::logInfo("  GET  /downloads/{model_id}   - Get specific download progress");
-    ServerLogger::logInfo("  DELETE /downloads/{model_id} - Cancel specific download");
-    ServerLogger::logInfo("  POST /downloads/{model_id}/cancel - Cancel download");
-    ServerLogger::logInfo("  POST /downloads/{model_id}/pause  - Pause download");
-    ServerLogger::logInfo("  POST /downloads/{model_id}/resume - Resume download");
+    ServerLogger::logInfo("  GET  /downloads                       - List all downloads status");
+    ServerLogger::logInfo("  GET  /downloads/{model_id}            - Get specific download progress");
+    ServerLogger::logInfo("  DELETE /downloads/{model_id}          - Cancel specific download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/cancel     - Cancel download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/pause      - Pause download");
+    ServerLogger::logInfo("  POST /downloads/{model_id}/resume     - Resume download");
 
     ServerLogger::logInfo("\nDocument & RAG endpoints:");
-    ServerLogger::logInfo("  POST /retrieve               - Document retrieval endpoint");
-    ServerLogger::logInfo("  GET  /retrieve/test          - Document retrieval diagnostic test");
-    ServerLogger::logInfo("  POST /api/v1/documents       - Add documents to collection");
-    ServerLogger::logInfo("  DELETE /api/v1/documents     - Remove documents from collection");
-    ServerLogger::logInfo("  POST /parse-pdf              - PDF parse endpoint");
-    ServerLogger::logInfo("  POST /parse-docx             - DOCX parse endpoint");
+    ServerLogger::logInfo("  POST /retrieve                       - Document retrieval endpoint");
+    ServerLogger::logInfo("  GET  /retrieve/test                  - Document retrieval diagnostic test");
+    ServerLogger::logInfo("  POST /api/v1/documents               - Add documents to collection");
+    ServerLogger::logInfo("  DELETE /api/v1/documents             - Remove documents from collection");
+    ServerLogger::logInfo("  POST /parse-pdf                     - PDF parse endpoint");
+    ServerLogger::logInfo("  POST /parse-docx                    - DOCX parse endpoint");
 
     ServerLogger::logInfo("\nWorkflow endpoints:");
-    ServerLogger::logInfo("  POST /sequential-workflows   - Create sequential workflow");
-    ServerLogger::logInfo("  GET  /sequential-workflows   - List sequential workflows");
-    ServerLogger::logInfo("  GET  /sequential-workflows/{id} - Get workflow details");
-    ServerLogger::logInfo("  POST /sequential-workflows/{id}/execute - Execute workflow");
-    ServerLogger::logInfo("  GET  /sequential-workflows/{id}/result - Get workflow result");
-    ServerLogger::logInfo("  GET  /sequential-workflows/{id}/status - Get workflow status");
-    ServerLogger::logInfo("  POST /sequential-workflows/{id}/cancel - Cancel workflow");
-    ServerLogger::logInfo("  DELETE /sequential-workflows/{id} - Delete workflow");
-    ServerLogger::logInfo("  GET  /sequential-workflows/metrics - Workflow executor metrics");
-    ServerLogger::logInfo("  POST /sequential-workflows/from-template - Create workflow from template");
+    ServerLogger::logInfo("  POST /sequential-workflows                  - Create sequential workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows                  - List sequential workflows");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id}             - Get workflow details");
+    ServerLogger::logInfo("  POST /sequential-workflows/{id}/execute     - Execute workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id}/result      - Get workflow result");
+    ServerLogger::logInfo("  GET  /sequential-workflows/{id}/status      - Get workflow status");
+    ServerLogger::logInfo("  POST /sequential-workflows/{id}/cancel      - Cancel workflow");
+    ServerLogger::logInfo("  DELETE /sequential-workflows/{id}           - Delete workflow");
+    ServerLogger::logInfo("  GET  /sequential-workflows/metrics          - Workflow executor metrics");
+    ServerLogger::logInfo("  POST /sequential-workflows/from-template    - Create workflow from template");
 
     ServerLogger::logInfo("\nOrchestration endpoints:");
-    ServerLogger::logInfo("  POST /orchestration/workflows        - Create orchestration workflow");
-    ServerLogger::logInfo("  POST /orchestration/execute          - Execute orchestration workflow");
-    ServerLogger::logInfo("  GET  /orchestration/status           - Orchestration status");
+    ServerLogger::logInfo("  POST /orchestration/workflows         - Create orchestration workflow");
+    ServerLogger::logInfo("  POST /orchestration/execute           - Execute orchestration workflow");
+    ServerLogger::logInfo("  GET  /orchestration/status            - Orchestration status");
 
     ServerLogger::logInfo("\nServer endpoints:");
-    ServerLogger::logInfo("  GET  /server-logs            - Retrieve server logs");
+    ServerLogger::logInfo("  GET  /server-logs                    - Retrieve server logs");
     
     if (config.search.enabled)
     {
         ServerLogger::logInfo("\nSearch endpoints:");
-        ServerLogger::logInfo("  POST /search                 - Internet search endpoint");
+        ServerLogger::logInfo("  POST /search                         - Internet search endpoint");
     }
     
     if (agentManager) {
         ServerLogger::logInfo("\nAgent System endpoints:");
-        ServerLogger::logInfo("  GET  /api/v1/agents          - List all agents");
-        ServerLogger::logInfo("  POST /api/v1/agents          - Create new agent");
-        ServerLogger::logInfo("  GET  /api/v1/agents/{id}     - Get agent details");
-        ServerLogger::logInfo("  POST /api/v1/agents/{id}/start    - Start agent");
-        ServerLogger::logInfo("  POST /api/v1/agents/{id}/stop     - Stop agent");
-        ServerLogger::logInfo("  DELETE /api/v1/agents/{id}        - Delete agent");
-        ServerLogger::logInfo("  POST /api/v1/agents/{id}/execute  - Execute agent function");
-        ServerLogger::logInfo("  POST /api/v1/agents/{id}/execute-async - Execute agent function async");
+        ServerLogger::logInfo("  GET  /api/v1/agents                      - List all agents");
+        ServerLogger::logInfo("  POST /api/v1/agents                      - Create new agent");
+        ServerLogger::logInfo("  GET  /api/v1/agents/{id}                 - Get agent details");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/start           - Start agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/stop            - Stop agent");
+        ServerLogger::logInfo("  DELETE /api/v1/agents/{id}               - Delete agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/execute         - Execute agent function");
+        ServerLogger::logInfo("  POST /api/v1/agents/{id}/execute-async   - Execute agent function async");
         ServerLogger::logInfo("  GET  /api/v1/agents/jobs/{job_id}/status - Get async job status");
         ServerLogger::logInfo("  GET  /api/v1/agents/jobs/{job_id}/result - Get async job result");
-        ServerLogger::logInfo("  POST /api/v1/agents/messages/send - Send message to agent");
-        ServerLogger::logInfo("  POST /api/v1/agents/messages/broadcast - Broadcast message");
-        ServerLogger::logInfo("  POST /v1/agents/{id}/chat/completions - OpenAI compatible agent chat");
-        ServerLogger::logInfo("  GET  /api/v1/agents/system/status  - Agent system status");
-        ServerLogger::logInfo("  GET  /api/v1/agents/system/metrics - Agent system metrics");
+        ServerLogger::logInfo("  POST /api/v1/agents/messages/send        - Send message to agent");
+        ServerLogger::logInfo("  POST /api/v1/agents/messages/broadcast   - Broadcast message");
+        ServerLogger::logInfo("  POST /v1/agents/{id}/chat/completions    - OpenAI compatible agent chat");
+        ServerLogger::logInfo("  GET  /api/v1/agents/system/status        - Agent system status");
+        ServerLogger::logInfo("  GET  /api/v1/agents/system/metrics       - Agent system metrics");
         if (agentOrchestrator) {
             ServerLogger::logInfo("\nAgent Orchestration endpoints:");
-            ServerLogger::logInfo("  POST /api/v1/orchestration/workflows     - Create workflow");
-            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows     - List workflows");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/workflows              - Create workflow");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows              - List workflows");
             ServerLogger::logInfo("  POST /api/v1/orchestration/workflows/{id}/execute - Execute workflow");
             ServerLogger::logInfo("  POST /api/v1/orchestration/workflows/{id}/execute-async - Execute workflow async");
-            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows/{id}/status - Get workflow status");
-            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows/{id}/result - Get workflow result");
-            ServerLogger::logInfo("  POST /api/v1/orchestration/collaboration-groups - Create collaboration group");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows/{id}/status  - Get workflow status");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/workflows/{id}/result  - Get workflow result");
+            ServerLogger::logInfo("  POST /api/v1/orchestration/collaboration-groups   - Create collaboration group");
             ServerLogger::logInfo("  POST /api/v1/orchestration/collaboration-groups/{id}/execute - Execute group");
-            ServerLogger::logInfo("  GET  /api/v1/orchestration/status        - Orchestration status");
-            ServerLogger::logInfo("  GET  /api/v1/orchestration/metrics       - Orchestration metrics");
-            ServerLogger::logInfo("  POST /api/v1/agents/system/reload        - Reload agent system");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/status                 - Orchestration status");
+            ServerLogger::logInfo("  GET  /api/v1/orchestration/metrics                - Orchestration metrics");
+            ServerLogger::logInfo("  POST /api/v1/agents/system/reload                 - Reload agent system");
         }
     }
     if (config.auth.enableAuth)
     {
         ServerLogger::logInfo("\nAuthentication endpoints:");
-        ServerLogger::logInfo("  GET  /v1/auth/config         - Get authentication configuration");
-        ServerLogger::logInfo("  PUT  /v1/auth/config         - Update authentication configuration");
-        ServerLogger::logInfo("  GET  /v1/auth/stats          - Get authentication statistics");
-        ServerLogger::logInfo("  POST /v1/auth/clear          - Clear rate limit data");
+        ServerLogger::logInfo("  GET  /v1/auth/config                 - Get authentication configuration");
+        ServerLogger::logInfo("  PUT  /v1/auth/config                 - Update authentication configuration");
+        ServerLogger::logInfo("  GET  /v1/auth/stats                  - Get authentication statistics");
+        ServerLogger::logInfo("  POST /v1/auth/clear                  - Clear rate limit data");
     }
     if (config.enableMetrics)
     {
         ServerLogger::logInfo("\nMetrics endpoints:");
-        ServerLogger::logInfo("  GET  /metrics                - Combined system and completion metrics");
-        ServerLogger::logInfo("  GET  /v1/metrics             - Combined system and completion metrics");
-        ServerLogger::logInfo("  GET  /metrics/system         - System monitoring metrics only");
-        ServerLogger::logInfo("  GET  /v1/metrics/system      - System monitoring metrics only");
-        ServerLogger::logInfo("  GET  /metrics/completion     - Completion performance metrics only");
-        ServerLogger::logInfo("  GET  /v1/metrics/completion  - Completion performance metrics only");
+        ServerLogger::logInfo("  GET  /metrics                        - Combined system and completion metrics");
+        ServerLogger::logInfo("  GET  /v1/metrics                     - Combined system and completion metrics");
+        ServerLogger::logInfo("  GET  /metrics/system                 - System monitoring metrics only");
+        ServerLogger::logInfo("  GET  /v1/metrics/system              - System monitoring metrics only");
+        ServerLogger::logInfo("  GET  /metrics/completion             - Completion performance metrics only");
+        ServerLogger::logInfo("  GET  /v1/metrics/completion          - Completion performance metrics only");
         ServerLogger::logInfo("  GET  /metrics/completion/{engine_id} - Engine-specific completion metrics");
     }
     std::cout << "\nPress Ctrl+C to stop the server..." << std::endl;
