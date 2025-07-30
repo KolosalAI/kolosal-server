@@ -82,8 +82,11 @@ set(SOURCES
     src/routes/retrieval/parse_document_route.cpp
     src/routes/retrieval/documents_route.cpp
     src/routes/downloads_route.cpp
-    src/routes/chunking_route.cpp
-    src/routes/agents_route.cpp
+    src/routes/retrieval/chunking_route.cpp
+    
+    # New agent routes
+    src/routes/agents/agents_route.cpp
+    src/routes/agents/sequential_route.cpp
     
     # Agent files
     src/agents/agent_core.cpp
