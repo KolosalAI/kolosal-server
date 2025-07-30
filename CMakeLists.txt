@@ -533,25 +533,80 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
         endif()
         
         # Set up OpenSSL for PoDoFo
+        set(OPENSSL_ROOT_DIR "${PODOFO_DEPS_DIR}/openssl")
         set(OPENSSL_INCLUDE_DIR "${PODOFO_DEPS_DIR}/openssl/include")
         set(OPENSSL_INCLUDE_DIRS ${OPENSSL_INCLUDE_DIR})
+        
+        # Check for different possible library names and paths
         if(WIN32)
+            # For Windows, determine build type specific library names
             if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(OPENSSL_CRYPTO_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/cryptod.lib")
-                set(OPENSSL_SSL_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/ssld.lib")
+                set(CRYPTO_LIB_NAME "cryptod")
+                set(SSL_LIB_NAME "ssld")
             else()
-                set(OPENSSL_CRYPTO_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/crypto.lib")
-                set(OPENSSL_SSL_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/ssl.lib")
+                set(CRYPTO_LIB_NAME "crypto")
+                set(SSL_LIB_NAME "ssl")
+            endif()
+            
+            # Set the library paths directly
+            set(OPENSSL_CRYPTO_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/${CRYPTO_LIB_NAME}.lib")
+            set(OPENSSL_SSL_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/${SSL_LIB_NAME}.lib")
+            
+            # Debug output
+            message(STATUS "Looking for OpenSSL libraries:")
+            message(STATUS "  Platform subdir: ${PODOFO_LIB_SUBDIR}")
+            message(STATUS "  Expected crypto lib: ${OPENSSL_CRYPTO_LIBRARY}")
+            message(STATUS "  Expected SSL lib: ${OPENSSL_SSL_LIBRARY}")
+            
+            # Check if libraries exist and report status
+            if(EXISTS "${OPENSSL_CRYPTO_LIBRARY}")
+                message(STATUS "  Crypto exists: YES")
+            else()
+                message(STATUS "  Crypto exists: NO")
+            endif()
+            
+            if(EXISTS "${OPENSSL_SSL_LIBRARY}")
+                message(STATUS "  SSL exists: YES")
+            else()
+                message(STATUS "  SSL exists: NO")
+            endif()
+            
+            # If not found in platform-specific subdir, try directly in lib folder
+            if(NOT EXISTS "${OPENSSL_CRYPTO_LIBRARY}")
+                set(OPENSSL_CRYPTO_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${CRYPTO_LIB_NAME}.lib")
+                message(STATUS "  Fallback crypto lib: ${OPENSSL_CRYPTO_LIBRARY}")
+                if(EXISTS "${OPENSSL_CRYPTO_LIBRARY}")
+                    message(STATUS "  Fallback crypto exists: YES")
+                else()
+                    message(STATUS "  Fallback crypto exists: NO")
+                endif()
+            endif()
+            
+            if(NOT EXISTS "${OPENSSL_SSL_LIBRARY}")
+                set(OPENSSL_SSL_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${SSL_LIB_NAME}.lib")
+                message(STATUS "  Fallback SSL lib: ${OPENSSL_SSL_LIBRARY}")
+                if(EXISTS "${OPENSSL_SSL_LIBRARY}")
+                    message(STATUS "  Fallback SSL exists: YES")
+                else()
+                    message(STATUS "  Fallback SSL exists: NO")
+                endif()
             endif()
         else()
             set(OPENSSL_CRYPTO_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/libcrypto.a")
             set(OPENSSL_SSL_LIBRARY "${PODOFO_DEPS_DIR}/openssl/lib/${PODOFO_LIB_SUBDIR}/libssl.a")
         endif()
-        set(OPENSSL_LIBRARIES ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY})
-        set(OPENSSL_ROOT_DIR "${PODOFO_DEPS_DIR}/openssl")
+        
+        # Set the libraries list
+        set(OPENSSL_LIBRARIES)
+        if(OPENSSL_CRYPTO_LIBRARY)
+            list(APPEND OPENSSL_LIBRARIES ${OPENSSL_CRYPTO_LIBRARY})
+        endif()
+        if(OPENSSL_SSL_LIBRARY)
+            list(APPEND OPENSSL_LIBRARIES ${OPENSSL_SSL_LIBRARY})
+        endif()
         
         # Create imported targets for OpenSSL
-        if(NOT TARGET OpenSSL::Crypto)
+        if(NOT TARGET OpenSSL::Crypto AND OPENSSL_CRYPTO_LIBRARY)
             add_library(OpenSSL::Crypto STATIC IMPORTED)
             set_target_properties(OpenSSL::Crypto PROPERTIES
                 IMPORTED_LOCATION ${OPENSSL_CRYPTO_LIBRARY}
@@ -559,7 +614,7 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
             )
         endif()
         
-        if(NOT TARGET OpenSSL::SSL)
+        if(NOT TARGET OpenSSL::SSL AND OPENSSL_SSL_LIBRARY)
             add_library(OpenSSL::SSL STATIC IMPORTED)
             set_target_properties(OpenSSL::SSL PROPERTIES
                 IMPORTED_LOCATION ${OPENSSL_SSL_LIBRARY}
@@ -599,16 +654,32 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
             message(STATUS "Found PoDoFo Fontconfig: ${Fontconfig_LIBRARY}")
         endif()
         
-        if(EXISTS "${OPENSSL_CRYPTO_LIBRARY}" AND EXISTS "${OPENSSL_SSL_LIBRARY}")
+        # Check if both OpenSSL libraries exist
+        set(OPENSSL_CRYPTO_EXISTS FALSE)
+        set(OPENSSL_SSL_EXISTS FALSE)
+        
+        if(OPENSSL_CRYPTO_LIBRARY AND EXISTS "${OPENSSL_CRYPTO_LIBRARY}")
+            set(OPENSSL_CRYPTO_EXISTS TRUE)
+        endif()
+        
+        if(OPENSSL_SSL_LIBRARY AND EXISTS "${OPENSSL_SSL_LIBRARY}")
+            set(OPENSSL_SSL_EXISTS TRUE)
+        endif()
+        
+        if(OPENSSL_CRYPTO_EXISTS AND OPENSSL_SSL_EXISTS)
             set(OPENSSL_FOUND TRUE)
             # Set additional OpenSSL variables that find_package expects
             set(OPENSSL_VERSION "1.1.1s")
             set(OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIR}")
+            set(OPENSSL_LIBRARIES ${OPENSSL_CRYPTO_LIBRARY} ${OPENSSL_SSL_LIBRARY})
             message(STATUS "Found PoDoFo OpenSSL: ${OPENSSL_CRYPTO_LIBRARY}, ${OPENSSL_SSL_LIBRARY}")
         else()
             # If OpenSSL libraries don't exist, disable PoDoFo SSL support
             set(OPENSSL_FOUND FALSE)
-            message(WARNING "OpenSSL libraries not found, PoDoFo will be built without SSL support")
+            message(WARNING "OpenSSL libraries not found at expected paths:")
+            message(WARNING "  CRYPTO: ${OPENSSL_CRYPTO_LIBRARY} (exists: ${OPENSSL_CRYPTO_EXISTS})")
+            message(WARNING "  SSL: ${OPENSSL_SSL_LIBRARY} (exists: ${OPENSSL_SSL_EXISTS})")
+            message(WARNING "PoDoFo will be built without SSL support")
         endif()
         
         # Configure PoDoFo options
@@ -618,8 +689,47 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
         set(PODOFO_BUILD_UNSUPPORTED_TOOLS OFF CACHE BOOL "Disable PoDoFo tools" FORCE)
         set(PODOFO_BUILD_LIB_ONLY ON CACHE BOOL "Build only PoDoFo library" FORCE)
         
-        # Disable OpenSSL requirement if not available
-        if(NOT OPENSSL_FOUND)
+        # Set OpenSSL variables globally for PoDoFo to find
+        if(OPENSSL_FOUND)
+            # Set all required OpenSSL variables in cache before PoDoFo processes them
+            set(OPENSSL_ROOT_DIR "${PODOFO_DEPS_DIR}/openssl" CACHE PATH "OpenSSL root directory" FORCE)
+            set(OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIR}" CACHE PATH "OpenSSL include directory" FORCE)
+            set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_CRYPTO_LIBRARY}" CACHE FILEPATH "OpenSSL crypto library" FORCE)
+            set(OPENSSL_SSL_LIBRARY "${OPENSSL_SSL_LIBRARY}" CACHE FILEPATH "OpenSSL SSL library" FORCE)
+            set(OPENSSL_LIBRARIES "${OPENSSL_LIBRARIES}" CACHE STRING "OpenSSL libraries" FORCE)
+            set(OPENSSL_VERSION "1.1.1s" CACHE STRING "OpenSSL version" FORCE)
+            set(OPENSSL_FOUND TRUE CACHE BOOL "OpenSSL found" FORCE)
+            
+            # Additional variables that find_package(OpenSSL) expects
+            set(OPENSSL_INCLUDE_DIRS "${OPENSSL_INCLUDE_DIR}" CACHE STRING "OpenSSL include directories" FORCE)
+            set(OPENSSL_VERSION_STRING "1.1.1s" CACHE STRING "OpenSSL version string" FORCE)
+            
+            # Set additional variables that FindOpenSSL.cmake looks for
+            set(OPENSSL_CRYPTO_LIBRARIES "${OPENSSL_CRYPTO_LIBRARY}" CACHE STRING "OpenSSL crypto libraries" FORCE)
+            set(OPENSSL_SSL_LIBRARIES "${OPENSSL_SSL_LIBRARY}" CACHE STRING "OpenSSL SSL libraries" FORCE)
+            
+            # Set variables without cache to ensure they are available immediately
+            set(OPENSSL_ROOT_DIR "${PODOFO_DEPS_DIR}/openssl")
+            set(OPENSSL_INCLUDE_DIR "${OPENSSL_INCLUDE_DIR}")
+            set(OPENSSL_CRYPTO_LIBRARY "${OPENSSL_CRYPTO_LIBRARY}")
+            set(OPENSSL_SSL_LIBRARY "${OPENSSL_SSL_LIBRARY}")
+            set(OPENSSL_LIBRARIES "${OPENSSL_LIBRARIES}")
+            set(OPENSSL_INCLUDE_DIRS "${OPENSSL_INCLUDE_DIR}")
+            set(OPENSSL_VERSION_STRING "1.1.1s")
+            set(OPENSSL_CRYPTO_LIBRARIES "${OPENSSL_CRYPTO_LIBRARY}")
+            set(OPENSSL_SSL_LIBRARIES "${OPENSSL_SSL_LIBRARY}")
+            set(OPENSSL_FOUND TRUE)
+            
+            set(PODOFO_REQUIRE_OPENSSL ON CACHE BOOL "Enable OpenSSL for PoDoFo" FORCE)
+            set(WANT_OPENSSL ON CACHE BOOL "Enable OpenSSL for PoDoFo" FORCE)
+            
+            message(STATUS "OpenSSL variables set in cache for PoDoFo:")
+            message(STATUS "  OPENSSL_ROOT_DIR: ${OPENSSL_ROOT_DIR}")
+            message(STATUS "  OPENSSL_INCLUDE_DIR: ${OPENSSL_INCLUDE_DIR}")
+            message(STATUS "  OPENSSL_CRYPTO_LIBRARY: ${OPENSSL_CRYPTO_LIBRARY}")
+            message(STATUS "  OPENSSL_SSL_LIBRARY: ${OPENSSL_SSL_LIBRARY}")
+        else()
+            # Disable OpenSSL requirement if not available
             set(PODOFO_REQUIRE_OPENSSL OFF CACHE BOOL "Make OpenSSL optional for PoDoFo" FORCE)
             set(WANT_OPENSSL OFF CACHE BOOL "Disable OpenSSL for PoDoFo" FORCE)
         endif()
@@ -643,11 +753,33 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
             message(STATUS "Skipping install command from PoDoFo")
         endfunction()
         
+        # Override find_package to prevent PoDoFo from overriding our OpenSSL setup
+        function(find_package package_name)
+            if(package_name STREQUAL "OpenSSL" OR package_name STREQUAL "OPENSSL")
+                if(OPENSSL_FOUND)
+                    message(STATUS "Using pre-configured OpenSSL libraries for PoDoFo")
+                    # Set the found variables that PoDoFo expects
+                    set(OpenSSL_FOUND TRUE PARENT_SCOPE)
+                    set(OPENSSL_FOUND TRUE PARENT_SCOPE)
+                    return()
+                else()
+                    message(STATUS "OpenSSL not available - disabling for PoDoFo")
+                    set(OpenSSL_FOUND FALSE PARENT_SCOPE)
+                    set(OPENSSL_FOUND FALSE PARENT_SCOPE)
+                    return()
+                endif()
+            else()
+                # Call the original find_package for other packages
+                _find_package(${ARGV})
+            endif()
+        endfunction()
+        
         add_subdirectory(external/podofo EXCLUDE_FROM_ALL)
         
         # Restore original functions by unsetting our overrides
         unset(add_custom_target)
         unset(install)
+        unset(find_package)
         
         # Set target properties for position independent code
         if(TARGET podofo_static)
