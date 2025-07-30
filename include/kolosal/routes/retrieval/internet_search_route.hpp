@@ -1,8 +1,8 @@
 #ifndef KOLOSAL_INTERNET_SEARCH_ROUTE_HPP
 #define KOLOSAL_INTERNET_SEARCH_ROUTE_HPP
 
-#include "route_interface.hpp"
-#include "../server_config.hpp"
+#include "../route_interface.hpp"
+#include "../../server_config.hpp"
 #include <future>
 #include <memory>
 #include <mutex>

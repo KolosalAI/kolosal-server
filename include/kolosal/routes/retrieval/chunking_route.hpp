@@ -1,9 +1,9 @@
 #ifndef KOLOSAL_CHUNKING_ROUTE_HPP
 #define KOLOSAL_CHUNKING_ROUTE_HPP
 
-#include "route_interface.hpp"
-#include "../export.hpp"
-#include "../retrieval/chunking_types.hpp"
+#include "../route_interface.hpp"
+#include "../../export.hpp"
+#include "../../retrieval/chunking_types.hpp"
 #include <string>
 #include <memory>
 #include <atomic>

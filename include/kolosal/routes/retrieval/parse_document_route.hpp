@@ -1,7 +1,7 @@
 #ifndef KOLOSAL_PARSE_DOCUMENT_ROUTE_HPP
 #define KOLOSAL_PARSE_DOCUMENT_ROUTE_HPP
 
-#include "route_interface.hpp"
+#include "../route_interface.hpp"
 #include <json.hpp>
 #include <string>
 #include <mutex>

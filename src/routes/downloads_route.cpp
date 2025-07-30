@@ -316,11 +316,39 @@ namespace kolosal
         // Add engine creation info if applicable
         if (progress->engine_params)
         {
-            response["engine_creation"] = {
+            json engineInfo = {
                 {"model_id", progress->engine_params->model_id},
+                {"model_type", progress->engine_params->model_type},
                 {"load_immediately", progress->engine_params->load_immediately},
-                {"main_gpu_id", progress->engine_params->main_gpu_id}
+                {"main_gpu_id", progress->engine_params->main_gpu_id},
+                {"inference_engine", progress->engine_params->inference_engine}
             };
+            
+            // Add embedding-specific information
+            if (progress->engine_params->model_type == "embedding")
+            {
+                engineInfo["embedding_features"] = {
+                    {"normalization", true},
+                    {"supports_batching", true},
+                    {"optimized_for_retrieval", true}
+                };
+                
+                engineInfo["recommended_usage"] = {
+                    {"document_embedding", true},
+                    {"semantic_search", true},
+                    {"similarity_computation", true}
+                };
+            }
+            else
+            {
+                engineInfo["llm_features"] = {
+                    {"text_generation", true},
+                    {"chat_completion", true},
+                    {"instruction_following", true}
+                };
+            }
+            
+            response["engine_creation"] = engineInfo;
         }
 
         send_response(sock, 200, response.dump());
@@ -413,14 +441,25 @@ namespace kolosal
             downloads_array.push_back(download_info);
         }
 
-        // Count startup vs regular downloads
+        // Count startup vs regular downloads and model types
         int startup_count = 0;
         int regular_count = 0;
+        int embedding_downloads = 0;
+        int llm_downloads = 0;
+        
         for (const auto &pair : active_downloads)
         {
             if (pair.second->engine_params)
             {
                 startup_count++;
+                if (pair.second->engine_params->model_type == "embedding")
+                {
+                    embedding_downloads++;
+                }
+                else
+                {
+                    llm_downloads++;
+                }
             }
             else
             {
@@ -433,7 +472,9 @@ namespace kolosal
             {"summary", {
                 {"total_active", active_downloads.size()}, 
                 {"startup_downloads", startup_count}, 
-                {"regular_downloads", regular_count}
+                {"regular_downloads", regular_count},
+                {"embedding_model_downloads", embedding_downloads},
+                {"llm_model_downloads", llm_downloads}
             }},
             {"timestamp", std::chrono::duration_cast<std::chrono::milliseconds>(
                               std::chrono::system_clock::now().time_since_epoch())
@@ -441,8 +482,8 @@ namespace kolosal
         };
 
         send_response(sock, 200, response.dump());
-        ServerLogger::logInfo("[Thread %u] Successfully provided downloads status - %zu active downloads (%d startup, %d regular)",
-                              std::this_thread::get_id(), active_downloads.size(), startup_count, regular_count);
+        ServerLogger::logInfo("[Thread %u] Successfully provided downloads status - %zu active downloads (%d startup, %d regular, %d embedding, %d LLM)",
+                              std::this_thread::get_id(), active_downloads.size(), startup_count, regular_count, embedding_downloads, llm_downloads);
     }
 
     void DownloadsRoute::handleCancelDownload(SocketType sock, const std::string& model_id)

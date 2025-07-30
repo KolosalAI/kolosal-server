@@ -1,26 +1,26 @@
 #pragma once
 
-#include "../export.hpp"
-#include "route_interface.hpp"
+#include "../../export.hpp"
+#include "../route_interface.hpp"
+#include "../../models/chat_request_model.hpp"
 #include <string>
 #include <memory>
 
 namespace kolosal {
 
     /**
-     * @brief Combined route for handling inference completion requests using raw inference interface parameters
+     * @brief Combined route for handling both OpenAI-compatible completion requests
      * 
      * This route handles both:
-     * - /v1/inference/completions (text completion)
-     * - /v1/inference/chat/completions (chat completion)
+     * - /v1/completions (text completion)
+     * - /v1/chat/completions (chat completion)
      * 
-     * Accepts ChatCompletionParameters or CompletionParameters directly and returns CompletionResult format,
-     * providing a more direct interface to the inference engine without OpenAI API compatibility layers.
+     * Provides OpenAI API compatibility for both completion types.
      */
-    class KOLOSAL_SERVER_API CompletionRoute : public IRoute {
+    class KOLOSAL_SERVER_API OaiCompletionsRoute : public IRoute {
     public:
-        CompletionRoute();
-        ~CompletionRoute();
+        OaiCompletionsRoute();
+        ~OaiCompletionsRoute();
         
         bool match(const std::string& method, const std::string& path) override;
         void handle(SocketType sock, const std::string& body) override;

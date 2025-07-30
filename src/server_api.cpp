@@ -1,12 +1,20 @@
+#include <memory>
+#include <stdexcept>
+#include <thread>
+
 #include "kolosal/server_api.hpp"
 #include "kolosal/server.hpp"
-#include "kolosal/routes/oai_completions_route.hpp"
-#include "kolosal/routes/completion_route.hpp"
-#include "kolosal/routes/embedding_route.hpp"
+#include "kolosal/download_manager.hpp"
+#include "kolosal/node_manager.h"
+#include "kolosal/logger.hpp"
+
+//-----------------routes-----------------//
+
+// Core routes
+
 #include "kolosal/routes/models_route.hpp"
 #include "kolosal/routes/engines_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
-#include "kolosal/routes/auth_config_route.hpp"
 #include "kolosal/routes/server_logs_route.hpp"
 #include "kolosal/routes/agents_route.hpp"
 

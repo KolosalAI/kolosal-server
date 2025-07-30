@@ -70,18 +70,17 @@ set(SOURCES
     src/auto_setup_manager.cpp
 
     # Route files
-    src/routes/oai_completions_route.cpp
-    src/routes/completion_route.cpp
+    src/routes/llm/oai_completions_route.cpp
+    src/routes/llm/completion_route.cpp
     src/routes/models_route.cpp
     src/routes/engines_route.cpp
     src/routes/health_status_route.cpp    
-    src/routes/auth_config_route.cpp    
+    src/routes/config/auth_config_route.cpp    
     src/routes/server_logs_route.cpp    
-    src/routes/embedding_route.cpp
-    src/routes/internet_search_route.cpp
-    src/routes/parse_document_route.cpp
-    src/routes/retrieve_route.cpp
-    src/routes/documents_route.cpp
+    src/routes/retrieval/embedding_route.cpp
+    src/routes/retrieval/internet_search_route.cpp
+    src/routes/retrieval/parse_document_route.cpp
+    src/routes/retrieval/documents_route.cpp
     src/routes/downloads_route.cpp
     src/routes/chunking_route.cpp
     src/routes/agents_route.cpp

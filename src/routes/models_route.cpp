@@ -138,6 +138,11 @@ namespace kolosal
             auto engineIds = nodeManager.listEngineIds();
 
             json modelsList = json::array();
+            int embeddingModels = 0;
+            int llmModels = 0;
+            int loadedModels = 0;
+            int unloadedModels = 0;
+            
             for (const auto &engineId : engineIds)
             {
                 // Check engine status without loading it (to avoid triggering lazy model loading)
@@ -146,19 +151,79 @@ namespace kolosal
                 json modelInfo = {
                     {"model_id", engineId},
                     {"status", isLoaded ? "loaded" : "unloaded"},
+                    {"available", exists},
                     {"last_accessed", "recently"} // Could be enhanced with actual timestamps
                 };
+
+                // Try to determine model type and capabilities
+                try
+                {
+                    // This could be enhanced by storing model metadata in the NodeManager
+                    // For now, we'll make reasonable defaults
+                    bool isEmbeddingModel = false;
+                    
+                    // Check if the model ID contains embedding-related keywords
+                    std::string lowerEngineId = engineId;
+                    std::transform(lowerEngineId.begin(), lowerEngineId.end(), lowerEngineId.begin(), ::tolower);
+                    
+                    if (lowerEngineId.find("embedding") != std::string::npos ||
+                        lowerEngineId.find("embed") != std::string::npos ||
+                        lowerEngineId.find("retrieval") != std::string::npos)
+                    {
+                        isEmbeddingModel = true;
+                    }
+                    
+                    if (isEmbeddingModel)
+                    {
+                        modelInfo["model_type"] = "embedding";
+                        modelInfo["capabilities"] = json::array({"embedding", "retrieval"});
+                        embeddingModels++;
+                    }
+                    else
+                    {
+                        modelInfo["model_type"] = "llm";
+                        modelInfo["capabilities"] = json::array({"text_generation", "chat"});
+                        llmModels++;
+                    }
+                    
+                    if (isLoaded)
+                    {
+                        loadedModels++;
+                        modelInfo["inference_ready"] = true;
+                    }
+                    else
+                    {
+                        unloadedModels++;
+                        modelInfo["inference_ready"] = false;
+                    }
+                }
+                catch (const std::exception &ex)
+                {
+                    ServerLogger::logWarning("[Thread %u] Error getting model info for '%s': %s", 
+                                           std::this_thread::get_id(), engineId.c_str(), ex.what());
+                    modelInfo["model_type"] = "unknown";
+                    modelInfo["capabilities"] = json::array();
+                    modelInfo["inference_ready"] = false;
+                }
 
                 modelsList.push_back(modelInfo);
             }
 
             json response = {
                 {"models", modelsList},
-                {"total_count", modelsList.size()}
+                {"total_count", modelsList.size()},
+                {"summary", {
+                    {"total_models", modelsList.size()},
+                    {"embedding_models", embeddingModels},
+                    {"llm_models", llmModels},
+                    {"loaded_models", loadedModels},
+                    {"unloaded_models", unloadedModels}
+                }}
             };
 
             send_response(sock, 200, response.dump());
-            ServerLogger::logDebug("[Thread %u] Successfully listed %zu models", std::this_thread::get_id(), modelsList.size());
+            ServerLogger::logDebug("[Thread %u] Successfully listed %zu models (%d embedding, %d LLM, %d loaded)", 
+                                   std::this_thread::get_id(), modelsList.size(), embeddingModels, llmModels, loadedModels);
         }
         catch (const std::exception &ex)
         {
@@ -217,6 +282,41 @@ namespace kolosal
             std::string errorMessage;
             std::string errorType;
             int errorCode = 500;
+
+            // Validate model type and provide helpful feedback
+            if (modelType != "llm" && modelType != "embedding")
+            {
+                ServerLogger::logError("[Thread %u] Invalid model_type '%s' for model '%s'. Must be 'llm' or 'embedding'", 
+                                      std::this_thread::get_id(), modelType.c_str(), modelId.c_str());
+                json jError = {{"error", {{"message", "Invalid model_type. Must be 'llm' or 'embedding'"}, {"type", "invalid_request_error"}, {"param", "model_type"}, {"code", nullptr}}}};
+                send_response(sock, 400, jError.dump());
+                return;
+            }
+
+            // Log specific information for embedding models
+            if (modelType == "embedding")
+            {
+                ServerLogger::logInfo("[Thread %u] Processing embedding model '%s' with inference engine '%s'", 
+                                     std::this_thread::get_id(), modelId.c_str(), inferenceEngine.c_str());
+                
+                // Embedding-specific parameter recommendations
+                if (loadParams.n_ctx > 8192)
+                {
+                    ServerLogger::logWarning("[Thread %u] Large context size (n_ctx=%d) for embedding model '%s' may not be necessary. Consider reducing for better performance",
+                                           std::this_thread::get_id(), loadParams.n_ctx, modelId.c_str());
+                }
+                
+                if (loadParams.n_parallel > 4)
+                {
+                    ServerLogger::logWarning("[Thread %u] High parallel processing (n_parallel=%d) for embedding model '%s' may not improve performance significantly",
+                                           std::this_thread::get_id(), loadParams.n_parallel, modelId.c_str());
+                }
+            }
+            else
+            {
+                ServerLogger::logInfo("[Thread %u] Processing LLM model '%s' with inference engine '%s'", 
+                                     std::this_thread::get_id(), modelId.c_str(), inferenceEngine.c_str());
+            }
 
             std::string modelPathStr = modelPath;
             std::string actualModelPath = modelPath;
@@ -705,12 +805,56 @@ namespace kolosal
                 // Check engine status without loading it (to avoid triggering lazy model loading)
                 auto [exists, isLoaded] = nodeManager.getEngineStatus(modelId);
 
+                // Try to get additional model information
                 json response = {
                     {"model_id", modelId},
                     {"status", isLoaded ? "loaded" : "unloaded"},
                     {"available", true},
                     {"message", isLoaded ? "Model is loaded and ready" : "Model exists but is currently unloaded"}
                 };
+
+                // Get additional model information if available
+                try
+                {
+                    // Check if this is an embedding model by trying to get engine and checking type
+                    if (isLoaded)
+                    {
+                        auto engine = nodeManager.getEngine(modelId);
+                        if (engine)
+                        {
+                            response["engine_loaded"] = true;
+                            response["inference_ready"] = true;
+                            
+                            // Try to determine if this is an embedding model
+                            // This could be enhanced by adding metadata to the engine records
+                            response["capabilities"] = json::array({"inference"});
+                            
+                            // Add performance info for embedding models if available
+                            response["performance"] = {
+                                {"last_activity", "N/A"},
+                                {"request_count", 0}
+                            };
+                        }
+                        else
+                        {
+                            response["engine_loaded"] = false;
+                            response["inference_ready"] = false;
+                        }
+                    }
+                    else
+                    {
+                        response["engine_loaded"] = false;
+                        response["inference_ready"] = false;
+                        response["capabilities"] = json::array();
+                    }
+                }
+                catch (const std::exception &ex)
+                {
+                    ServerLogger::logWarning("[Thread %u] Could not get detailed engine info for model '%s': %s", 
+                                           std::this_thread::get_id(), modelId.c_str(), ex.what());
+                    response["engine_loaded"] = false;
+                    response["inference_ready"] = false;
+                }
 
                 send_response(sock, 200, response.dump());
                 ServerLogger::logInfo("[Thread %u] Successfully retrieved status for model '%s'", std::this_thread::get_id(), modelId.c_str());

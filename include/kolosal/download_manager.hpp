@@ -22,6 +22,19 @@ namespace kolosal {
         std::string inference_engine; // Inference engine to use (will be set by caller or use default from config)
         
         EngineCreationParams() : load_immediately(false), main_gpu_id(-1) {}
+        
+        // Validation method to ensure parameters are valid
+        bool isValid() const {
+            if (model_id.empty()) return false;
+            if (model_type != "llm" && model_type != "embedding") return false;
+            if (main_gpu_id < -1) return false; // -1 is valid (auto-detect)
+            return true;
+        }
+        
+        // Helper method to check if this is an embedding model
+        bool isEmbeddingModel() const {
+            return model_type == "embedding";
+        }
     };
 
     // Structure to hold download progress information

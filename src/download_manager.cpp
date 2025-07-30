@@ -57,6 +57,14 @@ namespace kolosal
     bool DownloadManager::startDownloadWithEngine(const std::string &model_id, const std::string &url,
                                                   const std::string &local_path, const EngineCreationParams &engine_params)
     {
+        // Validate engine parameters first
+        if (!engine_params.isValid())
+        {
+            ServerLogger::logError("Invalid engine parameters for model %s: model_id='%s', model_type='%s', main_gpu_id=%d", 
+                                 model_id.c_str(), engine_params.model_id.c_str(), engine_params.model_type.c_str(), engine_params.main_gpu_id);
+            return false;
+        }
+
         // First check if an engine with this ID already exists
         auto &nodeManager = ServerAPI::instance().getNodeManager();
         auto [engineExists, engineLoaded] = nodeManager.getEngineStatus(engine_params.model_id);
@@ -495,12 +503,31 @@ namespace kolosal
 
             if (progress->engine_params->model_type == "embedding")
             {
-                // For embedding engines, always use addEmbeddingEngine
-                success = nodeManager.addEmbeddingEngine(
-                    progress->engine_params->model_id,
-                    actualModelPath.c_str(),
-                    progress->engine_params->loading_params,
-                    progress->engine_params->main_gpu_id);
+                // For embedding engines, check loading preference
+                if (progress->engine_params->load_immediately)
+                {
+                    // Load immediately - use addEmbeddingEngine
+                    success = nodeManager.addEmbeddingEngine(
+                        progress->engine_params->model_id,
+                        actualModelPath.c_str(),
+                        progress->engine_params->loading_params,
+                        progress->engine_params->main_gpu_id);
+                    
+                    ServerLogger::logInfo("Creating embedding engine immediately for model: %s", 
+                                        progress->engine_params->model_id.c_str());
+                }
+                else
+                {
+                    // Lazy loading - use registerEmbeddingEngine
+                    success = nodeManager.registerEmbeddingEngine(
+                        progress->engine_params->model_id,
+                        actualModelPath.c_str(),
+                        progress->engine_params->loading_params,
+                        progress->engine_params->main_gpu_id);
+                    
+                    ServerLogger::logInfo("Registering embedding engine for lazy loading: %s", 
+                                        progress->engine_params->model_id.c_str());
+                }
             }
             else
             {
@@ -514,6 +541,9 @@ namespace kolosal
                         progress->engine_params->loading_params,
                         progress->engine_params->main_gpu_id,
                         progress->engine_params->inference_engine);
+                    
+                    ServerLogger::logInfo("Creating LLM engine immediately for model: %s", 
+                                        progress->engine_params->model_id.c_str());
                 }
                 else
                 {
@@ -524,6 +554,9 @@ namespace kolosal
                         progress->engine_params->loading_params,
                         progress->engine_params->main_gpu_id,
                         progress->engine_params->inference_engine);
+                    
+                    ServerLogger::logInfo("Registering LLM engine for lazy loading: %s", 
+                                        progress->engine_params->model_id.c_str());
                 }
             }
 
@@ -597,6 +630,26 @@ namespace kolosal
                                              int main_gpu_id, bool load_immediately,
                                              const std::string& inference_engine)
     {
+        // Validate model type
+        if (model_type != "llm" && model_type != "embedding")
+        {
+            ServerLogger::logError("Invalid model_type '%s' for startup model '%s'. Must be 'llm' or 'embedding'", 
+                                 model_type.c_str(), model_id.c_str());
+            return false;
+        }
+
+        // Log startup information with model type
+        if (model_type == "embedding")
+        {
+            ServerLogger::logInfo("Loading embedding model '%s' at startup (load_immediately=%s, engine=%s)", 
+                                model_id.c_str(), load_immediately ? "true" : "false", inference_engine.c_str());
+        }
+        else
+        {
+            ServerLogger::logInfo("Loading LLM model '%s' at startup (load_immediately=%s, engine=%s)", 
+                                model_id.c_str(), load_immediately ? "true" : "false", inference_engine.c_str());
+        }
+
         // First check if an engine with this ID already exists
         auto &nodeManager = ServerAPI::instance().getNodeManager();
         auto [engineExists, engineLoaded] = nodeManager.getEngineStatus(model_id);

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "route_interface.hpp"
-#include "../export.hpp"
-#include "../retrieval/document_service.hpp"
+#include "../route_interface.hpp"
+#include "../../export.hpp"
+#include "../../retrieval/document_service.hpp"
 #include <string>
 #include <memory>
 #include <atomic>
@@ -18,7 +18,8 @@ namespace kolosal
  * - POST /add_documents - Add documents to vector database
  * - POST /remove_documents - Remove documents by IDs
  * - GET /list_documents - List all document IDs
- * - POST /documents_info - Get full document information by IDs
+ * - POST /info_documents - Get full document information by IDs
+ * - POST /retrieve - Retrieve documents using vector similarity search
  * 
  * All implementations are fully async and thread-safe.
  */
@@ -77,6 +78,13 @@ private:
      * @param body Request body JSON
      */
     void handleDocumentsInfo(SocketType sock, const std::string& body);
+
+    /**
+     * @brief Handles retrieve documents request (vector similarity search)
+     * @param sock Socket for the connection
+     * @param body Request body JSON
+     */
+    void handleRetrieve(SocketType sock, const std::string& body);
 
     /**
      * @brief Handles OPTIONS requests for CORS preflight
