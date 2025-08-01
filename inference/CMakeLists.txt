@@ -524,6 +524,11 @@ set_target_properties(${TARGET_NAME} PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
 )
 
+# Add examples directory if it exists
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/examples/CMakeLists.txt")
+    add_subdirectory(examples)
+endif()
+
 # Install targets
 install(TARGETS ${TARGET_NAME} 
     RUNTIME DESTINATION bin

@@ -96,6 +96,12 @@ struct CompletionParameters {
     float       temperature     = 1.0f;
     float       topP            = 0.5f;
     
+    // Grammar constraint (optional BNF-like grammar to constrain sampling)
+    std::string grammar         = "";
+    
+    // JSON Schema (optional JSON schema that will be converted to grammar)
+    std::string jsonSchema      = "";
+    
     // Behavior settings
     bool        streaming       = false;
     
@@ -135,6 +141,12 @@ struct ChatCompletionParameters {
     // Sampling parameters
     float       temperature     = 1.0f;
     float       topP            = 0.5f;
+    
+    // Grammar constraint (optional BNF-like grammar to constrain sampling)
+    std::string grammar         = "";
+    
+    // JSON Schema (optional JSON schema that will be converted to grammar)
+    std::string jsonSchema      = "";
     
     // Behavior settings
     bool        streaming       = false;

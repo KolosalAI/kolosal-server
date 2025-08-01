@@ -19,6 +19,7 @@
 #include "llama.h"
 #include "common.h"
 #include "sampling.h"
+#include "json-schema-to-grammar.h"
 #include "inference.h"
 #include "chat.h"
 #include "json.hpp"
@@ -639,6 +640,7 @@ namespace
 								job->batch_pos = batch.n_tokens - 1;
 							}
 
+							// Accept prompt tokens without grammar constraints (accept_grammar = false)
 							common_sampler_accept(job->smpl, token, false);
 							job->session_tokens.push_back(token);
 							++(job->i_prompt);
@@ -855,9 +857,12 @@ namespace
 				params.minLength,
 				params.temperature,
 				params.topP,
+				params.grammar,
+				params.jsonSchema,
 				params.streaming,
 				params.kvCacheFilePath,
-				params.seqId};
+				params.seqId
+			};
 
 			return completionParams;
 		}
@@ -1148,6 +1153,26 @@ namespace
 			sparams.seed = params.randomSeed;
 			// sparams.top_k = params.topK;
 			sparams.no_perf = false;
+			
+			// Handle JSON schema conversion to grammar
+			if (!params.jsonSchema.empty()) {
+				try {
+					// Parse the JSON schema string
+					nlohmann::ordered_json schema = nlohmann::ordered_json::parse(params.jsonSchema);
+					// Convert to grammar using llama.cpp's converter
+					sparams.grammar = json_schema_to_grammar(schema);
+				} catch (const std::exception& e) {
+					std::lock_guard<std::mutex> jobLock(job->mtx);
+					job->hasError = true;
+					job->errorMessage = "Invalid JSON schema: " + std::string(e.what());
+					job->cv.notify_all();
+					return nullptr;
+				}
+			}
+			// Set grammar if provided directly (overrides JSON schema if both are provided)
+			else if (!params.grammar.empty()) {
+				sparams.grammar = params.grammar;
+			}
 
 			common_sampler *sampler = common_sampler_init(model, sparams);
 			if (!sampler)
@@ -1269,7 +1294,7 @@ namespace
 		bool sampleNextToken(std::shared_ptr<Job> job)
 		{
 			llama_token id = common_sampler_sample(job->smpl, context, job->batch_pos);
-			common_sampler_accept(job->smpl, id, false);
+			common_sampler_accept(job->smpl, id, true);
 
 			if (llama_vocab_is_eog(tokenizer->getVocab(), id) || id == llama_vocab_eos(tokenizer->getVocab()))
 			{
