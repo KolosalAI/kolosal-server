@@ -1,4 +1,4 @@
-#include "kolosal/routes/auth_config_route.hpp"
+#include "kolosal/routes/config/auth_config_route.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/auth/auth_middleware.hpp"
 #include "kolosal/utils.hpp"

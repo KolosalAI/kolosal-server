@@ -1,4 +1,4 @@
-#include "kolosal/routes/oai_completions_route.hpp"
+#include "kolosal/routes/llm/oai_completions_route.hpp"
 #include "kolosal/utils.hpp"
 #include "kolosal/models/chat_response_model.hpp"
 #include "kolosal/models/chat_response_chunk_model.hpp"

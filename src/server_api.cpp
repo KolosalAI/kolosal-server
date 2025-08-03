@@ -15,7 +15,6 @@
 #include "kolosal/routes/engines_route.hpp"
 #include "kolosal/routes/health_status_route.hpp"
 #include "kolosal/routes/server_logs_route.hpp"
-#include "kolosal/routes/agents_route.hpp"
 
 // Agent routes
 #include "kolosal/routes/agents/agents_route.hpp"
@@ -132,10 +131,9 @@ namespace kolosal
             
             // Register routes
             ServerLogger::logInfo("Registering routes");
-            pImpl->server->addRoute(std::make_unique<routes::AgentsRoute>(pImpl->agentManager));
             
             // New agent routes
-            pImpl->server->addRoute(std::make_unique<routes::agents::AgentsRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::agents::AgentsRoute>(pImpl->agentManager));
             pImpl->server->addRoute(std::make_unique<routes::agents::SequentialRoute>());
             
             pImpl->server->addRoute(std::make_unique<OaiCompletionsRoute>());
@@ -144,7 +142,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<ModelsRoute>());
             pImpl->server->addRoute(std::make_unique<EnginesRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
-            pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
+            // pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
             pImpl->server->addRoute(std::make_unique<ServerLogsRoute>());
             pImpl->server->addRoute(std::make_unique<DownloadsRoute>());
             pImpl->server->addRoute(std::make_unique<ParseDocumentRoute>());
@@ -199,10 +197,9 @@ namespace kolosal
             
             // Register routes
             ServerLogger::logInfo("Registering routes");
-            pImpl->server->addRoute(std::make_unique<routes::AgentsRoute>(pImpl->agentManager));
             
             // New agent routes
-            pImpl->server->addRoute(std::make_unique<routes::agents::AgentsRoute>());
+            pImpl->server->addRoute(std::make_unique<routes::agents::AgentsRoute>(pImpl->agentManager));
             pImpl->server->addRoute(std::make_unique<routes::agents::SequentialRoute>());
             
             pImpl->server->addRoute(std::make_unique<OaiCompletionsRoute>());
@@ -211,7 +208,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<ModelsRoute>());
             pImpl->server->addRoute(std::make_unique<EnginesRoute>());
             pImpl->server->addRoute(std::make_unique<HealthStatusRoute>());
-            pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
+            // pImpl->server->addRoute(std::make_unique<AuthConfigRoute>());
             pImpl->server->addRoute(std::make_unique<ServerLogsRoute>());
             pImpl->server->addRoute(std::make_unique<DownloadsRoute>());
             pImpl->server->addRoute(std::make_unique<ParseDocumentRoute>());

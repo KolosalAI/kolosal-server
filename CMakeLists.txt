@@ -84,7 +84,7 @@ set(SOURCES
     src/routes/downloads_route.cpp
     src/routes/retrieval/chunking_route.cpp
     
-    # New agent routes
+    # Agent routes
     src/routes/agents/agents_route.cpp
     src/routes/agents/sequential_route.cpp
     

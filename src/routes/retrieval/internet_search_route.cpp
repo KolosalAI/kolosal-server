@@ -1,4 +1,4 @@
-#include "kolosal/routes/internet_search_route.hpp"
+#include "kolosal/routes/retrieval/internet_search_route.hpp"
 #include "kolosal/utils.hpp"
 #include "kolosal/logger.hpp"
 #include <json.hpp>

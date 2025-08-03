@@ -1,4 +1,4 @@
-#include "kolosal/routes/chunking_route.hpp"
+#include "kolosal/routes/retrieval/chunking_route.hpp"
 #include "kolosal/models/chunking_request_model.hpp"
 #include "kolosal/models/chunking_response_model.hpp"
 #include "kolosal/utils.hpp"

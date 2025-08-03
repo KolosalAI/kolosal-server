@@ -1,4 +1,4 @@
-#include "kolosal/routes/embedding_route.hpp"
+#include "kolosal/routes/retrieval/embedding_route.hpp"
 #include "kolosal/models/embedding_request_model.hpp"
 #include "kolosal/models/embedding_response_model.hpp"
 #include "kolosal/utils.hpp"

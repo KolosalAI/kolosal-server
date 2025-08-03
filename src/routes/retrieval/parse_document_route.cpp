@@ -1,4 +1,4 @@
-#include "kolosal/routes/parse_document_route.hpp"
+#include "kolosal/routes/retrieval/parse_document_route.hpp"
 #include "kolosal/utils.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/retrieval/parse_pdf.hpp"

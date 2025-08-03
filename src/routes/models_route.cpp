@@ -262,6 +262,7 @@ namespace kolosal
 
             std::string modelId = request.model_id;
             std::string modelPath = request.model_path;
+            std::string modelType = request.model_type;
             std::string inferenceEngine = request.inference_engine.empty() ? "llama-cpu" : request.inference_engine;
             int mainGpuId = request.main_gpu_id;
             bool loadImmediately = request.load_immediately;

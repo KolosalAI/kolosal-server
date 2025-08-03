@@ -1,4 +1,4 @@
-#include "kolosal/routes/completion_route.hpp"
+#include "kolosal/routes/llm/completion_route.hpp"
 #include "kolosal/utils.hpp"
 #include "kolosal/server_api.hpp"
 #include "kolosal/logger.hpp"
