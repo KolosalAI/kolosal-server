@@ -2,6 +2,7 @@
 #include "kolosal/utils.hpp"
 #include "kolosal/logger.hpp"
 #include "kolosal/agents/agent_core.hpp"
+#include "kolosal/agents/yaml_config.hpp"
 #include <json.hpp>
 #include <regex>
 #include <iostream>
@@ -285,14 +286,50 @@ void AgentsRoute::handle_create_agent(SocketType sock, const std::string& body) 
             return;
         }
         
+        if (!agent_manager) {
+            send_error_response(sock, 500, "Agent manager not available");
+            return;
+        }
+        
+        // Create agent configuration from request
+        kolosal::agents::AgentConfig config;
+        config.name = request.value("name", "Unnamed Agent");
+        config.type = request.value("type", "generic");
+        config.role = request.value("role", "assistant");
+        config.system_prompt = request.value("system_prompt", "You are a helpful AI assistant.");
+        
+        // Add capabilities if provided
+        if (request.contains("capabilities") && request["capabilities"].is_array()) {
+            for (const auto& cap : request["capabilities"]) {
+                if (cap.is_string()) {
+                    config.capabilities.push_back(cap.get<std::string>());
+                }
+            }
+        }
+        
+        // Add functions if provided
+        if (request.contains("functions") && request["functions"].is_array()) {
+            for (const auto& func : request["functions"]) {
+                if (func.is_string()) {
+                    config.functions.push_back(func.get<std::string>());
+                }
+            }
+        }
+        
         // Create agent using the agent manager
-        std::string agent_id = "agent_" + std::to_string(std::time(nullptr));
+        std::string agent_id = agent_manager->create_agent_from_config(config);
+        
+        if (agent_id.empty()) {
+            send_error_response(sock, 500, "Failed to create agent");
+            return;
+        }
         
         json response = {
             {"status", "success"},
             {"agent_id", agent_id},
-            {"name", request.value("name", "Unnamed Agent")},
-            {"type", request.value("type", "generic")},
+            {"name", config.name},
+            {"type", config.type},
+            {"role", config.role},
             {"created", true}
         };
         
@@ -300,33 +337,78 @@ void AgentsRoute::handle_create_agent(SocketType sock, const std::string& body) 
         send_json_response(sock, 201, response);
     } catch (const json::parse_error& e) {
         send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error creating agent: %s", e.what());
+        send_error_response(sock, 500, "Internal server error");
     }
 }
 
 void AgentsRoute::handle_list_agents(SocketType sock) {
-    json response = {
-        {"status", "success"},
-        {"agents", json::array()},
-        {"total", 0}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    // TODO: Implement actual agent listing using agent_manager
-    ServerLogger::logInfo("Listing agents");
-    send_json_response(sock, 200, response);
+    try {
+        std::vector<std::string> agent_ids = agent_manager->list_agents();
+        json agents_array = json::array();
+        
+        for (const auto& agent_id : agent_ids) {
+            auto agent = agent_manager->get_agent(agent_id);
+            if (agent) {
+                json agent_info = {
+                    {"agent_id", agent->get_agent_id()},
+                    {"name", agent->get_agent_name()},
+                    {"type", agent->get_agent_type()},
+                    {"state", agent->is_running() ? "running" : "stopped"},
+                    {"capabilities", agent->get_capabilities()}
+                };
+                agents_array.push_back(agent_info);
+            }
+        }
+        
+        json response = {
+            {"status", "success"},
+            {"agents", agents_array},
+            {"total", agents_array.size()}
+        };
+        
+        ServerLogger::logInfo("Listed %d agents", agents_array.size());
+        send_json_response(sock, 200, response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error listing agents: %s", e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_get_agent(SocketType sock, const std::string& agent_id) {
-    json response = {
-        {"status", "success"},
-        {"agent_id", agent_id},
-        {"name", "Sample Agent"},
-        {"type", "generic"},
-        {"state", "stopped"},
-        {"created_at", "2024-01-01T00:00:00Z"}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    ServerLogger::logInfo("Getting agent: %s", agent_id.c_str());
-    send_json_response(sock, 200, response);
+    try {
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        json response = {
+            {"status", "success"},
+            {"agent_id", agent->get_agent_id()},
+            {"name", agent->get_agent_name()},
+            {"type", agent->get_agent_type()},
+            {"state", agent->is_running() ? "running" : "stopped"},
+            {"capabilities", agent->get_capabilities()}
+        };
+        
+        ServerLogger::logInfo("Getting agent: %s", agent_id.c_str());
+        send_json_response(sock, 200, response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error getting agent %s: %s", agent_id.c_str(), e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_update_agent(SocketType sock, const std::string& agent_id, const std::string& body) {
@@ -347,27 +429,63 @@ void AgentsRoute::handle_update_agent(SocketType sock, const std::string& agent_
 }
 
 void AgentsRoute::handle_delete_agent(SocketType sock, const std::string& agent_id) {
-    json response = {
-        {"status", "success"},
-        {"agent_id", agent_id},
-        {"message", "Agent deleted successfully"}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    ServerLogger::logInfo("Deleted agent: %s", agent_id.c_str());
-    send_json_response(sock, 200, response);
+    try {
+        bool success = agent_manager->delete_agent(agent_id);
+        if (!success) {
+            send_error_response(sock, 404, "Agent not found or failed to delete");
+            return;
+        }
+        
+        json response = {
+            {"status", "success"},
+            {"agent_id", agent_id},
+            {"message", "Agent deleted successfully"}
+        };
+        
+        ServerLogger::logInfo("Deleted agent: %s", agent_id.c_str());
+        send_json_response(sock, 200, response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error deleting agent %s: %s", agent_id.c_str(), e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_agent_system_status(SocketType sock) {
-    json response = {
-        {"status", "success"},
-        {"system", {
-            {"running", true},
-            {"active_agents", 0},
-            {"total_agents", 0}
-        }}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    send_json_response(sock, 200, response);
+    try {
+        std::vector<std::string> agent_ids = agent_manager->list_agents();
+        int active_agents = 0;
+        
+        for (const auto& agent_id : agent_ids) {
+            auto agent = agent_manager->get_agent(agent_id);
+            if (agent && agent->is_running()) {
+                active_agents++;
+            }
+        }
+        
+        json response = {
+            {"status", "success"},
+            {"system", {
+                {"running", agent_manager->is_running()},
+                {"active_agents", active_agents},
+                {"total_agents", agent_ids.size()}
+            }}
+        };
+        
+        send_json_response(sock, 200, response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error getting agent system status: %s", e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_agent_system_metrics(SocketType sock) {
@@ -386,27 +504,65 @@ void AgentsRoute::handle_agent_system_metrics(SocketType sock) {
 
 // Agent lifecycle management
 void AgentsRoute::handle_start_agent(SocketType sock, const std::string& agent_id) {
-    json response = {
-        {"status", "success"},
-        {"agent_id", agent_id},
-        {"state", "running"},
-        {"message", "Agent started successfully"}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    ServerLogger::logInfo("Started agent: %s", agent_id.c_str());
-    send_json_response(sock, 200, response);
+    try {
+        bool success = agent_manager->start_agent(agent_id);
+        if (!success) {
+            send_error_response(sock, 404, "Agent not found or failed to start");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        std::string state = agent && agent->is_running() ? "running" : "stopped";
+        
+        json response = {
+            {"status", "success"},
+            {"agent_id", agent_id},
+            {"state", state},
+            {"message", "Agent started successfully"}
+        };
+        
+        ServerLogger::logInfo("Started agent: %s", agent_id.c_str());
+        send_json_response(sock, 200, response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error starting agent %s: %s", agent_id.c_str(), e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_stop_agent(SocketType sock, const std::string& agent_id) {
-    json response = {
-        {"status", "success"},
-        {"agent_id", agent_id},
-        {"state", "stopped"},
-        {"message", "Agent stopped successfully"}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    ServerLogger::logInfo("Stopped agent: %s", agent_id.c_str());
-    send_json_response(sock, 200, response);
+    try {
+        bool success = agent_manager->stop_agent(agent_id);
+        if (!success) {
+            send_error_response(sock, 404, "Agent not found or failed to stop");
+            return;
+        }
+        
+        auto agent = agent_manager->get_agent(agent_id);
+        std::string state = agent && agent->is_running() ? "running" : "stopped";
+        
+        json response = {
+            {"status", "success"},
+            {"agent_id", agent_id},
+            {"state", state},
+            {"message", "Agent stopped successfully"}
+        };
+        
+        ServerLogger::logInfo("Stopped agent: %s", agent_id.c_str());
+        send_json_response(sock, 200, response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error stopping agent %s: %s", agent_id.c_str(), e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_restart_agent(SocketType sock, const std::string& agent_id) {
@@ -441,34 +597,119 @@ void AgentsRoute::handle_agent_status(SocketType sock, const std::string& agent_
 
 // Agent capabilities and functions
 void AgentsRoute::handle_get_agent_capabilities(SocketType sock, const std::string& agent_id) {
-    json response = {
-        {"status", "success"},
-        {"agent_id", agent_id},
-        {"capabilities", json::array()}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    send_json_response(sock, 200, response);
+    try {
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        json response = {
+            {"status", "success"},
+            {"agent_id", agent_id},
+            {"capabilities", agent->get_capabilities()}
+        };
+        
+        send_json_response(sock, 200, response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error getting agent capabilities for %s: %s", agent_id.c_str(), e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_list_agent_functions(SocketType sock, const std::string& agent_id) {
-    json response = {
-        {"status", "success"},
-        {"agent_id", agent_id},
-        {"functions", json::array()}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    send_json_response(sock, 200, response);
+    try {
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        auto function_manager = agent->get_function_manager();
+        json functions_array = json::array();
+        
+        if (function_manager) {
+            // Get available function names (this would need to be implemented in FunctionManager)
+            // For now, we'll return empty array as the FunctionManager doesn't expose this method
+            ServerLogger::logInfo("Function manager available for agent %s", agent_id.c_str());
+        }
+        
+        json response = {
+            {"status", "success"},
+            {"agent_id", agent_id},
+            {"functions", functions_array}
+        };
+        
+        send_json_response(sock, 200, response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error listing agent functions for %s: %s", agent_id.c_str(), e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body) {
-    json response = {
-        {"status", "success"},
-        {"agent_id", agent_id},
-        {"function", function_name},
-        {"result", "Function executed successfully"}
-    };
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
     
-    send_json_response(sock, 200, response);
+    try {
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        json request = json::parse(body);
+        kolosal::agents::AgentData params;
+        
+        // Convert JSON to AgentData
+        if (request.contains("parameters") && request["parameters"].is_object()) {
+            for (auto& [key, value] : request["parameters"].items()) {
+                if (value.is_string()) {
+                    params.set(key, value.get<std::string>());
+                } else if (value.is_number_integer()) {
+                    params.set(key, value.get<int>());
+                } else if (value.is_number_float()) {
+                    params.set(key, value.get<double>());
+                } else if (value.is_boolean()) {
+                    params.set(key, value.get<bool>());
+                }
+            }
+        }
+        
+        auto result = agent->execute_function(function_name, params);
+        
+        json response = {
+            {"status", "success"},
+            {"agent_id", agent_id},
+            {"function", function_name},
+            {"success", result.success},
+            {"execution_time_ms", result.execution_time_ms},
+            {"result", result.success ? "Function executed successfully" : result.error_message}
+        };
+        
+        if (!result.success) {
+            response["error"] = result.error_message;
+        }
+        
+        send_json_response(sock, result.success ? 200 : 400, response);
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error executing function %s on agent %s: %s", function_name.c_str(), agent_id.c_str(), e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 void AgentsRoute::handle_test_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body) {

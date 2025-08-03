@@ -5,8 +5,8 @@ server:
   allow_public_access: false
   allow_internet_access: false
 logging:
-  level: INFO
-  file: ""
+  level: info
+  file: "server.log"
   access_log: false
   quiet_mode: false
   show_request_details: true

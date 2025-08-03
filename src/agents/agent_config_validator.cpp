@@ -28,9 +28,9 @@ AgentConfigValidator::ValidationResult AgentConfigValidator::validate_system_con
     }
     
     // Validate log level
-    std::vector<std::string> valid_log_levels = {"debug", "info", "warning", "error"};
+    std::vector<std::string> valid_log_levels = {"debug", "info", "warn", "error"};
     if (std::find(valid_log_levels.begin(), valid_log_levels.end(), config.log_level) == valid_log_levels.end()) {
-        result.errors.push_back("Invalid log level: " + config.log_level + ". Must be one of: debug, info, warning, error");
+        result.errors.push_back("Invalid log level: " + config.log_level + ". Must be one of: debug, info, warn, error");
         result.is_valid = false;
     }
     

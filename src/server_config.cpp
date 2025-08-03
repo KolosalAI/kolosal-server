@@ -1,10 +1,12 @@
 #include "kolosal/server_config.hpp"
 #include "kolosal/logger.hpp"
+#include "kolosal/agents/yaml_config.hpp"
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <fstream>
 #include <thread>
 #include <filesystem>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <windows.h>
@@ -521,7 +523,11 @@ namespace kolosal
             {
                 auto logging = config["logging"];
                 if (logging["level"])
+                {
                     logLevel = logging["level"].as<std::string>();
+                    // Convert to uppercase for main server log level validation
+                    std::transform(logLevel.begin(), logLevel.end(), logLevel.begin(), ::toupper);
+                }
                 if (logging["file"])
                     logFile = logging["file"].as<std::string>();
                 if (logging["access_log"])
@@ -782,6 +788,47 @@ namespace kolosal
                     search.default_engine = searchConfig["default_engine"].as<std::string>();
                 if (searchConfig["api_key"])
                     search.api_key = searchConfig["api_key"].as<std::string>();
+            }
+
+            // Load agent system configuration
+            if (config["system"])
+            {
+                auto systemConfig = config["system"];
+                if (systemConfig["worker_threads"])
+                    agentSystem.worker_threads = systemConfig["worker_threads"].as<int>();
+                if (systemConfig["health_check_interval_seconds"])
+                    agentSystem.health_check_interval_seconds = systemConfig["health_check_interval_seconds"].as<int>();
+                if (systemConfig["log_level"])
+                {
+                    std::string level = systemConfig["log_level"].as<std::string>();
+                    // Validate log level (match yaml_config.cpp validation)
+                    if (level != "debug" && level != "info" && level != "warn" && level != "error")
+                    {
+                        std::cerr << "Error: Invalid log_level: " << level << ". Must be one of: debug, info, warn, error" << std::endl;
+                        return false;
+                    }
+                    agentSystem.log_level = level;
+                }
+            }
+            
+            if (config["functions"])
+            {
+                agentSystem.functions.clear();
+                for (const auto &functionConfig : config["functions"])
+                {
+                    kolosal::agents::FunctionConfig func = kolosal::agents::FunctionConfig::from_yaml(functionConfig);
+                    agentSystem.functions.push_back(func);
+                }
+            }
+
+            if (config["agents"])
+            {
+                agentSystem.agents.clear();
+                for (const auto &agentConfig : config["agents"])
+                {
+                    kolosal::agents::AgentConfig agent = kolosal::agents::AgentConfig::from_yaml(agentConfig);
+                    agentSystem.agents.push_back(agent);
+                }
             }
 
             return validate();

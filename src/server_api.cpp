@@ -129,12 +129,8 @@ namespace kolosal
                 return false;
             }
             
-            // Register routes
-            ServerLogger::logInfo("Registering routes");
-            
-            // New agent routes
-            pImpl->server->addRoute(std::make_unique<routes::agents::AgentsRoute>(pImpl->agentManager));
-            pImpl->server->addRoute(std::make_unique<routes::agents::SequentialRoute>());
+            // Register routes (except agent routes which will be registered after agent manager is set)
+            ServerLogger::logInfo("Registering non-agent routes");
             
             pImpl->server->addRoute(std::make_unique<OaiCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionRoute>());
@@ -150,7 +146,7 @@ namespace kolosal
             // pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
             pImpl->server->addRoute(std::make_unique<ChunkingRoute>());
 
-            ServerLogger::logInfo("Routes registered successfully");
+            ServerLogger::logInfo("Non-agent routes registered successfully");
 
             // Start server in a background thread
             std::thread([this]() {
@@ -195,12 +191,8 @@ namespace kolosal
                 return false;
             }
             
-            // Register routes
-            ServerLogger::logInfo("Registering routes");
-            
-            // New agent routes
-            pImpl->server->addRoute(std::make_unique<routes::agents::AgentsRoute>(pImpl->agentManager));
-            pImpl->server->addRoute(std::make_unique<routes::agents::SequentialRoute>());
+            // Register routes (except agent routes which will be registered after agent manager is set)
+            ServerLogger::logInfo("Registering non-agent routes");
             
             pImpl->server->addRoute(std::make_unique<OaiCompletionsRoute>());
             pImpl->server->addRoute(std::make_unique<CompletionRoute>());
@@ -216,7 +208,7 @@ namespace kolosal
             // pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
             pImpl->server->addRoute(std::make_unique<ChunkingRoute>());
 
-            ServerLogger::logInfo("Routes registered successfully");
+            ServerLogger::logInfo("Non-agent routes registered successfully");
 
             // Start server in a background thread
             std::thread([this]() {
@@ -379,6 +371,14 @@ namespace kolosal
     void ServerAPI::setAgentManager(std::shared_ptr<agents::YAMLConfigurableAgentManager> manager)
     {
         pImpl->agentManager = manager;
+        
+        // Register agent routes now that we have a proper agent manager
+        if (pImpl->server) {
+            ServerLogger::logInfo("Registering agent routes with configured agent manager");
+            pImpl->server->addRoute(std::make_unique<routes::agents::AgentsRoute>(pImpl->agentManager));
+            pImpl->server->addRoute(std::make_unique<routes::agents::SequentialRoute>());
+            ServerLogger::logInfo("Agent routes registered successfully");
+        }
     }
 
     void ServerAPI::setAgentOrchestrator(std::shared_ptr<agents::AgentOrchestrator> orchestrator)
