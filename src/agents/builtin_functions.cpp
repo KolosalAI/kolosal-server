@@ -445,11 +445,35 @@ FunctionResult InferenceFunction::execute(const AgentData& params) {
         ServerLogger::logDebug("InferenceFunction: Starting inference with prompt length %zu, max_tokens %d", 
                               prompt.length(), max_tokens);
         
+        // Validate completion parameters
+        if (!inferenceParams.isValid()) {
+            ServerLogger::logError("InferenceFunction: Invalid completion parameters");
+            return FunctionResult(false, "Invalid completion parameters");
+        }
+        
+        // Try to check if engine is in a valid state by checking if it has active jobs capability
+        try {
+            bool hasActiveJobs = engine->hasActiveJobs();
+            ServerLogger::logDebug("InferenceFunction: Engine active jobs check successful (has %s jobs)", 
+                                 hasActiveJobs ? "active" : "no");
+        } catch (const std::exception& e) {
+            ServerLogger::logError("InferenceFunction: Engine health check failed: %s", e.what());
+            return FunctionResult(false, "Engine is not in a valid state: " + std::string(e.what()));
+        }
+        
+        // Log parameter details for debugging
+        ServerLogger::logDebug("InferenceFunction: Parameters - prompt='%s' (length: %zu), max_tokens=%d, temperature=%.2f, top_p=%.2f, seed=%d", 
+                              prompt.substr(0, 50).c_str(), prompt.length(), max_tokens, temperature, top_p, seed);
+        
         // Submit job and wait for completion
+        ServerLogger::logDebug("InferenceFunction: Submitting completion job to engine...");
         int job_id = engine->submitCompletionsJob(inferenceParams);
         if (job_id < 0) {
-            return FunctionResult(false, "Failed to submit inference job to engine");
+            ServerLogger::logError("InferenceFunction: submitCompletionsJob returned negative job ID: %d", job_id);
+            return FunctionResult(false, "Failed to submit inference job to engine - engine may not be properly initialized or model not loaded");
         }
+        
+        ServerLogger::logDebug("InferenceFunction: Job submitted successfully with ID: %d", job_id);
         
         // Wait with timeout monitoring
         engine->waitForJob(job_id); // waitForJob returns void, not bool

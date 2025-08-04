@@ -54,6 +54,9 @@ public:
     void handle_execute_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body);
     void handle_test_agent_function(SocketType sock, const std::string& agent_id, const std::string& function_name, const std::string& body);
     
+    // Agent direct inference endpoint
+    void handle_agent_inference(SocketType sock, const std::string& agent_id, const std::string& body);
+    
     // Agent messaging with model selection
     void handle_send_message_to_agent(SocketType sock, const std::string& agent_id, const std::string& body);
     
@@ -96,6 +99,9 @@ public:
     void handle_create_orchestration(SocketType sock, const std::string& body);
     void handle_execute_orchestration(SocketType sock, const std::string& plan_id, const std::string& body);
     void handle_orchestration_status(SocketType sock, const std::string& plan_id);
+    
+    // Broadcast messaging
+    void handle_broadcast_message(SocketType sock, const std::string& body);
 
     // Helper methods
     std::string format_error_response(const std::string& error, int code = 500);

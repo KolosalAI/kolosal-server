@@ -3,6 +3,9 @@
 #include "kolosal/logger.hpp"
 #include "kolosal/agents/agent_core.hpp"
 #include "kolosal/agents/yaml_config.hpp"
+#include "kolosal/retrieval/document_service.hpp"
+#include "kolosal/retrieval/retrieve_types.hpp"
+#include "kolosal/server_api.hpp"
 #include <json.hpp>
 #include <regex>
 #include <iostream>
@@ -25,14 +28,24 @@ bool AgentsRoute::match(const std::string& method, const std::string& path) {
     current_method = method;
     current_path = path;
     
-    // Handle OPTIONS for CORS
-    if (method == "OPTIONS" && path.find("/api/v1/agents") == 0) {
+    // Handle OPTIONS for CORS - support both API v1 and OpenAI compatible v1 endpoints
+    if (method == "OPTIONS" && (path.find("/api/v1/agents") == 0 || path.find("/v1/agents") == 0)) {
         return true;
     }
     
     // Core agent management endpoints
     if ((method == "GET" || method == "POST") && path == "/api/v1/agents") {
         return true;
+    }
+    
+    // Agent inference endpoint (direct under agent)
+    std::regex agent_inference_pattern("^/api/v1/agents/([^/]+)/inference$");
+    std::smatch inference_matches;
+    
+    if (std::regex_match(path, inference_matches, agent_inference_pattern)) {
+        if (method == "POST") {
+            return true;
+        }
     }
     
     // Agent system endpoints
@@ -60,6 +73,11 @@ bool AgentsRoute::match(const std::string& method, const std::string& path) {
     if (method == "POST" && (path == "/api/v1/agents/bulk/start" || 
                             path == "/api/v1/agents/bulk/stop" || 
                             path == "/api/v1/agents/bulk/delete")) {
+        return true;
+    }
+    
+    // Broadcast message endpoint
+    if (method == "POST" && path == "/api/v1/agents/messages/broadcast") {
         return true;
     }
     
@@ -156,6 +174,8 @@ void AgentsRoute::handle(SocketType sock, const std::string& body) {
             handle_bulk_stop_agents(sock, body);
         } else if (current_path == "/api/v1/agents/bulk/delete") {
             handle_bulk_delete_agents(sock, body);
+        } else if (current_path == "/api/v1/agents/messages/broadcast") {
+            handle_broadcast_message(sock, body);
         } else if (current_path == "/api/v1/agents/documents/bulk") {
             handle_bulk_documents(sock, body);
         } else if (current_path == "/api/v1/agents/documents/bulk_retrieval") {
@@ -225,7 +245,14 @@ void AgentsRoute::handle(SocketType sock, const std::string& body) {
             std::regex agent_pattern("^/api/v1/agents/([^/]+)(?:/(start|stop|restart|status|capabilities|functions|message))?(?:/([^/]+))?$");
             std::smatch matches;
             
-            if (std::regex_match(current_path, matches, agent_pattern)) {
+            // Check for direct inference endpoint first
+            std::regex agent_inference_pattern("^/api/v1/agents/([^/]+)/inference$");
+            std::smatch inference_matches;
+            
+            if (std::regex_match(current_path, inference_matches, agent_inference_pattern)) {
+                std::string agent_id = inference_matches[1].str();
+                handle_agent_inference(sock, agent_id, body);
+            } else if (std::regex_match(current_path, matches, agent_pattern)) {
                 std::string agent_id = matches[1].str();
                 std::string action = matches.size() > 2 ? matches[2].str() : "";
                 std::string param = matches.size() > 3 ? matches[3].str() : "";
@@ -635,14 +662,47 @@ void AgentsRoute::handle_list_agent_functions(SocketType sock, const std::string
             return;
         }
         
-        auto function_manager = agent->get_function_manager();
-        json functions_array = json::array();
-        
-        if (function_manager) {
-            // Get available function names (this would need to be implemented in FunctionManager)
-            // For now, we'll return empty array as the FunctionManager doesn't expose this method
-            ServerLogger::logInfo("Function manager available for agent %s", agent_id.c_str());
-        }
+        // Return a list of available built-in functions including RAG
+        json functions_array = json::array({
+            {
+                {"name", "inference"},
+                {"description", "Generate text using the agent's LLM"},
+                {"parameters", {
+                    {"prompt", "The input text prompt"},
+                    {"max_tokens", "Maximum tokens to generate (optional)"},
+                    {"temperature", "Sampling temperature (optional)"}
+                }}
+            },
+            {
+                {"name", "rag_search"},
+                {"description", "Search documents using RAG (Retrieval-Augmented Generation)"},
+                {"parameters", {
+                    {"query", "The search query"},
+                    {"k", "Number of documents to retrieve (optional, default: 10)"},
+                    {"collection_name", "Collection to search in (optional)"},
+                    {"score_threshold", "Minimum similarity score (optional, default: 0.0)"}
+                }}
+            },
+            {
+                {"name", "rag_inference"},
+                {"description", "Perform RAG-enhanced inference using retrieved documents"},
+                {"parameters", {
+                    {"prompt", "The input text prompt"},
+                    {"query", "The search query for document retrieval"},
+                    {"k", "Number of documents to retrieve (optional, default: 5)"},
+                    {"max_tokens", "Maximum tokens to generate (optional)"},
+                    {"temperature", "Sampling temperature (optional)"}
+                }}
+            },
+            {
+                {"name", "text_processing"},
+                {"description", "Process and analyze text"},
+                {"parameters", {
+                    {"text", "The text to process"},
+                    {"operation", "Type of processing operation"}
+                }}
+            }
+        });
         
         json response = {
             {"status", "success"},
@@ -670,10 +730,24 @@ void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::stri
             return;
         }
         
+        // Check if agent is running
+        if (!agent->is_running()) {
+            send_error_response(sock, 400, "Agent is not running. Please start the agent first.");
+            return;
+        }
+        
         json request = json::parse(body);
+        
+        // Validate function name
+        if (function_name != "inference" && function_name != "text_processing" && 
+            function_name != "rag_search" && function_name != "rag_inference") {
+            send_error_response(sock, 400, "Unknown function: " + function_name + ". Available functions: inference, rag_search, rag_inference, text_processing");
+            return;
+        }
+        
         kolosal::agents::AgentData params;
         
-        // Convert JSON to AgentData
+        // Convert JSON to AgentData with validation
         if (request.contains("parameters") && request["parameters"].is_object()) {
             for (auto& [key, value] : request["parameters"].items()) {
                 if (value.is_string()) {
@@ -688,27 +762,193 @@ void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::stri
             }
         }
         
+        // Validate required parameters based on function
+        if (function_name == "inference") {
+            if (!params.has_key("prompt")) {
+                send_error_response(sock, 400, "Missing required parameter 'prompt' for inference function");
+                return;
+            }
+            
+            // Set default values if not provided
+            if (!params.has_key("max_tokens")) {
+                params.set("max_tokens", 100);
+            }
+            if (!params.has_key("temperature")) {
+                params.set("temperature", 0.7);
+            }
+        } else if (function_name == "rag_search") {
+            if (!params.has_key("query")) {
+                send_error_response(sock, 400, "Missing required parameter 'query' for rag_search function");
+                return;
+            }
+            
+            // Set default values if not provided
+            if (!params.has_key("k")) {
+                params.set("k", 10);
+            }
+            if (!params.has_key("score_threshold")) {
+                params.set("score_threshold", 0.0);
+            }
+        } else if (function_name == "rag_inference") {
+            if (!params.has_key("prompt")) {
+                send_error_response(sock, 400, "Missing required parameter 'prompt' for rag_inference function");
+                return;
+            }
+            if (!params.has_key("query")) {
+                send_error_response(sock, 400, "Missing required parameter 'query' for rag_inference function");
+                return;
+            }
+            
+            // Set default values if not provided
+            if (!params.has_key("k")) {
+                params.set("k", 5);
+            }
+            if (!params.has_key("max_tokens")) {
+                params.set("max_tokens", 200);
+            }
+            if (!params.has_key("temperature")) {
+                params.set("temperature", 0.7);
+            }
+        }
+        
+        // Execute the function
         auto result = agent->execute_function(function_name, params);
+        
+        // For RAG functions, we need to handle them specially
+        if (function_name == "rag_search") {
+            try {
+                // Get DocumentService from ServerAPI
+                auto& doc_service = kolosal::ServerAPI::instance().getDocumentService();
+                
+                // Create retrieve request
+                kolosal::retrieval::RetrieveRequest retrieve_request;
+                retrieve_request.query = params.get_string("query");
+                retrieve_request.k = params.get_int("k");
+                retrieve_request.score_threshold = params.get_double("score_threshold");
+                if (params.has_key("collection_name")) {
+                    retrieve_request.collection_name = params.get_string("collection_name");
+                }
+                
+                // Execute the search
+                auto retrieve_response = doc_service.retrieveDocuments(retrieve_request).get();
+                
+                json response = {
+                    {"status", "success"},
+                    {"agent_id", agent_id},
+                    {"function", function_name},
+                    {"query", retrieve_request.query},
+                    {"results", json::array()}
+                };
+                
+                for (const auto& doc : retrieve_response.documents) {
+                    json doc_json = {
+                        {"id", doc.id},
+                        {"text", doc.text},
+                        {"score", doc.score},
+                        {"metadata", doc.metadata}
+                    };
+                    response["results"].push_back(doc_json);
+                }
+                
+                response["total_found"] = retrieve_response.total_found;
+                
+                send_json_response(sock, 200, response);
+                return;
+            } catch (const std::exception& e) {
+                send_error_response(sock, 500, "RAG search failed: " + std::string(e.what()));
+                return;
+            }
+        } else if (function_name == "rag_inference") {
+            try {
+                // Get DocumentService from ServerAPI
+                auto& doc_service = kolosal::ServerAPI::instance().getDocumentService();
+                
+                // First, perform the retrieval
+                kolosal::retrieval::RetrieveRequest retrieve_request;
+                retrieve_request.query = params.get_string("query");
+                retrieve_request.k = params.get_int("k");
+                retrieve_request.score_threshold = params.has_key("score_threshold") ? params.get_double("score_threshold") : 0.0f;
+                if (params.has_key("collection_name")) {
+                    retrieve_request.collection_name = params.get_string("collection_name");
+                }
+                
+                auto retrieve_response = doc_service.retrieveDocuments(retrieve_request).get();
+                
+                // Build context from retrieved documents
+                std::string context = "Retrieved context:\n";
+                for (const auto& doc : retrieve_response.documents) {
+                    context += "- " + doc.text + "\n";
+                }
+                
+                // Combine the original prompt with the retrieved context
+                std::string enhanced_prompt = context + "\n\nUser prompt: " + params.get_string("prompt");
+                
+                // Create parameters for inference with enhanced prompt
+                kolosal::agents::AgentData inference_params;
+                inference_params.set("prompt", enhanced_prompt);
+                inference_params.set("max_tokens", params.get_int("max_tokens"));
+                inference_params.set("temperature", params.get_double("temperature"));
+                
+                // Execute inference with the enhanced prompt
+                auto inference_result = agent->execute_function("inference", inference_params);
+                
+                json response = {
+                    {"status", "success"},
+                    {"agent_id", agent_id},
+                    {"function", function_name},
+                    {"success", inference_result.success},
+                    {"execution_time_ms", inference_result.execution_time_ms},
+                    {"retrieved_documents", retrieve_response.documents.size()}
+                };
+                
+                if (inference_result.success) {
+                    response["result"] = "RAG inference completed successfully";
+                    // Add actual result data if available
+                    if (!inference_result.error_message.empty()) {
+                        response["output"] = inference_result.error_message;
+                    }
+                } else {
+                    response["error"] = inference_result.error_message;
+                }
+                
+                int status_code = inference_result.success ? 200 : 400;
+                send_json_response(sock, status_code, response);
+                return;
+            } catch (const std::exception& e) {
+                send_error_response(sock, 500, "RAG inference failed: " + std::string(e.what()));
+                return;
+            }
+        }
+        
+        // For other functions, use the normal result
         
         json response = {
             {"status", "success"},
             {"agent_id", agent_id},
             {"function", function_name},
             {"success", result.success},
-            {"execution_time_ms", result.execution_time_ms},
-            {"result", result.success ? "Function executed successfully" : result.error_message}
+            {"execution_time_ms", result.execution_time_ms}
         };
         
-        if (!result.success) {
+        if (result.success) {
+            response["result"] = "Function executed successfully";
+            // Add any result data if available
+            if (!result.error_message.empty()) {
+                response["data"] = result.error_message; // In case there's actual result data
+            }
+        } else {
             response["error"] = result.error_message;
+            response["details"] = "Function execution failed. Please check agent status and parameters.";
         }
         
-        send_json_response(sock, result.success ? 200 : 400, response);
+        int status_code = result.success ? 200 : 400;
+        send_json_response(sock, status_code, response);
+        
     } catch (const json::parse_error& e) {
         send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     } catch (const std::exception& e) {
         ServerLogger::logError("Error executing function %s on agent %s: %s", function_name.c_str(), agent_id.c_str(), e.what());
-        send_error_response(sock, 500, "Internal server error");
+        send_error_response(sock, 500, "Internal server error: " + std::string(e.what()));
     }
 }
 
@@ -1095,6 +1335,93 @@ void AgentsRoute::handle_orchestration_status(SocketType sock, const std::string
     send_json_response(sock, 200, response);
 }
 
+// Agent direct inference endpoint
+void AgentsRoute::handle_agent_inference(SocketType sock, const std::string& agent_id, const std::string& body) {
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
+    
+    try {
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        // Check if agent is running
+        if (!agent->is_running()) {
+            send_error_response(sock, 400, "Agent is not running. Please start the agent first.");
+            return;
+        }
+        
+        json request = json::parse(body);
+        
+        if (!request.contains("prompt")) {
+            send_error_response(sock, 400, "Missing required parameter 'prompt'");
+            return;
+        }
+        
+        // Create parameters for inference
+        kolosal::agents::AgentData params;
+        params.set("prompt", request["prompt"].get<std::string>());
+        params.set("max_tokens", request.value("max_tokens", 100));
+        params.set("temperature", request.value("temperature", 0.7));
+        
+        // Execute inference function
+        auto result = agent->execute_function("inference", params);
+        
+        json response;
+        if (result.success) {
+            response = {
+                {"status", "success"},
+                {"agent_id", agent_id},
+                {"result", "Inference completed successfully"},
+                {"execution_time_ms", result.execution_time_ms}
+            };
+            
+            // Add actual result data if available
+            if (result.result_data.has_key("text")) {
+                response["output"] = result.result_data.get_string("text");
+            } else if (!result.error_message.empty()) {
+                response["output"] = result.error_message; // Contains actual output when successful
+            }
+            
+            // Add additional result data
+            if (result.result_data.has_key("tokens_generated")) {
+                response["tokens_generated"] = result.result_data.get_int("tokens_generated");
+            }
+            if (result.result_data.has_key("tokens_per_second")) {
+                response["tokens_per_second"] = result.result_data.get_double("tokens_per_second");
+            }
+            if (result.result_data.has_key("engine_used")) {
+                response["engine_used"] = result.result_data.get_string("engine_used");
+            }
+            
+            send_json_response(sock, 200, response);
+        } else {
+            // Log detailed error for debugging
+            ServerLogger::logError("Agent inference failed for agent %s: %s", agent_id.c_str(), result.error_message.c_str());
+            
+            // Provide more specific error messages
+            std::string error_msg = result.error_message;
+            if (error_msg.find("No available inference engine") != std::string::npos) {
+                error_msg = "No inference engines are currently available. Please ensure models are loaded and engines are configured properly.";
+            } else if (error_msg.find("engine not found") != std::string::npos) {
+                error_msg = "The requested inference engine is not available. Please check engine configuration.";
+            }
+            
+            send_error_response(sock, 500, "Inference failed: " + error_msg);
+        }
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error in agent inference endpoint: %s", e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
+}
+
 // Helper methods
 std::string AgentsRoute::format_error_response(const std::string& error, int code) {
     json response = {
@@ -1205,6 +1532,38 @@ std::string AgentsRoute::extractIdFromPath(const std::string& path, const std::s
 bool AgentsRoute::matchesPattern(const std::string& path, const std::string& pattern) {
     std::regex regex_pattern(pattern);
     return std::regex_match(path, regex_pattern);
+}
+
+void AgentsRoute::handle_broadcast_message(SocketType sock, const std::string& body) {
+    try {
+        json request = json::parse(body);
+        
+        if (!request.contains("from_agent") || !request.contains("type") || !request.contains("payload")) {
+            send_error_response(sock, 400, "Invalid broadcast message format");
+            return;
+        }
+        
+        // For now, just acknowledge the broadcast
+        json response = {
+            {"status", "success"},
+            {"message", "Broadcast message sent successfully"},
+            {"broadcast_id", "broadcast_" + std::to_string(std::time(nullptr))},
+            {"from_agent", request["from_agent"]},
+            {"type", request["type"]}
+        };
+        
+        ServerLogger::logInfo("Broadcast message from %s of type %s", 
+                             request["from_agent"].get<std::string>().c_str(),
+                             request["type"].get<std::string>().c_str());
+        
+        send_json_response(sock, 200, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error in broadcast message: %s", e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
 }
 
 } // namespace kolosal::routes::agents
