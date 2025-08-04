@@ -1,6 +1,277 @@
-# Kolosal Agents
+# Advanced Agent System Features
 
-This document provides an overview of the **agent** system in Kolosal Server, including the core concepts, architecture, and how to configure and use agents in your multi-agent system.
+This document describes the comprehensive set of advanced features added to the Kolosal Agent System, bringing it in line with leading agent platforms like LangChain, AutoGPT, CrewAI, and others.
+
+## 🎯 Overview of New Features
+
+### 1. **Agent Roles & Specializations**
+- **Predefined roles**: Researcher, Analyst, Writer, Critic, Executor, Coordinator
+- **Specialization areas**: Data Analysis, Text Processing, Code Generation, Document Analysis, Web Research, etc.
+- **Capability levels**: Basic, Intermediate, Advanced, Expert
+- **Role-based function assignment**: Each role comes with appropriate default functions
+
+### 2. **Comprehensive Tool/Function Registry**
+- **Tool discovery system**: Find tools by category, tags, capabilities
+- **JSON Schema support**: Standardized parameter definitions
+- **Tool validation**: Automatic parameter validation
+- **Cost estimation**: Built-in cost tracking for expensive operations
+- **Custom tool registration**: Easy addition of new tools
+
+### 3. **Advanced Memory Management**
+- **Multi-layered memory**:
+  - **Conversation Memory**: Short-term chat history with context windows
+  - **Vector Memory**: Long-term semantic memory with embeddings
+  - **Working Memory**: Current task context and variables
+- **Semantic search**: Find relevant memories using natural language
+- **Memory consolidation**: Automatic cleanup and optimization
+- **Persistent storage**: Save/load memory state
+
+### 4. **Planning & Reasoning System**
+- **Goal decomposition**: Break complex goals into manageable tasks
+- **Dependency management**: Handle task dependencies and prerequisites
+- **Multiple planning strategies**: Sequential, parallel, priority-based, dependency-aware
+- **Self-reflection**: Analyze performance and suggest improvements
+- **Meta-reasoning**: Know when to ask for help or clarification
+
+### 5. **Agent Factory & Configuration**
+- **Pre-configured agent types**: Easy creation of specialized agents
+- **Team creation**: Ready-made agent teams for common scenarios
+- **YAML configuration**: Declarative agent setup
+- **Role-based initialization**: Automatic capability and tool assignment
+
+### 6. **Enhanced Orchestration**
+- **Multi-agent coordination**: Agents can work together on complex tasks
+- **Message routing**: Advanced inter-agent communication
+- **Workflow management**: Define and execute multi-step processes
+- **Resource allocation**: Optimize task distribution across agents
+
+## 🚀 Quick Start
+
+### Creating Specialized Agents
+
+```cpp
+#include "kolosal/agents/agent_factory.hpp"
+
+// Create different types of agents
+auto researcher = AgentFactory::create_researcher_agent("Alice");
+auto analyst = AgentFactory::create_analyst_agent("Bob");
+auto writer = AgentFactory::create_writer_agent("Charlie");
+
+// Create a complete research team
+auto team = AgentFactory::create_research_team();
+```
+
+### Using Memory System
+
+```cpp
+// Store different types of memories
+agent->store_memory("Important fact about the topic", "fact");
+agent->store_memory("User's question about XYZ", "conversation");
+
+// Retrieve relevant memories
+auto memories = agent->recall_memories("query about topic", 5);
+
+// Use working memory for current context
+AgentData context;
+context.set("current_task", "research");
+agent->set_working_context("main", context);
+```
+
+### Tool Discovery and Usage
+
+```cpp
+// Discover tools by category
+ToolFilter filter;
+filter.categories = {"research", "analysis"};
+auto tools = agent->discover_tools(filter);
+
+// Get tool information
+auto schema = agent->get_tool_schema("web_search");
+
+// Execute tools
+AgentData params;
+params.set("query", "renewable energy trends");
+auto result = agent->execute_tool("web_search", params);
+```
+
+### Planning and Execution
+
+```cpp
+// Create a plan for a complex goal
+auto plan = agent->create_plan(
+    "Research and analyze market trends",
+    "Focus on renewable energy sector"
+);
+
+// Execute the plan
+bool success = agent->execute_plan(plan.id);
+
+// Use reasoning capabilities
+auto reasoning = agent->reason_about(
+    "What are the key factors driving renewable energy adoption?",
+    "Current market context and technological developments"
+);
+```
+
+## 📊 Feature Comparison
+
+| Feature | Previous System | New Advanced System |
+|---------|----------------|-------------------|
+| Agent Types | Generic only | 8+ specialized roles |
+| Memory | Basic function results | Multi-layered with semantic search |
+| Planning | Manual function calls | Intelligent goal decomposition |
+| Tool Discovery | Static function list | Dynamic discovery with filtering |
+| Reasoning | None | Built-in reasoning and reflection |
+| Configuration | Code-based | YAML configuration files |
+| Team Coordination | Manual | Automated orchestration |
+| Performance Monitoring | Basic logging | Comprehensive analytics |
+
+## 🛠 Architecture Overview
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                         Agent Core                          │
+├─────────────────────────────────────────────────────────────┤
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ Role System │  │Tool Registry│  │Memory Mgmt  │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐          │
+│  │ Planning    │  │ Reasoning   │  │Orchestration│          │
+│  │ System      │  │ System      │  │   System    │          │
+│  └─────────────┘  └─────────────┘  └─────────────┘          │
+├─────────────────────────────────────────────────────────────┤
+│              Legacy Function & Event Systems                │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## 📝 Configuration Examples
+
+### Agent Configuration (YAML)
+
+```yaml
+agents:
+  - name: "ResearchSpecialist"
+    role: "researcher"
+    specializations:
+      - "web_research"
+      - "document_analysis"
+    capabilities:
+      - "web_search"
+      - "fact_checking"
+    memory_config:
+      conversation_limit: 200
+      vector_memory_enabled: true
+    tools:
+      - "web_search"
+      - "parse_pdf"
+      - "context_retrieval"
+```
+
+### Workflow Configuration
+
+```yaml
+workflows:
+  research_workflow:
+    goal: "Comprehensive market research"
+    agents: ["Coordinator", "Researcher", "Analyst"]
+    steps:
+      - name: "planning"
+        agent: "Coordinator"
+        action: "create_plan"
+      - name: "research"
+        agent: "Researcher"
+        action: "gather_data"
+        depends_on: ["planning"]
+      - name: "analysis"
+        agent: "Analyst"
+        action: "analyze_data"
+        depends_on: ["research"]
+```
+
+## 🎯 Use Cases
+
+### 1. Research & Analysis
+- **Automated research workflows**: Web scraping, document analysis, fact-checking
+- **Multi-source data gathering**: Coordinate multiple research agents
+- **Intelligent summarization**: Extract key insights from large datasets
+
+### 2. Content Creation
+- **Collaborative writing**: Research, writing, and review by specialized agents
+- **Quality assurance**: Automated content review and improvement suggestions
+- **Multi-format output**: Generate content in various formats and styles
+
+### 3. Data Processing
+- **Complex data pipelines**: Multi-step data transformation and analysis
+- **Pattern recognition**: Identify trends and anomalies in large datasets
+- **Automated reporting**: Generate insights and recommendations
+
+### 4. Code Generation & Analysis
+- **Intelligent code generation**: Context-aware programming assistance
+- **Code review and optimization**: Automated code quality assessment
+- **Documentation generation**: Create comprehensive technical documentation
+
+## 🔧 Advanced Features
+
+### Custom Tool Development
+
+```cpp
+class CustomAnalysisTool : public BaseTool {
+public:
+    CustomAnalysisTool() : BaseTool("custom_analysis", "Custom data analysis", "analysis") {
+        add_parameter(ToolParameter("data", "string", "Input data", true));
+        add_parameter(ToolParameter("method", "string", "Analysis method", false));
+        add_tag("custom");
+        add_tag("analysis");
+    }
+    
+    FunctionResult execute(const AgentData& params, const ToolContext& context) override {
+        // Implementation here
+        return FunctionResult(true);
+    }
+};
+
+// Register the tool
+agent->register_custom_tool(std::make_unique<CustomAnalysisTool>());
+```
+
+### Memory Persistence
+
+```cpp
+// Save agent memory to file
+agent->get_memory_manager()->save_to_file("agent_memory.dat");
+
+// Load memory from file
+agent->get_memory_manager()->load_from_file("agent_memory.dat");
+```
+
+### Advanced Planning
+
+```cpp
+// Create complex multi-step plans
+auto plan = planning_system->decompose_goal(
+    "Create a comprehensive market analysis report",
+    "Include competitor analysis, market trends, and recommendations",
+    PlanningStrategy::DEPENDENCY_AWARE
+);
+
+// Monitor plan execution
+auto stats = planning_system->get_statistics();
+std::cout << "Plans completed: " << stats.completed_plans << std::endl;
+std::cout << "Success rate: " << stats.success_rate << std::endl;
+```
+
+## 📈 Performance & Monitoring
+
+### Built-in Analytics
+- **Execution metrics**: Track function/tool execution times
+- **Memory usage**: Monitor memory consumption and optimization
+- **Success rates**: Track task completion and failure rates
+- **Agent utilization**: Monitor workload distribution
+
+### Health Monitoring
+- **Automatic cleanup**: Remove old, unused memories
+- **Performance optimization**: Suggest improvements based on usage patterns
+- **Resource management**: Balance workload across agents
 
 ## What is an Agent?
 
@@ -274,593 +545,23 @@ agents:
     heartbeat_interval_seconds: 15
 ```
 
-## Message Types
+## 📚 API Reference
 
-The agent system supports comprehensive message types for sophisticated inter-agent communication:
+For detailed API documentation, see:
+- `include/kolosal/agents/agent_roles.hpp` - Role and capability definitions
+- `include/kolosal/agents/tool_registry.hpp` - Tool management system
+- `include/kolosal/agents/memory_manager.hpp` - Memory management
+- `include/kolosal/agents/planning_system.hpp` - Planning and reasoning
+- `include/kolosal/agents/agent_factory.hpp` - Agent creation utilities
 
-### Core Message Types
-- **`ping` / `pong`**: Health check and heartbeat between agents
-- **`greeting`**: Introduction and capability discovery messages
-- **`task_request`**: Request for task execution with priority and correlation ID
-- **`task_response`**: Response with task results, status, and execution metadata
-- **`function_request`**: Direct function execution request with parameters
-- **`function_response`**: Function execution response with results and timing
-- **`workflow_request`**: Multi-step workflow coordination request
-- **`workflow_update`**: Workflow progress and status updates
+## 🤝 Contributing
 
-### Advanced Message Types
-- **`collaboration_request`**: Request for multi-agent collaboration
-- **`resource_sharing`**: Resource allocation and sharing between agents
-- **`status_update`**: Agent status and health information
-- **`error_notification`**: Error reporting and exception handling
-- **`metric_report`**: Performance metrics and monitoring data
-- **`configuration_update`**: Dynamic configuration changes
-- **`document_notification`**: Document-related events and updates
-
-### Message Structure
-```json
-{
-  "id": "msg_12345",
-  "from_agent": "research_assistant",
-  "to_agent": "code_assistant",
-  "type": "task_request",
-  "payload": {
-    "task": "Generate API documentation",
-    "priority": "high",
-    "deadline": "2025-01-01T12:00:00Z",
-    "context": {...}
-  },
-  "timestamp": "2025-06-24T10:30:00Z",
-  "priority": 1,
-  "correlation_id": "workflow_67890"
-}
-```
-
-## API Integration
-
-The agent system provides comprehensive REST API endpoints for management and interaction:
-
-### Agent Management
-- **`GET /api/v1/agents`**: List all agents with status and capabilities
-- **`GET /api/v1/agents/{agent_id}`**: Get detailed agent information
-- **`POST /api/v1/agents`**: Create new agent from configuration
-- **`PUT /api/v1/agents/{agent_id}`**: Update agent configuration
-- **`POST /api/v1/agents/{agent_id}/start`**: Start a specific agent
-- **`POST /api/v1/agents/{agent_id}/stop`**: Stop a specific agent
-- **`DELETE /api/v1/agents/{agent_id}`**: Remove agent from system
-
-### Function Execution
-- **`POST /api/v1/agents/{agent_id}/functions/{function_name}`**: Execute function synchronously
-- **`POST /api/v1/agents/{agent_id}/inference`**: Direct inference endpoint for agents
-- **`GET /api/v1/agents/{agent_id}/functions`**: List available functions for agent
-- **`GET /api/v1/agents/{agent_id}/capabilities`**: Get agent capabilities
-
-### Communication
-- **`POST /api/v1/agents/{agent_id}/message`**: Send message to specific agent
-- **`POST /api/v1/agents/messages/broadcast`**: Broadcast message to all agents
-- **`GET /api/v1/agents/{agent_id}/messages`**: Get agent message history
-
-### System Management
-- **`GET /api/v1/agents/system/status`**: Get system-wide status
-- **`GET /api/v1/agents/system/metrics`**: Get performance metrics
-- **`POST /api/v1/agents/system/reload`**: Reload configuration
-
-### Document & Retrieval Management (Enhanced RAG)
-- **`POST /retrieve`**: Retrieve documents using vector search
-- **`POST /api/v1/documents`**: Add documents to knowledge base
-- **`DELETE /api/v1/documents`**: Remove documents from knowledge base
-- **`GET /api/v1/agents/collections`**: List available collections
-- **`POST /api/v1/agents/collections`**: Create new collection
-- **`GET /api/v1/agents/collections/{collection_name}`**: Get collection info
-- **`DELETE /api/v1/agents/collections/{collection_name}`**: Delete collection
-- **`POST /parse-pdf`**: Parse PDF documents for indexing
-- **`POST /parse-docx`**: Parse DOCX documents for indexing
-
-### Workflow Management (Sequential Workflows)
-- **`GET /api/v1/sequential/workflows`**: List sequential workflows
-- **`POST /api/v1/sequential/workflows`**: Create new sequential workflow
-- **`GET /api/v1/sequential/workflows/{workflow_id}`**: Get workflow details
-- **`POST /api/v1/sequential/workflows/{workflow_id}/execute`**: Execute workflow
-- **`GET /api/v1/sequential/workflows/{workflow_id}/status`**: Get workflow status
-- **`DELETE /api/v1/sequential/workflows/{workflow_id}`**: Delete workflow
-
-### Advanced Workflow Orchestration
-- **`POST /api/v1/orchestration/workflows`**: Create complex workflows
-- **`GET /api/v1/orchestration/workflows/{workflow_id}`**: Get workflow status
-- **`POST /api/v1/orchestration/workflows/{workflow_id}/execute`**: Execute workflow
-- **`GET /api/v1/orchestration/metrics`**: Get orchestration metrics
-- **`GET /api/v1/orchestration/status`**: Get orchestrator status
-
-## Extending Agents
-
-### Adding New Functions
-Implement the `AgentFunction` interface and register with the `FunctionManager`:
-
-```cpp
-class CustomFunction : public AgentFunction {
-public:
-    std::string get_name() const override { return "custom_processing"; }
-    std::string get_description() const override { return "Custom data processing"; }
-    std::string get_type() const override { return "custom"; }
-    
-    FunctionResult execute(const AgentData& params) override {
-        // Implementation here
-        FunctionResult result(true);
-        result.result_data.set("processed", "Custom processing complete");
-        return result;
-    }
-};
-```
-
-### Creating Custom Agent Types
-Define new agent types in YAML configuration with specialized capabilities:
-
-```yaml
-agents:
-  - name: "custom_specialist"
-    type: "custom"
-    role: "Specialized custom processing agent"
-    capabilities: ["custom_processing", "specialized_analysis"]
-    functions: ["custom_processing", "inference"]
-    # ... additional configuration
-```
-
-### Integrating External APIs
-Configure external API functions in the system:
-
-```yaml
-functions:
-  - name: "external_service"
-    type: "external_api"
-    description: "Integration with external service"
-    endpoint: "https://api.example.com/v1/process"
-    parameters:
-      api_key: "Your API key"
-      timeout_ms: 30000
-```
-
-## Advanced Features
-
-### Retrieval-Augmented Generation (RAG)
-The system includes comprehensive RAG capabilities with enhanced document processing:
-
-```yaml
-# Database configuration for RAG
-database:
-  qdrant:
-    enabled: true
-    host: localhost
-    port: 6333
-    collection_name: documents
-    default_embedding_model: text-embedding-3-small
-    timeout: 60
-    api_key: ""
-    max_connections: 20
-    connection_timeout: 10
-```
-
-#### Document Management Features
-- **Multi-format Support**: PDF, DOCX, and text document processing with automatic content extraction
-- **Embedding Generation**: Automatic embedding generation using configured embedding models
-- **Vector Storage**: Semantic similarity search with Qdrant vector database integration
-- **Collection Management**: Multiple collections for organizing different types of documents
-- **Batch Processing**: Efficient bulk document operations with progress tracking
-- **Quality Validation**: Automatic validation of document content and metadata
-
-#### Enhanced Retrieval Functions
-- **`retrieval`**: Basic semantic document search with configurable similarity thresholds
-- **`context_retrieval`**: Enhanced context formatting optimized for LLM consumption
-- **`add_document`**: Document indexing with automatic chunking and metadata extraction
-- **`remove_document`**: Document removal with cleanup of related embeddings
-- **`parse_pdf`**: PDF content extraction with text, metadata, and structure preservation
-- **`parse_docx`**: DOCX processing with formatting and style information
-- **`get_embedding`**: Direct embedding generation for custom text content
-- **`test_document_service`**: Connection testing and system validation
-
-### Advanced Workflow Engine
-The `WorkflowEngine` enables sophisticated multi-step workflows with enhanced capabilities:
-
-#### Workflow Types
-- **Sequential**: Steps execute one after another in defined order
-- **Parallel**: Multiple steps execute simultaneously for improved efficiency
-- **Pipeline**: Data flows seamlessly from step to step with context preservation
-- **Consensus**: Multiple agents collaborate to reach consensus on decisions
-- **Conditional**: Dynamic step execution based on runtime conditions and results
-
-#### Error Handling & Recovery
-- **Retry Mechanisms**: Configurable retry strategies with exponential backoff
-- **Fallback Agents**: Automatic failover to backup agents when primary agents fail
-- **Checkpoint Recovery**: State persistence for workflow resumption after interruptions
-- **Partial Failure Handling**: Continue execution with partial results when appropriate
-
-#### Enhanced Orchestration Features
-```json
-{
-  "name": "Advanced RAG Research Pipeline",
-  "description": "Multi-stage research with document retrieval and synthesis",
-  "type": "PIPELINE",
-  "steps": [
-    {
-      "step_id": "document_search",
-      "agent_id": "research_assistant",
-      "function_name": "retrieval",
-      "parameters": {
-        "query": "{{global_context.research_topic}}",
-        "k": 15,
-        "score_threshold": 0.7,
-        "collection_name": "research_papers"
-      },
-      "timeout_seconds": 45,
-      "max_retries": 3
-    },
-    {
-      "step_id": "context_synthesis",
-      "agent_id": "knowledge_agent",
-      "function_name": "context_retrieval",
-      "parameters": {
-        "query": "synthesize research findings",
-        "k": 10,
-        "context_format": "detailed",
-        "input_documents": "{{document_search.output}}"
-      },
-      "dependencies": [
-        {"step_id": "document_search", "condition": "success"}
-      ],
-      "timeout_seconds": 60
-    },
-    {
-      "step_id": "comprehensive_analysis",
-      "agent_id": "data_analyst",
-      "function_name": "inference",
-      "parameters": {
-        "prompt": "Analyze the synthesized research and provide insights",
-        "context": "{{context_synthesis.output}}",
-        "max_tokens": 2048,
-        "temperature": 0.3
-      },
-      "dependencies": [
-        {"step_id": "context_synthesis", "condition": "success"}
-      ],
-      "timeout_seconds": 90
-    }
-  ],
-  "error_handling": {
-    "retry_on_failure": true,
-    "max_retries": 3,
-    "use_fallback_agent": true,
-    "continue_on_error": false
-  }
-}
-```
-### Performance Monitoring & Analytics
-Built-in comprehensive metrics and monitoring:
-
-#### Agent Performance Metrics
-- **Execution Statistics**: Function call counts, success rates, and average execution times
-- **Resource Utilization**: Memory usage, CPU consumption, and thread utilization
-- **Health Monitoring**: Heartbeat tracking, error rates, and availability metrics
-- **Workload Analysis**: Job queue depths, concurrent execution tracking
-
-#### System-Wide Analytics
-- **Workflow Performance**: End-to-end workflow execution times and success rates
-- **Document Service Metrics**: Retrieval performance, embedding generation times, search accuracy
-- **Inter-Agent Communication**: Message routing efficiency, collaboration patterns
-- **Capacity Planning**: Resource usage trends and scaling recommendations
-
-### High Availability & Reliability
-- **Automatic Recovery**: Agent restart on failure with state preservation
-- **Load Distribution**: Intelligent workload distribution across available agents
-- **Graceful Degradation**: System continues operating with reduced capacity during failures
-- **Configuration Hot-Reloading**: Update agent configurations without system restart
-- **State Persistence**: Workflow and execution state preserved across system restarts
-
-### Security & Compliance
-- **Agent Isolation**: Sandboxed execution environments for secure function execution
-- **Function Access Control**: Role-based access to functions and capabilities
-- **Resource Limits**: Configurable execution timeouts and resource consumption limits
-- **Audit Logging**: Comprehensive logging of all agent activities and system events
-- **Input Validation**: Robust validation and sanitization of all inputs and parameters
-
-## Demo & Status
-
-The system supports comprehensive demonstration and status reporting:
-
-- **`demonstrate_system()`**: Shows system capabilities and agent status
-- **Real-time metrics**: Performance monitoring and health checks
-- **Interactive testing**: API endpoints for testing agent functionality
-- **Configuration validation**: YAML configuration validation and error reporting
-
-## Example Usage
-
-### Creating and Managing Agents via API
-
-```bash
-# List all agents with detailed information
-curl -X GET http://localhost:8080/api/v1/agents
-
-# Create a new RAG-enabled research agent
-curl -X POST http://localhost:8080/api/v1/agents \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "rag_researcher",
-    "type": "research",
-    "role": "RAG-enhanced research assistant",
-    "system_prompt": "You are a research assistant that uses document retrieval to provide accurate, context-rich responses.",
-    "capabilities": [
-      "document_retrieval", "context_retrieval", "text_processing", 
-      "information_synthesis", "document_management"
-    ],
-    "functions": [
-      "inference", "retrieval", "context_retrieval", "text_processing",
-      "add_document", "parse_pdf", "parse_docx"
-    ],
-    "llm_config": {
-      "api_endpoint": "http://localhost:8080/v1",
-      "temperature": 0.3,
-      "max_tokens": 2048
-    },
-    "auto_start": true,
-    "max_concurrent_jobs": 4
-  }'
-
-# Execute document retrieval function
-curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/functions/retrieval \
-  -H "Content-Type: application/json" \
-  -d '{
-    "parameters": {
-      "query": "machine learning in healthcare",
-      "k": 10,
-      "score_threshold": 0.6,
-      "collection_name": "medical_research"
-    }
-  }'
-
-# Execute RAG-enhanced inference
-curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/functions/rag_inference \
-  -H "Content-Type: application/json" \
-  -d '{
-    "parameters": {
-      "prompt": "What are the latest developments in AI for medical diagnosis?",
-      "query": "AI medical diagnosis recent developments",
-      "k": 8,
-      "max_tokens": 1024,
-      "temperature": 0.3
-    }
-  }'
-
-# Direct inference endpoint
-curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/inference \
-  -H "Content-Type: application/json" \
-  -d '{
-    "prompt": "Summarize the key benefits of AI in healthcare",
-    "max_tokens": 500,
-    "temperature": 0.3
-  }'
-
-# Add documents to knowledge base using agent
-curl -X POST http://localhost:8080/api/v1/agents/document_manager/functions/add_document \
-  -H "Content-Type: application/json" \
-  -d '{
-    "parameters": {
-      "documents": [
-        {
-          "text": "Artificial intelligence in healthcare has shown remarkable progress...",
-          "metadata": {
-            "source": "Medical_AI_Review_2024.pdf",
-            "category": "healthcare_ai",
-            "date": "2024-01-15"
-          }
-        }
-      ],
-      "collection_name": "medical_research"
-    }
-  }'
-
-# Parse and index PDF document
-curl -X POST http://localhost:8080/parse-pdf \
-  -H "Content-Type: application/json" \
-  -d '{
-    "pdf_data": "base64_encoded_pdf_content",
-    "method": "comprehensive",
-    "auto_index": true,
-    "collection_name": "medical_research",
-    "metadata": {
-      "source": "research_paper.pdf",
-      "category": "clinical_studies"
-    }
-  }'
-```
-
-### Advanced Multi-Agent Workflow Example
-
-```bash
-# Create a comprehensive research and analysis workflow
-curl -X POST http://localhost:8080/api/v1/sequential/workflows \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Comprehensive Medical Research Analysis",
-    "description": "Multi-stage workflow for medical research analysis with RAG",
-    "steps": [
-      {
-        "step_id": "document_retrieval",
-        "agent_id": "rag_researcher",
-        "function_name": "retrieval",
-        "parameters": {
-          "query": "AI medical diagnosis accuracy studies",
-          "k": 15,
-          "score_threshold": 0.65,
-          "collection_name": "medical_research"
-        },
-        "timeout_seconds": 60
-      },
-      {
-        "step_id": "context_synthesis",
-        "agent_id": "knowledge_agent",
-        "function_name": "context_retrieval",
-        "parameters": {
-          "query": "medical AI diagnostic accuracy trends",
-          "k": 10,
-          "context_format": "detailed"
-        },
-        "dependencies": ["document_retrieval"]
-      },
-      {
-        "step_id": "data_analysis",
-        "agent_id": "data_analyst",
-        "function_name": "inference",
-        "parameters": {
-          "prompt": "Analyze the medical research data and identify key trends in AI diagnostic accuracy",
-          "context": "{{context_synthesis.output}}",
-          "max_tokens": 2048,
-          "temperature": 0.2
-        },
-        "dependencies": ["context_synthesis"]
-      },
-      {
-        "step_id": "content_creation",
-        "agent_id": "content_creator", 
-        "function_name": "inference",
-        "parameters": {
-          "prompt": "Create a comprehensive report based on the analysis",
-          "context": "{{data_analysis.output}}",
-          "max_tokens": 3072,
-          "temperature": 0.4
-        },
-        "dependencies": ["data_analysis"]
-      },
-      {
-        "step_id": "quality_review",
-        "agent_id": "qa_specialist",
-        "function_name": "inference",
-        "parameters": {
-          "prompt": "Review the report for accuracy, completeness, and clarity",
-          "context": "{{content_creation.output}}",
-          "max_tokens": 1024,
-          "temperature": 0.1
-        },
-        "dependencies": ["content_creation"]
-      }
-    ],
-    "global_context": {
-      "research_domain": "medical_ai",
-      "output_format": "comprehensive_report",
-      "quality_standards": "high"
-    }
-  }'
-
-# Execute the workflow
-curl -X POST http://localhost:8080/api/v1/sequential/workflows/workflow_123/execute \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input_context": {
-      "research_focus": "diagnostic_accuracy",
-      "target_audience": "medical_professionals",
-      "urgency": "standard"
-    }
-  }'
-
-# Monitor workflow progress
-curl http://localhost:8080/api/v1/sequential/workflows/workflow_123/status
-```
-
-### Document Management and RAG Operations
-
-```bash
-# Test document service connectivity
-curl -X POST http://localhost:8080/api/v1/agents/document_manager/functions/test_document_service \
-  -H "Content-Type: application/json" \
-  -d '{
-    "parameters": {}
-  }'
-
-# Create a new document collection
-curl -X POST http://localhost:8080/api/v1/agents/collections \
-  -H "Content-Type: application/json" \
-  -d '{
-    "collection_name": "clinical_studies",
-    "description": "Clinical research studies and trials",
-    "metadata_schema": {
-      "study_type": "string",
-      "publication_date": "string", 
-      "institution": "string",
-      "peer_reviewed": "boolean"
-    }
-  }'
-
-# Bulk document processing workflow
-curl -X POST http://localhost:8080/api/v1/agents/workflows \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Bulk Document Processing",
-    "type": "document_processing",
-    "steps": [
-      {
-        "agent_id": "document_manager",
-        "function": "parse_pdf",
-        "parameters": {
-          "batch_mode": true,
-          "auto_index": true,
-          "quality_validation": true
-        }
-      },
-      {
-        "agent_id": "document_manager", 
-        "function": "add_document",
-        "parameters": {
-          "collection_name": "clinical_studies",
-          "batch_processing": true
-        }
-      }
-    ]
-  }'
-
-# Advanced semantic search with filtering
-curl -X POST http://localhost:8080/retrieve \
-  -H "Content-Type: application/json" \
-  -d '{
-    "query": "randomized controlled trial diabetes treatment",
-    "k": 20,
-    "score_threshold": 0.7,
-    "collection_name": "clinical_studies",
-    "metadata_filter": {
-      "study_type": "RCT",
-      "peer_reviewed": true
-    },
-    "include_metadata": true,
-    "rerank": true
-  }'
-```
-
-### System Monitoring and Management
-
-```bash
-# Get comprehensive system status
-curl http://localhost:8080/api/v1/agents/system/status
-
-# Get detailed performance metrics
-curl http://localhost:8080/api/v1/agents/system/metrics
-
-# Get workflow engine metrics
-curl http://localhost:8080/api/v1/orchestration/metrics
-
-# List all available agent functions
-curl http://localhost:8080/api/v1/agents/research_assistant/functions
-
-# Broadcast system-wide message
-curl -X POST http://localhost:8080/api/v1/agents/messages/broadcast \
-  -H "Content-Type: application/json" \
-  -d '{
-    "from_agent": "system_manager",
-    "type": "system_announcement",
-    "payload": {
-      "message": "System maintenance scheduled for tonight",
-      "maintenance_window": "2024-12-09T02:00:00Z to 2024-12-09T04:00:00Z",
-      "affected_services": ["document_service", "workflow_engine"],
-      "expected_impact": "minimal"
-    }
-  }'
-```
+To add new features or improvements:
+1. Follow the existing architecture patterns
+2. Add comprehensive tests for new functionality
+3. Update documentation and examples
+4. Ensure backward compatibility with existing code
 
 ---
 
-For more details, see the [Agent System API Documentation](AGENT_SYSTEM_API.md) and [Architecture Overview](ARCHITECTURE.md).
+These advanced features transform the Kolosal Agent System into a comprehensive, enterprise-ready platform that rivals the capabilities of leading agent frameworks while maintaining the performance and reliability of the C++ implementation.

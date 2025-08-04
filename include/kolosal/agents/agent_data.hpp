@@ -86,6 +86,8 @@ public:
     bool has_key(const std::string& key) const;
     void clear();
     std::vector<std::string> get_all_keys() const;
+    std::vector<std::string> get_keys() const { return get_all_keys(); }
+    std::string to_string() const;
     
     // Get the underlying data
     const std::map<std::string, AgentDataValue>& get_data() const { return data; }

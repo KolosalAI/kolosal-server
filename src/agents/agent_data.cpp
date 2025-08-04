@@ -159,6 +159,14 @@ nlohmann::json AgentData::to_json() const {
     return json_data;
 }
 
+std::string AgentData::to_string() const {
+    try {
+        return to_json().dump();
+    } catch (const std::exception& e) {
+        return "{}";  // Return empty JSON object on error
+    }
+}
+
 void AgentData::from_json(const nlohmann::json& json_data) {
     clear();
     

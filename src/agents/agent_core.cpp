@@ -7,18 +7,28 @@
 
 namespace kolosal::agents {
 
-AgentCore::AgentCore(const std::string& name, const std::string& type)
+AgentCore::AgentCore(const std::string& name, const std::string& type, AgentRole role)
     : agent_id(UUIDGenerator::generate()), 
       agent_name(name.empty() ? "Agent-" + agent_id.substr(0, 8) : name), 
-      agent_type(type) {
+      agent_type(type),
+      current_role(role) {
     
     // Create logger bridge
     logger = std::make_shared<ServerLoggerAdapter>();
+    
+    // Initialize role manager
+    role_manager = std::make_shared<AgentRoleManager>();
     
     // Initialize components
     function_manager = std::make_shared<FunctionManager>(logger);
     job_manager = std::make_shared<JobManager>(function_manager, logger);
     event_system = std::make_shared<EventSystem>(logger);
+    tool_registry = std::make_shared<ToolRegistry>(logger);
+    memory_manager = std::make_shared<MemoryManager>(agent_id, logger);
+    planning_coordinator = std::make_shared<PlanningReasoningCoordinator>(logger);
+    
+    // Set up role-based capabilities and functions
+    set_role(role);
     // Register default functions
     function_manager->register_function(std::make_unique<AddFunction>());
     function_manager->register_function(std::make_unique<EchoFunction>());    
@@ -46,7 +56,217 @@ AgentCore::AgentCore(const std::string& name, const std::string& type)
     function_manager->register_function(std::make_unique<GetEmbeddingFunction>());
     function_manager->register_function(std::make_unique<TestDocumentServiceFunction>());
     
-    logger->info("Agent created: " + agent_name + " (ID: " + agent_id.substr(0, 8) + "...)");
+    logger->info("Agent created: " + agent_name + " (ID: " + agent_id.substr(0, 8) + "...) with role: " + 
+                role_manager->role_to_string(current_role));
+}
+
+void AgentCore::set_role(AgentRole role) {
+    current_role = role;
+    
+    try {
+        const auto& role_definition = role_manager->get_role_definition(role);
+        
+        // Clear existing capabilities and add role-based ones
+        {
+            std::lock_guard<std::mutex> lock(capabilities_mutex);
+            capabilities.clear();
+            for (const auto& capability : role_definition.capabilities) {
+                capabilities.push_back(capability.name);
+            }
+        }
+        
+        // Set specializations
+        specializations = role_definition.specializations;
+        
+        // Register default functions for this role
+        for (const std::string& func_name : role_definition.default_functions) {
+            // Functions are already registered in the constructor, 
+            // this is just for role-specific function selection
+            logger->debug("Role-specific function available: " + func_name);
+        }
+        
+        logger->info("Agent role set to: " + role_manager->role_to_string(role));
+        
+    } catch (const std::exception& e) {
+        logger->error("Failed to set agent role: " + std::string(e.what()));
+    }
+}
+
+void AgentCore::add_specialization(AgentSpecialization spec) {
+    auto it = std::find(specializations.begin(), specializations.end(), spec);
+    if (it == specializations.end()) {
+        specializations.push_back(spec);
+        logger->debug("Added specialization: " + role_manager->specialization_to_string(spec));
+    }
+}
+
+FunctionResult AgentCore::execute_tool(const std::string& tool_name, const AgentData& params) {
+    if (!tool_registry) {
+        return FunctionResult(false, "Tool registry not initialized");
+    }
+    
+    ToolContext context(agent_id);
+    context.logger = logger;
+    
+    return tool_registry->execute_tool(tool_name, params, context);
+}
+
+ExecutionPlan AgentCore::create_plan(const std::string& goal, const std::string& context) {
+    if (!planning_coordinator) {
+        throw std::runtime_error("Planning coordinator not initialized");
+    }
+    
+    std::vector<std::string> available_functions = function_manager->get_function_names();
+    return planning_coordinator->create_intelligent_plan(goal, context, available_functions);
+}
+
+bool AgentCore::execute_plan(const std::string& plan_id) {
+    if (!planning_coordinator) {
+        return false;
+    }
+    
+    auto* planning_system = planning_coordinator->get_planning_system();
+    if (!planning_system) {
+        return false;
+    }
+    
+    ExecutionPlan* plan = planning_system->get_plan(plan_id);
+    if (!plan) {
+        logger->error("Plan not found: " + plan_id);
+        return false;
+    }
+    
+    logger->info("Executing plan: " + plan->name);
+    
+    while (!plan->is_complete()) {
+        auto next_tasks = planning_system->get_next_tasks(plan_id);
+        
+        if (next_tasks.empty()) {
+            // Check if we're stuck due to failed dependencies
+            auto failed_tasks = plan->get_tasks_by_status(TaskStatus::FAILED);
+            if (!failed_tasks.empty()) {
+                logger->error("Plan execution blocked by failed tasks");
+                return false;
+            }
+            break; // No more tasks to execute
+        }
+        
+        // Execute ready tasks
+        for (Task* task : next_tasks) {
+            logger->debug("Executing task: " + task->name);
+            
+            planning_system->update_task_status(plan_id, task->id, TaskStatus::IN_PROGRESS);
+            
+            FunctionResult result = execute_function(task->function_name, task->parameters);
+            
+            if (result.success) {
+                planning_system->set_task_result(plan_id, task->id, result.result_data);
+                planning_system->update_task_status(plan_id, task->id, TaskStatus::COMPLETED);
+                logger->debug("Task completed: " + task->name);
+            } else {
+                planning_system->update_task_status(plan_id, task->id, TaskStatus::FAILED, result.error_message);
+                logger->error("Task failed: " + task->name + " - " + result.error_message);
+                
+                if (task->retry_count < task->max_retries) {
+                    task->retry_count++;
+                    planning_system->update_task_status(plan_id, task->id, TaskStatus::PENDING);
+                    logger->info("Retrying task: " + task->name + " (attempt " + std::to_string(task->retry_count + 1) + ")");
+                }
+            }
+        }
+    }
+    
+    bool success = plan->is_complete();
+    std::string status_msg = success ? "completed successfully" : "failed";
+    logger->info("Plan execution " + status_msg + ": " + plan->name);
+    return success;
+}
+
+std::string AgentCore::reason_about(const std::string& question, const std::string& context) {
+    if (!planning_coordinator) {
+        return "Reasoning system not available";
+    }
+    
+    auto* reasoning_system = planning_coordinator->get_reasoning_system();
+    if (!reasoning_system) {
+        return "Reasoning system not initialized";
+    }
+    
+    return reasoning_system->reason_about(question, context);
+}
+
+void AgentCore::store_memory(const std::string& content, const std::string& type) {
+    if (memory_manager) {
+        if (type == "conversation") {
+            memory_manager->store_conversation("agent", content);
+        } else if (type == "fact") {
+            memory_manager->store_fact(content);
+        } else {
+            // Store as general memory
+            std::string id = "mem_" + std::to_string(std::time(nullptr));
+            MemoryEntry entry(id, content, type);
+            entry.metadata["agent_id"] = agent_id;
+            memory_manager->get_vector_memory()->store(entry);
+        }
+    }
+}
+
+std::vector<MemoryEntry> AgentCore::recall_memories(const std::string& query, int max_results) {
+    if (memory_manager) {
+        return memory_manager->retrieve_relevant_memories(query, max_results);
+    }
+    return {};
+}
+
+void AgentCore::set_working_context(const std::string& key, const AgentData& data) {
+    if (memory_manager) {
+        memory_manager->get_working_memory()->set_context(key, data);
+    }
+}
+
+AgentData AgentCore::get_working_context(const std::string& key) {
+    if (memory_manager) {
+        return memory_manager->get_working_memory()->get_context(key);
+    }
+    return AgentData();
+}
+
+std::vector<std::string> AgentCore::discover_tools(const ToolFilter& filter) {
+    if (tool_registry) {
+        return tool_registry->discover_tools(filter);
+    }
+    return {};
+}
+
+bool AgentCore::register_custom_tool(std::unique_ptr<Tool> tool) {
+    if (tool_registry) {
+        return tool_registry->register_tool(std::move(tool));
+    }
+    return false;
+}
+
+ToolSchema AgentCore::get_tool_schema(const std::string& tool_name) {
+    if (tool_registry) {
+        return tool_registry->get_tool_schema(tool_name);
+    }
+    throw std::runtime_error("Tool registry not available");
+}
+
+AgentCore::AgentStats AgentCore::get_statistics() const {
+    AgentStats stats = {};
+    
+    if (memory_manager) {
+        auto memory_stats = memory_manager->get_statistics();
+        stats.memory_entries_count = memory_stats.conversation_count + memory_stats.vector_memory_count;
+    }
+    
+    if (planning_coordinator) {
+        auto planning_stats = planning_coordinator->get_planning_system()->get_statistics();
+        stats.total_plans_created = planning_stats.active_plans + planning_stats.completed_plans;
+    }
+    
+    stats.last_activity = std::chrono::system_clock::now();
+    return stats;
 }
 
 AgentCore::~AgentCore() = default;

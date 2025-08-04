@@ -106,6 +106,13 @@ set(SOURCES
     src/agents/workflow_engine.cpp
     src/agents/yaml_config.cpp
     
+    # Advanced Agent Features
+    src/agents/agent_roles.cpp
+    src/agents/tool_registry.cpp
+    src/agents/memory_manager.cpp
+    src/agents/planning_system.cpp
+    src/agents/agent_factory.cpp
+    
     # Retrieval files
     src/retrieval/add_document_types.cpp
     src/retrieval/remove_document_types.cpp
