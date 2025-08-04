@@ -4,42 +4,47 @@ This document provides an overview of the **agent** system in Kolosal Server, in
 
 ## What is an Agent?
 
-An **Agent** in Kolosal is an autonomous, modular component capable of executing functions, handling messages, and collaborating with other agents. Agents can be configured with specific capabilities and functions, and communicate via a sophisticated message routing system with support for workflow orchestration.
+An **Agent** in Kolosal is an autonomous, modular component capable of executing functions, handling messages, and collaborating with other agents. Agents can be configured with specific capabilities and functions, and communicate via a sophisticated message routing system with support for workflow orchestration and RAG (Retrieval-Augmented Generation) capabilities.
 
 ## Key Components
 
 ### Core Architecture
 
-- **AgentCore**: The main class representing an individual agent. Handles lifecycle (start/stop), function execution, message handling, and capability management. Each agent has a unique UUID and supports concurrent job execution.
+- **AgentCore**: The main class representing an individual agent. Handles lifecycle (start/stop), function execution, message handling, and capability management. Each agent has a unique ID and supports concurrent job execution with thread-safe operations.
 - **YAMLConfigurableAgentManager**: The system-wide agent manager that loads agent and function configurations from YAML files, manages agent lifecycle, supports hot-reloading, and provides centralized agent orchestration.
-- **AgentOrchestrator**: Advanced workflow orchestration system that coordinates multi-agent collaboration, manages complex workflows, and handles inter-agent dependencies.
+- **AgentOrchestrator**: Advanced workflow orchestration system that coordinates multi-agent collaboration, manages complex workflows, and handles inter-agent dependencies with support for multiple collaboration patterns.
+- **WorkflowEngine**: Advanced workflow execution engine that supports sequential, parallel, pipeline, consensus, and conditional workflows with sophisticated error handling and retry mechanisms.
 - **FunctionManager**: Registers and manages functions that agents can execute. Supports multiple function types:
-  - **Builtin functions**: Native server functions (inference, text_processing, data_analysis, retrieval)
+  - **Builtin functions**: Native server functions (inference, text_processing, data_analysis, retrieval, context_retrieval, add_document, remove_document, parse_pdf, parse_docx, get_embedding)
   - **LLM functions**: Functions that leverage language models for processing
   - **External API functions**: Integration with external services (web_search, etc.)
   - **Custom functions**: User-defined function implementations
-  - **Retrieval functions**: Vector search and document retrieval capabilities
+  - **Retrieval functions**: Vector search and document retrieval capabilities with semantic similarity matching
 - **JobManager**: Handles asynchronous job execution with priority queuing, job status tracking, and result management.
 - **EventSystem**: Comprehensive event handling system that emits and processes agent-related events (message received, function executed, job completed, etc.).
 - **MessageRouter**: Advanced message routing system supporting direct messaging, broadcasting, priority handling, and correlation tracking.
 - **DocumentService**: Manages document indexing, embedding generation, and vector storage for retrieval-augmented generation (RAG) capabilities.
+- **ConfigurableAgentFactory**: Factory for creating agents from YAML configurations with support for various agent types and function registrations.
 
 ## Agent Lifecycle
 
 1. **Configuration Loading**: Agents are created from YAML configuration files or programmatically via API calls, with support for multiple agent types and specialized roles.
-2. **Initialization**: Each agent receives a unique UUID, name, type, and role configuration. The system supports the following predefined agent types:
-   - **Research Agents**: Information gathering, analysis, and synthesis
-   - **Development Agents**: Code generation, review, debugging, and optimization
-   - **Analytics Agents**: Data analysis, visualization, and statistical processing
-   - **Creative Agents**: Content creation, writing, and copywriting
-   - **Management Agents**: Project coordination, task management, and progress tracking
-   - **QA Agents**: Quality assurance, testing, and validation
-3. **Capability Assignment**: Agents are assigned specific capabilities based on their type and configuration (e.g., text_processing, code_generation, data_analysis, web_search).
+2. **Initialization**: Each agent receives a unique ID, name, type, and role configuration. The system supports the following predefined agent types:
+   - **Research Agents** (`research`) - Information gathering, web search, document retrieval, and analysis
+   - **Development Agents** (`development`) - Code generation, review, debugging, and optimization
+   - **Analytics Agents** (`analytics`) - Data analysis, statistical processing, and visualization
+   - **Creative Agents** (`creative`) - Content creation, writing, and copywriting
+   - **Management Agents** (`management`) - Project coordination, task management, and progress tracking
+   - **QA Agents** (`quality_assurance`) - Quality assurance, testing, validation, and process improvement
+   - **Document Management** (`document_management`) - Document processing, knowledge base management, and content organization
+   - **General Purpose** (`general`) - Flexible agents for various tasks and testing purposes
+3. **Capability Assignment**: Agents are assigned specific capabilities based on their type and configuration (e.g., text_processing, code_generation, data_analysis, web_search, document_retrieval, document_management, document_parsing).
 4. **Function Registration**: Functions are registered to agents based on their type and capabilities. Functions can be:
-   - **Built-in**: Native server functions (inference, text_processing, data_analysis, retrieval)
+   - **Built-in**: Native server functions (inference, text_processing, data_analysis, retrieval, context_retrieval, add_document, remove_document, parse_pdf, parse_docx, get_embedding, test_document_service)
    - **LLM-powered**: Functions that use language models with customizable prompts and parameters
    - **External API**: Integration with external services (web_search, etc.)
    - **Custom**: User-defined implementations
+   - **Document Processing**: PDF and DOCX parsing, document management, and embedding generation
    - **Retrieval**: Vector search and document retrieval for RAG capabilities
 5. **Message System Setup**: Agents are connected to the message routing system for inter-agent communication with support for direct messages, broadcasts, and workflow coordination.
 6. **Execution Management**: Agents can execute functions both synchronously and asynchronously through a sophisticated job management system with priority queuing.
@@ -55,142 +60,217 @@ The system supports comprehensive YAML configuration for agents, functions, and 
 system:
   worker_threads: 8
   health_check_interval_seconds: 30
-  log_level: "debug"
-  global_settings:
-    default_timeout_ms: 60000
-    max_retries: 3
-    enable_metrics: true
+  log_level: debug
 
-# Inference engines configuration
-inference_engines:
-  - name: "default"
-    type: "llama_cpp"
-    model_path: "downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf"
-    settings:
-      context_size: 4096
-      batch_size: 512
-      threads: 4
-      gpu_layers: 0
-    auto_load: true
+# Database configuration for RAG
+database:
+  qdrant:
+    enabled: true
+    host: localhost
+    port: 6333
+    collection_name: documents
+    default_embedding_model: text-embedding-3-small
+    timeout: 60
+    api_key: ""
+    max_connections: 20
+    connection_timeout: 10
+
+# Model configurations
+models:
+  - id: qwen3-0.6b
+    path: downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
+    type: llm
+    load_immediately: true
+    load_params:
+      n_ctx: 2048
+      n_gpu_layers: 100
+      n_batch: 512
+  - id: text-embedding-3-small
+    path: downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+    type: embedding
+    load_immediately: true
+    load_params:
+      n_ctx: 2048
+      n_gpu_layers: 100
 
 # Function definitions
 functions:
-  - name: "inference"
-    type: "builtin"
-    description: "Generate text using the inference engine"
-    parameters:
-      prompt: "Input prompt for text generation"
-      max_tokens: "Maximum tokens to generate"
-      temperature: "Temperature for text generation"
+  - name: inference
+    type: builtin
+    description: Generate text using the inference engine
+    async_capable: true
     timeout_ms: 60000
     
-  - name: "web_search"
-    type: "external_api"
-    description: "Search the web for information"
-    endpoint: "https://api.search.com/v1/search"
-    parameters:
-      query: "Search query"
-      limit: "Number of results"
+  - name: retrieval
+    type: builtin
+    description: Search and retrieve relevant documents from knowledge base
+    async_capable: true
+    timeout_ms: 30000
+    
+  - name: context_retrieval
+    type: builtin
+    description: Retrieve and format documents as context for enhanced responses
+    async_capable: true
+    timeout_ms: 30000
+    
+  - name: add_document
+    type: builtin
+    description: Add documents to the knowledge base for future retrieval
+    async_capable: true
     timeout_ms: 60000
     
-  - name: "retrieval"
-    type: "builtin"
-    description: "Search and retrieve relevant documents from knowledge base"
-    parameters:
-      query: "Search query for document retrieval"
-      k: "Number of documents to retrieve"
-      score_threshold: "Minimum similarity score threshold"
-      collection_name: "Collection name (optional)"
-    timeout_ms: 60000
+  - name: remove_document
+    type: builtin
+    description: Remove documents from the knowledge base using document IDs
+    async_capable: true
+    timeout_ms: 30000
     
-  - name: "context_retrieval"
-    type: "builtin"
-    description: "Retrieve and format documents as context for enhanced responses"
-    parameters:
-      query: "Search query for context retrieval"
-      k: "Number of documents to retrieve"
-      context_format: "Format for context (summary or detailed)"
-      collection_name: "Collection name (optional)"
-    timeout_ms: 60000
-    
-  - name: "add_document"
-    type: "builtin"
-    description: "Add documents to the knowledge base"
-    parameters:
-      documents: "Array of documents to add"
-      collection_name: "Collection name (optional)"
+  - name: parse_pdf
+    type: builtin
+    description: Parse PDF files to extract text content
+    async_capable: true
     timeout_ms: 120000
     
-  - name: "remove_document"
-    type: "builtin"
-    description: "Remove documents from the knowledge base"
-    parameters:
-      document_ids: "Array of document IDs to remove"
-      collection_name: "Collection name (optional)"
+  - name: parse_docx
+    type: builtin
+    description: Parse DOCX files to extract text content
+    async_capable: true
+    timeout_ms: 60000
+    
+  - name: get_embedding
+    type: builtin
+    description: Generate embedding vectors for text content
+    async_capable: true
+    timeout_ms: 30000
+    
+  - name: test_document_service
+    type: builtin
+    description: Test connection to the document service and vector database
+    async_capable: true
+    timeout_ms: 30000
+    
+  - name: web_search
+    type: external_api
+    description: Search the web for information
+    endpoint: https://api.search.com/v1/search
+    async_capable: true
     timeout_ms: 60000
 
 # Agent definitions
 agents:
-  - name: "research_assistant"
-    type: "research"
-    role: "Information researcher and analyzer"
+  - name: research_assistant
+    type: research
+    role: Information researcher and analyzer
     system_prompt: >
       You are a research assistant specialized in gathering, analyzing, and summarizing information.
       Your goal is to provide accurate, well-researched, and comprehensive answers to queries.
       Always cite sources when possible and indicate confidence levels in your findings.
     capabilities:
-      - "web_search"
-      - "text_processing" 
-      - "data_analysis"
-      - "information_synthesis"
-      - "retrieval"
-      - "context_retrieval"    
+      - web_search
+      - text_processing
+      - data_analysis
+      - information_synthesis
+      - document_retrieval
+      - context_retrieval
+      - document_management
+      - document_parsing
     functions:
-      - "inference"
-      - "web_search"
-      - "text_processing"
-      - "data_analysis"
-      - "retrieval"
-      - "context_retrieval"    
+      - inference
+      - web_search
+      - text_processing
+      - data_analysis
+      - retrieval
+      - context_retrieval
+      - add_document
+      - remove_document
+      - parse_pdf
+      - parse_docx
+      - get_embedding
+      - test_document_service
     llm_config:
-      api_endpoint: "http://localhost:8080/v1"
-      instruction: "You are a research assistant. Provide accurate, well-researched answers."
+      api_endpoint: http://localhost:8080/v1
+      instruction: You are a research assistant. Provide accurate, well-researched answers.
       temperature: 0.3
       max_tokens: 2048
       timeout_seconds: 120
       max_retries: 3
+    custom_settings:
+      fact_checking: enabled
+      search_depth: comprehensive
     auto_start: true
     max_concurrent_jobs: 3
     heartbeat_interval_seconds: 10
-    custom_settings:
-      search_depth: "comprehensive"
-      fact_checking: "enabled"
-      
-  - name: "code_assistant"
-    type: "development"
-    role: "Software development assistant"
+
+  - name: document_manager
+    type: document_management
+    role: Document processing and knowledge base management specialist
     system_prompt: >
-      You are a senior software developer assistant. You help with code generation, review, 
-      debugging, and optimization. You follow best practices and write clean, maintainable code.
+      You are a document management specialist who helps with organizing, processing, and managing knowledge bases.
+      You can parse documents, add them to collections, retrieve relevant information, and maintain document databases.
+      You ensure data quality and provide efficient document workflows.
     capabilities:
-      - "code_generation"
-      - "code_review"
-      - "debugging"
-      - "optimization"    
+      - document_management
+      - document_parsing
+      - document_retrieval
+      - knowledge_base_management
+      - text_processing
     functions:
-      - "inference"
-      - "code_generation"
-      - "text_processing"
+      - inference
+      - add_document
+      - remove_document
+      - retrieval
+      - context_retrieval
+      - parse_pdf
+      - parse_docx
+      - get_embedding
+      - test_document_service
+      - text_processing
     llm_config:
-      model_name: "test-qwen-0.6b"
-      api_endpoint: "http://localhost:8080/v1"
-      instruction: "You are a software development assistant. Write clean, maintainable code."
+      api_endpoint: http://localhost:8080/v1
+      instruction: You are a document management specialist. Help organize and manage knowledge bases efficiently.
       temperature: 0.2
-      max_tokens: 4096
-      timeout_seconds: 60
-      max_retries: 2
+      max_tokens: 2048
+      timeout_seconds: 120
+      max_retries: 3
+    custom_settings:
+      auto_chunking: true
+      batch_processing: true
+      default_collection: documents
+      quality_validation: enabled
     auto_start: true
-    max_concurrent_jobs: 2
+    max_concurrent_jobs: 5
+    heartbeat_interval_seconds: 15
+
+  - name: knowledge_agent
+    type: research
+    role: Knowledge retrieval and context-aware assistant
+    system_prompt: >
+      You are a knowledge-aware AI assistant that uses document retrieval to provide accurate, context-rich responses.
+      Always search for relevant information first, then provide comprehensive answers based on the retrieved context.
+      When you don't find relevant information, clearly state this limitation.
+    capabilities:
+      - document_retrieval
+      - context_integration
+      - knowledge_synthesis
+      - information_verification
+    functions:
+      - inference
+      - retrieval
+      - context_retrieval
+      - text_processing
+    llm_config:
+      api_endpoint: http://localhost:8080/v1
+      instruction: You are a knowledge-aware assistant. Always use retrieved context to provide accurate answers.
+      temperature: 0.3
+      max_tokens: 3072
+      timeout_seconds: 90
+      max_retries: 3
+    custom_settings:
+      context_window: large
+      fact_checking: enabled
+      retrieval_threshold: 0.1
+    auto_start: true
+    max_concurrent_jobs: 4
     heartbeat_interval_seconds: 15
 ```
 
@@ -215,6 +295,7 @@ The agent system supports comprehensive message types for sophisticated inter-ag
 - **`error_notification`**: Error reporting and exception handling
 - **`metric_report`**: Performance metrics and monitoring data
 - **`configuration_update`**: Dynamic configuration changes
+- **`document_notification`**: Document-related events and updates
 
 ### Message Structure
 ```json
@@ -243,35 +324,47 @@ The agent system provides comprehensive REST API endpoints for management and in
 - **`GET /api/v1/agents`**: List all agents with status and capabilities
 - **`GET /api/v1/agents/{agent_id}`**: Get detailed agent information
 - **`POST /api/v1/agents`**: Create new agent from configuration
+- **`PUT /api/v1/agents/{agent_id}`**: Update agent configuration
 - **`POST /api/v1/agents/{agent_id}/start`**: Start a specific agent
 - **`POST /api/v1/agents/{agent_id}/stop`**: Stop a specific agent
 - **`DELETE /api/v1/agents/{agent_id}`**: Remove agent from system
 
 ### Function Execution
-- **`POST /api/v1/agents/{agent_id}/execute`**: Execute function synchronously
-- **`POST /api/v1/agents/{agent_id}/execute-async`**: Execute function asynchronously
-- **`GET /api/v1/agents/jobs/{job_id}/status`**: Get job execution status
-- **`GET /api/v1/agents/jobs/{job_id}/result`**: Get job execution results
+- **`POST /api/v1/agents/{agent_id}/functions/{function_name}`**: Execute function synchronously
+- **`POST /api/v1/agents/{agent_id}/inference`**: Direct inference endpoint for agents
+- **`GET /api/v1/agents/{agent_id}/functions`**: List available functions for agent
+- **`GET /api/v1/agents/{agent_id}/capabilities`**: Get agent capabilities
 
 ### Communication
-- **`POST /api/v1/agents/messages/send`**: Send message between agents
+- **`POST /api/v1/agents/{agent_id}/message`**: Send message to specific agent
 - **`POST /api/v1/agents/messages/broadcast`**: Broadcast message to all agents
 - **`GET /api/v1/agents/{agent_id}/messages`**: Get agent message history
 
 ### System Management
 - **`GET /api/v1/agents/system/status`**: Get system-wide status
-- **`POST /api/v1/agents/system/reload`**: Reload configuration
 - **`GET /api/v1/agents/system/metrics`**: Get performance metrics
+- **`POST /api/v1/agents/system/reload`**: Reload configuration
 
-### Document & Retrieval Management
+### Document & Retrieval Management (Enhanced RAG)
 - **`POST /retrieve`**: Retrieve documents using vector search
 - **`POST /api/v1/documents`**: Add documents to knowledge base
 - **`DELETE /api/v1/documents`**: Remove documents from knowledge base
-- **`GET /api/v1/documents/collections`**: List available collections
+- **`GET /api/v1/agents/collections`**: List available collections
+- **`POST /api/v1/agents/collections`**: Create new collection
+- **`GET /api/v1/agents/collections/{collection_name}`**: Get collection info
+- **`DELETE /api/v1/agents/collections/{collection_name}`**: Delete collection
 - **`POST /parse-pdf`**: Parse PDF documents for indexing
 - **`POST /parse-docx`**: Parse DOCX documents for indexing
 
-### Workflow Orchestration
+### Workflow Management (Sequential Workflows)
+- **`GET /api/v1/sequential/workflows`**: List sequential workflows
+- **`POST /api/v1/sequential/workflows`**: Create new sequential workflow
+- **`GET /api/v1/sequential/workflows/{workflow_id}`**: Get workflow details
+- **`POST /api/v1/sequential/workflows/{workflow_id}/execute`**: Execute workflow
+- **`GET /api/v1/sequential/workflows/{workflow_id}/status`**: Get workflow status
+- **`DELETE /api/v1/sequential/workflows/{workflow_id}`**: Delete workflow
+
+### Advanced Workflow Orchestration
 - **`POST /api/v1/orchestration/workflows`**: Create complex workflows
 - **`GET /api/v1/orchestration/workflows/{workflow_id}`**: Get workflow status
 - **`POST /api/v1/orchestration/workflows/{workflow_id}/execute`**: Execute workflow
@@ -329,111 +422,144 @@ functions:
 ## Advanced Features
 
 ### Retrieval-Augmented Generation (RAG)
-The system includes comprehensive RAG capabilities:
+The system includes comprehensive RAG capabilities with enhanced document processing:
 
 ```yaml
 # Database configuration for RAG
 database:
   qdrant:
     enabled: true
-    host: "localhost"
+    host: localhost
     port: 6333
-    apiKey: ""
-    timeout: 30
-    maxConnections: 10
-    connectionTimeout: 5
-    defaultEmbeddingModel: "default"
+    collection_name: documents
+    default_embedding_model: text-embedding-3-small
+    timeout: 60
+    api_key: ""
+    max_connections: 20
+    connection_timeout: 10
 ```
 
-#### Document Management
-- **Document Indexing**: Automatic embedding generation and vector storage
-- **Multi-format Support**: PDF, DOCX, and text document processing
-- **Vector Search**: Semantic similarity search with configurable thresholds
-- **Context Enhancement**: Automatic context formatting for LLM consumption
+#### Document Management Features
+- **Multi-format Support**: PDF, DOCX, and text document processing with automatic content extraction
+- **Embedding Generation**: Automatic embedding generation using configured embedding models
+- **Vector Storage**: Semantic similarity search with Qdrant vector database integration
+- **Collection Management**: Multiple collections for organizing different types of documents
+- **Batch Processing**: Efficient bulk document operations with progress tracking
+- **Quality Validation**: Automatic validation of document content and metadata
 
-#### Retrieval Functions
-- **`retrieval`**: Basic document search and retrieval
-- **`context_retrieval`**: Enhanced context formatting for AI responses
-- **`add_document`**: Document indexing and storage
-- **`remove_document`**: Document removal and cleanup
+#### Enhanced Retrieval Functions
+- **`retrieval`**: Basic semantic document search with configurable similarity thresholds
+- **`context_retrieval`**: Enhanced context formatting optimized for LLM consumption
+- **`add_document`**: Document indexing with automatic chunking and metadata extraction
+- **`remove_document`**: Document removal with cleanup of related embeddings
+- **`parse_pdf`**: PDF content extraction with text, metadata, and structure preservation
+- **`parse_docx`**: DOCX processing with formatting and style information
+- **`get_embedding`**: Direct embedding generation for custom text content
+- **`test_document_service`**: Connection testing and system validation
 
-### Workflow Orchestration
-The `AgentOrchestrator` enables complex multi-agent workflows:
+### Advanced Workflow Engine
+The `WorkflowEngine` enables sophisticated multi-step workflows with enhanced capabilities:
 
+#### Workflow Types
+- **Sequential**: Steps execute one after another in defined order
+- **Parallel**: Multiple steps execute simultaneously for improved efficiency
+- **Pipeline**: Data flows seamlessly from step to step with context preservation
+- **Consensus**: Multiple agents collaborate to reach consensus on decisions
+- **Conditional**: Dynamic step execution based on runtime conditions and results
+
+#### Error Handling & Recovery
+- **Retry Mechanisms**: Configurable retry strategies with exponential backoff
+- **Fallback Agents**: Automatic failover to backup agents when primary agents fail
+- **Checkpoint Recovery**: State persistence for workflow resumption after interruptions
+- **Partial Failure Handling**: Continue execution with partial results when appropriate
+
+#### Enhanced Orchestration Features
 ```json
 {
-  "name": "RAG-Enhanced Content Creation",
-  "description": "Research, retrieve context, and create content",
-  "global_context": {
-    "topic": "AI in Healthcare",
-    "target_audience": "medical professionals",
-    "use_rag": true
-  },
+  "name": "Advanced RAG Research Pipeline",
+  "description": "Multi-stage research with document retrieval and synthesis",
+  "type": "PIPELINE",
   "steps": [
     {
-      "name": "knowledge_retrieval",
-      "agent": "research_assistant",
-      "function": "retrieval",
+      "step_id": "document_search",
+      "agent_id": "research_assistant",
+      "function_name": "retrieval",
       "parameters": {
-        "query": "AI healthcare applications",
-        "k": 10,
-        "score_threshold": 0.7
-      }
-    },
-    {
-      "name": "context_enhancement",
-      "agent": "research_assistant", 
-      "function": "context_retrieval",
-      "parameters": {
-        "query": "AI healthcare benefits and challenges",
-        "k": 5,
-        "context_format": "detailed"
-      }
-    },
-    {
-      "name": "content_creation",
-      "agent": "content_creator",
-      "function": "inference",
-      "parameters": {
-        "prompt": "Using the retrieved context, write a comprehensive article about AI in healthcare",
-        "context": "{{context_enhancement.result}}"
+        "query": "{{global_context.research_topic}}",
+        "k": 15,
+        "score_threshold": 0.7,
+        "collection_name": "research_papers"
       },
-      "depends_on": ["knowledge_retrieval", "context_enhancement"]
-    }
-  ]
-}
-```
-      "depends_on": ["research"]
+      "timeout_seconds": 45,
+      "max_retries": 3
     },
     {
-      "name": "review",
-      "agent": "qa_specialist",
-      "function": "text_processing",
-      "depends_on": ["writing"]
+      "step_id": "context_synthesis",
+      "agent_id": "knowledge_agent",
+      "function_name": "context_retrieval",
+      "parameters": {
+        "query": "synthesize research findings",
+        "k": 10,
+        "context_format": "detailed",
+        "input_documents": "{{document_search.output}}"
+      },
+      "dependencies": [
+        {"step_id": "document_search", "condition": "success"}
+      ],
+      "timeout_seconds": 60
+    },
+    {
+      "step_id": "comprehensive_analysis",
+      "agent_id": "data_analyst",
+      "function_name": "inference",
+      "parameters": {
+        "prompt": "Analyze the synthesized research and provide insights",
+        "context": "{{context_synthesis.output}}",
+        "max_tokens": 2048,
+        "temperature": 0.3
+      },
+      "dependencies": [
+        {"step_id": "context_synthesis", "condition": "success"}
+      ],
+      "timeout_seconds": 90
     }
-  ]
+  ],
+  "error_handling": {
+    "retry_on_failure": true,
+    "max_retries": 3,
+    "use_fallback_agent": true,
+    "continue_on_error": false
+  }
 }
 ```
+### Performance Monitoring & Analytics
+Built-in comprehensive metrics and monitoring:
 
-### Performance Monitoring
-Built-in metrics and monitoring:
-- Agent performance statistics
-- Function execution times
-- Message routing efficiency
-- Job queue status
-- Resource utilization
+#### Agent Performance Metrics
+- **Execution Statistics**: Function call counts, success rates, and average execution times
+- **Resource Utilization**: Memory usage, CPU consumption, and thread utilization
+- **Health Monitoring**: Heartbeat tracking, error rates, and availability metrics
+- **Workload Analysis**: Job queue depths, concurrent execution tracking
 
-### High Availability
-- Automatic agent restart on failure
-- Load balancing across agent instances
-- Graceful degradation mechanisms
-- Configuration hot-reloading
+#### System-Wide Analytics
+- **Workflow Performance**: End-to-end workflow execution times and success rates
+- **Document Service Metrics**: Retrieval performance, embedding generation times, search accuracy
+- **Inter-Agent Communication**: Message routing efficiency, collaboration patterns
+- **Capacity Planning**: Resource usage trends and scaling recommendations
 
-### Security Features
-- Agent isolation and sandboxing
-- Function execution limits
-- Resource usage monitoring
-- Audit logging
+### High Availability & Reliability
+- **Automatic Recovery**: Agent restart on failure with state preservation
+- **Load Distribution**: Intelligent workload distribution across available agents
+- **Graceful Degradation**: System continues operating with reduced capacity during failures
+- **Configuration Hot-Reloading**: Update agent configurations without system restart
+- **State Persistence**: Workflow and execution state preserved across system restarts
+
+### Security & Compliance
+- **Agent Isolation**: Sandboxed execution environments for secure function execution
+- **Function Access Control**: Role-based access to functions and capabilities
+- **Resource Limits**: Configurable execution timeouts and resource consumption limits
+- **Audit Logging**: Comprehensive logging of all agent activities and system events
+- **Input Validation**: Robust validation and sanitization of all inputs and parameters
 
 ## Demo & Status
 
@@ -449,55 +575,85 @@ The system supports comprehensive demonstration and status reporting:
 ### Creating and Managing Agents via API
 
 ```bash
-# List all agents
+# List all agents with detailed information
 curl -X GET http://localhost:8080/api/v1/agents
 
-# Create a new agent with RAG capabilities
+# Create a new RAG-enabled research agent
 curl -X POST http://localhost:8080/api/v1/agents \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "rag_agent",
+    "name": "rag_researcher",
     "type": "research",
-    "capabilities": ["retrieval", "context_retrieval", "text_processing"],
-    "functions": ["inference", "retrieval", "context_retrieval"],
-    "auto_start": true
+    "role": "RAG-enhanced research assistant",
+    "system_prompt": "You are a research assistant that uses document retrieval to provide accurate, context-rich responses.",
+    "capabilities": [
+      "document_retrieval", "context_retrieval", "text_processing", 
+      "information_synthesis", "document_management"
+    ],
+    "functions": [
+      "inference", "retrieval", "context_retrieval", "text_processing",
+      "add_document", "parse_pdf", "parse_docx"
+    ],
+    "llm_config": {
+      "api_endpoint": "http://localhost:8080/v1",
+      "temperature": 0.3,
+      "max_tokens": 2048
+    },
+    "auto_start": true,
+    "max_concurrent_jobs": 4
   }'
 
-# Execute retrieval function
-curl -X POST http://localhost:8080/api/v1/agents/rag_agent/execute \
+# Execute document retrieval function
+curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/functions/retrieval \
   -H "Content-Type: application/json" \
   -d '{
-    "function": "retrieval",
     "parameters": {
-      "query": "machine learning algorithms",
-      "k": 5,
-      "score_threshold": 0.6
+      "query": "machine learning in healthcare",
+      "k": 10,
+      "score_threshold": 0.6,
+      "collection_name": "medical_research"
     }
   }'
 
-# Add documents to knowledge base
-curl -X POST http://localhost:8080/api/v1/documents \
+# Execute RAG-enhanced inference
+curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/functions/rag_inference \
   -H "Content-Type: application/json" \
   -d '{
-    "documents": [
-      {
-        "text": "Machine learning is a subset of artificial intelligence...",
-        "metadata": {
-          "source": "ML_Guide.pdf",
-          "page": 1,
-          "category": "introduction"
-        }
-      }
-    ]
+    "parameters": {
+      "prompt": "What are the latest developments in AI for medical diagnosis?",
+      "query": "AI medical diagnosis recent developments",
+      "k": 8,
+      "max_tokens": 1024,
+      "temperature": 0.3
+    }
   }'
 
-# Retrieve documents using vector search
-curl -X POST http://localhost:8080/retrieve \
+# Direct inference endpoint
+curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/inference \
   -H "Content-Type: application/json" \
   -d '{
-    "query": "what is machine learning",
-    "k": 3,
-    "score_threshold": 0.5
+    "prompt": "Summarize the key benefits of AI in healthcare",
+    "max_tokens": 500,
+    "temperature": 0.3
+  }'
+
+# Add documents to knowledge base using agent
+curl -X POST http://localhost:8080/api/v1/agents/document_manager/functions/add_document \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parameters": {
+      "documents": [
+        {
+          "text": "Artificial intelligence in healthcare has shown remarkable progress...",
+          "metadata": {
+            "source": "Medical_AI_Review_2024.pdf",
+            "category": "healthcare_ai",
+            "date": "2024-01-15"
+          }
+        }
+      ],
+      "collection_name": "medical_research"
+    }
   }'
 
 # Parse and index PDF document
@@ -505,20 +661,202 @@ curl -X POST http://localhost:8080/parse-pdf \
   -H "Content-Type: application/json" \
   -d '{
     "pdf_data": "base64_encoded_pdf_content",
-    "method": "fast",
-    "auto_index": true
+    "method": "comprehensive",
+    "auto_index": true,
+    "collection_name": "medical_research",
+    "metadata": {
+      "source": "research_paper.pdf",
+      "category": "clinical_studies"
+    }
   }'
+```
 
-# Send a message between agents
-curl -X POST http://localhost:8080/api/v1/agents/messages/send \
+### Advanced Multi-Agent Workflow Example
+
+```bash
+# Create a comprehensive research and analysis workflow
+curl -X POST http://localhost:8080/api/v1/sequential/workflows \
   -H "Content-Type: application/json" \
   -d '{
-    "from_agent": "research_assistant",
-    "to_agent": "code_assistant",
-    "type": "task_request",
+    "name": "Comprehensive Medical Research Analysis",
+    "description": "Multi-stage workflow for medical research analysis with RAG",
+    "steps": [
+      {
+        "step_id": "document_retrieval",
+        "agent_id": "rag_researcher",
+        "function_name": "retrieval",
+        "parameters": {
+          "query": "AI medical diagnosis accuracy studies",
+          "k": 15,
+          "score_threshold": 0.65,
+          "collection_name": "medical_research"
+        },
+        "timeout_seconds": 60
+      },
+      {
+        "step_id": "context_synthesis",
+        "agent_id": "knowledge_agent",
+        "function_name": "context_retrieval",
+        "parameters": {
+          "query": "medical AI diagnostic accuracy trends",
+          "k": 10,
+          "context_format": "detailed"
+        },
+        "dependencies": ["document_retrieval"]
+      },
+      {
+        "step_id": "data_analysis",
+        "agent_id": "data_analyst",
+        "function_name": "inference",
+        "parameters": {
+          "prompt": "Analyze the medical research data and identify key trends in AI diagnostic accuracy",
+          "context": "{{context_synthesis.output}}",
+          "max_tokens": 2048,
+          "temperature": 0.2
+        },
+        "dependencies": ["context_synthesis"]
+      },
+      {
+        "step_id": "content_creation",
+        "agent_id": "content_creator", 
+        "function_name": "inference",
+        "parameters": {
+          "prompt": "Create a comprehensive report based on the analysis",
+          "context": "{{data_analysis.output}}",
+          "max_tokens": 3072,
+          "temperature": 0.4
+        },
+        "dependencies": ["data_analysis"]
+      },
+      {
+        "step_id": "quality_review",
+        "agent_id": "qa_specialist",
+        "function_name": "inference",
+        "parameters": {
+          "prompt": "Review the report for accuracy, completeness, and clarity",
+          "context": "{{content_creation.output}}",
+          "max_tokens": 1024,
+          "temperature": 0.1
+        },
+        "dependencies": ["content_creation"]
+      }
+    ],
+    "global_context": {
+      "research_domain": "medical_ai",
+      "output_format": "comprehensive_report",
+      "quality_standards": "high"
+    }
+  }'
+
+# Execute the workflow
+curl -X POST http://localhost:8080/api/v1/sequential/workflows/workflow_123/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input_context": {
+      "research_focus": "diagnostic_accuracy",
+      "target_audience": "medical_professionals",
+      "urgency": "standard"
+    }
+  }'
+
+# Monitor workflow progress
+curl http://localhost:8080/api/v1/sequential/workflows/workflow_123/status
+```
+
+### Document Management and RAG Operations
+
+```bash
+# Test document service connectivity
+curl -X POST http://localhost:8080/api/v1/agents/document_manager/functions/test_document_service \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parameters": {}
+  }'
+
+# Create a new document collection
+curl -X POST http://localhost:8080/api/v1/agents/collections \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "clinical_studies",
+    "description": "Clinical research studies and trials",
+    "metadata_schema": {
+      "study_type": "string",
+      "publication_date": "string", 
+      "institution": "string",
+      "peer_reviewed": "boolean"
+    }
+  }'
+
+# Bulk document processing workflow
+curl -X POST http://localhost:8080/api/v1/agents/workflows \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Bulk Document Processing",
+    "type": "document_processing",
+    "steps": [
+      {
+        "agent_id": "document_manager",
+        "function": "parse_pdf",
+        "parameters": {
+          "batch_mode": true,
+          "auto_index": true,
+          "quality_validation": true
+        }
+      },
+      {
+        "agent_id": "document_manager", 
+        "function": "add_document",
+        "parameters": {
+          "collection_name": "clinical_studies",
+          "batch_processing": true
+        }
+      }
+    ]
+  }'
+
+# Advanced semantic search with filtering
+curl -X POST http://localhost:8080/retrieve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "randomized controlled trial diabetes treatment",
+    "k": 20,
+    "score_threshold": 0.7,
+    "collection_name": "clinical_studies",
+    "metadata_filter": {
+      "study_type": "RCT",
+      "peer_reviewed": true
+    },
+    "include_metadata": true,
+    "rerank": true
+  }'
+```
+
+### System Monitoring and Management
+
+```bash
+# Get comprehensive system status
+curl http://localhost:8080/api/v1/agents/system/status
+
+# Get detailed performance metrics
+curl http://localhost:8080/api/v1/agents/system/metrics
+
+# Get workflow engine metrics
+curl http://localhost:8080/api/v1/orchestration/metrics
+
+# List all available agent functions
+curl http://localhost:8080/api/v1/agents/research_assistant/functions
+
+# Broadcast system-wide message
+curl -X POST http://localhost:8080/api/v1/agents/messages/broadcast \
+  -H "Content-Type: application/json" \
+  -d '{
+    "from_agent": "system_manager",
+    "type": "system_announcement",
     "payload": {
-      "task": "Generate documentation",
-      "priority": "high"
+      "message": "System maintenance scheduled for tonight",
+      "maintenance_window": "2024-12-09T02:00:00Z to 2024-12-09T04:00:00Z",
+      "affected_services": ["document_service", "workflow_engine"],
+      "expected_impact": "minimal"
     }
   }'
 ```

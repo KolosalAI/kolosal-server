@@ -3,49 +3,54 @@
 ## Overview
 
 The Kolosal Server Agent System provides a comprehensive multi-agent framework that enables:
-- Dynamic agent creation and management with UUID-based identification
+- Dynamic agent creation and management with unique ID-based identification
 - Inter-agent communication and coordination with message correlation
-- Workflow orchestration and automation with dependency management
+- Advanced workflow orchestration and automation with dependency management
 - Collaborative problem-solving patterns with consensus mechanisms
 - Load balancing and optimization with automatic resource management
 - Real-time monitoring and performance metrics
 - Hot-reloading configuration without system restart
-- **Retrieval-Augmented Generation (RAG)** with vector search capabilities
-- **Document management** with multi-format support (PDF, DOCX, text)
-- **Semantic search** with configurable similarity thresholds
-- **Context enhancement** for improved AI responses
+- **Enhanced Retrieval-Augmented Generation (RAG)** with semantic vector search capabilities
+- **Comprehensive document management** with multi-format support (PDF, DOCX, text)
+- **Intelligent semantic search** with configurable similarity thresholds and metadata filtering
+- **Context-aware enhancement** for improved AI responses with document integration
+- **Sequential and advanced workflow engines** for complex multi-step processing
 
 ## Architecture
 
 ### Core Components
 
-1. **AgentCore** - Individual agent implementation with thread-safe execution and UUID identification
+1. **AgentCore** - Individual agent implementation with thread-safe execution and unique ID identification
 2. **YAMLConfigurableAgentManager** - System-wide agent management with hot-reloading support
 3. **AgentOrchestrator** - Advanced workflow and collaboration orchestration with dependency resolution
-4. **MessageRouter** - Inter-agent communication with priority queuing and correlation tracking
-5. **FunctionManager** - Function execution management supporting builtin, LLM, external API, and custom functions
-6. **JobManager** - Asynchronous job handling with priority queues and status tracking
-7. **EventSystem** - Real-time event processing and notification system
-8. **ConfigurableAgentFactory** - Factory for creating agents from YAML configurations
+4. **WorkflowEngine** - Sequential, parallel, pipeline, consensus, and conditional workflow support
+5. **MessageRouter** - Inter-agent communication with priority queuing and correlation tracking
+6. **FunctionManager** - Function execution management supporting builtin, LLM, external API, and custom functions
+7. **JobManager** - Asynchronous job handling with priority queues and status tracking
+8. **EventSystem** - Real-time event processing and notification system
+9. **ConfigurableAgentFactory** - Factory for creating agents from YAML configurations
 
 ### Agent Types
 
-The system supports 6 predefined agent types with specialized capabilities:
+The system supports 8 predefined agent types with specialized capabilities:
 
-- **Research Agents** (`research`) - Information gathering, web search, data analysis, and synthesis
+- **Research Agents** (`research`) - Information gathering, web search, document retrieval, data analysis, and synthesis
 - **Development Agents** (`development`) - Code generation, review, debugging, and optimization
 - **Analytics Agents** (`analytics`) - Data analysis, statistical processing, and visualization
 - **Creative Agents** (`creative`) - Content creation, writing, copywriting, and creative tasks
 - **Management Agents** (`management`) - Project coordination, task management, and progress tracking
 - **QA Agents** (`quality_assurance`) - Quality assurance, testing, validation, and process improvement
+- **Document Management** (`document_management`) - Document processing, knowledge base management, and content organization
+- **General Purpose** (`general`) - Flexible agents for various tasks and testing purposes
 
 ### Function Types
 
-- **Builtin Functions** - Native server functions (inference, text_processing, data_analysis, retrieval, context_retrieval, add_document, remove_document)
+- **Builtin Functions** - Native server functions (inference, text_processing, data_analysis, retrieval, context_retrieval, add_document, remove_document, parse_pdf, parse_docx, get_embedding, test_document_service)
 - **LLM Functions** - AI-powered functions using language models with configurable prompts
 - **External API Functions** - Integration with external services (web_search, etc.)
 - **Custom Functions** - User-defined function implementations
-- **Retrieval Functions** - Vector search and document retrieval for RAG applications
+- **Document Processing Functions** - PDF/DOCX parsing, embedding generation, and document management
+- **RAG Functions** - Enhanced retrieval and context-aware processing for knowledge-based AI responses
 
 ## API Endpoints
 
@@ -62,28 +67,31 @@ GET /api/v1/agents
   "success": true,
   "data": [
     {
-      "uuid": "agent_12345_67890",
-      "id": "research_assistant",
+      "agent_id": "research_assistant",
       "name": "research_assistant",
       "type": "research",
       "capabilities": [
         "web_search", 
         "text_processing", 
         "data_analysis",
-        "information_synthesis"
+        "information_synthesis",
+        "document_retrieval",
+        "context_retrieval",
+        "document_management",
+        "document_parsing"
       ],
       "running": true
     },
     {
-      "uuid": "agent_23456_78901",
-      "id": "code_assistant",
-      "name": "code_assistant", 
-      "type": "development",
+      "agent_id": "document_manager",
+      "name": "document_manager", 
+      "type": "document_management",
       "capabilities": [
-        "code_generation",
-        "code_review", 
-        "debugging",
-        "optimization"
+        "document_management",
+        "document_parsing", 
+        "document_retrieval",
+        "knowledge_base_management",
+        "text_processing"
       ],
       "running": true
     }
@@ -102,32 +110,48 @@ GET /api/v1/agents/{agent_id}
 {
   "success": true,
   "data": {
-    "uuid": "agent_12345_67890",
-    "id": "research_assistant",
+    "agent_id": "research_assistant",
     "name": "research_assistant",
     "type": "research",
-    "role": "AI Research Assistant",
+    "role": "Information researcher and analyzer",
     "system_prompt": "You are a research assistant specialized in information gathering and analysis.",
     "capabilities": [
       "web_search",
       "text_processing", 
       "data_analysis",
-      "information_synthesis"
+      "information_synthesis",
+      "document_retrieval",
+      "context_retrieval",
+      "document_management",
+      "document_parsing"
     ],
     "running": true,
     "functions": [
       "inference",
       "web_search", 
       "text_processing",
-      "data_analysis"
+      "data_analysis",
+      "retrieval",
+      "context_retrieval",
+      "add_document",
+      "remove_document",
+      "parse_pdf",
+      "parse_docx",
+      "get_embedding",
+      "test_document_service"
     ],
     "max_concurrent_jobs": 3,
     "heartbeat_interval_seconds": 10,
     "llm_config": {
-      "model_name": "test-qwen-0.6b",
       "api_endpoint": "http://localhost:8080/v1",
-      "temperature": 0.7,
-      "max_tokens": 2048
+      "temperature": 0.3,
+      "max_tokens": 2048,
+      "timeout_seconds": 120,
+      "max_retries": 3
+    },
+    "custom_settings": {
+      "fact_checking": "enabled",
+      "search_depth": "comprehensive"
     },
     "statistics": {
       "total_jobs_executed": 47,
@@ -148,43 +172,53 @@ POST /api/v1/agents
 **Request Body:**
 ```json
 {
-  "name": "custom_agent",
-  "type": "generic",
-  "role": "Custom processing agent",
-  "system_prompt": "You are a helpful assistant specialized in custom tasks.",
+  "name": "rag_specialist",
+  "type": "research",
+  "role": "RAG-enhanced research specialist",
+  "system_prompt": "You are a research specialist that uses document retrieval to provide accurate, context-rich responses.",
   "capabilities": [
+    "document_retrieval",
+    "context_retrieval",
     "text_processing",
     "data_analysis",
-    "inference"
+    "document_management",
+    "document_parsing"
   ],
   "functions": [
     "inference",
+    "retrieval",
+    "context_retrieval",
     "text_processing",
-    "data_analysis"
+    "data_analysis",
+    "add_document",
+    "remove_document",
+    "parse_pdf",
+    "parse_docx",
+    "get_embedding"
   ],
   "llm_config": {
-    "model_name": "test-qwen-0.6b",
     "api_endpoint": "http://localhost:8080/v1",
-    "instruction": "You are a helpful assistant specialized in custom tasks.",
-    "temperature": 0.7,
+    "instruction": "You are a research specialist that uses retrieved context to provide accurate answers.",
+    "temperature": 0.3,
     "max_tokens": 2048,
     "timeout_seconds": 60,
-    "max_retries": 3,
-    "stream": false
+    "max_retries": 3
   },
   "auto_start": true,
-  "max_concurrent_jobs": 3,
+  "max_concurrent_jobs": 4,
   "heartbeat_interval_seconds": 10,
   "custom_settings": {
     "enable_logging": true,
-    "priority_level": "normal",
+    "priority_level": "high",
     "workflow_enabled": true,
-    "collaboration_enabled": true
+    "collaboration_enabled": true,
+    "rag_enabled": true,
+    "context_window": "large"
   },
   "metadata": {
     "created_by": "user123",
-    "version": "1.0",
-    "tags": ["custom", "processing", "experimental"]
+    "version": "2.0",
+    "tags": ["research", "rag", "document_processing"]
   }
 }
 ```
@@ -194,8 +228,9 @@ POST /api/v1/agents
 {
   "success": true,
   "data": {
-    "agent_id": "custom_agent_12345",
-    "status": "created"
+    "agent_id": "rag_specialist_12345",
+    "status": "created",
+    "message": "RAG-enhanced agent created successfully"
   }
 }
 ```
@@ -348,16 +383,17 @@ POST /api/v1/agents/{agent_id}/message
 
 #### Execute Function Synchronously
 ```http
-POST /api/v1/agents/{agent_id}/execute
+POST /api/v1/agents/{agent_id}/functions/{function_name}
 ```
 
 **Request Body:**
 ```json
 {
-  "function": "text_processing",
   "parameters": {
-    "text": "The quick brown fox jumps over the lazy dog",
-    "operation": "analyze"
+    "query": "machine learning in healthcare",
+    "k": 10,
+    "score_threshold": 0.6,
+    "collection_name": "medical_research"
   }
 }
 ```
@@ -368,32 +404,29 @@ POST /api/v1/agents/{agent_id}/execute
   "success": true,
   "data": {
     "success": true,
-    "execution_time_ms": 234.5,
+    "execution_time_ms": 1245.3,
+    "agent_id": "research_assistant",
+    "function": "retrieval",
     "result": {
-      "word_count": 9,
-      "character_count": 43,
-      "sentiment": "neutral",
-      "readability_score": 8.2
+      "documents_found": 8,
+      "avg_score": 0.73,
+      "collection": "medical_research"
     }
   }
 }
 ```
 
-#### Execute Function Asynchronously
+#### Direct Agent Inference
 ```http
-POST /api/v1/agents/{agent_id}/execute-async
+POST /api/v1/agents/{agent_id}/inference
 ```
 
 **Request Body:**
 ```json
 {
-  "function": "code_generation",
-  "parameters": {
-    "requirements": "Create a REST API endpoint for user authentication",
-    "language": "python",
-    "framework": "fastapi"
-  },
-  "priority": 1
+  "prompt": "What are the benefits of AI in medical diagnosis?",
+  "max_tokens": 1024,
+  "temperature": 0.3
 }
 ```
 
@@ -402,17 +435,19 @@ POST /api/v1/agents/{agent_id}/execute-async
 {
   "success": true,
   "data": {
-    "job_id": "job_67890",
-    "status": "queued",
-    "agent_id": "code_assistant",
-    "function": "code_generation"
+    "agent_id": "research_assistant",
+    "result": "AI in medical diagnosis offers several key benefits...",
+    "execution_time_ms": 2156.7,
+    "tokens_generated": 156,
+    "tokens_per_second": 7.2,
+    "engine_used": "qwen3-0.6b"
   }
 }
 ```
 
-#### Get Job Status
+#### List Agent Functions
 ```http
-GET /api/v1/agents/jobs/{job_id}/status
+GET /api/v1/agents/{agent_id}/functions
 ```
 
 **Response:**
@@ -420,42 +455,60 @@ GET /api/v1/agents/jobs/{job_id}/status
 {
   "success": true,
   "data": {
-    "job_id": "job_67890",
-    "status": "running",
-    "agent_id": "code_assistant",
-    "function": "code_generation",
-    "priority": 1,
-    "created_at": "2025-06-24T10:30:00Z",
-    "started_at": "2025-06-24T10:30:05Z",
-    "progress": 0.65,
-    "estimated_completion": "2025-06-24T10:32:00Z"
-  }
-}
-```
-
-#### Get Job Result
-```http
-GET /api/v1/agents/jobs/{job_id}/result
-```
-
-**Response:**
-```json
-{
-  "success": true,
-  "data": {
-    "job_id": "job_67890",
-    "status": "completed",
-    "agent_id": "code_assistant",
-    "function": "code_generation",
-    "result": {
-      "generated_code": "from fastapi import FastAPI, HTTPException\n\napp = FastAPI()\n\n@app.post('/auth/login')\ndef login(credentials: dict):...",
-      "language": "python",
-      "framework": "fastapi",
-      "lines_of_code": 45,
-      "complexity_score": 3.2
-    },
-    "execution_time_ms": 1847,
-    "completed_at": "2025-06-24T10:31:52Z"
+    "agent_id": "research_assistant",
+    "functions": [
+      {
+        "name": "inference",
+        "description": "Generate text using the agent's LLM",
+        "type": "builtin",
+        "parameters": {
+          "prompt": "The input text prompt",
+          "max_tokens": "Maximum tokens to generate (optional)",
+          "temperature": "Sampling temperature (optional)"
+        }
+      },
+      {
+        "name": "retrieval",
+        "description": "Search documents using semantic similarity",
+        "type": "builtin",
+        "parameters": {
+          "query": "The search query",
+          "k": "Number of documents to retrieve (optional, default: 10)",
+          "collection_name": "Collection to search in (optional)",
+          "score_threshold": "Minimum similarity score (optional, default: 0.0)"
+        }
+      },
+      {
+        "name": "context_retrieval",
+        "description": "Retrieve and format documents as context for AI responses",
+        "type": "builtin",
+        "parameters": {
+          "query": "The search query for context retrieval",
+          "k": "Number of documents to retrieve (optional, default: 5)",
+          "context_format": "Format for context (summary or detailed)",
+          "collection_name": "Collection name (optional)"
+        }
+      },
+      {
+        "name": "add_document",
+        "description": "Add documents to the knowledge base",
+        "type": "builtin",
+        "parameters": {
+          "documents": "Array of documents to add",
+          "collection_name": "Collection name (optional)"
+        }
+      },
+      {
+        "name": "parse_pdf",
+        "description": "Parse PDF files to extract text content",
+        "type": "builtin",
+        "parameters": {
+          "pdf_data": "Base64 encoded PDF data",
+          "method": "Parsing method (fast or comprehensive)",
+          "auto_index": "Automatically index extracted content"
+        }
+      }
+    ]
   }
 }
 ```
@@ -542,9 +595,9 @@ POST /v1/agents/{agent_id}/generate
 POST /v1/agents/{agent_id}/respond
 ```
 
-### Document & Retrieval Management
+### Enhanced Document & Retrieval Management
 
-#### Retrieve Documents
+#### Retrieve Documents with Advanced Filtering
 ```http
 POST /retrieve
 ```
@@ -552,10 +605,17 @@ POST /retrieve
 **Request Body:**
 ```json
 {
-  "query": "machine learning algorithms",
-  "k": 5,
-  "score_threshold": 0.6,
-  "collection_name": "documents"
+  "query": "machine learning algorithms for medical diagnosis",
+  "k": 15,
+  "score_threshold": 0.7,
+  "collection_name": "medical_research",
+  "metadata_filter": {
+    "category": "clinical_studies",
+    "peer_reviewed": true,
+    "publication_year": "2024"
+  },
+  "include_metadata": true,
+  "rerank": true
 }
 ```
 
@@ -565,24 +625,27 @@ POST /retrieve
   "documents": [
     {
       "id": "doc_123",
-      "text": "Machine learning is a subset of artificial intelligence...",
-      "score": 0.85,
+      "text": "Machine learning algorithms have shown remarkable accuracy in medical diagnosis...",
+      "score": 0.87,
       "metadata": {
-        "source": "ML_Guide.pdf",
-        "page": 1,
-        "category": "introduction"
+        "source": "Clinical_AI_Study_2024.pdf",
+        "category": "clinical_studies",
+        "publication_year": "2024",
+        "peer_reviewed": true,
+        "institution": "Medical University"
       }
     }
   ],
-  "query": "machine learning algorithms",
-  "k": 5,
-  "collection_name": "documents",
-  "total_found": 1,
-  "score_threshold": 0.6
+  "query": "machine learning algorithms for medical diagnosis",
+  "k": 15,
+  "collection_name": "medical_research",
+  "total_found": 12,
+  "score_threshold": 0.7,
+  "processing_time_ms": 145.2
 }
 ```
 
-#### Add Documents
+#### Add Documents with Batch Processing
 ```http
 POST /api/v1/documents
 ```
@@ -592,32 +655,47 @@ POST /api/v1/documents
 {
   "documents": [
     {
-      "text": "Machine learning is a subset of artificial intelligence...",
+      "text": "Artificial intelligence in healthcare has revolutionized medical diagnosis...",
       "metadata": {
-        "source": "ML_Guide.pdf",
-        "page": 1,
-        "category": "introduction"
+        "source": "AI_Healthcare_Review_2024.pdf",
+        "category": "review_article",
+        "publication_date": "2024-06-15",
+        "authors": ["Dr. Smith", "Dr. Johnson"],
+        "keywords": ["AI", "healthcare", "diagnosis"]
+      }
+    },
+    {
+      "text": "Deep learning models for medical imaging have achieved state-of-the-art performance...",
+      "metadata": {
+        "source": "Deep_Learning_Medical_Imaging.pdf",
+        "category": "research_paper",
+        "publication_date": "2024-05-20"
       }
     }
   ],
-  "collection_name": "documents"
+  "collection_name": "medical_research",
+  "batch_processing": true,
+  "auto_chunk": true,
+  "chunk_size": 512,
+  "overlap": 50
 }
 ```
 
-#### Remove Documents
-```http
-DELETE /api/v1/documents
-```
-
-**Request Body:**
+**Response:**
 ```json
 {
-  "document_ids": ["doc_123", "doc_456"],
-  "collection_name": "documents"
+  "success": true,
+  "data": {
+    "processed_documents": 2,
+    "total_chunks_created": 8,
+    "collection_name": "medical_research",
+    "processing_time_ms": 1234.5,
+    "document_ids": ["doc_456", "doc_457"]
+  }
 }
 ```
 
-#### Parse PDF Document
+#### Parse PDF with Enhanced Processing
 ```http
 POST /parse-pdf
 ```
@@ -626,23 +704,73 @@ POST /parse-pdf
 ```json
 {
   "pdf_data": "base64_encoded_pdf_content",
-  "method": "fast",
+  "method": "comprehensive",
   "auto_index": true,
-  "collection_name": "documents"
+  "collection_name": "medical_research",
+  "metadata": {
+    "source": "research_paper.pdf",
+    "category": "clinical_studies",
+    "publication_date": "2024-06-01"
+  },
+  "processing_options": {
+    "extract_tables": true,
+    "extract_images": false,
+    "preserve_formatting": true,
+    "chunk_by_sections": true
+  }
 }
 ```
 
-#### Parse DOCX Document
-```http
-POST /parse-docx
-```
-
-**Request Body:**
+**Response:**
 ```json
 {
-  "docx_data": "base64_encoded_docx_content",
-  "auto_index": true,
-  "collection_name": "documents"
+  "success": true,
+  "data": {
+    "document_id": "doc_789",
+    "pages_processed": 15,
+    "text_extracted": "Research findings indicate that AI-driven diagnostic tools...",
+    "chunks_created": 23,
+    "tables_extracted": 4,
+    "processing_time_ms": 3456.7,
+    "auto_indexed": true,
+    "collection_name": "medical_research"
+  }
+}
+```
+
+#### Collection Management
+```http
+GET /api/v1/agents/collections
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "collections": [
+      {
+        "name": "medical_research",
+        "document_count": 1247,
+        "size_mb": 45.6,
+        "created_date": "2024-01-15T10:30:00Z",
+        "last_updated": "2024-06-24T14:22:00Z",
+        "metadata_schema": {
+          "category": "string",
+          "publication_date": "string",
+          "peer_reviewed": "boolean"
+        }
+      },
+      {
+        "name": "general_knowledge",
+        "document_count": 892,
+        "size_mb": 32.1,
+        "created_date": "2024-02-01T09:15:00Z",
+        "last_updated": "2024-06-23T16:45:00Z"
+      }
+    ],
+    "total_collections": 2
+  }
 }
 ```
 
@@ -705,72 +833,138 @@ GET /api/v1/orchestration/status
 }
 ```
 
-## Workflow Orchestration
+### Sequential Workflow Management
 
-### Create Workflow
+#### Create Sequential Workflow
 ```http
-POST /api/v1/orchestration/workflows
+POST /api/v1/sequential/workflows
 ```
 
 **Request Body:**
 ```json
 {
-  "name": "Content Creation Workflow",
-  "description": "Research, write, and review content",
-  "global_context": {
-    "topic": "AI in Healthcare",
-    "target_audience": "medical professionals",
-    "word_count": 2000
-  },
+  "name": "Medical Research Analysis Pipeline",
+  "description": "Multi-step workflow for comprehensive medical research analysis",
   "steps": [
     {
-      "step_id": "research",
+      "step_id": "document_retrieval",
       "agent_id": "research_assistant",
-      "function_name": "web_search",
+      "function_name": "retrieval",
       "parameters": {
-        "query": "AI applications in healthcare 2024",
-        "limit": 10
+        "query": "{{global_context.research_topic}}",
+        "k": 15,
+        "score_threshold": 0.7,
+        "collection_name": "medical_research"
       },
-      "dependencies": [],
-      "parallel_allowed": true
+      "timeout_seconds": 60,
+      "max_retries": 3
     },
     {
-      "step_id": "write_content",
-      "agent_id": "content_creator",
-      "function_name": "text_processing",
+      "step_id": "context_synthesis",
+      "agent_id": "knowledge_agent",
+      "function_name": "context_retrieval",
       "parameters": {
-        "operation": "write_article"
+        "query": "{{global_context.research_topic}} analysis",
+        "k": 10,
+        "context_format": "detailed"
       },
-      "dependencies": ["research"],
-      "parallel_allowed": false
+      "dependencies": ["document_retrieval"],
+      "timeout_seconds": 45
     },
     {
-      "step_id": "review_content",
-      "agent_id": "qa_specialist",
-      "function_name": "text_processing",
+      "step_id": "data_analysis",
+      "agent_id": "data_analyst",
+      "function_name": "inference",
       "parameters": {
-        "operation": "quality_review"
+        "prompt": "Analyze the research data and identify key trends",
+        "context": "{{context_synthesis.output}}",
+        "max_tokens": 2048,
+        "temperature": 0.2
       },
-      "dependencies": ["write_content"],
-      "parallel_allowed": false
+      "dependencies": ["context_synthesis"],
+      "timeout_seconds": 90
     }
-  ]
+  ],
+  "global_context": {
+    "research_topic": "AI in medical diagnosis",
+    "output_format": "comprehensive_report"
+  },
+  "error_handling": {
+    "retry_on_failure": true,
+    "max_retries": 3,
+    "continue_on_error": false
+  }
 }
 ```
 
-### Execute Workflow
+#### Execute Sequential Workflow
 ```http
-POST /api/v1/orchestration/workflows/{workflow_id}/execute
+POST /api/v1/sequential/workflows/{workflow_id}/execute
 ```
 
-### Execute Workflow Asynchronously
-```http
-POST /api/v1/orchestration/workflows/{workflow_id}/execute-async
+**Request Body:**
+```json
+{
+  "input_context": {
+    "research_focus": "diagnostic_accuracy",
+    "target_audience": "medical_professionals",
+    "urgency": "standard"
+  }
+}
 ```
 
-### Get Workflow Result
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "execution_id": "exec_12345",
+    "workflow_id": "workflow_abc123",
+    "status": "running",
+    "started_at": "2024-06-24T10:30:00Z",
+    "estimated_completion": "2024-06-24T10:35:00Z"
+  }
+}
+```
+
+#### Get Workflow Status
 ```http
-GET /api/v1/orchestration/workflows/{workflow_id}/result
+GET /api/v1/sequential/workflows/{workflow_id}/status
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "data": {
+    "workflow_id": "workflow_abc123",
+    "status": "completed",
+    "progress": 1.0,
+    "current_step": "data_analysis",
+    "completed_steps": ["document_retrieval", "context_synthesis", "data_analysis"],
+    "failed_steps": [],
+    "start_time": "2024-06-24T10:30:00Z",
+    "end_time": "2024-06-24T10:34:23Z",
+    "total_execution_time_ms": 263000,
+    "step_results": {
+      "document_retrieval": {
+        "status": "completed",
+        "documents_found": 12,
+        "execution_time_ms": 1456
+      },
+      "context_synthesis": {
+        "status": "completed",
+        "context_generated": true,
+        "execution_time_ms": 2134
+      },
+      "data_analysis": {
+        "status": "completed",
+        "analysis_complete": true,
+        "execution_time_ms": 5672
+      }
+    }
+  }
+}
 ```
 
 ## Collaboration Patterns
@@ -911,62 +1105,161 @@ GET /api/v1/agents/system/metrics
 
 ## Configuration
 
-**Important Change**: As of version 2.0, the `model_name` field in agent configurations is optional. Models can now be specified per request when interacting with agents, allowing for more flexible model selection.
+**Important Note**: The system now supports flexible model selection. The `model_name` field in agent configurations is optional, and models can be specified per request when interacting with agents.
 
 ### Agent Configuration (YAML)
 
 ```yaml
+# System configuration
+system:
+  worker_threads: 8
+  health_check_interval_seconds: 30
+  log_level: debug
+
+# Database configuration for RAG
+database:
+  qdrant:
+    enabled: true
+    host: localhost
+    port: 6333
+    collection_name: documents
+    default_embedding_model: text-embedding-3-small
+    timeout: 60
+    max_connections: 20
+
+# Model configurations
+models:
+  - id: qwen3-0.6b
+    path: downloads/Qwen3-0.6B-UD-Q4_K_XL.gguf
+    type: llm
+    load_immediately: true
+    load_params:
+      n_ctx: 2048
+      n_gpu_layers: 100
+      n_batch: 512
+  - id: text-embedding-3-small
+    path: downloads/Qwen3-Embedding-0.6B-Q8_0.gguf
+    type: embedding
+    load_immediately: true
+
+# Function definitions
+functions:
+  - name: inference
+    type: builtin
+    description: Generate text using the inference engine
+    async_capable: true
+    timeout_ms: 60000
+  - name: retrieval
+    type: builtin
+    description: Search and retrieve relevant documents from knowledge base
+    async_capable: true
+    timeout_ms: 30000
+  - name: context_retrieval
+    type: builtin
+    description: Retrieve and format documents as context for enhanced responses
+    async_capable: true
+    timeout_ms: 30000
+  - name: add_document
+    type: builtin
+    description: Add documents to the knowledge base for future retrieval
+    async_capable: true
+    timeout_ms: 60000
+  - name: parse_pdf
+    type: builtin
+    description: Parse PDF files to extract text content
+    async_capable: true
+    timeout_ms: 120000
+  - name: get_embedding
+    type: builtin
+    description: Generate embedding vectors for text content
+    async_capable: true
+    timeout_ms: 30000
+
+# Agent definitions
 agents:
-  - name: "research_specialist"
-    type: "research"
-    role: "AI Research Specialist"
-    system_prompt: "You are an expert research assistant specialized in information gathering, analysis, and synthesis."
+  - name: research_specialist
+    type: research
+    role: Information researcher and analyzer
+    system_prompt: "You are a research assistant specialized in information gathering, analysis, and synthesis."
     capabilities:
-      - "web_search"
-      - "text_processing"
-      - "data_analysis"
-      - "information_synthesis"
+      - web_search
+      - text_processing
+      - data_analysis
+      - information_synthesis
+      - document_retrieval
+      - context_retrieval
+      - document_management
+      - document_parsing
     functions:
-      - "inference"
-      - "web_search"
-      - "text_processing"
-      - "data_analysis"
+      - inference
+      - web_search
+      - text_processing
+      - data_analysis
+      - retrieval
+      - context_retrieval
+      - add_document
+      - remove_document
+      - parse_pdf
+      - parse_docx
+      - get_embedding
+      - test_document_service
     llm_config:
       # model_name is now optional - specify at request time
-      api_endpoint: "http://localhost:8080/v1"
-      instruction: "You are an expert research assistant."
-      temperature: 0.7
+      api_endpoint: http://localhost:8080/v1
+      instruction: You are an expert research assistant.
+      temperature: 0.3
       max_tokens: 2048
       timeout_seconds: 60
       max_retries: 3
-      stream: false
     auto_start: true
-    max_concurrent_jobs: 3
+    max_concurrent_jobs: 4
     heartbeat_interval_seconds: 10
     custom_settings:
       enable_logging: true
-      priority_level: "high"
-      workflow_enabled: true
-      collaboration_enabled: true
+      fact_checking: enabled
+      search_depth: comprehensive
+      rag_enabled: true
     metadata:
-      created_by: "system"
-      version: "1.2"
-      tags: ["research", "analysis", "primary"]
+      created_by: system
+      version: "2.0"
+      tags: ["research", "rag", "documents"]
 
-  - name: "code_generator"
-    type: "development"
-    role: "Code Generation Specialist"
-    system_prompt: "You are a software development expert specialized in generating high-quality, production-ready code."
+  - name: document_manager
+    type: document_management
+    role: Document processing and knowledge base management specialist
+    system_prompt: "You are a document management specialist who helps with organizing, processing, and managing knowledge bases."
     capabilities:
-      - "code_generation"
-      - "code_review"
-      - "debugging"
-      - "optimization"
+      - document_management
+      - document_parsing
+      - document_retrieval
+      - knowledge_base_management
+      - text_processing
     functions:
-      - "inference"
-      - "text_processing"
-    auto_start: false
-    max_concurrent_jobs: 2
+      - inference
+      - add_document
+      - remove_document
+      - retrieval
+      - context_retrieval
+      - parse_pdf
+      - parse_docx
+      - get_embedding
+      - test_document_service
+      - text_processing
+    llm_config:
+      api_endpoint: http://localhost:8080/v1
+      instruction: You are a document management specialist.
+      temperature: 0.2
+      max_tokens: 2048
+      timeout_seconds: 120
+      max_retries: 3
+    auto_start: true
+    max_concurrent_jobs: 5
+    heartbeat_interval_seconds: 15
+    custom_settings:
+      auto_chunking: true
+      batch_processing: true
+      default_collection: documents
+      quality_validation: enabled
 ```
 
 ### Function Configuration
@@ -1093,43 +1386,240 @@ Common error codes:
 
 ## Examples
 
-### Complete Agent Lifecycle Example
+### Complete Agent Lifecycle Example with RAG
 
 ```bash
-# 1. Create a research agent
+# 1. Create a RAG-enabled research agent
 curl -X POST http://localhost:8080/api/v1/agents \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "research_bot",
+    "name": "rag_researcher",
     "type": "research",
-    "role": "Research Assistant",
-    "system_prompt": "You are a helpful research assistant.",
-    "capabilities": ["web_search", "text_processing", "data_analysis"],
-    "functions": ["inference", "web_search", "text_processing"],
+    "role": "RAG-enhanced Research Assistant",
+    "system_prompt": "You are a research assistant that uses document retrieval to provide accurate, context-rich responses.",
+    "capabilities": ["document_retrieval", "context_retrieval", "text_processing", "document_management"],
+    "functions": ["inference", "retrieval", "context_retrieval", "add_document", "parse_pdf"],
     "auto_start": true,
-    "max_concurrent_jobs": 3
+    "max_concurrent_jobs": 4
   }'
 
-# 2. Verify agent is running
-curl http://localhost:8080/api/v1/agents/research_bot
+# 2. Verify agent is running and get capabilities
+curl http://localhost:8080/api/v1/agents/rag_researcher
 
-# 3. Execute a research task
-curl -X POST http://localhost:8080/api/v1/agents/research_bot/execute-async \
+# 3. Add documents to knowledge base
+curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/functions/add_document \
   -H "Content-Type: application/json" \
   -d '{
-    "function": "web_search",
     "parameters": {
-      "query": "machine learning trends 2025",
-      "limit": 10
-    },
-    "priority": 1
+      "documents": [
+        {
+          "text": "Machine learning algorithms have revolutionized medical diagnosis...",
+          "metadata": {
+            "source": "Medical_AI_2024.pdf",
+            "category": "healthcare_ai",
+            "publication_date": "2024-06-01"
+          }
+        }
+      ],
+      "collection_name": "medical_research"
+    }
   }'
 
-# 4. Check job status (using job_id from step 3 response)
-curl http://localhost:8080/api/v1/agents/jobs/job_12345/status
+# 4. Perform document retrieval
+curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/functions/retrieval \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parameters": {
+      "query": "machine learning medical diagnosis accuracy",
+      "k": 10,
+      "score_threshold": 0.6,
+      "collection_name": "medical_research"
+    }
+  }'
 
-# 5. Get job results
-curl http://localhost:8080/api/v1/agents/jobs/job_12345/result
+# 5. Perform RAG-enhanced inference
+curl -X POST http://localhost:8080/api/v1/agents/rag_researcher/inference \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "What are the latest developments in AI for medical diagnosis?",
+    "max_tokens": 1024,
+    "temperature": 0.3
+  }'
+
+# 6. Parse and index PDF document
+curl -X POST http://localhost:8080/parse-pdf \
+  -H "Content-Type: application/json" \
+  -d '{
+    "pdf_data": "base64_encoded_pdf_content",
+    "method": "comprehensive",
+    "auto_index": true,
+    "collection_name": "medical_research",
+    "metadata": {
+      "source": "clinical_study.pdf",
+      "category": "clinical_research"
+    }
+  }'
+```
+
+### Advanced Multi-Agent Workflow with RAG
+
+```bash
+# 1. Create multiple specialized agents
+curl -X POST http://localhost:8080/api/v1/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "document_processor",
+    "type": "document_management",
+    "capabilities": ["document_management", "document_parsing"],
+    "functions": ["add_document", "parse_pdf", "parse_docx", "get_embedding"]
+  }'
+
+curl -X POST http://localhost:8080/api/v1/agents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "knowledge_synthesizer",
+    "type": "research",
+    "capabilities": ["context_retrieval", "knowledge_synthesis"],
+    "functions": ["inference", "context_retrieval", "retrieval"]
+  }'
+
+# 2. Create comprehensive research workflow
+curl -X POST http://localhost:8080/api/v1/sequential/workflows \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Comprehensive Medical Research Pipeline",
+    "description": "End-to-end research workflow with document processing and analysis",
+    "steps": [
+      {
+        "step_id": "document_processing",
+        "agent_id": "document_processor",
+        "function_name": "parse_pdf",
+        "parameters": {
+          "pdf_data": "{{input.pdf_data}}",
+          "method": "comprehensive",
+          "auto_index": true,
+          "collection_name": "research_papers"
+        }
+      },
+      {
+        "step_id": "knowledge_retrieval",
+        "agent_id": "rag_researcher",
+        "function_name": "retrieval",
+        "parameters": {
+          "query": "{{input.research_query}}",
+          "k": 15,
+          "score_threshold": 0.7,
+          "collection_name": "research_papers"
+        },
+        "dependencies": ["document_processing"]
+      },
+      {
+        "step_id": "context_synthesis",
+        "agent_id": "knowledge_synthesizer",
+        "function_name": "context_retrieval",
+        "parameters": {
+          "query": "{{input.research_query}} comprehensive analysis",
+          "k": 10,
+          "context_format": "detailed"
+        },
+        "dependencies": ["knowledge_retrieval"]
+      },
+      {
+        "step_id": "research_analysis",
+        "agent_id": "data_analyst",
+        "function_name": "inference",
+        "parameters": {
+          "prompt": "Analyze the research findings and provide comprehensive insights",
+          "context": "{{context_synthesis.output}}",
+          "max_tokens": 2048,
+          "temperature": 0.2
+        },
+        "dependencies": ["context_synthesis"]
+      }
+    ],
+    "global_context": {
+      "research_domain": "medical_ai",
+      "quality_standards": "high",
+      "output_format": "detailed_report"
+    }
+  }'
+
+# 3. Execute the workflow
+curl -X POST http://localhost:8080/api/v1/sequential/workflows/workflow_123/execute \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input_context": {
+      "pdf_data": "base64_encoded_research_paper",
+      "research_query": "AI diagnostic accuracy in radiology",
+      "target_audience": "medical_researchers"
+    }
+  }'
+
+# 4. Monitor workflow progress
+curl http://localhost:8080/api/v1/sequential/workflows/workflow_123/status
+```
+
+### Document Management and Collection Operations
+
+```bash
+# 1. Create specialized document collection
+curl -X POST http://localhost:8080/api/v1/agents/collections \
+  -H "Content-Type: application/json" \
+  -d '{
+    "collection_name": "clinical_trials",
+    "description": "Clinical trial studies and research papers",
+    "metadata_schema": {
+      "study_phase": "string",
+      "intervention_type": "string",
+      "primary_outcome": "string",
+      "enrollment": "integer",
+      "completion_date": "string"
+    }
+  }'
+
+# 2. Bulk document upload with metadata
+curl -X POST http://localhost:8080/api/v1/documents \
+  -H "Content-Type: application/json" \
+  -d '{
+    "documents": [
+      {
+        "text": "Phase III randomized controlled trial of AI-assisted diagnosis...",
+        "metadata": {
+          "study_phase": "Phase III",
+          "intervention_type": "AI_diagnostic_tool",
+          "primary_outcome": "diagnostic_accuracy",
+          "enrollment": 2500,
+          "completion_date": "2024-03-15"
+        }
+      }
+    ],
+    "collection_name": "clinical_trials",
+    "batch_processing": true,
+    "auto_chunk": true
+  }'
+
+# 3. Advanced semantic search with filtering
+curl -X POST http://localhost:8080/retrieve \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "AI diagnostic accuracy randomized trial",
+    "k": 20,
+    "score_threshold": 0.75,
+    "collection_name": "clinical_trials",
+    "metadata_filter": {
+      "study_phase": "Phase III",
+      "intervention_type": "AI_diagnostic_tool"
+    },
+    "include_metadata": true,
+    "rerank": true
+  }'
+
+# 4. Test document service connectivity
+curl -X POST http://localhost:8080/api/v1/agents/document_processor/functions/test_document_service \
+  -H "Content-Type: application/json" \
+  -d '{
+    "parameters": {}
+  }'
 ```
 
 ### Multi-Agent Workflow Example
