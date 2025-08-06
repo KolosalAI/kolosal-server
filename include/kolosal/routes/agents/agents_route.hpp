@@ -58,7 +58,11 @@ public:
     void handle_agent_inference(SocketType sock, const std::string& agent_id, const std::string& body);
     
     // Agent messaging with model selection
+    void handle_send_message(SocketType sock, const std::string& body);
     void handle_send_message_to_agent(SocketType sock, const std::string& agent_id, const std::string& body);
+    
+    // OpenAI compatibility
+    void handle_openai_chat_completions(SocketType sock, const std::string& agent_id, const std::string& body);
     
     // Agent templates and presets
     void handle_list_agent_templates(SocketType sock);

@@ -35,8 +35,11 @@ bool DocumentsRoute::match(const std::string& method, const std::string& path)
         (method == "GET" && path == "/list_documents") ||
         (method == "POST" && path == "/info_documents") ||
         (method == "POST" && path == "/retrieve") ||
+        (method == "POST" && path == "/api/v1/documents") ||
+        (method == "DELETE" && path == "/api/v1/documents") ||
         (method == "OPTIONS" && (path == "/add_documents" || path == "/remove_documents" || 
-                                path == "/list_documents" || path == "/info_documents" || path == "/retrieve")))
+                                path == "/list_documents" || path == "/info_documents" || path == "/retrieve" ||
+                                path == "/api/v1/documents")))
     {
         current_endpoint_ = path;
         current_method_ = method;
@@ -56,9 +59,13 @@ void DocumentsRoute::handle(SocketType sock, const std::string& body)
         {
             handleOptions(sock);
         }
-        else if (current_endpoint_ == "/add_documents")
+        else if (current_endpoint_ == "/add_documents" || current_endpoint_ == "/api/v1/documents")
         {
-            handleAddDocuments(sock, body);
+            if (current_method_ == "POST") {
+                handleAddDocuments(sock, body);
+            } else if (current_method_ == "DELETE") {
+                handleRemoveDocuments(sock, body);
+            }
         }
         else if (current_endpoint_ == "/remove_documents")
         {

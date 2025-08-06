@@ -28,7 +28,7 @@
 #include "kolosal/routes/retrieval/embedding_route.hpp"
 #include "kolosal/routes/retrieval/parse_document_route.hpp"
 #include "kolosal/routes/retrieval/documents_route.hpp"
-// #include "kolosal/routes/retrieval/retrieve_route.hpp"
+#include "kolosal/routes/retrieval/retrieve_route.hpp"
 #include "kolosal/routes/retrieval/internet_search_route.hpp"
 #include "kolosal/routes/downloads_route.hpp"
 #include "kolosal/routes/retrieval/chunking_route.hpp"
@@ -143,7 +143,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<DownloadsRoute>());
             pImpl->server->addRoute(std::make_unique<ParseDocumentRoute>());
             pImpl->server->addRoute(std::make_unique<DocumentsRoute>());
-            // pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
+            pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
             pImpl->server->addRoute(std::make_unique<ChunkingRoute>());
 
             ServerLogger::logInfo("Non-agent routes registered successfully");
@@ -205,7 +205,7 @@ namespace kolosal
             pImpl->server->addRoute(std::make_unique<DownloadsRoute>());
             pImpl->server->addRoute(std::make_unique<ParseDocumentRoute>());
             pImpl->server->addRoute(std::make_unique<DocumentsRoute>());
-            // pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
+            pImpl->server->addRoute(std::make_unique<RetrieveRoute>());
             pImpl->server->addRoute(std::make_unique<ChunkingRoute>());
 
             ServerLogger::logInfo("Non-agent routes registered successfully");

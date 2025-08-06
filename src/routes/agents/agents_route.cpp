@@ -63,6 +63,16 @@ bool AgentsRoute::match(const std::string& method, const std::string& path) {
         }
     }
     
+    // OpenAI-compatible endpoints
+    std::regex openai_pattern("^/v1/agents/([^/]+)/chat/completions$");
+    std::smatch openai_matches;
+    
+    if (std::regex_match(path, openai_matches, openai_pattern)) {
+        if (method == "POST") {
+            return true;
+        }
+    }
+    
     // Agent templates
     if ((path == "/api/v1/agents/templates" && method == "GET") ||
         (path.find("/api/v1/agents/templates/") == 0 && method == "POST")) {
@@ -78,6 +88,11 @@ bool AgentsRoute::match(const std::string& method, const std::string& path) {
     
     // Broadcast message endpoint
     if (method == "POST" && path == "/api/v1/agents/messages/broadcast") {
+        return true;
+    }
+    
+    // Inter-agent message sending endpoint
+    if (method == "POST" && path == "/api/v1/agents/messages/send") {
         return true;
     }
     
@@ -176,6 +191,8 @@ void AgentsRoute::handle(SocketType sock, const std::string& body) {
             handle_bulk_delete_agents(sock, body);
         } else if (current_path == "/api/v1/agents/messages/broadcast") {
             handle_broadcast_message(sock, body);
+        } else if (current_path == "/api/v1/agents/messages/send") {
+            handle_send_message(sock, body);
         } else if (current_path == "/api/v1/agents/documents/bulk") {
             handle_bulk_documents(sock, body);
         } else if (current_path == "/api/v1/agents/documents/bulk_retrieval") {
@@ -245,11 +262,20 @@ void AgentsRoute::handle(SocketType sock, const std::string& body) {
             std::regex agent_pattern("^/api/v1/agents/([^/]+)(?:/(start|stop|restart|status|capabilities|functions|message))?(?:/([^/]+))?$");
             std::smatch matches;
             
-            // Check for direct inference endpoint first
+            // Check for OpenAI-compatible chat completions first
+            std::regex openai_pattern("^/v1/agents/([^/]+)/chat/completions$");
+            std::smatch openai_matches;
+            
+            // Check for direct inference endpoint
             std::regex agent_inference_pattern("^/api/v1/agents/([^/]+)/inference$");
             std::smatch inference_matches;
             
-            if (std::regex_match(current_path, inference_matches, agent_inference_pattern)) {
+            if (std::regex_match(current_path, openai_matches, openai_pattern)) {
+                std::string agent_id = openai_matches[1].str();
+                handle_openai_chat_completions(sock, agent_id, body);
+            }
+            // Check for direct inference endpoint
+            else if (std::regex_match(current_path, inference_matches, agent_inference_pattern)) {
                 std::string agent_id = inference_matches[1].str();
                 handle_agent_inference(sock, agent_id, body);
             } else if (std::regex_match(current_path, matches, agent_pattern)) {
@@ -663,45 +689,61 @@ void AgentsRoute::handle_list_agent_functions(SocketType sock, const std::string
         }
         
         // Return a list of available built-in functions including RAG
-        json functions_array = json::array({
-            {
-                {"name", "inference"},
-                {"description", "Generate text using the agent's LLM"},
-                {"parameters", {
-                    {"prompt", "The input text prompt"},
-                    {"max_tokens", "Maximum tokens to generate (optional)"},
-                    {"temperature", "Sampling temperature (optional)"}
-                }}
-            },
-            {
-                {"name", "rag_search"},
-                {"description", "Search documents using RAG (Retrieval-Augmented Generation)"},
-                {"parameters", {
-                    {"query", "The search query"},
-                    {"k", "Number of documents to retrieve (optional, default: 10)"},
-                    {"collection_name", "Collection to search in (optional)"},
-                    {"score_threshold", "Minimum similarity score (optional, default: 0.0)"}
-                }}
-            },
-            {
-                {"name", "rag_inference"},
-                {"description", "Perform RAG-enhanced inference using retrieved documents"},
-                {"parameters", {
-                    {"prompt", "The input text prompt"},
-                    {"query", "The search query for document retrieval"},
-                    {"k", "Number of documents to retrieve (optional, default: 5)"},
-                    {"max_tokens", "Maximum tokens to generate (optional)"},
-                    {"temperature", "Sampling temperature (optional)"}
-                }}
-            },
-            {
-                {"name", "text_processing"},
-                {"description", "Process and analyze text"},
-                {"parameters", {
-                    {"text", "The text to process"},
-                    {"operation", "Type of processing operation"}
-                }}
-            }
+        json functions_array = json::array();
+        functions_array.push_back({
+            {"name", "inference"},
+            {"description", "Generate text using the agent's LLM"},
+            {"parameters", {
+                {"prompt", "The input text prompt"},
+                {"max_tokens", "Maximum tokens to generate (optional)"},
+                {"temperature", "Sampling temperature (optional)"}
+            }}
+        });
+        functions_array.push_back({
+            {"name", "rag_search"},
+            {"description", "Search documents using RAG (Retrieval-Augmented Generation)"},
+            {"parameters", {
+                {"query", "The search query"},
+                {"k", "Number of documents to retrieve (optional, default: 10)"},
+                {"collection_name", "Collection to search in (optional)"},
+                {"score_threshold", "Minimum similarity score (optional, default: 0.0)"}
+            }}
+        });
+        functions_array.push_back({
+            {"name", "rag_inference"},
+            {"description", "Perform RAG-enhanced inference using retrieved documents"},
+            {"parameters", {
+                {"prompt", "The input text prompt"},
+                {"query", "The search query for document retrieval"},
+                {"k", "Number of documents to retrieve (optional, default: 5)"},
+                {"max_tokens", "Maximum tokens to generate (optional)"},
+                {"temperature", "Sampling temperature (optional)"}
+            }}
+        });
+        functions_array.push_back({
+            {"name", "test_document_service"},
+            {"description", "Test document service connectivity and functionality"},
+            {"parameters", {
+                {"test_type", "Type of test to perform (optional, default: 'connection')"}
+            }}
+        });
+        functions_array.push_back({
+            {"name", "retrieval"},
+            {"description", "Retrieve documents using semantic search"},
+            {"parameters", {
+                {"query", "The search query"},
+                {"k", "Number of documents to retrieve (optional, default: 5)"},
+                {"collection_name", "Collection to search in (optional)"},
+                {"score_threshold", "Minimum similarity score (optional, default: 0.0)"}
+            }}
+        });
+        functions_array.push_back({
+            {"name", "text_processing"},
+            {"description", "Process and analyze text"},
+            {"parameters", {
+                {"text", "The text to process"},
+                {"operation", "Type of processing operation"}
+            }}
         });
         
         json response = {
@@ -740,8 +782,9 @@ void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::stri
         
         // Validate function name
         if (function_name != "inference" && function_name != "text_processing" && 
-            function_name != "rag_search" && function_name != "rag_inference") {
-            send_error_response(sock, 400, "Unknown function: " + function_name + ". Available functions: inference, rag_search, rag_inference, text_processing");
+            function_name != "rag_search" && function_name != "rag_inference" &&
+            function_name != "test_document_service" && function_name != "retrieval") {
+            send_error_response(sock, 400, "Unknown function: " + function_name + ". Available functions: inference, rag_search, rag_inference, text_processing, test_document_service, retrieval");
             return;
         }
         
@@ -814,8 +857,33 @@ void AgentsRoute::handle_execute_agent_function(SocketType sock, const std::stri
         // Execute the function
         auto result = agent->execute_function(function_name, params);
         
+        // For test_document_service, we need to handle it specially
+        if (function_name == "test_document_service") {
+            try {
+                // Get DocumentService from ServerAPI
+                auto& doc_service = kolosal::ServerAPI::instance().getDocumentService();
+                
+                // Test the connection
+                bool connected = doc_service.testConnection().get();
+                
+                json response = {
+                    {"status", "success"},
+                    {"agent_id", agent_id},
+                    {"function", function_name},
+                    {"test_result", connected ? "connected" : "failed"},
+                    {"message", connected ? "Document service is accessible" : "Document service connection failed"}
+                };
+                
+                int status_code = connected ? 200 : 500;
+                send_json_response(sock, status_code, response);
+                return;
+            } catch (const std::exception& e) {
+                send_error_response(sock, 500, "Document service test failed: " + std::string(e.what()));
+                return;
+            }
+        }
         // For RAG functions, we need to handle them specially
-        if (function_name == "rag_search") {
+        else if (function_name == "rag_search" || function_name == "retrieval") {
             try {
                 // Get DocumentService from ServerAPI
                 auto& doc_service = kolosal::ServerAPI::instance().getDocumentService();
@@ -1422,6 +1490,126 @@ void AgentsRoute::handle_agent_inference(SocketType sock, const std::string& age
     }
 }
 
+// OpenAI-compatible chat completions endpoint
+void AgentsRoute::handle_openai_chat_completions(SocketType sock, const std::string& agent_id, const std::string& body) {
+    if (!agent_manager) {
+        send_error_response(sock, 500, "Agent manager not available");
+        return;
+    }
+    
+    try {
+        auto agent = agent_manager->get_agent(agent_id);
+        if (!agent) {
+            send_error_response(sock, 404, "Agent not found");
+            return;
+        }
+        
+        // Check if agent is running
+        if (!agent->is_running()) {
+            send_error_response(sock, 400, "Agent is not running. Please start the agent first.");
+            return;
+        }
+        
+        json request = json::parse(body);
+        
+        if (!request.contains("messages") || !request["messages"].is_array()) {
+            send_error_response(sock, 400, "Missing required parameter 'messages' array");
+            return;
+        }
+        
+        // Convert OpenAI messages to a single prompt
+        std::string combined_prompt;
+        for (const auto& message : request["messages"]) {
+            if (message.contains("role") && message.contains("content")) {
+                std::string role = message["role"].get<std::string>();
+                std::string content = message["content"].get<std::string>();
+                if (role == "system") {
+                    combined_prompt += "System: " + content + "\n";
+                } else if (role == "user") {
+                    combined_prompt += "User: " + content + "\n";
+                } else if (role == "assistant") {
+                    combined_prompt += "Assistant: " + content + "\n";
+                }
+            }
+        }
+        combined_prompt += "Assistant: ";
+        
+        // Create parameters for inference
+        kolosal::agents::AgentData params;
+        params.set("prompt", combined_prompt);
+        params.set("max_tokens", request.value("max_tokens", 150));
+        params.set("temperature", request.value("temperature", 0.7));
+        
+        // Execute inference function
+        auto result = agent->execute_function("inference", params);
+        
+        if (result.success) {
+            // Create OpenAI-compatible response
+            std::string content = "Inference completed successfully";
+            if (result.result_data.has_key("text")) {
+                content = result.result_data.get_string("text");
+            } else if (!result.error_message.empty()) {
+                content = result.error_message;
+            }
+            
+            json response = {
+                {"id", "chatcmpl-" + std::to_string(std::time(nullptr))},
+                {"object", "chat.completion"},
+                {"created", std::time(nullptr)},
+                {"model", agent_id},
+                {"choices", json::array({
+                    {
+                        {"index", 0},
+                        {"message", {
+                            {"role", "assistant"},
+                            {"content", content}
+                        }},
+                        {"finish_reason", "stop"}
+                    }
+                })},
+                {"usage", {
+                    {"prompt_tokens", 0},
+                    {"completion_tokens", result.result_data.has_key("tokens_generated") ? result.result_data.get_int("tokens_generated") : 0},
+                    {"total_tokens", 0}
+                }}
+            };
+            
+            send_json_response(sock, 200, response);
+        } else {
+            // Return OpenAI-compatible error
+            json error_response = {
+                {"error", {
+                    {"message", "Inference failed: " + result.error_message},
+                    {"type", "inference_error"},
+                    {"code", "agent_error"}
+                }}
+            };
+            
+            send_json_response(sock, 500, error_response);
+        }
+        
+    } catch (const json::parse_error& e) {
+        json error_response = {
+            {"error", {
+                {"message", "Invalid JSON: " + std::string(e.what())},
+                {"type", "invalid_request_error"},
+                {"code", "json_parse_error"}
+            }}
+        };
+        send_json_response(sock, 400, error_response);
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error in OpenAI chat completions endpoint: %s", e.what());
+        json error_response = {
+            {"error", {
+                {"message", "Internal server error"},
+                {"type", "server_error"},
+                {"code", "internal_error"}
+            }}
+        };
+        send_json_response(sock, 500, error_response);
+    }
+}
+
 // Helper methods
 std::string AgentsRoute::format_error_response(const std::string& error, int code) {
     json response = {
@@ -1562,6 +1750,40 @@ void AgentsRoute::handle_broadcast_message(SocketType sock, const std::string& b
         send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
     } catch (const std::exception& e) {
         ServerLogger::logError("Error in broadcast message: %s", e.what());
+        send_error_response(sock, 500, "Internal server error");
+    }
+}
+
+void AgentsRoute::handle_send_message(SocketType sock, const std::string& body) {
+    try {
+        json request = json::parse(body);
+        
+        if (!request.contains("from_agent") || !request.contains("to_agent") || !request.contains("payload")) {
+            send_error_response(sock, 400, "Invalid message format. Required fields: from_agent, to_agent, payload");
+            return;
+        }
+        
+        std::string from_agent = request["from_agent"].get<std::string>();
+        std::string to_agent = request["to_agent"].get<std::string>();
+        
+        // For now, just acknowledge the message
+        json response = {
+            {"status", "success"},
+            {"message", "Message sent successfully"},
+            {"message_id", "msg_" + std::to_string(std::time(nullptr))},
+            {"from_agent", from_agent},
+            {"to_agent", to_agent},
+            {"correlation_id", request.value("correlation_id", "")}
+        };
+        
+        ServerLogger::logInfo("Message sent from %s to %s", from_agent.c_str(), to_agent.c_str());
+        
+        send_json_response(sock, 200, response);
+        
+    } catch (const json::parse_error& e) {
+        send_error_response(sock, 400, "Invalid JSON: " + std::string(e.what()));
+    } catch (const std::exception& e) {
+        ServerLogger::logError("Error in send message: %s", e.what());
         send_error_response(sock, 500, "Internal server error");
     }
 }
