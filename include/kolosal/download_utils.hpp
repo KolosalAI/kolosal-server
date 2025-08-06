@@ -76,6 +76,15 @@ namespace kolosal {
     );
 
     /**
+     * Generate a temporary download path for a URL using executable directory
+     * @param url The URL to generate a path for
+     * @return Generated local path for the download in executable/models directory
+     */
+    KOLOSAL_SERVER_API std::string generate_download_path_executable(
+        const std::string& url
+    );
+
+    /**
      * Get file information from a URL without downloading (HEAD request)
      * @param url The URL to check
      * @return DownloadResult with file size and accessibility information
@@ -121,5 +130,17 @@ namespace kolosal {
         volatile bool* cancelled,
         bool resume = true
     );
+
+    /**
+     * Get the directory containing the current executable
+     * @return Path to the executable directory
+     */
+    KOLOSAL_SERVER_API std::string get_executable_directory();
+
+    /**
+     * Get the models directory relative to the executable location
+     * @return Path to the models directory relative to executable
+     */
+    KOLOSAL_SERVER_API std::string get_executable_models_directory();
 
 } // namespace kolosal

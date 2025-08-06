@@ -49,6 +49,9 @@ sudo apt install -y build-essential cmake git pkg-config
 # Install required libraries
 sudo apt install -y libcurl4-openssl-dev libyaml-cpp-dev
 
+# Optional: Install PoDoFo dependencies for PDF support
+sudo apt install -y libfreetype6-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libfontconfig1-dev
+
 # Optional: Install CUDA for GPU support
 # Follow NVIDIA's official installation guide for your distribution
 ```
@@ -59,13 +62,22 @@ sudo apt install -y libcurl4-openssl-dev libyaml-cpp-dev
 sudo dnf groupinstall "Development Tools"
 sudo dnf install cmake git curl-devel yaml-cpp-devel
 
+# Optional: Install PoDoFo dependencies for PDF support
+sudo dnf install freetype-devel libjpeg-devel libpng-devel libtiff-devel libxml2-devel fontconfig-devel
+
 # For Fedora
 sudo dnf install gcc-c++ cmake git libcurl-devel yaml-cpp-devel
+
+# Optional: Install PoDoFo dependencies for PDF support (Fedora)
+sudo dnf install freetype-devel libjpeg-devel libpng-devel libtiff-devel libxml2-devel fontconfig-devel
 ```
 
 **Arch Linux:**
 ```bash
 sudo pacman -S base-devel cmake git curl yaml-cpp
+
+# Optional: Install PoDoFo dependencies for PDF support
+sudo pacman -S freetype2 libjpeg-turbo libpng libtiff libxml2 fontconfig
 ```
 
 #### Building from Source
@@ -101,6 +113,20 @@ cmake -DCMAKE_BUILD_TYPE=Release -DLLAMA_CUDA=ON ..
 **With Vulkan Support:**
 ```bash
 cmake -DCMAKE_BUILD_TYPE=Release -DLLAMA_VULKAN=ON ..
+```
+
+**With PoDoFo PDF Support (requires dependencies installed):**
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release -DUSE_PODOFO=ON ..
+```
+
+**Combined Options:**
+```bash
+# CUDA + PoDoFo
+cmake -DCMAKE_BUILD_TYPE=Release -DLLAMA_CUDA=ON -DUSE_PODOFO=ON ..
+
+# Vulkan + PoDoFo
+cmake -DCMAKE_BUILD_TYPE=Release -DLLAMA_VULKAN=ON -DUSE_PODOFO=ON ..
 ```
 
 **Debug Build:**
@@ -284,6 +310,50 @@ sudo systemctl status kolosal-server
    # Adjust GPU layers in model config
    # Reduce n_gpu_layers if running out of VRAM
    ```
+
+### macOS
+
+**Prerequisites:**
+- macOS 10.15 (Catalina) or later
+- Xcode Command Line Tools or Xcode
+- CMake 3.14+
+- Homebrew (recommended for dependency management)
+
+**Install Dependencies:**
+```bash
+# Install Homebrew if not already installed
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
+# Install build tools and required libraries
+brew install cmake git curl yaml-cpp
+
+# Optional: Install PoDoFo dependencies for PDF support
+brew install freetype jpeg libpng libtiff libxml2
+```
+
+**Building:**
+```bash
+git clone https://github.com/kolosalai/kolosal-server.git
+cd kolosal-server
+git submodule update --init --recursive
+mkdir build && cd build
+
+# Standard build
+cmake -DCMAKE_BUILD_TYPE=Release ..
+
+# With PoDoFo PDF support (if dependencies are installed)
+# cmake -DCMAKE_BUILD_TYPE=Release -DUSE_PODOFO=ON ..
+
+# With Metal acceleration (automatically enabled on Apple Silicon)
+# Metal support is automatically enabled on macOS
+
+make -j$(sysctl -n hw.ncpu)
+```
+
+**Running the Server:**
+```bash
+./kolosal-server
+```
 
 ### Windows
 

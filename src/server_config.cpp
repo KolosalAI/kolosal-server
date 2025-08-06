@@ -22,6 +22,91 @@
 
 namespace kolosal
 {
+#ifdef __APPLE__
+    // Helper function to detect if we're running from a macOS app bundle
+    static bool isRunningFromAppBundle()
+    {
+        try {
+            uint32_t size = PATH_MAX;
+            char execPath[PATH_MAX];
+            if (_NSGetExecutablePath(execPath, &size) == 0) {
+                char resolvedPath[PATH_MAX];
+                if (realpath(execPath, resolvedPath) != nullptr) {
+                    std::filesystem::path execDir = std::filesystem::path(resolvedPath).parent_path();
+                    
+                    // Check if we're in a typical app bundle structure
+                    // App bundles have structure: App.app/Contents/MacOS/executable
+                    if (execDir.filename() == "MacOS") {
+                        auto contentsPath = execDir.parent_path();
+                        if (contentsPath.filename() == "Contents") {
+                            auto appPath = contentsPath.parent_path();
+                            if (appPath.extension() == ".app") {
+                                return true;
+                            }
+                        }
+                    }
+                    
+                    // Also check if we have the typical app bundle directories nearby
+                    auto frameworksPath = execDir / "../Frameworks";
+                    auto resourcesPath = execDir / "../Resources";
+                    if (std::filesystem::exists(frameworksPath) && 
+                        std::filesystem::exists(resourcesPath)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        } catch (const std::exception& e) {
+            return false;
+        }
+    }
+
+    // Helper function to get app bundle-aware search paths for resources
+    static std::vector<std::string> getResourceSearchPaths(const std::string& relativePath)
+    {
+        std::vector<std::string> searchPaths;
+        
+        try {
+            uint32_t size = PATH_MAX;
+            char execPath[PATH_MAX];
+            if (_NSGetExecutablePath(execPath, &size) == 0) {
+                char resolvedPath[PATH_MAX];
+                if (realpath(execPath, resolvedPath) != nullptr) {
+                    std::filesystem::path execDir = std::filesystem::path(resolvedPath).parent_path();
+                    
+                    if (isRunningFromAppBundle()) {
+                        // Prioritize app bundle paths
+                        searchPaths.insert(searchPaths.end(), {
+                            (execDir / "../Resources" / relativePath).string(),
+                            (execDir / relativePath).string()
+                        });
+                    }
+                    
+                    // Add standard paths
+                    searchPaths.insert(searchPaths.end(), {
+                        (execDir / relativePath).string(),
+                        (execDir / "../" / relativePath).string()
+                    });
+                }
+            }
+        } catch (const std::exception& e) {
+            // Continue with standard behavior if app bundle detection fails
+        }
+        
+        return searchPaths;
+    }
+#endif
+
+    // Helper function to get platform-specific default inference engine
+    static std::string getPlatformDefaultInferenceEngine()
+    {
+#ifdef __APPLE__
+        return "llama-metal";
+#else
+        return "llama-cpu";
+#endif
+    }
+
     /**
      * @brief Convert a relative path to an absolute path with fallback to executable directory
      * @param path The path to convert (can be relative or already absolute)
@@ -46,7 +131,7 @@ namespace kolosal
                 return absolutePath.string();
             }
             
-            // Second try: Check relative to the executable directory
+            // Second try: Check relative to the executable directory and app bundle paths
             try {
                 // Get the executable path
                 std::filesystem::path executablePath;
@@ -80,6 +165,19 @@ namespace kolosal
 #endif
                 
                 if (!executablePath.empty()) {
+#ifdef __APPLE__
+                    // On macOS, use app bundle-aware path resolution
+                    std::vector<std::string> searchPaths = getResourceSearchPaths(fsPath.string());
+                    for (const auto& searchPath : searchPaths) {
+                        std::filesystem::path candidatePath(searchPath);
+                        if (std::filesystem::exists(candidatePath)) {
+                            ServerLogger::instance().info("Found path using app bundle search: " + candidatePath.string());
+                            return candidatePath.string();
+                        }
+                    }
+#endif
+                    
+                    // Standard relative to executable path
                     std::filesystem::path execRelativePath = executablePath / fsPath;
                     if (std::filesystem::exists(execRelativePath)) {
                         ServerLogger::instance().info("Found path relative to executable: " + execRelativePath.string());
@@ -112,11 +210,41 @@ namespace kolosal
         
         // First try system-wide config (installed version)
 #ifdef __APPLE__
-        // On macOS, check /usr/local/etc for Homebrew installations and /etc for system-wide
-        std::vector<std::string> systemPaths = {
+        // On macOS, check app bundle paths first, then Homebrew/system paths
+        std::vector<std::string> systemPaths;
+        
+        // Try to get executable directory to check for app bundle structure
+        try {
+            std::filesystem::path executablePath;
+            uint32_t size = PATH_MAX;
+            char execPath[PATH_MAX];
+            if (_NSGetExecutablePath(execPath, &size) == 0) {
+                char resolvedPath[PATH_MAX];
+                if (realpath(execPath, resolvedPath) != nullptr) {
+                    executablePath = std::filesystem::path(resolvedPath).parent_path();
+                    
+                    // Check if we're in an app bundle structure
+                    auto resourcesPath = executablePath / "../Resources/config.yaml";
+                    if (std::filesystem::exists(resourcesPath)) {
+                        systemPaths.push_back(resourcesPath.string());
+                    }
+                    
+                    // Also try relative paths from executable
+                    auto relativeConfigPath = executablePath / "config.yaml";
+                    if (std::filesystem::exists(relativeConfigPath)) {
+                        systemPaths.push_back(relativeConfigPath.string());
+                    }
+                }
+            }
+        } catch (const std::exception& e) {
+            // Continue with standard paths if app bundle detection fails
+        }
+        
+        // Add standard macOS paths
+        systemPaths.insert(systemPaths.end(), {
             "/usr/local/etc/kolosal/config.yaml",  // Homebrew/user installed
             "/etc/kolosal/config.yaml"             // System-wide
-        };
+        });
         
         for (const auto& systemPath : systemPaths) {
             std::ifstream systemFile(systemPath);
@@ -482,9 +610,10 @@ namespace kolosal
         // Apply default inference engine to models that don't have one specified
         if (!defaultInferenceEngine.empty())
         {
+            const std::string platformDefault = getPlatformDefaultInferenceEngine();
             for (auto &model : models)
             {
-                if (model.inferenceEngine.empty() || model.inferenceEngine == "llama-cpu")
+                if (model.inferenceEngine.empty() || model.inferenceEngine == platformDefault)
                 {
                     model.inferenceEngine = defaultInferenceEngine;
                 }
@@ -747,9 +876,10 @@ namespace kolosal
             // Apply default inference engine to models that don't have one specified
             if (!defaultInferenceEngine.empty())
             {
+                const std::string platformDefault = getPlatformDefaultInferenceEngine();
                 for (auto &model : models)
                 {
-                    if (model.inferenceEngine.empty() || model.inferenceEngine == "llama-cpu")
+                    if (model.inferenceEngine.empty() || model.inferenceEngine == platformDefault)
                     {
                         model.inferenceEngine = defaultInferenceEngine;
                     }

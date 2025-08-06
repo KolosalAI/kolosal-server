@@ -7,6 +7,17 @@
 #include <sstream>
 #include <thread>
 
+#ifdef _WIN32
+#include <windows.h>
+#elif defined(__APPLE__)
+#include <unistd.h>
+#include <limits.h>
+#include <mach-o/dyld.h>
+#else
+#include <unistd.h>
+#include <limits.h>
+#endif
+
 namespace kolosal
 {
     // Structure to hold download progress data
@@ -164,6 +175,44 @@ namespace kolosal
         return filename;
     }
 
+    // Helper function to get the directory containing the current executable
+    std::string get_executable_directory()
+    {
+#ifdef _WIN32
+        char path[MAX_PATH];
+        GetModuleFileNameA(NULL, path, MAX_PATH);
+        std::string execPath(path);
+        return std::filesystem::path(execPath).parent_path().string();
+#elif defined(__APPLE__)
+        char path[PATH_MAX];
+        uint32_t size = sizeof(path);
+        if (_NSGetExecutablePath(path, &size) == 0) {
+            char realPath[PATH_MAX];
+            if (realpath(path, realPath) != NULL) {
+                return std::filesystem::path(realPath).parent_path().string();
+            }
+        }
+        // Fallback to current directory
+        return std::filesystem::current_path().string();
+#else
+        char path[PATH_MAX];
+        ssize_t count = readlink("/proc/self/exe", path, PATH_MAX);
+        if (count != -1) {
+            path[count] = '\0';
+            return std::filesystem::path(path).parent_path().string();
+        }
+        // Fallback to current directory
+        return std::filesystem::current_path().string();
+#endif
+    }
+
+    std::string get_executable_models_directory()
+    {
+        std::string executableDir = get_executable_directory();
+        std::filesystem::path modelsPath = std::filesystem::path(executableDir) / "models";
+        return std::filesystem::absolute(modelsPath).string();
+    }
+
     std::string generate_download_path(const std::string &url, const std::string &base_dir)
     {
         std::string filename = extract_filename_from_url(url);
@@ -176,6 +225,13 @@ namespace kolosal
 
         return full_path.string();
     }
+
+    std::string generate_download_path_executable(const std::string &url)
+    {
+        std::string models_dir = get_executable_models_directory();
+        return generate_download_path(url, models_dir);
+    }
+
     DownloadResult download_file(const std::string &url, const std::string &local_path, DownloadProgressCallback progress_callback)
     {
         // Use the resume-enabled function with resume enabled by default

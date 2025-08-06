@@ -1,5 +1,17 @@
 cmake_minimum_required(VERSION 3.14)
-project(KolosalServer VERSION 1.0.0 LANGUAGES CXX)
+
+# Set policies for compatibility with newer CMake versions
+if(POLICY CMP0074)
+    cmake_policy(SET CMP0074 NEW) # Use <PackageName>_ROOT variables
+endif()
+if(POLICY CMP0077)
+    cmake_policy(SET CMP0077 NEW) # option() honors normal variables
+endif()
+if(POLICY CMP0135)
+    cmake_policy(SET CMP0135 NEW) # FetchContent uses DOWNLOAD_EXTRACT_TIMESTAMP
+endif()
+
+project(KolosalServer VERSION 1.0.0 LANGUAGES C CXX)
 
 # Include UCM for runtime library management
 include(${CMAKE_SOURCE_DIR}/cmake/ucm.cmake)
@@ -39,6 +51,12 @@ option(USE_METAL  "Compile with Metal support (macOS only)" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
 option(USE_PODOFO "Compile with PoDoFo PDF support" ON)
+
+# On Apple systems, enable Metal by default unless explicitly disabled
+if(APPLE)
+    message(STATUS "Apple system detected - enabling Metal acceleration by default")
+    set(USE_METAL ON CACHE BOOL "Enable Metal acceleration on Apple systems" FORCE)
+endif()
 
 # Define include directories.
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include)
@@ -168,74 +186,6 @@ function(copy_dll_to_output target_name dll_path)
     endif()
 endfunction()
 
-# Copy necessary libraries to the executable directory
-if(WIN32)
-    # Copy the main server DLL
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:kolosal_server>"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying kolosal_server.dll to executable directory"
-    )
-elseif(APPLE)
-    # Copy the main server dylib for macOS
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:kolosal_server>"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying libkolosal_server.dylib to executable directory"
-    )
-    
-    # Fix the install name of the dylib to use @rpath
-    add_custom_command(TARGET kolosal_server POST_BUILD
-        COMMAND install_name_tool -id "@rpath/libkolosal_server.dylib" "$<TARGET_FILE:kolosal_server>"
-        COMMENT "Setting install name for libkolosal_server.dylib"
-    )
-endif()
-
-# Copy additional libraries for Windows
-if(WIN32)
-    # Copy inference engine DLL to executable directory
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:llama-cpu>"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying llama-cpu.dll to executable directory"
-    )
-    
-    # Copy CURL DLL if it exists
-    set(CURL_DLL_PATHS
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/bin/libcurl.dll"
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/libcurl.dll"
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/bin/curl.dll"
-        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/curl.dll"
-    )
-    
-    foreach(curl_dll ${CURL_DLL_PATHS})
-        if(EXISTS "${curl_dll}")
-            copy_dll_to_output(kolosal_server_exe "${curl_dll}")
-            break()
-        endif()
-    endforeach()
-    
-    # Copy yaml-cpp DLL if it's built as shared library
-    if(BUILD_SHARED_LIBS)
-        add_custom_command(TARGET kolosal_server_exe POST_BUILD
-            COMMAND ${CMAKE_COMMAND} -E copy_if_different
-            "$<TARGET_FILE:yaml-cpp>"
-            "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-            COMMENT "Copying yaml-cpp DLL to executable directory"
-        )
-    endif()
-    
-    # Copy any additional system DLLs that might be needed
-    # Check for common MSVC runtime libraries
-    if(MSVC)
-        # These will be automatically handled by CMake's runtime library settings
-        message(STATUS "MSVC detected - runtime libraries will be statically linked")
-    endif()
-endif()
-
 # Find and setup yaml-cpp
 set(YAML_CPP_PATH "${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp")
 if(NOT EXISTS "${YAML_CPP_PATH}/CMakeLists.txt")
@@ -251,9 +201,24 @@ set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static library" FOR
 # Add yaml-cpp subdirectory
 add_subdirectory(${YAML_CPP_PATH})
 
+# Determine inference library target name based on acceleration options
+if(USE_CUDA)
+    set(INFERENCE_TARGET "llama-cuda")
+    message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (CUDA acceleration)")
+elseif(USE_VULKAN)
+    set(INFERENCE_TARGET "llama-vulkan")
+    message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (Vulkan acceleration)")
+elseif(USE_METAL)
+    set(INFERENCE_TARGET "llama-metal")
+    message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (Metal acceleration)")
+else()
+    set(INFERENCE_TARGET "llama-cpu")
+    message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (CPU only)")
+endif()
+
 # Build the inference engine as a subdirectory
-# This will create the llama-<cpu/cuda/vulkan> shared library
-# All llama.cpp, CUDA, Vulkan, and MPI dependencies are handled by the inference library
+# This will create the llama-<cpu/cuda/vulkan/metal> shared library
+# All llama.cpp, CUDA, Vulkan, Metal, and MPI dependencies are handled by the inference library
 add_subdirectory(inference)
 
 # Link the main server library with yaml-cpp
@@ -316,18 +281,44 @@ target_compile_definitions(kolosal_server PUBLIC
 # Add subdirectories for external libraries
 # llama.cpp is handled by the inference subdirectory, not directly
 
-# Add zlib (disable minizip for now due to config issues)
+# Add zlib (use system zlib on macOS/Linux, bundled on Windows)
 if(NOT TARGET zlibstatic)
-    # Configure zlib options
-    set(ZLIB_BUILD_TESTING OFF CACHE BOOL "Disable zlib tests" FORCE)
-    set(ZLIB_BUILD_MINIZIP OFF CACHE BOOL "Disable building libminizip contrib library" FORCE)
-    set(ZLIB_BUILD_SHARED OFF CACHE BOOL "Build zlib as static library" FORCE)
-    set(ZLIB_BUILD_STATIC ON CACHE BOOL "Build zlib static library" FORCE)
+    # Try to use system zlib first on Unix systems
+    if(UNIX)
+        find_package(ZLIB QUIET)
+        if(ZLIB_FOUND)
+            message(STATUS "Using system ZLIB: ${ZLIB_LIBRARIES}")
+            # Create an alias target for compatibility
+            if(NOT TARGET zlibstatic)
+                add_library(zlibstatic ALIAS ZLIB::ZLIB)
+            endif()
+            set(ZLIB_INCLUDE_DIR ${ZLIB_INCLUDE_DIRS})
+            set(ZLIB_LIBRARY ${ZLIB_LIBRARIES})
+        endif()
+    endif()
     
-    # Set ZLIB installation to OFF since we're building in-tree
-    set(ZLIB_INSTALL OFF CACHE BOOL "Disable zlib installation" FORCE)
-    
-    add_subdirectory(external/zlib EXCLUDE_FROM_ALL)
+    # Fallback to bundled zlib if system zlib not found or on Windows
+    if(NOT ZLIB_FOUND)
+        message(STATUS "Using bundled ZLIB")
+        # Configure zlib options
+        set(ZLIB_BUILD_TESTING OFF CACHE BOOL "Disable zlib tests" FORCE)
+        set(ZLIB_BUILD_MINIZIP OFF CACHE BOOL "Disable building libminizip contrib library" FORCE)
+        set(ZLIB_BUILD_SHARED OFF CACHE BOOL "Build zlib as static library" FORCE)
+        set(ZLIB_BUILD_STATIC ON CACHE BOOL "Build zlib static library" FORCE)
+        
+        # Set ZLIB installation to OFF since we're building in-tree
+        set(ZLIB_INSTALL OFF CACHE BOOL "Disable zlib installation" FORCE)
+        
+        add_subdirectory(external/zlib EXCLUDE_FROM_ALL)
+        
+        # Set ZLIB_FOUND to TRUE after building bundled zlib
+        set(ZLIB_FOUND TRUE)
+        
+        # Fix zlib compilation issue on macOS/Unix with newer compilers
+        if(TARGET zlibstatic AND UNIX)
+            target_compile_definitions(zlibstatic PRIVATE _POSIX_C_SOURCE=200809L)
+        endif()
+    endif()
 endif()
 
 # Add minizip manually
@@ -346,7 +337,13 @@ if(NOT TARGET minizip_static)
     
     add_library(minizip_static STATIC ${MINIZIP_SOURCES})
     target_include_directories(minizip_static PUBLIC external/zlib/contrib/minizip external/zlib)
-    target_link_libraries(minizip_static PUBLIC zlibstatic)
+    
+    # Link with appropriate zlib library
+    if(TARGET zlibstatic)
+        target_link_libraries(minizip_static PUBLIC zlibstatic)
+    elseif(TARGET ZLIB::ZLIB)
+        target_link_libraries(minizip_static PUBLIC ZLIB::ZLIB)
+    endif()
     
     # Set compiler definitions for minizip
     target_compile_definitions(minizip_static PRIVATE
@@ -361,184 +358,425 @@ if(NOT TARGET minizip_static)
 endif()
 
 # Set up ZLIB variables for other libraries (like PoDoFo) to find
-if(TARGET zlibstatic)
+if(ZLIB_FOUND)
     # Set ZLIB variables so find_package(ZLIB) works for dependencies
-    get_target_property(ZLIB_INCLUDE_DIR zlibstatic INTERFACE_INCLUDE_DIRECTORIES)
-    if(NOT ZLIB_INCLUDE_DIR)
-        set(ZLIB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/zlib;${CMAKE_CURRENT_BINARY_DIR}/external/zlib")
-    endif()
-    set(ZLIB_LIBRARY zlibstatic)
-    set(ZLIB_LIBRARIES ${ZLIB_LIBRARY})
-    set(ZLIB_FOUND TRUE)
-    set(ZLIB_VERSION_STRING "1.2.11") # Adjust if needed
-    
-    # Also set for the ZLIB target to be found
-    set_target_properties(zlibstatic PROPERTIES
-        INTERFACE_INCLUDE_DIRECTORIES "${ZLIB_INCLUDE_DIR}"
-    )
-    
-    # Create ZLIB::ZLIB imported target for modern CMake
-    if(NOT TARGET ZLIB::ZLIB)
+    if(TARGET zlibstatic AND NOT TARGET ZLIB::ZLIB)
+        # This is bundled zlib
+        get_target_property(ZLIB_INCLUDE_DIR zlibstatic INTERFACE_INCLUDE_DIRECTORIES)
+        if(NOT ZLIB_INCLUDE_DIR)
+            set(ZLIB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/zlib;${CMAKE_CURRENT_BINARY_DIR}/external/zlib")
+        endif()
+        set(ZLIB_LIBRARY zlibstatic)
+        
+        # Also set for the ZLIB target to be found
+        set_target_properties(zlibstatic PROPERTIES
+            INTERFACE_INCLUDE_DIRECTORIES "${ZLIB_INCLUDE_DIR}"
+        )
+        
+        # Create ZLIB::ZLIB imported target for modern CMake if not exists
         add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    elseif(TARGET ZLIB::ZLIB)
+        # This is system zlib, already has ZLIB::ZLIB target
+        get_target_property(ZLIB_INCLUDE_DIR ZLIB::ZLIB INTERFACE_INCLUDE_DIRECTORIES)
+        set(ZLIB_LIBRARY ZLIB::ZLIB)
+        # Create zlibstatic alias for compatibility
+        if(NOT TARGET zlibstatic)
+            add_library(zlibstatic ALIAS ZLIB::ZLIB)
+        endif()
     endif()
+    
+    set(ZLIB_LIBRARIES ${ZLIB_LIBRARY})
+    set(ZLIB_VERSION_STRING "1.2.11") # Adjust if needed
     
     message(STATUS "ZLIB variables set for PoDoFo: ${ZLIB_INCLUDE_DIR}")
 endif()
 
 # Add PoDoFo
 if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
+    message(STATUS "Configuring PoDoFo PDF support...")
+    
+    # Helpful message for developers
+    if(APPLE)
+        message(STATUS "For macOS developers: Install dependencies with 'brew install freetype jpeg libpng libtiff libxml2'")
+    elseif(UNIX)
+        message(STATUS "For Linux developers: Install dependencies with 'apt install libfreetype6-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libfontconfig1-dev' (Ubuntu/Debian)")
+        message(STATUS "Or 'yum install freetype-devel libjpeg-devel libpng-devel libtiff-devel libxml2-devel fontconfig-devel' (RHEL/CentOS/Fedora)")
+    endif()
+    
     # Check if PoDoFo has its own CMakeLists.txt
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/CMakeLists.txt")
-        # Set up paths to PoDoFo dependencies
-        set(PODOFO_DEPS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/extern/deps/3rdparty")
         
-        # Determine platform-specific library directory
-        if(WIN32)
-            if(CMAKE_SIZEOF_VOID_P EQUAL 8)
-                set(PODOFO_LIB_SUBDIR "Win64")
-            else()
-                set(PODOFO_LIB_SUBDIR "Win32")
+        # First try to find system-installed dependencies (macOS/Linux with brew/apt)
+        # This is the proper way for most developers who install dependencies via package managers
+        if(UNIX)  # This includes both macOS and Linux
+            message(STATUS "Looking for system-installed PoDoFo dependencies...")
+            
+            # Add common paths where homebrew and other package managers install libraries
+            if(APPLE)
+                # Homebrew paths for both Intel and Apple Silicon Macs
+                list(APPEND CMAKE_PREFIX_PATH 
+                    "/opt/homebrew"           # Apple Silicon
+                    "/usr/local"              # Intel Mac
+                    "/opt/local"              # MacPorts
+                )
+                # Also add library-specific paths
+                list(APPEND CMAKE_LIBRARY_PATH
+                    "/opt/homebrew/lib"
+                    "/usr/local/lib"
+                    "/opt/local/lib"
+                )
+                list(APPEND CMAKE_INCLUDE_PATH
+                    "/opt/homebrew/include"
+                    "/usr/local/include"
+                    "/opt/local/include"
+                )
+                
+                # Set PKG_CONFIG_PATH for pkg-config to find packages
+                set(ENV{PKG_CONFIG_PATH} "/opt/homebrew/lib/pkgconfig:/usr/local/lib/pkgconfig:/opt/local/lib/pkgconfig:$ENV{PKG_CONFIG_PATH}")
             endif()
-        elseif(APPLE)
-            set(PODOFO_LIB_SUBDIR "macosx-x86_64")
-        else()
-            set(PODOFO_LIB_SUBDIR "linux-x86_64")
-        endif()
-        
-        # Set up Freetype
-        set(FREETYPE_INCLUDE_DIRS "${PODOFO_DEPS_DIR}/freetype/include/freetype2;${PODOFO_DEPS_DIR}/freetype/include")
-        set(FREETYPE_INCLUDE_DIR "${PODOFO_DEPS_DIR}/freetype/include/freetype2")
-        if(WIN32)
-            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/freetyped.lib")
-            else()
-                set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/freetype.lib")
+            
+            # Find Freetype using pkg-config first, then fallback to find_package
+            find_package(PkgConfig QUIET)
+            if(PkgConfig_FOUND)
+                pkg_check_modules(PC_FREETYPE QUIET freetype2)
+                if(PC_FREETYPE_FOUND)
+                    set(FREETYPE_INCLUDE_DIRS ${PC_FREETYPE_INCLUDE_DIRS})
+                    set(FREETYPE_LIBRARIES ${PC_FREETYPE_LIBRARIES})
+                    set(FREETYPE_FOUND TRUE)
+                    message(STATUS "Found Freetype via pkg-config: ${FREETYPE_LIBRARIES}")
+                endif()
             endif()
-        else()
-            set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/libfreetype.a")
-        endif()
-        set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARY})
-        
-        # Create an imported target for Freetype so PoDoFo can find it properly
-        if(NOT TARGET Freetype::Freetype)
-            add_library(Freetype::Freetype STATIC IMPORTED)
-            set_target_properties(Freetype::Freetype PROPERTIES
-                IMPORTED_LOCATION ${FREETYPE_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES "${FREETYPE_INCLUDE_DIRS}"
-            )
-        endif()
-        
-        # Set up JPEG
-        set(JPEG_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libjpeg/include")
-        if(WIN32)
-            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/jpegd.lib")
-            else()
-                set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/jpeg.lib")
+            
+            if(NOT FREETYPE_FOUND)
+                find_package(Freetype QUIET)
+                if(FREETYPE_FOUND)
+                    message(STATUS "Found system Freetype: ${FREETYPE_LIBRARIES}")
+                    # Ensure we have the right variables set
+                    if(NOT FREETYPE_INCLUDE_DIRS AND FREETYPE_INCLUDE_DIR)
+                        set(FREETYPE_INCLUDE_DIRS ${FREETYPE_INCLUDE_DIR})
+                    endif()
+                    if(NOT FREETYPE_LIBRARIES AND FREETYPE_LIBRARY)
+                        set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARY})
+                    endif()
+                endif()
             endif()
-        else()
-            set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/libjpeg.a")
-        endif()
-        set(JPEG_LIBRARIES ${JPEG_LIBRARY})
-        
-        # Create an imported target for JPEG
-        if(NOT TARGET JPEG::JPEG)
-            add_library(JPEG::JPEG STATIC IMPORTED)
-            set_target_properties(JPEG::JPEG PROPERTIES
-                IMPORTED_LOCATION ${JPEG_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES "${JPEG_INCLUDE_DIR}"
-            )
-        endif()
-        
-        # Set up PNG
-        set(PNG_PNG_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libpng/include")
-        set(PNG_INCLUDE_DIR ${PNG_PNG_INCLUDE_DIR})
-        if(WIN32)
-            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/pngd.lib")
-            else()
-                set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/png.lib")
+            
+            if(FREETYPE_FOUND AND NOT TARGET Freetype::Freetype)
+                add_library(Freetype::Freetype UNKNOWN IMPORTED)
+                set_target_properties(Freetype::Freetype PROPERTIES
+                    IMPORTED_LOCATION "${FREETYPE_LIBRARIES}"
+                    INTERFACE_INCLUDE_DIRECTORIES "${FREETYPE_INCLUDE_DIRS}"
+                )
+                
+                # Also create a simple alias target for compatibility
+                if(NOT TARGET freetype)
+                    add_library(freetype ALIAS Freetype::Freetype)
+                endif()
+                
+                # Set the standard CMake Freetype variables for PoDoFo's find_package to detect
+                set(Freetype_FOUND TRUE CACHE BOOL "Freetype found" FORCE)
+                set(FREETYPE_FOUND TRUE CACHE BOOL "Freetype found" FORCE)
+                set(FREETYPE_LIBRARY "${FREETYPE_LIBRARIES}" CACHE STRING "Freetype library" FORCE)
+                set(FREETYPE_INCLUDE_DIR "${FREETYPE_INCLUDE_DIRS}" CACHE STRING "Freetype include dir" FORCE)
             endif()
-        else()
-            set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/libpng.a")
-        endif()
-        set(PNG_LIBRARIES ${PNG_LIBRARY})
-        
-        # Create an imported target for PNG
-        if(NOT TARGET PNG::PNG)
-            add_library(PNG::PNG STATIC IMPORTED)
-            set_target_properties(PNG::PNG PROPERTIES
-                IMPORTED_LOCATION ${PNG_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES "${PNG_INCLUDE_DIR}"
-            )
-        endif()
-        
-        # Set up TIFF
-        set(TIFF_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libtiff/include")
-        if(WIN32)
-            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/tiffd.lib")
-            else()
-                set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/tiff.lib")
+            
+            # Find JPEG
+            find_package(JPEG QUIET)
+            if(JPEG_FOUND)
+                message(STATUS "Found system JPEG: ${JPEG_LIBRARIES}")
+                if(NOT TARGET JPEG::JPEG)
+                    add_library(JPEG::JPEG UNKNOWN IMPORTED)
+                    set_target_properties(JPEG::JPEG PROPERTIES
+                        IMPORTED_LOCATION "${JPEG_LIBRARIES}"
+                        INTERFACE_INCLUDE_DIRECTORIES "${JPEG_INCLUDE_DIR}"
+                    )
+                endif()
             endif()
-        else()
-            set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/libtiff.a")
-        endif()
-        set(TIFF_LIBRARIES ${TIFF_LIBRARY})
-        
-        # Create an imported target for TIFF
-        if(NOT TARGET TIFF::TIFF)
-            add_library(TIFF::TIFF STATIC IMPORTED)
-            set_target_properties(TIFF::TIFF PROPERTIES
-                IMPORTED_LOCATION ${TIFF_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES "${TIFF_INCLUDE_DIR}"
-            )
-        endif()
-        
-        # Set up LibXml2
-        set(LIBXML2_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libxml2/include")
-        set(LIBXML2_INCLUDE_DIRS ${LIBXML2_INCLUDE_DIR})
-        if(WIN32)
-            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2d.lib")
-            else()
-                set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2.lib")
+            
+            # Find PNG using pkg-config first
+            if(PkgConfig_FOUND)
+                pkg_check_modules(PC_PNG QUIET libpng)
+                if(PC_PNG_FOUND)
+                    set(PNG_FOUND TRUE)
+                    set(PNG_LIBRARIES ${PC_PNG_LIBRARIES})
+                    set(PNG_INCLUDE_DIRS ${PC_PNG_INCLUDE_DIRS})
+                    message(STATUS "Found PNG via pkg-config: ${PNG_LIBRARIES}")
+                endif()
             endif()
-        else()
-            set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2.a")
-        endif()
-        set(LIBXML2_LIBRARIES ${LIBXML2_LIBRARY})
-        
-        # Create an imported target for LibXml2
-        if(NOT TARGET LibXml2::LibXml2)
-            add_library(LibXml2::LibXml2 STATIC IMPORTED)
-            set_target_properties(LibXml2::LibXml2 PROPERTIES
-                IMPORTED_LOCATION ${LIBXML2_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES "${LIBXML2_INCLUDE_DIR}"
-            )
-        endif()
-        
-        # Set up Fontconfig
-        set(Fontconfig_INCLUDE_DIR "${PODOFO_DEPS_DIR}/fontconfig/include")
-        set(Fontconfig_INCLUDE_DIRS ${Fontconfig_INCLUDE_DIR})
-        if(WIN32)
-            if(CMAKE_BUILD_TYPE STREQUAL "Debug")
-                set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/fontconfigd.lib")
-            else()
-                set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/fontconfig.lib")
+            
+            if(NOT PNG_FOUND)
+                find_package(PNG QUIET)
+                if(PNG_FOUND)
+                    message(STATUS "Found system PNG: ${PNG_LIBRARIES}")
+                    # PNG::PNG target is usually created by find_package(PNG)
+                endif()
             endif()
-        else()
-            set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/libfontconfig.a")
+            
+            # Find TIFF
+            find_package(TIFF QUIET)
+            if(TIFF_FOUND)
+                message(STATUS "Found system TIFF: ${TIFF_LIBRARIES}")
+                if(NOT TARGET TIFF::TIFF)
+                    add_library(TIFF::TIFF UNKNOWN IMPORTED)
+                    set_target_properties(TIFF::TIFF PROPERTIES
+                        IMPORTED_LOCATION "${TIFF_LIBRARIES}"
+                        INTERFACE_INCLUDE_DIRECTORIES "${TIFF_INCLUDE_DIR}"
+                    )
+                endif()
+            endif()
+            
+            # Find LibXml2 using pkg-config first
+            if(PkgConfig_FOUND)
+                pkg_check_modules(PC_LIBXML2 QUIET libxml-2.0)
+                if(PC_LIBXML2_FOUND)
+                    set(LIBXML2_FOUND TRUE)
+                    set(LIBXML2_LIBRARIES ${PC_LIBXML2_LIBRARIES})
+                    set(LIBXML2_INCLUDE_DIRS ${PC_LIBXML2_INCLUDE_DIRS})
+                    message(STATUS "Found LibXml2 via pkg-config: ${LIBXML2_LIBRARIES}")
+                    
+                    # Get the actual library path for linking
+                    if(PC_LIBXML2_LIBRARY_DIRS)
+                        # Try to find the actual library file
+                        find_library(XML2_LIBRARY_LOCATION
+                            NAMES xml2 libxml2
+                            PATHS ${PC_LIBXML2_LIBRARY_DIRS}
+                            NO_DEFAULT_PATH
+                        )
+                        message(STATUS "DEBUG: XML2_LIBRARY_LOCATION found at: ${XML2_LIBRARY_LOCATION}")
+                    endif()
+                    
+                    # If not found via pkg-config paths, use system libxml2 on macOS
+                    if(NOT XML2_LIBRARY_LOCATION AND APPLE)
+                        set(XML2_LIBRARY_LOCATION "/Library/Developer/CommandLineTools/SDKs/MacOSX.sdk/usr/lib/libxml2.tbd")
+                        message(STATUS "DEBUG: Using system libxml2: ${XML2_LIBRARY_LOCATION}")
+                    endif()
+                endif()
+            endif()
+            
+            if(NOT LIBXML2_FOUND)
+                find_package(LibXml2 QUIET)
+                if(LIBXML2_FOUND)
+                    message(STATUS "Found system LibXml2: ${LIBXML2_LIBRARIES}")
+                    # LibXml2::LibXml2 target is usually created by find_package(LibXml2)
+                endif()
+            endif()
+            
+            # Find Fontconfig (primarily for Linux, on macOS it might not be needed)
+            if(NOT APPLE)
+                find_package(Fontconfig QUIET)
+                if(Fontconfig_FOUND)
+                    message(STATUS "Found system Fontconfig: ${Fontconfig_LIBRARIES}")
+                    if(NOT TARGET Fontconfig::Fontconfig)
+                        add_library(Fontconfig::Fontconfig UNKNOWN IMPORTED)
+                        set_target_properties(Fontconfig::Fontconfig PROPERTIES
+                            IMPORTED_LOCATION "${Fontconfig_LIBRARIES}"
+                            INTERFACE_INCLUDE_DIRECTORIES "${Fontconfig_INCLUDE_DIRS}"
+                        )
+                    endif()
+                endif()
+            else()
+                # On macOS, fontconfig might not be needed or available
+                message(STATUS "Skipping Fontconfig on macOS (usually not required)")
+                set(Fontconfig_FOUND FALSE)
+            endif()
         endif()
-        set(Fontconfig_LIBRARIES ${Fontconfig_LIBRARY})
         
-        # Create an imported target for Fontconfig
-        if(NOT TARGET Fontconfig::Fontconfig)
-            add_library(Fontconfig::Fontconfig STATIC IMPORTED)
-            set_target_properties(Fontconfig::Fontconfig PROPERTIES
-                IMPORTED_LOCATION ${Fontconfig_LIBRARY}
-                INTERFACE_INCLUDE_DIRECTORIES "${Fontconfig_INCLUDE_DIR}"
-            )
+        # Fallback to bundled dependencies if system dependencies are not found
+        # This maintains compatibility with the original Windows-focused setup
+        if(WIN32 OR NOT (FREETYPE_FOUND AND JPEG_FOUND AND PNG_FOUND AND TIFF_FOUND AND LIBXML2_FOUND))
+            message(STATUS "Using bundled PoDoFo dependencies...")
+            
+            # Set up paths to PoDoFo dependencies
+            set(PODOFO_DEPS_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/extern/deps/3rdparty")
+            
+            # Determine platform-specific library directory
+            if(WIN32)
+                if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+                    set(PODOFO_LIB_SUBDIR "Win64")
+                else()
+                    set(PODOFO_LIB_SUBDIR "Win32")
+                endif()
+            elseif(APPLE)
+                # Support both Intel and ARM architectures
+                if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
+                    set(PODOFO_LIB_SUBDIR "macosx-arm64")
+                else()
+                    set(PODOFO_LIB_SUBDIR "macosx-x86_64")
+                endif()
+            else()
+                # Support both x86_64 and ARM architectures on Linux
+                if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(arm64|aarch64|ARM64)$")
+                    set(PODOFO_LIB_SUBDIR "linux-arm64")
+                else()
+                    set(PODOFO_LIB_SUBDIR "linux-x86_64")
+                endif()
+            endif()
+            
+            # Only set up bundled dependencies if system ones weren't found
+            if(NOT FREETYPE_FOUND)
+                # Set up Freetype
+                set(FREETYPE_INCLUDE_DIRS "${PODOFO_DEPS_DIR}/freetype/include/freetype2;${PODOFO_DEPS_DIR}/freetype/include")
+                set(FREETYPE_INCLUDE_DIR "${PODOFO_DEPS_DIR}/freetype/include/freetype2")
+                if(WIN32)
+                    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                        set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/freetyped.lib")
+                    else()
+                        set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/freetype.lib")
+                    endif()
+                else()
+                    set(FREETYPE_LIBRARY "${PODOFO_DEPS_DIR}/freetype/lib/${PODOFO_LIB_SUBDIR}/libfreetype.a")
+                endif()
+                set(FREETYPE_LIBRARIES ${FREETYPE_LIBRARY})
+                
+                # Create an imported target for Freetype so PoDoFo can find it properly
+                if(NOT TARGET Freetype::Freetype AND EXISTS "${FREETYPE_LIBRARY}")
+                    add_library(Freetype::Freetype STATIC IMPORTED)
+                    set_target_properties(Freetype::Freetype PROPERTIES
+                        IMPORTED_LOCATION ${FREETYPE_LIBRARY}
+                        INTERFACE_INCLUDE_DIRECTORIES "${FREETYPE_INCLUDE_DIRS}"
+                    )
+                    set(FREETYPE_FOUND TRUE)
+                    
+                    # Also create a simple alias target for compatibility
+                    if(NOT TARGET freetype)
+                        add_library(freetype ALIAS Freetype::Freetype)
+                    endif()
+                    
+                    # Set the standard CMake Freetype variables for PoDoFo's find_package to detect
+                    set(Freetype_FOUND TRUE CACHE BOOL "Freetype found" FORCE)
+                    set(FREETYPE_FOUND TRUE CACHE BOOL "Freetype found" FORCE)
+                    set(FREETYPE_LIBRARY "${FREETYPE_LIBRARY}" CACHE STRING "Freetype library" FORCE)
+                    set(FREETYPE_INCLUDE_DIR "${FREETYPE_INCLUDE_DIRS}" CACHE STRING "Freetype include dir" FORCE)
+                endif()
+            endif()
+            
+            if(NOT JPEG_FOUND)
+                # Set up JPEG
+                set(JPEG_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libjpeg/include")
+                if(WIN32)
+                    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                        set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/jpegd.lib")
+                    else()
+                        set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/jpeg.lib")
+                    endif()
+                else()
+                    set(JPEG_LIBRARY "${PODOFO_DEPS_DIR}/libjpeg/lib/${PODOFO_LIB_SUBDIR}/libjpeg.a")
+                endif()
+                set(JPEG_LIBRARIES ${JPEG_LIBRARY})
+                
+                # Create an imported target for JPEG
+                if(NOT TARGET JPEG::JPEG AND EXISTS "${JPEG_LIBRARY}")
+                    add_library(JPEG::JPEG STATIC IMPORTED)
+                    set_target_properties(JPEG::JPEG PROPERTIES
+                        IMPORTED_LOCATION ${JPEG_LIBRARY}
+                        INTERFACE_INCLUDE_DIRECTORIES "${JPEG_INCLUDE_DIR}"
+                    )
+                    set(JPEG_FOUND TRUE)
+                endif()
+            endif()
+            
+            if(NOT PNG_FOUND)
+                # Set up PNG
+                set(PNG_PNG_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libpng/include")
+                set(PNG_INCLUDE_DIR ${PNG_PNG_INCLUDE_DIR})
+                if(WIN32)
+                    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                        set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/pngd.lib")
+                    else()
+                        set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/png.lib")
+                    endif()
+                else()
+                    set(PNG_LIBRARY "${PODOFO_DEPS_DIR}/libpng/lib/${PODOFO_LIB_SUBDIR}/libpng.a")
+                endif()
+                set(PNG_LIBRARIES ${PNG_LIBRARY})
+                
+                # Create an imported target for PNG
+                if(NOT TARGET PNG::PNG AND EXISTS "${PNG_LIBRARY}")
+                    add_library(PNG::PNG STATIC IMPORTED)
+                    set_target_properties(PNG::PNG PROPERTIES
+                        IMPORTED_LOCATION ${PNG_LIBRARY}
+                        INTERFACE_INCLUDE_DIRECTORIES "${PNG_INCLUDE_DIR}"
+                    )
+                    set(PNG_FOUND TRUE)
+                endif()
+            endif()
+            
+            if(NOT TIFF_FOUND)
+                # Set up TIFF
+                set(TIFF_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libtiff/include")
+                if(WIN32)
+                    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                        set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/tiffd.lib")
+                    else()
+                        set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/tiff.lib")
+                    endif()
+                else()
+                    set(TIFF_LIBRARY "${PODOFO_DEPS_DIR}/libtiff/lib/${PODOFO_LIB_SUBDIR}/libtiff.a")
+                endif()
+                set(TIFF_LIBRARIES ${TIFF_LIBRARY})
+                
+                # Create an imported target for TIFF
+                if(NOT TARGET TIFF::TIFF AND EXISTS "${TIFF_LIBRARY}")
+                    add_library(TIFF::TIFF STATIC IMPORTED)
+                    set_target_properties(TIFF::TIFF PROPERTIES
+                        IMPORTED_LOCATION ${TIFF_LIBRARY}
+                        INTERFACE_INCLUDE_DIRECTORIES "${TIFF_INCLUDE_DIR}"
+                    )
+                    set(TIFF_FOUND TRUE)
+                endif()
+            endif()
+            
+            if(NOT LIBXML2_FOUND)
+                # Set up LibXml2
+                set(LIBXML2_INCLUDE_DIR "${PODOFO_DEPS_DIR}/libxml2/include")
+                set(LIBXML2_INCLUDE_DIRS ${LIBXML2_INCLUDE_DIR})
+                if(WIN32)
+                    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                        set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2d.lib")
+                    else()
+                        set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2.lib")
+                    endif()
+                else()
+                    set(LIBXML2_LIBRARY "${PODOFO_DEPS_DIR}/libxml2/lib/${PODOFO_LIB_SUBDIR}/libxml2.a")
+                endif()
+                set(LIBXML2_LIBRARIES ${LIBXML2_LIBRARY})
+                
+                # Create an imported target for LibXml2
+                if(NOT TARGET LibXml2::LibXml2 AND EXISTS "${LIBXML2_LIBRARY}")
+                    add_library(LibXml2::LibXml2 STATIC IMPORTED)
+                    set_target_properties(LibXml2::LibXml2 PROPERTIES
+                        IMPORTED_LOCATION ${LIBXML2_LIBRARY}
+                        INTERFACE_INCLUDE_DIRECTORIES "${LIBXML2_INCLUDE_DIR}"
+                    )
+                    set(LIBXML2_FOUND TRUE)
+                endif()
+            endif()
+            
+            if(NOT Fontconfig_FOUND AND NOT APPLE)
+                # Set up Fontconfig
+                set(Fontconfig_INCLUDE_DIR "${PODOFO_DEPS_DIR}/fontconfig/include")
+                set(Fontconfig_INCLUDE_DIRS ${Fontconfig_INCLUDE_DIR})
+                if(WIN32)
+                    if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+                        set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/fontconfigd.lib")
+                    else()
+                        set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/fontconfig.lib")
+                    endif()
+                else()
+                    set(Fontconfig_LIBRARY "${PODOFO_DEPS_DIR}/fontconfig/lib/${PODOFO_LIB_SUBDIR}/libfontconfig.a")
+                endif()
+                set(Fontconfig_LIBRARIES ${Fontconfig_LIBRARY})
+                
+                # Create an imported target for Fontconfig
+                if(NOT TARGET Fontconfig::Fontconfig AND EXISTS "${Fontconfig_LIBRARY}")
+                    add_library(Fontconfig::Fontconfig STATIC IMPORTED)
+                    set_target_properties(Fontconfig::Fontconfig PROPERTIES
+                        IMPORTED_LOCATION ${Fontconfig_LIBRARY}
+                        INTERFACE_INCLUDE_DIRECTORIES "${Fontconfig_INCLUDE_DIR}"
+                    )
+                    set(Fontconfig_FOUND TRUE)
+                endif()
+            endif()
         endif()
         
         # Set up OpenSSL for PoDoFo
@@ -746,6 +984,17 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
         # Disable installation to avoid export issues
         set(PODOFO_BUILD_INSTALL OFF CACHE BOOL "Disable PoDoFo installation" FORCE)
         
+        # Pre-configure Freetype for PoDoFo (prevent it from running its own find_package)
+        if(FREETYPE_FOUND)
+            # Set all the freetype variables that PoDoFo expects
+            set(Freetype_FOUND TRUE CACHE BOOL "Freetype found" FORCE)
+            set(FREETYPE_FOUND TRUE CACHE BOOL "Freetype found" FORCE)
+            set(FREETYPE_LIBRARY "${FREETYPE_LIBRARIES}" CACHE STRING "Freetype library" FORCE)
+            set(FREETYPE_LIBRARIES "${FREETYPE_LIBRARIES}" CACHE STRING "Freetype libraries" FORCE)
+            set(FREETYPE_INCLUDE_DIR "${FREETYPE_INCLUDE_DIRS}" CACHE STRING "Freetype include dir" FORCE)
+            set(FREETYPE_INCLUDE_DIRS "${FREETYPE_INCLUDE_DIRS}" CACHE STRING "Freetype include dirs" FORCE)
+        endif()
+        
         # Temporarily override add_custom_target to ignore uninstall target
         function(add_custom_target target_name)
             if(target_name STREQUAL "uninstall")
@@ -777,6 +1026,17 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
                     set(OPENSSL_FOUND FALSE PARENT_SCOPE)
                     return()
                 endif()
+            elseif(package_name STREQUAL "ZLIB")
+                if(ZLIB_FOUND)
+                    message(STATUS "Using pre-configured ZLIB libraries for PoDoFo")
+                    # Set the found variables that PoDoFo expects
+                    set(ZLIB_FOUND TRUE PARENT_SCOPE)
+                    return()
+                else()
+                    message(STATUS "ZLIB not available for PoDoFo")
+                    set(ZLIB_FOUND FALSE PARENT_SCOPE)
+                    return()
+                endif()
             else()
                 # Call the original find_package for other packages
                 _find_package(${ARGV})
@@ -785,7 +1045,11 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
         
         add_subdirectory(external/podofo EXCLUDE_FROM_ALL)
         
-        # Restore original functions by unsetting our overrides
+        # Restore the original CMAKE_SKIP_INSTALL_RULES state
+        set(CMAKE_SKIP_INSTALL_RULES ${SAVED_SKIP_INSTALL})
+        
+        # Clear any leftover variables
+        unset(SAVED_SKIP_INSTALL)
         unset(add_custom_target)
         unset(install)
         unset(find_package)
@@ -801,6 +1065,46 @@ if(USE_PODOFO AND NOT TARGET podofo_shared AND NOT TARGET podofo_static)
     endif()
 elseif(NOT USE_PODOFO)
     message(STATUS "PoDoFo support disabled")
+endif()
+
+# Install rules for kolosal_server targets (after PoDoFo processing)
+# Only install on Apple for DMG packaging
+if(APPLE)
+    install(TARGETS kolosal_server
+        LIBRARY DESTINATION "Kolosal.app/Contents/Frameworks"
+        ARCHIVE DESTINATION "Kolosal.app/Contents/Frameworks"
+        COMPONENT Runtime
+    )
+    
+    install(TARGETS kolosal_server_exe
+        RUNTIME DESTINATION "Kolosal.app/Contents/MacOS"
+        COMPONENT Runtime
+    )
+    
+    message(STATUS "Added install rules for kolosal_server targets")
+endif()
+
+# Fix any targets that PoDoFo may have created incorrectly
+# Do this AFTER PoDoFo subdirectory processing to override any problematic targets
+if(USE_PODOFO AND REQUIRED_DEPS_FOUND)
+    message(STATUS "Post-PoDoFo: Fixing target properties for linking...")
+    
+    # Fix freetype target if it's an alias pointing to an incorrect target
+    if(TARGET freetype)
+        get_target_property(FREETYPE_ALIASED freetype ALIASED_TARGET)
+        if(FREETYPE_ALIASED AND TARGET ${FREETYPE_ALIASED})
+            get_target_property(REAL_FREETYPE_LOCATION ${FREETYPE_ALIASED} IMPORTED_LOCATION)
+            if(REAL_FREETYPE_LOCATION STREQUAL "freetype" OR NOT REAL_FREETYPE_LOCATION)
+                message(STATUS "Post-PoDoFo: Fixing ${FREETYPE_ALIASED} target with proper library path")
+                set_target_properties(${FREETYPE_ALIASED} PROPERTIES
+                    IMPORTED_LOCATION "/opt/homebrew/lib/libfreetype.dylib"
+                    INTERFACE_LINK_LIBRARIES "/opt/homebrew/lib/libfreetype.dylib"
+                )
+            endif()
+        endif()
+    endif()
+    
+    message(STATUS "Post-PoDoFo: Target fixes completed")
 endif()
 
 # Add PugiXML
@@ -829,13 +1133,27 @@ if(USE_CPPUPROFILE_GPU)
     message(STATUS "cppuprofile GPU monitoring enabled")
 endif()
 
-# Link libraries - llama components are handled by inference library
-set(KOLOSAL_LINK_LIBRARIES yaml-cpp llama-cpu zlibstatic minizip_static pugixml)
+# Link libraries - use the determined inference target
+set(KOLOSAL_LINK_LIBRARIES yaml-cpp ${INFERENCE_TARGET} zlibstatic minizip_static pugixml)
 
 # Add PoDoFo if available and enabled
 if(USE_PODOFO AND TARGET podofo_static)
     list(APPEND KOLOSAL_LINK_LIBRARIES podofo_static)
     message(STATUS "PoDoFo library will be linked")
+    
+    # Also explicitly link the libxml2 library path to bypass any target resolution issues
+    message(STATUS "DEBUG: XML2_LIBRARY_LOCATION = ${XML2_LIBRARY_LOCATION}")
+    if(XML2_LIBRARY_LOCATION)
+        message(STATUS "DEBUG: XML2_LIBRARY_LOCATION exists, checking file...")
+        if(EXISTS "${XML2_LIBRARY_LOCATION}")
+            list(APPEND KOLOSAL_LINK_LIBRARIES "${XML2_LIBRARY_LOCATION}")
+            message(STATUS "Added direct libxml2 library path to linking: ${XML2_LIBRARY_LOCATION}")
+        else()
+            message(STATUS "DEBUG: XML2_LIBRARY_LOCATION file does not exist: ${XML2_LIBRARY_LOCATION}")
+        endif()
+    else()
+        message(STATUS "DEBUG: XML2_LIBRARY_LOCATION is empty or not set")
+    endif()
 endif()
 
 # Add cppuprofile if enabled
@@ -999,13 +1317,92 @@ endif()
 # Build inference engines
 message(STATUS "Building inference engines...")
 
-# On Apple systems, enable Metal by default
-if(APPLE AND NOT DEFINED USE_METAL)
-    message(STATUS "Apple system detected - enabling Metal acceleration by default")
-    set(USE_METAL ON CACHE BOOL "Enable Metal acceleration on Apple systems" FORCE)
-endif()
-
 # Note: inference subdirectory is already added earlier in the CMakeLists.txt
+
+# Copy necessary libraries to the executable directory after inference target is defined
+# This ensures that the executable can find the shared libraries at runtime
+if(WIN32)
+    # Copy the main server DLL
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:kolosal_server>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying kolosal_server.dll to executable directory"
+    )
+    
+    # Copy inference engine DLL to executable directory
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:${INFERENCE_TARGET}>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying ${INFERENCE_TARGET}.dll to executable directory"
+    )
+    
+    # Copy CURL DLL if it exists
+    set(CURL_DLL_PATHS
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/bin/libcurl.dll"
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/libcurl.dll"
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/bin/curl.dll"
+        "${CMAKE_CURRENT_SOURCE_DIR}/external/curl/lib/curl.dll"
+    )
+    
+    foreach(curl_dll ${CURL_DLL_PATHS})
+        if(EXISTS "${curl_dll}")
+            copy_dll_to_output(kolosal_server_exe "${curl_dll}")
+            break()
+        endif()
+    endforeach()
+    
+    # Copy yaml-cpp DLL if it's built as shared library
+    if(BUILD_SHARED_LIBS)
+        add_custom_command(TARGET kolosal_server_exe POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:yaml-cpp>"
+            "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+            COMMENT "Copying yaml-cpp DLL to executable directory"
+        )
+    endif()
+    
+elseif(APPLE)
+    # Copy the main server dylib for macOS
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:kolosal_server>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying libkolosal_server.dylib to executable directory"
+    )
+    
+    # Copy the inference engine dylib for macOS
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:${INFERENCE_TARGET}>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying ${INFERENCE_TARGET}.dylib to executable directory"
+    )
+    
+    # Fix the install name of the dylib to use @rpath
+    add_custom_command(TARGET kolosal_server POST_BUILD
+        COMMAND install_name_tool -id "@rpath/libkolosal_server.dylib" "$<TARGET_FILE:kolosal_server>"
+        COMMENT "Setting install name for libkolosal_server.dylib"
+    )
+    
+elseif(UNIX)
+    # Copy the main server shared library for Linux
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:kolosal_server>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying libkolosal_server.so to executable directory"
+    )
+    
+    # Copy the inference engine shared library for Linux
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:${INFERENCE_TARGET}>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying ${INFERENCE_TARGET}.so to executable directory"
+    )
+endif()
 
 # Install header files only for development packages
 option(INSTALL_HEADERS "Install header files for development" OFF)

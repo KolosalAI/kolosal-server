@@ -134,27 +134,6 @@ namespace kolosal
             response.usage.completion_tokens = static_cast<int>(result.tokens.size());
             response.usage.total_tokens = response.usage.prompt_tokens + response.usage.completion_tokens;
         }
-
-        /**
-         * @brief Estimates prompt token count for chat messages (simple approximation)
-         */
-        int estimateChatPromptTokens(const std::vector<ChatMessage> &messages)
-        {
-            int totalChars = 0;
-            for (const auto &msg : messages)
-            {
-                totalChars += static_cast<int>(msg.content.length() + msg.role.length()) + 10; // +10 for formatting
-            }
-            return totalChars / 4; // Rough approximation: 4 chars per token
-        }
-
-        /**
-         * @brief Estimates prompt token count for text completion (simple approximation)
-         */
-        int estimateTextPromptTokens(const std::string &prompt)
-        {
-            return static_cast<int>(prompt.length()) / 4; // Rough approximation: 4 chars per token
-        }
     }
 
     OaiCompletionsRoute::OaiCompletionsRoute()
@@ -249,9 +228,6 @@ namespace kolosal
 
             // Build inference parameters following ModelManager pattern
             ChatCompletionParameters inferenceParams = buildChatCompletionParameters(request);
-
-            // Estimate prompt tokens for usage tracking
-            int estimatedPromptTokens = estimateChatPromptTokens(request.messages);
 
             if (request.stream)
             {
@@ -385,9 +361,6 @@ namespace kolosal
 
                 response.choices.push_back(choice);
 
-                // Update usage statistics
-                updateChatUsageStats(response, result, estimatedPromptTokens);
-
                 // Send response
                 json jResponse = response.to_json();
                 send_response(sock, 200, jResponse.dump());
@@ -431,9 +404,6 @@ namespace kolosal
 
             // Build inference parameters
             CompletionParameters inferenceParams = buildCompletionParameters(request);
-
-            // Estimate prompt tokens for usage tracking
-            int estimatedPromptTokens = estimateTextPromptTokens(inferenceParams.prompt);
 
             if (request.stream)
             {
@@ -565,9 +535,6 @@ namespace kolosal
                 choice.finish_reason = "stop";
 
                 response.choices.push_back(choice);
-
-                // Update usage statistics
-                updateCompletionUsageStats(response, result, estimatedPromptTokens);
 
                 // Send response
                 json jResponse = response.to_json();

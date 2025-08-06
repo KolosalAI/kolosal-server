@@ -326,7 +326,7 @@ namespace kolosal
             bool isUrl = is_valid_url(modelPathStr);
             if (isUrl)
             {
-                std::string downloadPath = "./models/" + std::filesystem::path(modelPathStr).filename().string();
+                std::string downloadPath = generate_download_path_executable(modelPathStr);
                 actualModelPath = downloadPath;
 
                 if (std::filesystem::exists(downloadPath))

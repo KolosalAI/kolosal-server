@@ -154,26 +154,6 @@ namespace kolosal
             return response;
         }
 
-        /**
-         * @brief Estimates prompt token count for chat messages (simple approximation)
-         */
-        int estimateChatPromptTokens(const std::vector<Message>& messages)
-        {
-            int totalChars = 0;
-            for (const auto& msg : messages)
-            {
-                totalChars += static_cast<int>(msg.content.length() + msg.role.length()) + 10; // +10 for formatting
-            }
-            return totalChars / 4; // Rough approximation: 4 chars per token
-        }
-
-        /**
-         * @brief Estimates prompt token count for text (simple approximation)
-         */
-        int estimateTextPromptTokens(const std::string& prompt)
-        {
-            return static_cast<int>(prompt.length() / 4); // Rough approximation: 4 chars per token
-        }
     }
 
     CompletionRoute::CompletionRoute()
@@ -270,9 +250,6 @@ namespace kolosal
             {
                 throw std::runtime_error("Model '" + modelName + "' not found or could not be loaded");
             }
-
-            // Estimate prompt tokens for usage tracking
-            int estimatedPromptTokens = estimateChatPromptTokens(params.messages);
 
             if (params.streaming)
             {
@@ -482,9 +459,6 @@ namespace kolosal
             {
                 throw std::runtime_error("Model '" + modelName + "' not found or could not be loaded");
             }
-
-            // Estimate prompt tokens for usage tracking
-            int estimatedPromptTokens = estimateTextPromptTokens(params.prompt);
 
             if (params.streaming)
             {

@@ -21,7 +21,7 @@ struct ModelConfig {
     LoadingParameters loadParams;      // Model loading parameters
     int mainGpuId = 0;                // GPU ID to use for this model
     bool loadImmediately = true;      // Whether to load immediately (true) vs lazy load on first use (false)
-    std::string inferenceEngine = "llama-cpu"; // Inference engine to use (llama-cpu, llama-cuda, llama-vulkan, etc.)
+    std::string inferenceEngine = ""; // Inference engine to use (empty = use default from config)
     
     ModelConfig() = default;
     ModelConfig(const std::string& modelId, const std::string& modelPath, bool load = true)

@@ -554,3 +554,12 @@ target_include_directories(${TARGET_NAME} INTERFACE
     $<BUILD_INTERFACE:${LLAMA_CPP_PATH}/ggml/include>
     $<INSTALL_INTERFACE:include>
 )
+
+# Fix install name for macOS libraries
+if(APPLE)
+    # Fix the install name of the inference engine dylib to use @rpath with lib prefix
+    add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+        COMMAND install_name_tool -id "@rpath/lib${TARGET_NAME}.dylib" "$<TARGET_FILE:${TARGET_NAME}>"
+        COMMENT "Setting install name for lib${TARGET_NAME}.dylib"
+    )
+endif()
