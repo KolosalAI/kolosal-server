@@ -3,7 +3,8 @@
 #include <algorithm>
 
 namespace kolosal
-{    namespace auth
+{    
+    namespace auth
     {
 
         AuthMiddleware::AuthMiddleware()
@@ -86,6 +87,7 @@ namespace kolosal
                 result.allowed = false;
                 result.statusCode = 401; // Unauthorized
                 result.reason = "Invalid or missing API key";
+                result.headers["WWW-Authenticate"] = "ApiKey realm=\"kolosal\"";
                 ServerLogger::logWarning("API key authentication failed for request from %s to %s %s",
                                          requestInfo.clientIP.c_str(), requestInfo.method.c_str(), requestInfo.path.c_str());
                 return result;
@@ -102,11 +104,16 @@ namespace kolosal
                 result.statusCode = 429; // Too Many Requests
                 result.reason = "Rate limit exceeded";
 
-                // Add rate limit headers
-                result.headers["X-Rate-Limit-Limit"] = std::to_string(rateLimiter_->getConfig().maxRequests);
+                auto limit = rateLimiter_->getConfig().maxRequests;
+                auto resetSeconds = rateLimitResult.resetTime.count();
+                result.headers["RateLimit-Limit"] = std::to_string(limit);
+                result.headers["RateLimit-Remaining"] = "0";
+                result.headers["RateLimit-Reset"] = std::to_string(resetSeconds);
+                // Legacy headers
+                result.headers["X-Rate-Limit-Limit"] = std::to_string(limit);
                 result.headers["X-Rate-Limit-Remaining"] = "0";
-                result.headers["X-Rate-Limit-Reset"] = std::to_string(rateLimitResult.resetTime.count());
-                result.headers["Retry-After"] = std::to_string(rateLimitResult.resetTime.count());
+                result.headers["X-Rate-Limit-Reset"] = std::to_string(resetSeconds);
+                result.headers["Retry-After"] = std::to_string(resetSeconds);
 
                 ServerLogger::logWarning("Rate limit exceeded for client %s - %zu requests used",
                                          requestInfo.clientIP.c_str(), rateLimitResult.requestsUsed);
@@ -114,9 +121,15 @@ namespace kolosal
             }
 
             // Add rate limit information to response headers
-            result.headers["X-Rate-Limit-Limit"] = std::to_string(rateLimiter_->getConfig().maxRequests);
+            auto limit = rateLimiter_->getConfig().maxRequests;
+            auto resetSeconds = rateLimitResult.resetTime.count();
+            result.headers["RateLimit-Limit"] = std::to_string(limit);
+            result.headers["RateLimit-Remaining"] = std::to_string(rateLimitResult.requestsRemaining);
+            result.headers["RateLimit-Reset"] = std::to_string(resetSeconds);
+            // Legacy headers
+            result.headers["X-Rate-Limit-Limit"] = std::to_string(limit);
             result.headers["X-Rate-Limit-Remaining"] = std::to_string(rateLimitResult.requestsRemaining);
-            result.headers["X-Rate-Limit-Reset"] = std::to_string(rateLimitResult.resetTime.count());
+            result.headers["X-Rate-Limit-Reset"] = std::to_string(resetSeconds);
 
             // Store rate limit info in result
             result.rateLimitUsed = rateLimitResult.requestsUsed;
@@ -224,8 +237,13 @@ namespace kolosal
                 return false;
             }
             
-            // Use unordered_set's optimized find instead of find() != end() pattern
-            return apiKeyConfig_.validKeys.count(apiKey) > 0;
+            // Constant-time comparison across keys to avoid timing oracle
+            for (const auto &candidate : apiKeyConfig_.validKeys) {
+                if (constantTimeEqual(candidate, apiKey)) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         void AuthMiddleware::addApiKey(const std::string &apiKey)
@@ -256,15 +274,16 @@ namespace kolosal
         std::string AuthMiddleware::getHeaderValue(const std::map<std::string, std::string> &headers,
                                                    const std::string &name) const
         {
-            // Check cache first for frequently accessed headers
-            if (headerCache_.shouldClear()) {
-                headerCache_.clear();
-            }
-            
-            std::string cacheKey = name + ":" + std::to_string(headers.size());
-            auto cacheIt = headerCache_.cache.find(cacheKey);
-            if (cacheIt != headerCache_.cache.end()) {
-                return cacheIt->second;
+            {
+                std::lock_guard<std::mutex> lock(headerCacheMutex_);
+                if (headerCache_.shouldClear()) {
+                    headerCache_.clear();
+                }
+                std::string cacheKey = name + ":" + std::to_string(headers.size());
+                auto cacheIt = headerCache_.cache.find(cacheKey);
+                if (cacheIt != headerCache_.cache.end()) {
+                    return cacheIt->second;
+                }
             }
             
             std::string result;
@@ -287,8 +306,12 @@ namespace kolosal
             }
             
             // Cache the result for future use
-            if (headerCache_.cache.size() < HeaderCache::MAX_CACHE_SIZE) {
-                headerCache_.cache[cacheKey] = result;
+            {
+                std::lock_guard<std::mutex> lock(headerCacheMutex_);
+                std::string cacheKey = name + ":" + std::to_string(headers.size());
+                if (headerCache_.cache.size() < HeaderCache::MAX_CACHE_SIZE) {
+                    headerCache_.cache[cacheKey] = result;
+                }
             }
 
             return result;
@@ -333,6 +356,16 @@ namespace kolosal
             }
 
             return isValid;
+        }
+
+        bool AuthMiddleware::constantTimeEqual(const std::string &a, const std::string &b)
+        {
+            if (a.size() != b.size()) return false;
+            unsigned char diff = 0;
+            for (size_t i = 0; i < a.size(); ++i) {
+                diff |= static_cast<unsigned char>(a[i]) ^ static_cast<unsigned char>(b[i]);
+            }
+            return diff == 0;
         }
 
     } // namespace auth

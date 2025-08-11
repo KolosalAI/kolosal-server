@@ -88,9 +88,16 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
     headerStream << "Transfer-Encoding: chunked\r\n";
     headerStream << "Connection: keep-alive\r\n";
     headerStream << "Cache-Control: no-cache\r\n";
-    headerStream << "Access-Control-Allow-Origin: *\r\n";
-    headerStream << "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n";
-    headerStream << "Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-API-Key\r\n";
+    // CORS headers: only add permissive defaults if caller did not supply any CORS header
+    bool hasOrigin = false;
+    for (const auto &kv : headers) {
+        if (kv.first == "Access-Control-Allow-Origin" || kv.first == "access-control-allow-origin") { hasOrigin = true; break; }
+    }
+    if (!hasOrigin) {
+        headerStream << "Access-Control-Allow-Origin: *\r\n";
+        headerStream << "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n";
+        headerStream << "Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-API-Key\r\n";
+    }
     headerStream << "X-Content-Type-Options: nosniff\r\n";
     headerStream << "X-Frame-Options: DENY\r\n";
     headerStream << "X-XSS-Protection: 1; mode=block\r\n";

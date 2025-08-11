@@ -4,7 +4,8 @@
 #include <sstream>
 
 namespace kolosal
-{    namespace auth
+{    
+    namespace auth
     {
 
         CorsHandler::CorsHandler() : config_()
@@ -37,16 +38,19 @@ namespace kolosal
                 return result;
             }
 
-            // Set the Access-Control-Allow-Origin header
-            if (!origin.empty())
-            {
-                if (config_.allowedOrigins.size() == 1 && config_.allowedOrigins[0] == "*")
-                {
-                    result.headers["Access-Control-Allow-Origin"] = "*";
-                }
-                else
-                {
+            // Set the Access-Control-Allow-Origin header following the Fetch standard
+            if (!origin.empty()) {
+                bool wildcard = (config_.allowedOrigins.size() == 1 && config_.allowedOrigins[0] == "*");
+                if (wildcard && config_.allowCredentials && config_.allowWildcardWithCredentials) {
+                    // Can't send '*' with credentials; echo the origin instead if flag enabled
                     result.headers["Access-Control-Allow-Origin"] = origin;
+                    // Ensure Vary: Origin so caches differentiate
+                    result.headers["Vary"] = "Origin";
+                } else if (wildcard) {
+                    result.headers["Access-Control-Allow-Origin"] = "*";
+                } else {
+                    result.headers["Access-Control-Allow-Origin"] = origin;
+                    result.headers["Vary"] = "Origin"; // dynamic allowlist
                 }
             }
 
@@ -96,6 +100,7 @@ namespace kolosal
             // Set credentials header if configured
             if (config_.allowCredentials)
             {
+                // Only add credentials header if we did not leave '*' with credentials disallowed
                 result.headers["Access-Control-Allow-Credentials"] = "true";
             }
 

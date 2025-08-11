@@ -463,17 +463,33 @@ namespace kolosal
 												  authResult.reason.c_str());							// Add OpenAI-compatible response headers
 							std::map<std::string, std::string> responseHeaders = {
 								{"Content-Type", "application/json"},
-								{"Access-Control-Allow-Origin", "*"},
-								{"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS"},
-								{"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, X-API-Key"},
 								{"X-Content-Type-Options", "nosniff"},
 								{"X-Frame-Options", "DENY"},
 								{"X-XSS-Protection", "1; mode=block"},
 								{"Referrer-Policy", "strict-origin-when-cross-origin"}
 							};
-							
-							// Merge authentication response headers
-							responseHeaders.insert(authResult.headers.begin(), authResult.headers.end());
+
+							// Overwrite merge to ensure dynamic CORS headers replace defaults
+							for (const auto &kv : authResult.headers) {
+								responseHeaders[kv.first] = kv.second;
+							}
+
+							// Ensure Access-Control-Allow-Origin not containing repeated comma '*'
+							auto acaoIt = responseHeaders.find("Access-Control-Allow-Origin");
+							if (acaoIt != responseHeaders.end()) {
+								if (acaoIt->second.find(",") != std::string::npos) {
+									// Simplify: if any '*' present reduce to single '*', else take first token
+									if (acaoIt->second.find("*") != std::string::npos) {
+										acaoIt->second = "*";
+									} else {
+										auto commaPos = acaoIt->second.find(',');
+										acaoIt->second = acaoIt->second.substr(0, commaPos);
+										// trim
+										while (!acaoIt->second.empty() && (acaoIt->second.front()==' '||acaoIt->second.front()=='\t')) acaoIt->second.erase(acaoIt->second.begin());
+										while (!acaoIt->second.empty() && (acaoIt->second.back()==' '||acaoIt->second.back()=='\t')) acaoIt->second.pop_back();
+									}
+								}
+							}
 
 							// Check if request is blocked by authentication
 							if (!authResult.allowed)

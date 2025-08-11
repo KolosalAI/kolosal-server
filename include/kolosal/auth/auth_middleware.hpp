@@ -10,6 +10,7 @@
 #include <unordered_set>
 #include <unordered_map>
 #include <chrono>
+#include <mutex>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -245,6 +246,14 @@ namespace kolosal
             bool validateApiKeyAuth(const RequestInfo& requestInfo) const;
 
             /**
+             * @brief Constant-time comparison helper to mitigate timing attacks.
+             * @param a First string
+             * @param b Second string
+             * @return True if equal
+             */
+            static bool constantTimeEqual(const std::string &a, const std::string &b);
+
+            /**
              * @brief Simple cache for header lookups to improve performance
              */
             struct HeaderCache {
@@ -252,6 +261,7 @@ namespace kolosal
                 std::chrono::steady_clock::time_point lastClear;
                 static constexpr size_t MAX_CACHE_SIZE = 1000;
                 static constexpr auto CACHE_TTL = std::chrono::minutes(5);
+                HeaderCache() : lastClear(std::chrono::steady_clock::now()) {}
                 
                 void clear() {
                     cache.clear();
@@ -272,6 +282,8 @@ namespace kolosal
 #pragma warning(pop)
             ApiKeyConfig apiKeyConfig_;
             mutable HeaderCache headerCache_;
+            // Mutex protecting header cache (getHeaderValue can be called concurrently)
+            mutable std::mutex headerCacheMutex_;
         };
 
     } // namespace auth

@@ -41,6 +41,7 @@ namespace kolosal
                 bool allowCredentials = false;           // Whether to allow credentials
                 int maxAge = 86400;                      // Preflight cache duration in seconds
                 bool enabled = true;                     // Whether CORS is enabled
+                bool allowWildcardWithCredentials = false; // If true, dynamically echoes origin when '*' configured and credentials allowed
 
                 Config()
                 {
