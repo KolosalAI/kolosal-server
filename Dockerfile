@@ -66,9 +66,7 @@ COPY . .
 RUN if [ -d .git ]; then git submodule update --init --recursive; else echo "No .git directory – assuming external deps vendored"; fi
 
 # Configure & build
-RUN --mount=type=cache,target=/root/.ccache \
-    --mount=type=cache,target=/src/build \
-    set -eux; \
+RUN set -eux; \
     cmake -S . -B build -G Ninja \
       -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
       -DENABLE_NATIVE_OPTIMIZATION=${ENABLE_NATIVE_OPTIMIZATION} \
