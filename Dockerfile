@@ -64,13 +64,12 @@ COPY CMakeLists.txt ./
 COPY cmake ./cmake
 COPY external ./external
 COPY include ./include
-COPY inference/CMakeLists.txt inference/CMakeLists.txt
-COPY inference/src inference/src
-COPY inference/include inference/include
-COPY src/CMakeLists.txt src/CMakeLists.txt
 
-# Copy remaining source & configs
+# Copy source trees (avoid referencing non-existent per-dir CMakeLists)
+COPY inference ./inference
 COPY src ./src
+
+# Copy configs & license
 COPY config.example.yaml config.example.json config.yaml config.json config_rms.yaml config-rms.yaml ./
 COPY LICENSE .
 
