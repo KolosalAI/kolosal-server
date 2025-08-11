@@ -1635,7 +1635,12 @@ namespace kolosal
                 // Create new model config
                 ModelConfig modelConfig;
                 modelConfig.id = engineId;
-                modelConfig.path = ServerConfig::makeAbsolutePath(modelPath);  // Convert to absolute path
+                // Don't convert URLs to absolute paths
+                if (is_valid_url(modelPath)) {
+                    modelConfig.path = modelPath;
+                } else {
+                    modelConfig.path = ServerConfig::makeAbsolutePath(modelPath);  // Convert to absolute path
+                }
                 modelConfig.loadImmediately = loadImmediately;
                 modelConfig.mainGpuId = mainGpuId;
                 modelConfig.inferenceEngine = actualInferenceEngine;
@@ -1651,7 +1656,12 @@ namespace kolosal
                 {
                     if (existingModel.id == engineId)
                     {
-                        existingModel.path = ServerConfig::makeAbsolutePath(modelPath);  // Convert to absolute path
+                        // Don't convert URLs to absolute paths
+                        if (is_valid_url(modelPath)) {
+                            existingModel.path = modelPath;
+                        } else {
+                            existingModel.path = ServerConfig::makeAbsolutePath(modelPath);  // Convert to absolute path
+                        }
                         existingModel.loadImmediately = loadImmediately;
                         existingModel.mainGpuId = mainGpuId;
                         existingModel.inferenceEngine = actualInferenceEngine;

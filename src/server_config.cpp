@@ -1,5 +1,6 @@
 #include "kolosal/server_config.hpp"
 #include "kolosal/logger.hpp"
+#include "kolosal/download_utils.hpp"
 #include <yaml-cpp/yaml.h>
 #include <iostream>
 #include <fstream>
@@ -858,8 +859,15 @@ namespace kolosal
                     ModelConfig model;
                     if (modelConfig["id"])
                         model.id = modelConfig["id"].as<std::string>();
-                    if (modelConfig["path"])
-                        model.path = ServerConfig::makeAbsolutePath(modelConfig["path"].as<std::string>());
+                    if (modelConfig["path"]) {
+                        std::string pathStr = modelConfig["path"].as<std::string>();
+                        // Don't convert URLs to absolute paths
+                        if (is_valid_url(pathStr)) {
+                            model.path = pathStr;
+                        } else {
+                            model.path = ServerConfig::makeAbsolutePath(pathStr);
+                        }
+                    }
                     if (modelConfig["type"])
                         model.type = modelConfig["type"].as<std::string>();
                     // Support both new and old field names for backward compatibility
