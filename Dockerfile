@@ -24,6 +24,7 @@ ARG BUILD_TYPE=Release
 ARG ENABLE_NATIVE_OPTIMIZATION=OFF
 ARG ENABLE_OPENCL=ON
 ARG RUN_TESTS=OFF
+ARG USE_PODOFO=ON
 ARG TARGETARCH
 
 ENV TZ=${TZ} \
@@ -38,6 +39,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     libcurl4-openssl-dev libyaml-cpp-dev libssl-dev libbz2-dev \
     python3 python3-pip ninja-build ccache \
     ocl-icd-opencl-dev opencl-headers \
+    # PoDoFo / PDF support dependencies (needed if USE_PODOFO=ON) \
+    libfreetype6-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libfontconfig1-dev \
   && rm -rf /var/lib/apt/lists/*
 
 # Install pinned CMake
@@ -71,7 +74,8 @@ RUN set -eux; \
       -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
       -DENABLE_NATIVE_OPTIMIZATION=${ENABLE_NATIVE_OPTIMIZATION} \
       -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
-      -DENABLE_OPENCL=${ENABLE_OPENCL}; \
+      -DENABLE_OPENCL=${ENABLE_OPENCL} \
+      -DUSE_PODOFO=${USE_PODOFO}; \
     cmake --build build --config ${BUILD_TYPE}
 
 # Optional test run
@@ -109,6 +113,8 @@ ENV LD_LIBRARY_PATH=/usr/local/lib:/app/libs \
 RUN apt-get update && apt-get install -y --no-install-recommends \
       libcurl4 libyaml-cpp0.7 libssl3 libbz2-1.0 libgomp1 zlib1g \
       ca-certificates curl tini \
+      # Runtime libs for PoDoFo (if enabled) \
+      libfreetype6 libjpeg-turbo8 libpng16-16 libtiff5 libxml2 fontconfig \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
