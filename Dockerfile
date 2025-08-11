@@ -59,20 +59,8 @@ ENV PATH=/usr/lib/ccache:${PATH} \
 
 WORKDIR /src
 
-# Copy core build definition files first for caching
-COPY CMakeLists.txt ./
-COPY cmake ./cmake
-COPY external ./external
-COPY include ./include
-
-# Copy source trees (avoid referencing non-existent per-dir CMakeLists)
-COPY inference ./inference
-COPY src ./src
-
-# Copy configs (only required ones). Avoid listing files that might not exist.
-# Prefer config-rms.yaml (requested) and fallback to underscore variant if present.
-COPY config-rms.yaml* config_rms.yaml* ./
-COPY config.example.yaml config.example.json config.json LICENSE ./
+# Copy entire project (relying on .dockerignore to trim context). This avoids failures when optional files are absent.
+COPY . .
 
 # Init submodules if git metadata present
 RUN if [ -d .git ]; then git submodule update --init --recursive; else echo "No .git directory – assuming external deps vendored"; fi
@@ -98,7 +86,7 @@ RUN set -eux; \
     cp build/kolosal-server /out/bin/; \
   if [ -f config-rms.yaml ]; then cp config-rms.yaml /out/config/config.yaml; \
   elif [ -f config_rms.yaml ]; then cp config_rms.yaml /out/config/config.yaml; \
-  elif [ -f config.yaml ]; then cp config.yaml /out/config/config.yaml; fi; \
+  elif [ -f config.yaml ]; then cp config.yaml /out/config/config.yaml; else echo "No config found; provide one at runtime"; fi; \
     # Attempt to gather non-system shared libs referenced by the binary
     ldd build/kolosal-server | awk '{for(i=1;i<=NF;i++) if ($i ~ /\//) print $i}' | sort -u > /tmp/libs_list.txt || true; \
     while read -r lib; do \
