@@ -8,7 +8,7 @@ server:
 
 # Logging Configuration
 logging:
-  level: INFO                        # Logging level (e.g., DEBUG, INFO, WARNING, ERROR)
+  level: DEBUG                        # Logging level (e.g., DEBUG, INFO, WARNING, ERROR)
   file: ""                           # Path to log file (empty = no file logging)
   access_log: false                 # Enable/disable access log
   quiet_mode: false                # Suppress non-essential logs
