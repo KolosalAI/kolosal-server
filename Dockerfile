@@ -166,7 +166,8 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -fsS http://localhost:8084/health || exit 1
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["kolosal-server", "--config", "/app/config/config.yaml"]
+# Prefer config-rms.yaml if present at runtime, else fall back to config.yaml
+CMD ["/bin/sh", "-c", "if [ -f /app/config/config-rms.yaml ]; then echo 'Using config-rms.yaml'; exec kolosal-server --config /app/config/config-rms.yaml; else echo 'Using config.yaml'; exec kolosal-server --config /app/config/config.yaml; fi"]
 
 # Example builds:
 # (Default CUDA build)

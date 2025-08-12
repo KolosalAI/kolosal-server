@@ -30,7 +30,10 @@ services:
       # - LOG_LEVEL=info
     volumes:
       - models_data:/app/models
-      - kolosal_config:/app/config
+      # Bind-mount desired RMS config directly; container will use this file
+      - ./config-rms.yaml:/app/config/config-rms.yaml:ro
+    # Explicitly point to config-rms.yaml (overrides default CMD in image)
+    command: ["kolosal-server", "--config", "/app/config/config-rms.yaml"]
     # Modern GPU request syntax (Docker 24+ / Compose v2.22+). Remove if CPU-only.
     gpus: all
     healthcheck:
@@ -62,7 +65,6 @@ services:
 # Named volumes for persistence
 volumes:
   models_data:
-  kolosal_config:
 
 networks:
   kolosal-network:
