@@ -246,6 +246,12 @@ endif()
 # All llama.cpp, CUDA, Vulkan, Metal, and MPI dependencies are handled by the inference library
 add_subdirectory(inference)
 
+# If inferred target name doesn't actually exist, fall back to the exported inference target name
+if(NOT TARGET ${INFERENCE_TARGET} AND DEFINED INFERENCE_TARGET_NAME AND TARGET ${INFERENCE_TARGET_NAME})
+    message(WARNING "Configured inference target '${INFERENCE_TARGET}' not found; using detected target '${INFERENCE_TARGET_NAME}' instead")
+    set(INFERENCE_TARGET ${INFERENCE_TARGET_NAME})
+endif()
+
 # Link the main server library with yaml-cpp
 target_link_libraries(kolosal_server PUBLIC yaml-cpp)
 
@@ -1646,13 +1652,17 @@ elseif(UNIX)
         COMMENT "Copying libkolosal_server.so to executable directory"
     )
     
-    # Copy the inference engine shared library for Linux
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE:${INFERENCE_TARGET}>"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-        COMMENT "Copying ${INFERENCE_TARGET}.so to executable directory"
-    )
+    # Copy the inference engine shared library for Linux (guard if target exists)
+    if(TARGET ${INFERENCE_TARGET})
+        add_custom_command(TARGET kolosal_server_exe POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "$<TARGET_FILE:${INFERENCE_TARGET}>"
+            "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+            COMMENT "Copying ${INFERENCE_TARGET}.so to executable directory"
+        )
+    else()
+        message(WARNING "Inference target '${INFERENCE_TARGET}' not found at copy stage; skipping library copy")
+    endif()
 endif()
 
 # Install header files only for development packages
