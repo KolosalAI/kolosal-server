@@ -220,9 +220,16 @@ set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "Build yaml-cpp as static library" FOR
 add_subdirectory(${YAML_CPP_PATH})
 
 # Determine inference library target name based on acceleration options
-if(USE_CUDA)
+# Allow GGML_CUDA (passed in from Docker build) to imply CUDA engine naming even if USE_CUDA not explicitly set.
+if(USE_CUDA OR GGML_CUDA)
     set(INFERENCE_TARGET "llama-cuda")
-    message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (CUDA acceleration)")
+    if(USE_CUDA AND GGML_CUDA)
+        message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (CUDA acceleration via USE_CUDA & GGML_CUDA)")
+    elseif(GGML_CUDA)
+        message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (CUDA acceleration inferred from GGML_CUDA)")
+    else()
+        message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (CUDA acceleration)")
+    endif()
 elseif(USE_VULKAN)
     set(INFERENCE_TARGET "llama-vulkan")
     message(STATUS "Will build inference engine: ${INFERENCE_TARGET} (Vulkan acceleration)")
