@@ -1,0 +1,78 @@
+version: "3.9"
+
+# Minimal stack: Kolosal server (CUDA) + Dashboard only
+# Build instructions:
+#   docker compose build
+# Run:
+#   docker compose up -d
+# View logs:
+#   docker compose logs -f kolosal-server
+# GPU note: Requires NVIDIA Container Toolkit installed on host.
+# If you want CPU-only, set build arg ENABLE_CUDA=OFF or use the cpu build comment block below.
+
+services:
+  kolosal-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_TYPE: Release
+        ENABLE_CUDA: "ON"     # set to "OFF" for CPU-only build
+    image: kolosal-server:local
+    container_name: kolosal-server
+    ports:
+      - "8084:8084"
+    environment:
+      - SERVER_HOST=0.0.0.0
+      - SERVER_PORT=8084
+      # Optional overrides (uncomment as needed):
+      # - KOLOSAL_MODELS_DIR=/app/models
+      # - KOLOSAL_ALLOW_CONFIG_SAVE=1
+      # - LOG_LEVEL=info
+    volumes:
+      - models_data:/app/models
+      - kolosal_config:/app/config
+    # GPU access (Compose v3 syntax). For Compose v2 / Docker 24+:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # For older Docker versions you can instead use:
+    # runtime: nvidia
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8084/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+    restart: unless-stopped
+    networks:
+      - kolosal-network
+
+  dashboard:
+    build: https://github.com/KolosalAI/Kolosal-RMS-Dashboard.git#main
+    image: kolosal-dashboard:local
+    container_name: kolosal-dashboard
+    depends_on:
+      - kolosal-server
+    environment:
+      - NODE_ENV=production
+      - KOLOSAL_SERVER_URL=http://kolosal-server:8084
+      # Optional: feature flags or API keys can be added here
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    networks:
+      - kolosal-network
+
+# Named volumes for persistence
+volumes:
+  models_data:
+  kolosal_config:
+
+networks:
+  kolosal-network:
+    driver: bridge
