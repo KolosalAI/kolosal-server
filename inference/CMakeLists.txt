@@ -89,6 +89,9 @@ message(STATUS "Building inference engine: ${TARGET_NAME} (${ACCELERATION_TYPE})
 
 # Create the shared library target
 add_library(${TARGET_NAME} SHARED ${SOURCES} ${HEADERS})
+add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E echo "[Inference] Built ${TARGET_NAME} at: $<TARGET_FILE:${TARGET_NAME}>"
+)
 
 # Define compile definitions for the library
 target_compile_definitions(${TARGET_NAME} PRIVATE INFERENCE_EXPORTS)
@@ -159,12 +162,42 @@ endif()
 if(USE_CUDA OR GGML_CUDA)
     set(GGML_CUDA ON CACHE BOOL "Enable GGML CUDA support" FORCE)
     message(STATUS "Using CUDA for GGML acceleration (condition: USE_CUDA=${USE_CUDA} GGML_CUDA=${GGML_CUDA})")
-    find_package(CUDA)
-    if(CUDA_FOUND)
-        target_include_directories(${TARGET_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
-        target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_CUDA_LIBRARY})
+    # Try modern CUDAToolkit first, fall back to legacy FindCUDA
+    find_package(CUDAToolkit QUIET)
+    if(CUDAToolkit_FOUND)
+        message(STATUS "Found modern CUDAToolkit: using CUDA::cudart and CUDA::cublas targets")
+        # Some minimal set; linking cublasLt if available
+        set(_CUDA_LINK_LIBS CUDA::cudart)
+        if(TARGET CUDA::cublas)
+            list(APPEND _CUDA_LINK_LIBS CUDA::cublas)
+        endif()
+        if(TARGET CUDA::cublasLt)
+            list(APPEND _CUDA_LINK_LIBS CUDA::cublasLt)
+        endif()
+        target_link_libraries(${TARGET_NAME} PRIVATE ${_CUDA_LINK_LIBS})
     else()
-        message(WARNING "CUDA toolkit not found while CUDA acceleration requested; building target anyway. Install CUDA to enable GPU acceleration.")
+        find_package(CUDA QUIET) # Legacy
+        if(CUDA_FOUND)
+            message(STATUS "Found legacy CUDA toolkit (FindCUDA). Includes: ${CUDA_INCLUDE_DIRS}")
+            target_include_directories(${TARGET_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
+            # Assemble link libraries conservatively; some variables might be unset on newer images
+            set(_LEGACY_CUDA_LIBS ${CUDA_LIBRARIES})
+            if(DEFINED CUDA_CUBLAS_LIBRARIES)
+                list(APPEND _LEGACY_CUDA_LIBS ${CUDA_CUBLAS_LIBRARIES})
+            endif()
+            # Avoid referencing CUDA_CUDA_LIBRARY if not defined
+            if(DEFINED CUDA_CUDA_LIBRARY AND CUDA_CUDA_LIBRARY)
+                list(APPEND _LEGACY_CUDA_LIBS ${CUDA_CUDA_LIBRARY})
+            endif()
+            list(REMOVE_DUPLICATES _LEGACY_CUDA_LIBS)
+            if(_LEGACY_CUDA_LIBS)
+                target_link_libraries(${TARGET_NAME} PRIVATE ${_LEGACY_CUDA_LIBS})
+            else()
+                message(WARNING "Legacy CUDA find script returned no link libraries; proceeding without explicit CUDA libs (may fail at link time)")
+            endif()
+        else()
+            message(WARNING "CUDA toolkit not found (neither CUDAToolkit nor legacy FindCUDA). Building target anyway; will run CPU path unless GPU libs present at runtime.")
+        endif()
     endif()
 elseif(USE_VULKAN)
     set(GGML_VULKAN ON CACHE BOOL "Enable GGML Vulkan support" FORCE)
