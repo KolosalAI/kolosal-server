@@ -80,13 +80,18 @@ database:
 # Inference Engine Definitions
 inference_engines:
   - name: llama-cpu
-    library_path: /usr/local/lib/libllama-cpu.so  # Path to the inference engine library (Docker Linux path)
+    library_path: /usr/local/lib/libllama-cpu.so  # CPU inference engine (fallback / compatibility)
     version: 1.0.0
     description: CPU-based inference engine for LLaMA models
-    load_on_startup: true            # Whether to load this engine when the server starts
+    load_on_startup: true
+  - name: llama-cuda
+    library_path: /usr/local/lib/libllama-cuda.so # CUDA accelerated engine (ensure built with ENABLE_CUDA=ON)
+    version: 1.0.0
+    description: CUDA-accelerated inference engine for LLaMA models
+    load_on_startup: true
 
 # Default inference engine to use
-default_inference_engine: llama-cpu
+default_inference_engine: llama-cuda   # Use GPU by default (set back to llama-cpu to force CPU-only)
 
 # General feature toggles
 features:
@@ -110,8 +115,8 @@ models:
     path: "https://huggingface.co/kolosal/qwen3-embedding-4b/resolve/main/Qwen3-Embedding-4B-Q4_K_M.gguf"
     type: embedding
     load_immediately: true
-    main_gpu_id: 0
-    inference_engine: llama-cpu
+    main_gpu_id: 0                 # GPU device index (set -1 for CPU only)
+    inference_engine: llama-cuda   # Switch to CUDA engine for GPU acceleration
     load_params:
       n_ctx: 4096
       n_keep: 1024
@@ -120,7 +125,7 @@ models:
       n_parallel: 1
       cont_batching: true
       warmup: false
-      n_gpu_layers: 100
+      n_gpu_layers: 100            # Reduce if you run out of VRAM (e.g., 50, 30, or 0 for CPU fallback)
       n_batch: 2048
       n_ubatch: 512
 
@@ -129,7 +134,7 @@ models:
     type: llm
     load_immediately: true
     main_gpu_id: 0
-    inference_engine: llama-cpu
+    inference_engine: llama-cuda   # Use GPU
     load_params:
       n_ctx: 2048
       n_keep: 1024
@@ -138,6 +143,6 @@ models:
       n_parallel: 1
       cont_batching: true
       warmup: false
-      n_gpu_layers: 100
+      n_gpu_layers: 100            # Tune based on VRAM (set 0 to force CPU execution)
       n_batch: 2048
       n_ubatch: 512
