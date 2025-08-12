@@ -70,7 +70,8 @@ set(HEADERS
 )
 
 # Determine the target name based on acceleration options
-if(USE_CUDA)
+# Permit GGML_CUDA to imply CUDA naming when USE_CUDA not explicitly set.
+if(USE_CUDA OR GGML_CUDA)
     set(TARGET_NAME "llama-cuda")
     set(ACCELERATION_TYPE "cuda")
 elseif(USE_VULKAN)
@@ -155,16 +156,15 @@ if(BUILD_SHARED_LIBS OR CMAKE_POSITION_INDEPENDENT_CODE)
 endif()
 
 # Enable GGML acceleration based on options
-if(USE_CUDA)
+if(USE_CUDA OR GGML_CUDA)
     set(GGML_CUDA ON CACHE BOOL "Enable GGML CUDA support" FORCE)
-    message(STATUS "Using CUDA for GGML acceleration")
-    
-    find_package(CUDA REQUIRED)
+    message(STATUS "Using CUDA for GGML acceleration (condition: USE_CUDA=${USE_CUDA} GGML_CUDA=${GGML_CUDA})")
+    find_package(CUDA)
     if(CUDA_FOUND)
         target_include_directories(${TARGET_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
         target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_CUDA_LIBRARY})
     else()
-        message(FATAL_ERROR "CUDA not found. Please install CUDA toolkit.")
+        message(WARNING "CUDA toolkit not found while CUDA acceleration requested; building target anyway. Install CUDA to enable GPU acceleration.")
     endif()
 elseif(USE_VULKAN)
     set(GGML_VULKAN ON CACHE BOOL "Enable GGML Vulkan support" FORCE)

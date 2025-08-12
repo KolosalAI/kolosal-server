@@ -85,6 +85,20 @@ RUN set -eux; \
   -DGGML_CUDA_NO_VMM=${GGML_CUDA_NO_VMM}; \
     cmake --build build --config ${BUILD_TYPE}
 
+# Sanity check: ensure CUDA library exists when CUDA is enabled
+RUN set -eux; \
+    if [ "${ENABLE_CUDA}" = "ON" ]; then \
+      if ! find build -maxdepth 4 -type f -name 'libllama-cuda.so' | grep -q .; then \
+        echo 'ERROR: Expected libllama-cuda.so not found in build output while ENABLE_CUDA=ON'; \
+        echo 'Listing candidate llama libs:'; find build -type f -name 'libllama-*' -printf '%p\n' || true; \
+        exit 1; \
+      else \
+        echo 'Found libllama-cuda.so:'; find build -maxdepth 4 -type f -name 'libllama-cuda.so'; \
+      fi; \
+    else \
+      echo 'ENABLE_CUDA=OFF, skipping CUDA library presence check'; \
+    fi
+
 # Optional test run
 RUN if [ "${RUN_TESTS}" = "ON" ]; then ctest --test-dir build -j"$(nproc)" --output-on-failure; else echo "Tests skipped"; fi
 
@@ -152,7 +166,32 @@ RUN set -eux; \
       fi; \
     done; \
     ldconfig || true; \
-    echo 'Runtime libs in /usr/local/lib:'; ls -1 /usr/local/lib | grep -E 'lib(llama|kolosal)' || true
+    echo 'Runtime libs in /usr/local/lib:'; ls -1 /usr/local/lib | grep -E 'lib(llama|kolosal)' || true; \
+    if [ "${ENABLE_CUDA:-ON}" = "ON" ] && [ ! -f /usr/local/lib/libllama-cuda.so ]; then \
+      echo 'WARNING: libllama-cuda.so missing in runtime stage even though ENABLE_CUDA=ON'; \
+      echo 'Listing /app/libs contents for diagnostics:'; ls -l /app/libs | sed 's/^/  /'; \
+    fi
+
+# Optional debug env (set KOL_DEBUG=1 to list libs & config at container start)
+ENV KOL_DEBUG=0
+
+# Lightweight entry wrapper to provide diagnostics when requested
+COPY --from=build /bin/sh /bin/sh
+
+RUN printf '%s\n' '#!/bin/sh' \
+  'set -e' \
+  'if [ "$KOL_DEBUG" = "1" ]; then' \
+  '  echo "[DEBUG] Config directory (/app/config):"; ls -l /app/config || true;' \
+  '  echo "[DEBUG] Expected CUDA lib presence: "; if [ -f /usr/local/lib/libllama-cuda.so ]; then echo "FOUND"; else echo "MISSING"; fi' \
+  '  echo "[DEBUG] Listing /usr/local/lib llama libs:"; ls -1 /usr/local/lib | grep libllama || true;' \
+  'fi' \
+  'if [ -f /app/config/config-rms.yaml ]; then' \
+  '  echo "Using config-rms.yaml";' \
+  '  exec kolosal-server --config /app/config/config-rms.yaml' \
+  'else' \
+  '  echo "Using config.yaml";' \
+  '  exec kolosal-server --config /app/config/config.yaml' \
+  'fi' > /usr/local/bin/kolosal-entry.sh && chmod +x /usr/local/bin/kolosal-entry.sh
 
 # Non-root user
 RUN useradd -r -u 10001 -d /app kolosal && chown -R kolosal:kolosal /app
@@ -165,9 +204,7 @@ EXPOSE 8084
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
   CMD curl -fsS http://localhost:8084/health || exit 1
 
-ENTRYPOINT ["/usr/bin/tini", "--"]
-# Prefer config-rms.yaml if present at runtime, else fall back to config.yaml
-CMD ["/bin/sh", "-c", "if [ -f /app/config/config-rms.yaml ]; then echo 'Using config-rms.yaml'; exec kolosal-server --config /app/config/config-rms.yaml; else echo 'Using config.yaml'; exec kolosal-server --config /app/config/config.yaml; fi"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/kolosal-entry.sh"]
 
 # Example builds:
 # (Default CUDA build)
