@@ -13,6 +13,7 @@
 #include <cstring>
 #include <chrono>
 #include <future>
+#include <cmath> // for std::sqrt
 #ifdef USE_VULKAN
 #include <vulkan/vulkan.h>
 #endif
