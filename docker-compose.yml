@@ -1,5 +1,3 @@
-version: "3.9"
-
 # Minimal stack: Kolosal server (CUDA) + Dashboard only
 # Build instructions:
 #   docker compose build
@@ -25,6 +23,7 @@ services:
     environment:
       - SERVER_HOST=0.0.0.0
       - SERVER_PORT=8084
+      - NVIDIA_VISIBLE_DEVICES=all   # expose all GPUs (requires nvidia-container-toolkit)
       # Optional overrides (uncomment as needed):
       # - KOLOSAL_MODELS_DIR=/app/models
       # - KOLOSAL_ALLOW_CONFIG_SAVE=1
@@ -32,16 +31,8 @@ services:
     volumes:
       - models_data:/app/models
       - kolosal_config:/app/config
-    # GPU access (Compose v3 syntax). For Compose v2 / Docker 24+:
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    # For older Docker versions you can instead use:
-    # runtime: nvidia
+    # Modern GPU request syntax (Docker 24+ / Compose v2.22+). Remove if CPU-only.
+    gpus: all
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8084/health"]
       interval: 30s
