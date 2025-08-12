@@ -14,7 +14,10 @@
 # - Healthcheck retained (tunable)
 ###############################
 
-ARG BASE_IMAGE=ubuntu:22.04
+# Default to CUDA-enabled build using NVIDIA CUDA devel image
+# To use a pure CPU build instead, override BASE_IMAGE (and optionally set ENABLE_CUDA=OFF)
+ARG CUDA_VERSION=12.4.1
+ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04
 FROM ${BASE_IMAGE} AS build
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -23,6 +26,7 @@ ARG CMAKE_VERSION=3.25.3
 ARG BUILD_TYPE=Release
 ARG ENABLE_NATIVE_OPTIMIZATION=OFF
 ARG ENABLE_OPENCL=ON
+ARG ENABLE_CUDA=ON
 ARG RUN_TESTS=OFF
 ARG USE_PODOFO=ON
 ARG TARGETARCH
@@ -75,7 +79,9 @@ RUN set -eux; \
       -DENABLE_NATIVE_OPTIMIZATION=${ENABLE_NATIVE_OPTIMIZATION} \
       -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
       -DENABLE_OPENCL=${ENABLE_OPENCL} \
-      -DUSE_PODOFO=${USE_PODOFO}; \
+      -DUSE_PODOFO=${USE_PODOFO} \
+      -DLLAMA_CUBLAS=${ENABLE_CUDA} \
+      -DGGML_CUDA=${ENABLE_CUDA}; \
     cmake --build build --config ${BUILD_TYPE}
 
 # Optional test run
@@ -112,12 +118,14 @@ RUN set -eux; \
 ########################################
 # Runtime stage
 ########################################
-FROM ${BASE_IMAGE} AS runtime
+FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
-ENV LD_LIBRARY_PATH=/usr/local/lib:/app/libs \
-    KOL_CONFIG=/app/config/config.yaml \
-    KOL_MODELS_DIR=/app/models
+ENV LD_LIBRARY_PATH=/usr/local/lib:/app/libs:/usr/local/cuda/lib64 \
+  KOL_CONFIG=/app/config/config.yaml \
+  KOL_MODELS_DIR=/app/models \
+  NVIDIA_VISIBLE_DEVICES=all \
+  NVIDIA_DRIVER_CAPABILITIES=compute,utility
 
 # Runtime dependencies (keep minimal & in sync with build ldd output)
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -159,9 +167,16 @@ HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["kolosal-server", "--config", "/app/config/config.yaml"]
 
-# Example build:
-# docker build -t kolosal-server:latest . \
+# Example builds:
+# (Default CUDA build)
+# docker build -t kolosal-server:cuda . \
 #   --build-arg BUILD_TYPE=Release \
-#   --build-arg ENABLE_NATIVE_OPTIMIZATION=OFF \
-#   --build-arg RUN_TESTS=OFF
-# docker run --rm -p 8084:8084 kolosal-server:latest
+#   --build-arg ENABLE_CUDA=ON
+# docker run --rm --gpus all -p 8084:8084 kolosal-server:cuda
+#
+# (CPU-only build)
+# docker build -t kolosal-server:cpu . \
+#   --build-arg ENABLE_CUDA=OFF \
+#   --build-arg BASE_IMAGE=ubuntu:22.04 \
+#   --build-arg BUILD_TYPE=Release
+# docker run --rm -p 8084:8084 kolosal-server:cpu
