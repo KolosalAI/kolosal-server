@@ -81,6 +81,7 @@ RUN set -eux; \
       -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
       -DENABLE_OPENCL=${ENABLE_OPENCL} \
       -DUSE_PODOFO=${USE_PODOFO} \
+  -DUSE_CUDA=${ENABLE_CUDA} \
   -DGGML_CUDA=${ENABLE_CUDA} \
   -DGGML_CUDA_NO_VMM=${GGML_CUDA_NO_VMM}; \
     cmake --build build --config ${BUILD_TYPE}
