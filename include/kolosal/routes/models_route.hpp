@@ -37,6 +37,7 @@ namespace kolosal
         void handleGetModel(SocketType sock, const std::string &body, const std::string &modelId);
         void handleRemoveModel(SocketType sock, const std::string &body, const std::string &modelId);
         void handleModelStatus(SocketType sock, const std::string &body, const std::string &modelId);
+        void handleOptions(SocketType sock);
 
         // Helper methods
         std::string extractModelIdFromPath(const std::string &path);

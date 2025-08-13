@@ -41,20 +41,21 @@ namespace kolosal
         // GET/POST /models, /v1/models
         // GET/DELETE /models/{id}, /v1/models/{id}  
         // GET /models/{id}/status, /v1/models/{id}/status
+        // OPTIONS for CORS preflight on all endpoints
         
         bool matches = false;
         
         if (std::regex_match(path, modelsPattern_))
         {
-            matches = (method == "GET" || method == "POST");
+            matches = (method == "GET" || method == "POST" || method == "OPTIONS");
         }
         else if (std::regex_match(path, modelIdPattern_))
         {
-            matches = (method == "GET" || method == "DELETE");
+            matches = (method == "GET" || method == "DELETE" || method == "OPTIONS");
         }
         else if (std::regex_match(path, modelStatusPattern_))
         {
-            matches = (method == "GET");
+            matches = (method == "GET" || method == "OPTIONS");
         }
         
         // Store matched path and method for use in handle()
@@ -85,6 +86,10 @@ namespace kolosal
                 {
                     handleAddModel(sock, body);
                 }
+                else if (matched_method_ == "OPTIONS")
+                {
+                    handleOptions(sock);
+                }
                 else
                 {
                     json jError = {{"error", {{"message", "Method not allowed"}, {"type", "method_not_allowed"}, {"param", nullptr}, {"code", nullptr}}}};
@@ -97,6 +102,10 @@ namespace kolosal
                 {
                     std::string modelId = extractModelIdFromPath(matched_path_);
                     handleModelStatus(sock, body, modelId);
+                }
+                else if (matched_method_ == "OPTIONS")
+                {
+                    handleOptions(sock);
                 }
                 else
                 {
@@ -115,6 +124,10 @@ namespace kolosal
                 else if (matched_method_ == "DELETE")
                 {
                     handleRemoveModel(sock, body, modelId);
+                }
+                else if (matched_method_ == "OPTIONS")
+                {
+                    handleOptions(sock);
                 }
                 else
                 {
@@ -1046,6 +1059,25 @@ namespace kolosal
     bool ModelsRoute::isStatusEndpoint(const std::string &path)
     {
         return std::regex_match(path, modelStatusPattern_);
+    }
+
+    void ModelsRoute::handleOptions(SocketType sock)
+    {
+        try
+        {
+            ServerLogger::logDebug("[Thread %u] Handling OPTIONS request for CORS preflight", std::this_thread::get_id());
+            
+            // Send 200 OK response for preflight
+            // CORS headers are already set by auth middleware via global headers context
+            json jResponse = {{"message", "CORS preflight successful"}};
+            send_response(sock, 200, jResponse.dump());
+        }
+        catch (const std::exception &ex)
+        {
+            ServerLogger::logError("[Thread %u] Error handling OPTIONS request: %s", std::this_thread::get_id(), ex.what());
+            json jError = {{"error", {{"message", std::string("Server error: ") + ex.what()}, {"type", "server_error"}, {"param", nullptr}, {"code", nullptr}}}};
+            send_response(sock, 500, jError.dump());
+        }
     }
 
 } // namespace kolosal
