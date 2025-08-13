@@ -97,6 +97,30 @@ namespace kolosal
                                        origin.c_str(), method.c_str());
             }
 
+            // Requirement: Always include allow headers/methods + max-age on BOTH preflight and actual responses
+            // (Previously these were only set for preflight which caused browser to reject simple requests.)
+            if (!config_.allowedMethods.empty())
+            {
+                result.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE, OPTIONS"; // normalized per product requirements
+            }
+            if (!config_.allowedHeaders.empty())
+            {
+                // Use the configured list but ensure required headers are present (Content-Type, Authorization, X-API-Key)
+                // Merge without duplicates preserving original order preference
+                std::vector<std::string> required = {"Content-Type", "Authorization", "X-API-Key"};
+                std::vector<std::string> merged = config_.allowedHeaders;
+                for (const auto &req : required)
+                {
+                    if (std::find(merged.begin(), merged.end(), req) == merged.end())
+                    {
+                        merged.push_back(req);
+                    }
+                }
+                result.headers["Access-Control-Allow-Headers"] = vectorToString(merged);
+            }
+            // Always return Max-Age (standard practice: browsers ignore on non-preflight but harmless; fulfills explicit requirement)
+            result.headers["Access-Control-Max-Age"] = std::to_string(config_.maxAge);
+
             // Set credentials header if configured
             if (config_.allowCredentials)
             {
