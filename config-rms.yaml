@@ -32,13 +32,26 @@ auth:
   # CORS Configuration
   cors:
     enabled: true
-    allow_credentials: false
+    allow_credentials: true                 # set true if Authorization header is sent
+    max_age: 86400
     allowed_origins:
-      - "*"
+      - "http://localhost:3000"
+      - "http://127.0.0.1:3000"
     allowed_methods:
-      - "*"
+      - GET
+      - POST
+      - PUT
+      - DELETE
+      - OPTIONS
+      - HEAD
+      - PATCH
     allowed_headers:
-      - "*"
+      - Content-Type
+      - Authorization
+      - X-Requested-With
+      - Accept
+      - Origin
+
 
 # Search Integration (e.g., with SearXNG)
 search:
