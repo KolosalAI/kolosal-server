@@ -20,19 +20,11 @@ using SocketType = int;
 
 // Thread-local storage for global response headers (CORS, security, etc.)
 namespace ResponseContext {
-    thread_local std::map<std::string, std::string> globalHeaders;
+    extern thread_local std::map<std::string, std::string> globalHeaders;
     
-    inline void setGlobalHeaders(const std::map<std::string, std::string>& headers) {
-        globalHeaders = headers;
-    }
-    
-    inline const std::map<std::string, std::string>& getGlobalHeaders() {
-        return globalHeaders;
-    }
-    
-    inline void clearGlobalHeaders() {
-        globalHeaders.clear();
-    }
+    void setGlobalHeaders(const std::map<std::string, std::string>& headers);
+    const std::map<std::string, std::string>& getGlobalHeaders();
+    void clearGlobalHeaders();
 }
 
 struct StreamChunk {

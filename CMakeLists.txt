@@ -118,6 +118,7 @@ set(SOURCES
     src/server_api.cpp    
     src/server_config.cpp
     src/logger.cpp
+    src/response_context.cpp
     src/download_utils.cpp
     src/download_manager.cpp
     src/qdrant_client.cpp
