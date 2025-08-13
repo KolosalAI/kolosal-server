@@ -7,6 +7,7 @@
 #include <iomanip>
 #include <map>
 #include <cstring>
+#include <thread>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -16,6 +17,23 @@ using SocketType = SOCKET;
 #include <unistd.h>
 using SocketType = int;
 #endif
+
+// Thread-local storage for global response headers (CORS, security, etc.)
+namespace ResponseContext {
+    thread_local std::map<std::string, std::string> globalHeaders;
+    
+    inline void setGlobalHeaders(const std::map<std::string, std::string>& headers) {
+        globalHeaders = headers;
+    }
+    
+    inline const std::map<std::string, std::string>& getGlobalHeaders() {
+        return globalHeaders;
+    }
+    
+    inline void clearGlobalHeaders() {
+        globalHeaders.clear();
+    }
+}
 
 struct StreamChunk {
     std::string data;        // The content to stream
@@ -62,8 +80,16 @@ inline KOLOSAL_SERVER_API void send_response(
     response << "Content-Length: " << body.size() << "\r\n";
     response << "Connection: close\r\n";
 
-    // Add all custom headers
+    // Start with global headers (CORS, security headers from auth middleware)
+    std::map<std::string, std::string> allHeaders = ResponseContext::getGlobalHeaders();
+    
+    // Merge in route-specific headers (route headers override global)
     for (const auto& [name, value] : headers) {
+        allHeaders[name] = value;
+    }
+
+    // Add all merged headers
+    for (const auto& [name, value] : allHeaders) {
         response << name << ": " << value << "\r\n";
     }
 
@@ -88,16 +114,8 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
     headerStream << "Transfer-Encoding: chunked\r\n";
     headerStream << "Connection: keep-alive\r\n";
     headerStream << "Cache-Control: no-cache\r\n";
-    // CORS headers: only add permissive defaults if caller did not supply any CORS header
-    bool hasOrigin = false;
-    for (const auto &kv : headers) {
-        if (kv.first == "Access-Control-Allow-Origin" || kv.first == "access-control-allow-origin") { hasOrigin = true; break; }
-    }
-    if (!hasOrigin) {
-        headerStream << "Access-Control-Allow-Origin: *\r\n";
-        headerStream << "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n";
-        headerStream << "Access-Control-Allow-Headers: Content-Type, Authorization, X-Requested-With, X-API-Key\r\n";
-    }
+    
+    // Note: CORS headers come from ResponseContext via auth middleware
     headerStream << "X-Content-Type-Options: nosniff\r\n";
     headerStream << "X-Frame-Options: DENY\r\n";
     headerStream << "X-XSS-Protection: 1; mode=block\r\n";
@@ -105,12 +123,20 @@ inline KOLOSAL_SERVER_API void begin_streaming_response(
     // Add SSE headers if not present in custom headers
     bool hasContentType = false;
 
-    // Add all custom headers
+    // Start with global headers (CORS, security headers from auth middleware)
+    std::map<std::string, std::string> allHeaders = ResponseContext::getGlobalHeaders();
+    
+    // Merge in custom headers (custom headers override global)
     for (const auto& [name, value] : headers) {
-        headerStream << name << ": " << value << "\r\n";
+        allHeaders[name] = value;
         if (name == "Content-Type" || name == "content-type") {
             hasContentType = true;
         }
+    }
+
+    // Add all merged headers
+    for (const auto& [name, value] : allHeaders) {
+        headerStream << name << ": " << value << "\r\n";
     }
 
     // Default to text/plain for streaming if no Content-Type provided

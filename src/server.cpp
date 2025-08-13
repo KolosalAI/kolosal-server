@@ -577,6 +577,10 @@ namespace kolosal
 								}
 							} // Route the request
 							bool routeFound = false;
+							
+							// Set global headers (CORS, security) for this thread's route handlers
+							ResponseContext::setGlobalHeaders(responseHeaders);
+							
 							for (auto &route : routes)
 							{
 								if (route->match(method, path))
@@ -584,8 +588,7 @@ namespace kolosal
 									routeFound = true;
 									try
 									{
-										// Note: Routes will need to be updated to handle authentication headers
-										// For now, they'll work as before but won't include auth headers
+										// Routes now automatically get CORS headers via ResponseContext
 										route->handle(client_sock, body);
 									}
 									catch (const std::exception &ex)
@@ -608,7 +611,10 @@ namespace kolosal
 
 								nlohmann::json jError = {{"error", {{"message", "Not found"}, {"type", "invalid_request_error"}, {"param", nullptr}, {"code", nullptr}}}};
 								send_response(client_sock, 404, jError.dump(), responseHeaders);
-							}							ServerLogger::logDebug("[Thread %d] Completed request for %s",
+							}
+							
+							// Clear global headers after request is complete
+							ResponseContext::clearGlobalHeaders();							ServerLogger::logDebug("[Thread %d] Completed request for %s",
 												  std::this_thread::get_id(), path.c_str());
 
 #ifdef _WIN32

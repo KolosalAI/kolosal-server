@@ -168,10 +168,8 @@ void DocumentsRoute::handleAddDocuments(SocketType sock, const std::string& body
 
         // Send successful response
         std::map<std::string, std::string> headers = {
-            {"Content-Type", "application/json"},
-            {"Access-Control-Allow-Origin", "*"},
-            {"Access-Control-Allow-Methods", "POST, OPTIONS"},
-            {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"}
+            {"Content-Type", "application/json"}
+            // Auth middleware provides CORS headers
         };
         send_response(sock, 200, response.to_json().dump(), headers);
 
@@ -467,11 +465,8 @@ void DocumentsRoute::handleOptions(SocketType sock)
                                std::this_thread::get_id());
 
         std::map<std::string, std::string> headers = {
-            {"Content-Type", "text/plain"},
-            {"Access-Control-Allow-Origin", "*"},
-            {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
-            {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"},
-            {"Access-Control-Max-Age", "86400"} // Cache preflight for 24 hours
+            {"Content-Type", "text/plain"}
+            // Auth middleware provides CORS headers
         };
         
         send_response(sock, 200, "", headers);
@@ -496,10 +491,8 @@ void DocumentsRoute::sendErrorResponse(SocketType sock, int status, const std::s
     errorResponse.param = param;
 
     std::map<std::string, std::string> headers = {
-        {"Content-Type", "application/json"},
-        {"Access-Control-Allow-Origin", "*"},
-        {"Access-Control-Allow-Methods", "GET, POST, OPTIONS"},
-        {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-API-Key"}
+        {"Content-Type", "application/json"}
+        // Auth middleware provides CORS headers
     };
     send_response(sock, status, errorResponse.to_json().dump(), headers);
 }
