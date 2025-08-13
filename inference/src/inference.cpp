@@ -14,6 +14,7 @@
 #include <chrono>
 #include <future>
 #include <cmath> // for std::sqrt
+#include <unordered_map>
 #ifdef USE_VULKAN
 #include <vulkan/vulkan.h>
 #endif
@@ -23,8 +24,8 @@
 #include "sampling.h"
 #include "inference.h"
 #include "chat.h"
-// Removed direct json.hpp include (conflicts with bundled llama json)
-// Removed toolcall-client & json-schema grammar features (deprecated / conflict)
+#include <nlohmann/json.hpp>
+#include "json-schema-to-grammar.h"
 
 class ThreadPool
 {
@@ -388,19 +389,34 @@ namespace
 		virtual CompletionParameters formatChat(const ChatCompletionParameters &params) = 0;
 	};
 	// LlamaInferenceService (CPU Implementation)
-	class LlamaInferenceService : public InferenceService
-	{
-	public:
+	class LlamaInferenceService : public InferenceService {
+private:
+		// Session management (multi-sequence) - must appear before methods using them
+		struct SessionInfo {
+			int seqId;
+			std::string path;
+			std::chrono::steady_clock::time_point lastAccess;
+		};
+		std::unordered_map<std::string, SessionInfo> sessionByPath; // path -> info
+		std::vector<std::string> pathBySeq;                        // seqId -> path
+		std::mutex sessionMtx;
+public:
 		LlamaInferenceService(std::shared_ptr<Tokenizer> tokenizer, llama_model *model, llama_context *context,
-							  common_params params, ggml_threadpool *threadpool)
-				: tokenizer(std::move(tokenizer)), model(model), context(context), g_params(params), threadpool(threadpool),
-				  n_batch(params.n_batch), n_keep(params.n_keep), n_ctx(llama_n_ctx(context))
-		{
+						  common_params params, ggml_threadpool *threadpool)
+			: tokenizer(std::move(tokenizer)), model(model), context(context), g_params(params), threadpool(threadpool),
+			  n_batch(params.n_batch), n_keep(params.n_keep), n_ctx(llama_n_ctx(context)) {
 #ifdef DEBUG
 			std::cout << "Initializing batch with size of: " << g_params.n_batch << std::endl;
 #endif
 
-			batch = llama_batch_init(params.n_ctx, 0, 1);
+			// Initialize batch with seq id capacity >= n_parallel (add slack)
+			const int seq_id_capacity = std::max(g_params.n_parallel + 2, 32);
+			batch = llama_batch_init(params.n_ctx, 0, seq_id_capacity);
+
+			if (g_params.n_parallel > 1) {
+				// Prepare session tracking structures
+				pathBySeq.resize(g_params.n_parallel);
+			}
 
 			inferenceThread = std::thread(&LlamaInferenceService::start, this);
 		}
@@ -531,6 +547,7 @@ namespace
 							job->smpl = nullptr;
 						}
 						if (!should_terminate && context) {
+							// TODO: migrate to llama_memory_seq_rm when memory handle exposed
 							llama_kv_self_seq_rm(context, job->seqId, -1, -1);
 						}
 						job->isFinished = true;
@@ -546,6 +563,7 @@ namespace
 							job->smpl = nullptr;
 						}
 						if (!should_terminate && context) {
+							// TODO: migrate to llama_memory_seq_rm when memory handle exposed
 							llama_kv_self_seq_rm(context, job->seqId, -1, -1);
 						}
 						job->hasError = true;
@@ -571,6 +589,7 @@ namespace
 								job->smpl = nullptr;
 							}
 							if (!should_terminate && context) {
+								// TODO: migrate to llama_memory_seq_rm when memory handle exposed
 								llama_kv_self_seq_rm(context, job->seqId, -1, -1);
 							}
 							job->isFinished = true;
@@ -591,6 +610,7 @@ namespace
 								job->smpl = nullptr;
 							}
 							if (!should_terminate && context) {
+								// TODO: migrate to llama_memory_seq_rm
 								llama_kv_self_seq_rm(context, job->seqId, -1, -1);
 							}
 							job->hasError = true;
@@ -608,6 +628,7 @@ namespace
 								job->smpl = nullptr;
 							}
 								if (!should_terminate && context) {
+									// TODO: migrate to llama_memory_seq_rm
 									llama_kv_self_seq_rm(context, job->seqId, -1, -1);
 								}
 							job->hasError = true;
@@ -625,6 +646,7 @@ namespace
 								job->smpl = nullptr;
 							}
 								if (!should_terminate && context) {
+									// TODO: migrate to llama_memory_seq_rm
 									llama_kv_self_seq_rm(context, job->seqId, -1, -1);
 								}
 							job->hasError = true;
@@ -685,6 +707,7 @@ namespace
 								job->smpl = nullptr;
 							}
 								if (!should_terminate && context) {
+									// TODO: migrate to llama_memory_seq_rm
 									llama_kv_self_seq_rm(context, job->seqId, -1, -1);
 								}
 							job->hasError = true;
@@ -747,6 +770,9 @@ namespace
 			}
 
 			job->params = params;
+
+			// Acquire / normalize session sequence id
+			job->seqId = acquireSequenceForPath(params.kvCacheFilePath, params.seqId);
 
 			job->smpl = initializeSampler(params, job);
 			if (!job->smpl)
@@ -913,7 +939,8 @@ namespace
 				}
 
 				// Clear the KV cache for clean embedding generation
-				llama_kv_self_clear(context);
+								// TODO: migrate to llama_memory_clear when appropriate handle available
+								llama_kv_self_clear(context);
 
 				// Create batch for embedding generation
 				llama_batch local_batch = llama_batch_init(tokens.size(), 0, 1);
@@ -1135,10 +1162,47 @@ namespace
 			sparams.seed = params.randomSeed;
 			// sparams.top_k = params.topK;
 			sparams.no_perf = false;
-			
-			// JSON schema to grammar removed (feature disabled)
-			if (!params.grammar.empty()) {
-				sparams.grammar = params.grammar;
+
+			// If a JSON schema is provided and explicit grammar absent, convert schema to grammar
+			try {
+				if (!params.jsonSchema.empty() && params.grammar.empty()) {
+					nlohmann::ordered_json schema = nlohmann::ordered_json::parse(params.jsonSchema);
+					sparams.grammar = json_schema_to_grammar(schema, /*force_gbnf=*/true);
+#ifdef DEBUG
+					std::cout << "[INFERENCE] Converted JSON schema to grammar, length=" << sparams.grammar.size() << std::endl;
+#endif
+				} else if (!params.grammar.empty()) {
+					// Direct grammar provided
+					// Normalize angle bracket non-terminals (<digit>) -> digit for llama.cpp parser
+					sparams.grammar = params.grammar;
+					bool modified = false;
+					std::string normalized; normalized.reserve(sparams.grammar.size());
+					for (size_t i=0;i<sparams.grammar.size();++i){
+						if (sparams.grammar[i]=='<' ) {
+							size_t j=i+1; while (j<sparams.grammar.size() && std::isalnum(static_cast<unsigned char>(sparams.grammar[j])) || sparams.grammar[j]=='_' ) j++; // name chars
+							if (j<sparams.grammar.size() && sparams.grammar[j]=='>') { // pattern <name>
+								modified = true;
+								normalized.append(sparams.grammar.substr(i+1, j-(i+1)));
+								i = j; // skip '>' consumed by loop increment
+								continue;
+							}
+						}
+						normalized.push_back(sparams.grammar[i]);
+					}
+					if (modified) {
+#ifdef DEBUG
+						std::cout << "[INFERENCE] Normalized angle-bracket grammar syntax." << std::endl;
+#endif
+						sparams.grammar.swap(normalized);
+					}
+				}
+			} catch (const std::exception &e) {
+				std::lock_guard<std::mutex> jobLock(job->mtx);
+				job->hasError = true;
+				job->errorMessage = std::string("Failed to process grammar/json schema: ") + e.what();
+				job->isFinished = true; // ensure waiters unblock
+				job->cv.notify_all();
+				return nullptr;
 			}
 
 			common_sampler *sampler = common_sampler_init(model, sparams);
@@ -1147,6 +1211,7 @@ namespace
 				std::lock_guard<std::mutex> jobLock(job->mtx);
 				job->hasError = true;
 				job->errorMessage = "Could not initialize sampler";
+				job->isFinished = true; // unblock waiters on failure
 				job->cv.notify_all();
 				return nullptr;
 			}
@@ -1216,7 +1281,9 @@ namespace
 		{
 			llama_token id = common_sampler_sample(sampler, context, -1);
 			common_sampler_accept(sampler, id, true);
-			common_batch_add(batch, id, n_past, {0}, true);
+			// Use the job's sequence id (if multi-sequence context). If single, seqId will be 0.
+			int seqForBatch = (g_params.n_parallel > 1) ? job->seqId : 0;
+			common_batch_add(batch, id, n_past, {seqForBatch}, true);
 
 			if (llama_vocab_is_eog(tokenizer->getVocab(), id) || id == llama_vocab_eos(tokenizer->getVocab()))
 			{
@@ -1256,34 +1323,32 @@ namespace
 			}
 
 			n_remain -= 1;
+			return true;
 		}
 
 		bool sampleNextToken(std::shared_ptr<Job> job)
 		{
+			// Defensive check; acquireSequenceForPath already assigned a valid seqId
+			if (g_params.n_parallel <= 1) job->seqId = 0; else if (job->seqId >= g_params.n_parallel) job->seqId %= g_params.n_parallel;
+
 			llama_token id = common_sampler_sample(job->smpl, context, job->batch_pos);
 			common_sampler_accept(job->smpl, id, true);
 
-			if (llama_vocab_is_eog(tokenizer->getVocab(), id) || id == llama_vocab_eos(tokenizer->getVocab()))
-			{
-				return false; // Stop generation
-			}
-
+			// Add token to batch before EOG check
 			common_batch_add(batch, id, job->n_past, {job->seqId}, true);
+
+			if (llama_vocab_is_eog(tokenizer->getVocab(), id) || id == llama_vocab_eos(tokenizer->getVocab())) {
+				return false;
+			}
 
 			const auto data = llama_perf_context(context);
 			const std::string token_str = tokenizer->decode(id);
 			{
-				// Record first token timing if this is the first generated token
-				if (job->generatedTokens.empty())
-				{
+				if (job->generatedTokens.empty()) {
 					job->first_token_time = std::chrono::steady_clock::now();
 					job->first_token_generated = true;
-
-					// Calculate TTFT in milliseconds
-					auto duration = std::chrono::duration_cast<std::chrono::microseconds>(
-						job->first_token_time - job->start_time);
+					auto duration = std::chrono::duration_cast<std::chrono::microseconds>(job->first_token_time - job->start_time);
 					job->ttft = static_cast<float>(duration.count()) / 1000.0f;
-
 #ifdef DEBUG
 					std::cout << "[INFERENCE] First token generated. TTFT: " << job->ttft << " ms" << std::endl;
 #endif
@@ -1295,15 +1360,73 @@ namespace
 				job->cv.notify_all();
 			}
 
-			if (!job->path_session.empty())
-			{
+			if (!job->path_session.empty()) {
 				job->session_tokens.push_back(id);
 			}
 
 			job->n_remain -= 1;
 			job->batch_pos = batch.n_tokens - 1;
-
 			return true;
+		}
+
+		int acquireSequenceForPath(const std::string &path, int requested) {
+			if (g_params.n_parallel <= 1) {
+				return 0; // single sequence context
+			}
+			if (path.empty()) {
+				// No persistent session requested; use requested if valid else 0
+				if (requested >= 0 && requested < g_params.n_parallel) return requested;
+				return 0;
+			}
+			std::lock_guard<std::mutex> lock(sessionMtx);
+			auto now = std::chrono::steady_clock::now();
+			// Existing?
+			auto it = sessionByPath.find(path);
+			if (it != sessionByPath.end()) {
+				it->second.lastAccess = now;
+				return it->second.seqId;
+			}
+			// Requested slot viable?
+			if (requested >= 0 && requested < g_params.n_parallel) {
+				if (pathBySeq.size() < static_cast<size_t>(g_params.n_parallel)) pathBySeq.resize(g_params.n_parallel);
+				if (pathBySeq[requested].empty()) {
+					pathBySeq[requested] = path;
+					sessionByPath[path] = SessionInfo{requested, path, now};
+					return requested;
+				}
+			}
+			// Ensure size
+			if (pathBySeq.size() < static_cast<size_t>(g_params.n_parallel)) pathBySeq.resize(g_params.n_parallel);
+			// Find free slot
+			for (int i = 0; i < g_params.n_parallel; ++i) {
+				if (pathBySeq[i].empty()) {
+					pathBySeq[i] = path;
+					sessionByPath[path] = SessionInfo{i, path, now};
+					return i;
+				}
+			}
+			// Evict least-recently-used (simple scan)
+			int lruSeq = -1; auto lruTime = now; std::string lruPath;
+			for (auto &kv : sessionByPath) {
+				if (lruSeq == -1 || kv.second.lastAccess < lruTime) {
+					lruSeq = kv.second.seqId;
+					lruTime = kv.second.lastAccess;
+					lruPath = kv.first;
+				}
+			}
+			if (lruSeq >= 0) {
+#ifdef DEBUG
+				std::cout << "[INFERENCE] Evicting session seqId=" << lruSeq << " path=" << lruPath << std::endl;
+#endif
+				if (!lruPath.empty()) {
+					llama_state_seq_save_file(context, lruPath.c_str(), lruSeq, nullptr, 0);
+				}
+				sessionByPath.erase(lruPath);
+				pathBySeq[lruSeq] = path;
+				sessionByPath[path] = SessionInfo{lruSeq, path, now};
+				return lruSeq;
+			}
+			return 0; // Fallback
 		}
 
 		void saveSession(std::shared_ptr<Job> job)
@@ -1490,6 +1613,7 @@ namespace
 
 				// Remove any "future" tokens that donât match
 				// i.e. we only keep the portion that matched
+						// TODO: migrate to llama_memory_seq_rm
 						llama_kv_self_seq_rm(context, job->seqId, n_matching_session_tokens, -1 /*up to end*/);
 				job->session_tokens.resize(n_matching_session_tokens);
 
@@ -1523,6 +1647,7 @@ namespace
 					  << std::endl;
 #endif
 
+			// TODO: migrate to llama_memory_seq_rm/add
 			llama_kv_self_seq_rm(context, id, n_keep, n_keep + n_discard);
 			llama_kv_self_seq_add(context, id, n_keep + n_discard, n_past, -n_discard);
 
@@ -1758,6 +1883,7 @@ namespace
 		{
 			// Clear batch and KV cache
 			common_batch_clear(batch);
+			// TODO: migrate to llama_memory_clear when memory handle is available
 			llama_kv_self_clear(context);
 
 			// Set up context for embedding generation

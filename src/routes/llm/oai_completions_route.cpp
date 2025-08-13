@@ -27,6 +27,18 @@ namespace kolosal
 {
     namespace
     {
+        template <typename P>
+        void finalizeStructuredOutput(P &params, const char *context) {
+            if (!params.grammar.empty()) {
+                if (!params.jsonSchema.empty()) {
+                    ServerLogger::logInfo("[oai-%s] Both grammar & jsonSchema provided; grammar takes precedence", context);
+                } else {
+                    ServerLogger::logInfo("[oai-%s] Using provided grammar (chars=%zu)", context, params.grammar.size());
+                }
+            } else if (!params.jsonSchema.empty()) {
+                ServerLogger::logInfo("[oai-%s] Using provided JSON schema (chars=%zu)", context, params.jsonSchema.size());
+            }
+        }
         /**
          * @brief Builds ChatCompletionParameters from a ChatCompletionRequest
          * Following the ModelManager pattern from the example
@@ -269,6 +281,8 @@ namespace kolosal
                 }
             }
 
+            finalizeStructuredOutput(inferenceParams, "chat");
+
             if (request.stream)
             {
                 // Handle streaming response
@@ -478,6 +492,8 @@ namespace kolosal
                     inferenceParams.jsonSchema = j["jsonSchema"].dump();
                 }
             }
+
+            finalizeStructuredOutput(inferenceParams, "completion");
 
             if (request.stream)
             {

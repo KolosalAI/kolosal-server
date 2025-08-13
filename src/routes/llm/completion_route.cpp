@@ -21,6 +21,21 @@ namespace kolosal
 {
     namespace
     {
+        // Helper: finalize precedence between grammar & jsonSchema and log choice
+        template <typename P>
+        void finalizeStructuredOutput(P &params, const char *context) {
+            // Precedence: explicit grammar overrides jsonSchema-derived grammar
+            if (!params.grammar.empty()) {
+                if (!params.jsonSchema.empty()) {
+                    ServerLogger::logInfo("[%s] Both grammar & jsonSchema provided; grammar takes precedence", context);
+                    // Keep jsonSchema string for potential future reference but engine will ignore because grammar set
+                } else {
+                    ServerLogger::logInfo("[%s] Using provided grammar (chars=%zu)", context, params.grammar.size());
+                }
+            } else if (!params.jsonSchema.empty()) {
+                ServerLogger::logInfo("[%s] Using provided JSON schema (chars=%zu)", context, params.jsonSchema.size());
+            }
+        }
         /**
          * @brief Parses ChatCompletionParameters from JSON request
          */
@@ -126,6 +141,7 @@ namespace kolosal
                 }
             }
             
+            finalizeStructuredOutput(params, "chat");
             return params;
         }
 
@@ -210,6 +226,7 @@ namespace kolosal
                 }
             }
             
+            finalizeStructuredOutput(params, "completion");
             return params;
         }
 
@@ -308,7 +325,7 @@ namespace kolosal
                 throw std::invalid_argument("Missing or invalid 'model' field");
             }
 
-            // Parse the chat completion parameters
+            // Parse the chat completion parameters (includes structured output precedence & logging)
             ChatCompletionParameters params = parseChatCompletionParameters(j);
 
             if (!params.isValid())
@@ -509,7 +526,7 @@ namespace kolosal
                 throw std::invalid_argument("Missing or invalid 'model' field");
             }
 
-            // Parse the completion parameters
+            // Parse the completion parameters (includes structured output precedence & logging)
             CompletionParameters params = parseCompletionParameters(j);
 
             if (!params.isValid())
