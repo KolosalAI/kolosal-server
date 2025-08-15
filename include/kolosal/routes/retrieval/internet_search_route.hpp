@@ -53,6 +53,10 @@ namespace kolosal {
         std::atomic<bool> shutdown_{false};
         std::vector<std::thread> worker_threads_;
         
+        // Store matched method and path for routing
+        mutable std::string matched_method_;
+        mutable std::string matched_path_;
+        
         void startWorkerThreads();
         void stopWorkerThreads();
         void workerLoop();
@@ -62,6 +66,7 @@ namespace kolosal {
         std::string buildSearchUrl(const SearchRequest& request);
         SearchRequest parseRequestBody(const std::string& body);
         std::string validateRequest(const SearchRequest& request);
+        void handleOptions(SocketType sock);
         
         // Static callback for libcurl
         static size_t WriteCallback(void* contents, size_t size, size_t nmemb, std::string* userp);

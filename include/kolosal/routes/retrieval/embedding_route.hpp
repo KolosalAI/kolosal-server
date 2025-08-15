@@ -107,8 +107,18 @@ private:
         const std::string& param = ""
     );
 
+    /**
+     * @brief Handles OPTIONS request for CORS preflight
+     * @param sock Socket connection
+     */
+    void handleOptions(SocketType sock);
+
     // Thread-safe monitoring
     CompletionMonitor* monitor_;
+    
+    // Store matched method and path for routing
+    mutable std::string matched_method_;
+    mutable std::string matched_path_;
     
     // Request counter for unique IDs
     std::atomic<uint64_t> request_counter_;

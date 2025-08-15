@@ -26,9 +26,14 @@ namespace kolosal {
         void handle(SocketType sock, const std::string& body) override;
         
     private:
+        // Store matched method and path for routing
+        mutable std::string matched_method_;
+        mutable std::string matched_path_;
+        
         // Specific handlers for different completion types
         void handleTextCompletion(SocketType sock, const std::string& body);
         void handleChatCompletion(SocketType sock, const std::string& body);
+        void handleOptions(SocketType sock);
         
         // Path determination
         bool isTextCompletionPath(const std::string& path);

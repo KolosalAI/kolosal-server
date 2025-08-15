@@ -50,11 +50,22 @@ namespace kolosal
                      std::regex_match(path, cancel_all_pattern) ||
                      std::regex_match(path, all_pattern); // POST to /downloads for cancel all
         }
+        else if (method == "OPTIONS")
+        {
+            // OPTIONS supported on all download endpoints
+            matches = std::regex_match(path, all_pattern) || 
+                     std::regex_match(path, single_pattern) ||
+                     std::regex_match(path, cancel_pattern) || 
+                     std::regex_match(path, pause_pattern) ||
+                     std::regex_match(path, resume_pattern) ||
+                     std::regex_match(path, cancel_all_pattern);
+        }
 
         if (matches)
         {
-            // Store the path for later use in handle method
+            // Store the path and method for later use in handle method
             matched_path_ = path;
+            matched_method_ = method;
         }
 
         return matches;
@@ -64,6 +75,13 @@ namespace kolosal
     {
         try
         {
+            // Handle OPTIONS request for CORS preflight
+            if (matched_method_ == "OPTIONS")
+            {
+                handleOptions(sock);
+                return;
+            }
+
             // Get HTTP method from the socket (assuming we can determine it)
             // For now, we'll parse the path to determine the action
             
@@ -739,6 +757,25 @@ namespace kolosal
             };
 
             send_response(sock, 404, response.dump());
+        }
+    }
+
+    void DownloadsRoute::handleOptions(SocketType sock)
+    {
+        try
+        {
+            ServerLogger::logDebug("[Thread %u] Handling OPTIONS request for CORS preflight", std::this_thread::get_id());
+            
+            // Send 200 OK response for preflight
+            // CORS headers are already set by auth middleware via global headers context
+            json jResponse = {{"message", "CORS preflight successful"}};
+            send_response(sock, 200, jResponse.dump());
+        }
+        catch (const std::exception &ex)
+        {
+            ServerLogger::logError("[Thread %u] Error handling OPTIONS request: %s", std::this_thread::get_id(), ex.what());
+            json jError = {{"error", {{"message", std::string("Server error: ") + ex.what()}, {"type", "server_error"}, {"param", nullptr}, {"code", nullptr}}}};
+            send_response(sock, 500, jError.dump());
         }
     }
 

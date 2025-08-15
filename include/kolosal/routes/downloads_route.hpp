@@ -12,8 +12,9 @@ namespace kolosal {
         void handle(SocketType sock, const std::string& body) override;
         
     private:
-        // Store the matched path to extract model ID later
+        // Store the matched path and method to extract model ID and determine action later
         mutable std::string matched_path_;
+        mutable std::string matched_method_;
         
         // Extract model ID from path like /downloads/{model_id}
         std::string extractModelId(const std::string& path);
@@ -35,6 +36,9 @@ namespace kolosal {
         
         // Handle resume download (POST)
         void handleResumeDownload(SocketType sock, const std::string& model_id);
+
+        // Handle OPTIONS request for CORS preflight
+        void handleOptions(SocketType sock);
     };
 
 } // namespace kolosal

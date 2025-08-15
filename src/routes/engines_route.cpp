@@ -23,7 +23,7 @@ namespace kolosal
 
     bool EnginesRoute::match(const std::string &method, const std::string &path)
     {
-        bool matches = ((method == "GET" || method == "POST" || method == "PUT") && (path == "/engines" || path == "/v1/engines"));
+        bool matches = ((method == "GET" || method == "POST" || method == "PUT" || method == "OPTIONS") && (path == "/engines" || path == "/v1/engines"));
         
         // Store matched method for use in handle()
         if (matches)
@@ -48,6 +48,10 @@ namespace kolosal
         else if (matched_method_ == "PUT")
         {
             handleSetDefaultEngine(sock, body);
+        }
+        else if (matched_method_ == "OPTIONS")
+        {
+            handleOptions(sock);
         }
         else
         {
@@ -414,6 +418,25 @@ namespace kolosal
                 }}
             };
 
+            send_response(sock, 500, jError.dump());
+        }
+    }
+
+    void EnginesRoute::handleOptions(SocketType sock)
+    {
+        try
+        {
+            ServerLogger::logDebug("[Thread %u] Handling OPTIONS request for CORS preflight", std::this_thread::get_id());
+            
+            // Send 200 OK response for preflight
+            // CORS headers are already set by auth middleware via global headers context
+            json jResponse = {{"message", "CORS preflight successful"}};
+            send_response(sock, 200, jResponse.dump());
+        }
+        catch (const std::exception &ex)
+        {
+            ServerLogger::logError("[Thread %u] Error handling OPTIONS request: %s", std::this_thread::get_id(), ex.what());
+            json jError = {{"error", {{"message", std::string("Server error: ") + ex.what()}, {"type", "server_error"}, {"param", nullptr}, {"code", nullptr}}}};
             send_response(sock, 500, jError.dump());
         }
     }

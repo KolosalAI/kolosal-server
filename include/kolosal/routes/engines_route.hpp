@@ -59,6 +59,12 @@ namespace kolosal
          * @param body JSON request body containing default engine name
          */
         void handleSetDefaultEngine(SocketType sock, const std::string &body);
+
+        /**
+         * @brief Handle OPTIONS request for CORS preflight
+         * @param sock Socket to send response to
+         */
+        void handleOptions(SocketType sock);
     };
 
 } // namespace kolosal

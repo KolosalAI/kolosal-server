@@ -146,15 +146,30 @@ namespace kolosal
 
     bool OaiCompletionsRoute::match(const std::string &method, const std::string &path)
     {
-        return (method == "POST" && 
+        bool matches = ((method == "POST" || method == "OPTIONS") && 
                 (path == "/v1/chat/completions" || path == "/chat/completions" ||
                  path == "/v1/completions" || path == "/completions"));
+                 
+        if (matches)
+        {
+            matched_method_ = method;
+            matched_path_ = path;
+        }
+        
+        return matches;
     }
 
     void OaiCompletionsRoute::handle(SocketType sock, const std::string &body)
     {
         try
         {
+            // Handle OPTIONS request for CORS preflight
+            if (matched_method_ == "OPTIONS")
+            {
+                handleOptions(sock);
+                return;
+            }
+
             // Check for empty body
             if (body.empty())
             {
@@ -623,6 +638,25 @@ namespace kolosal
             ServerLogger::logError("Error in text completion: %s", ex.what());
             json jError = {{"error", {{"message", std::string("Error: ") + ex.what()}, {"type", "invalid_request_error"}, {"param", nullptr}, {"code", nullptr}}}};
             send_response(sock, 400, jError.dump());
+        }
+    }
+
+    void OaiCompletionsRoute::handleOptions(SocketType sock)
+    {
+        try
+        {
+            ServerLogger::logDebug("[Thread %u] Handling OPTIONS request for CORS preflight", std::this_thread::get_id());
+            
+            // Send 200 OK response for preflight
+            // CORS headers are already set by auth middleware via global headers context
+            json jResponse = {{"message", "CORS preflight successful"}};
+            send_response(sock, 200, jResponse.dump());
+        }
+        catch (const std::exception &ex)
+        {
+            ServerLogger::logError("[Thread %u] Error handling OPTIONS request: %s", std::this_thread::get_id(), ex.what());
+            json jError = {{"error", {{"message", std::string("Server error: ") + ex.what()}, {"type", "server_error"}, {"param", nullptr}, {"code", nullptr}}}};
+            send_response(sock, 500, jError.dump());
         }
     }
 

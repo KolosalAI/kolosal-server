@@ -14,10 +14,15 @@ public:
     void handle(SocketType sock, const std::string& body) override;
 
 private:
+    // Store matched method and path for routing
+    mutable std::string matched_method_;
+    mutable std::string matched_path_;
+    
     void handleGetConfig(SocketType sock);
     void handleUpdateConfig(SocketType sock, const std::string& body);
     void handleGetStats(SocketType sock);
     void handleClearRateLimit(SocketType sock, const std::string& body);
+    void handleOptions(SocketType sock);
 };
 
 } // namespace kolosal
