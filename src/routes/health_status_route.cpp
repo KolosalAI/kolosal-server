@@ -34,9 +34,13 @@ namespace kolosal
                 ServerLogger::logDebug("[Thread %u] Handling OPTIONS request for health endpoint", 
                                        std::this_thread::get_id());
                 
-                // Let auth middleware handle CORS headers
+                // Explicitly set CORS headers for preflight requests
                 std::map<std::string, std::string> headers = {
-                    {"Content-Type", "text/plain"}
+                    {"Content-Type", "text/plain"},
+                    {"Access-Control-Allow-Origin", "*"},
+                    {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"},
+                    {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key"},
+                    {"Access-Control-Max-Age", "86400"}
                 };
                 
                 send_response(sock, 200, "", headers);
@@ -85,8 +89,10 @@ namespace kolosal
                 {"engines", engineSummary}};
 
             std::map<std::string, std::string> headers = {
-                {"Content-Type", "application/json"}
-                // Auth middleware provides CORS headers
+                {"Content-Type", "application/json"},
+                {"Access-Control-Allow-Origin", "*"},
+                {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"},
+                {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key"}
             };
 
             send_response(sock, 200, response.dump(), headers);
@@ -100,8 +106,10 @@ namespace kolosal
             json jError = {{"error", {{"message", std::string("Server error: ") + ex.what()}, {"type", "server_error"}, {"param", nullptr}, {"code", nullptr}}}};
 
             std::map<std::string, std::string> headers = {
-                {"Content-Type", "application/json"}
-                // Auth middleware provides CORS headers
+                {"Content-Type", "application/json"},
+                {"Access-Control-Allow-Origin", "*"},
+                {"Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, HEAD, PATCH"},
+                {"Access-Control-Allow-Headers", "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-API-Key"}
             };
 
             send_response(sock, 500, jError.dump(), headers);

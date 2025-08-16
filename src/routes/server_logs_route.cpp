@@ -32,58 +32,42 @@ namespace kolosal
             // Handle OPTIONS request for CORS preflight
             if (matched_method_ == "OPTIONS")
             {
-                try
-                {
-                    // Handle OPTIONS request for CORS preflight
-                    if (matched_method_ == "OPTIONS")
-                    {
-                        handleOptions(sock);
-                        return;
-                    }
-
-                    ServerLogger::logDebug("[Thread %u] Received server logs request", std::this_thread::get_id());
-
-                    // Get the ServerLogger instance and retrieve logs
-                    auto &logger = ServerLogger::instance();
-                    const auto &logs = logger.getLogs();
-
-                    json logsList = json::array();
-                    for (const auto &logEntry : logs)
-                    {
-                        std::string levelStr;
-                        switch (logEntry.level)
-                        {
-                        case LogLevel::SERVER_ERROR:
-                            levelStr = "ERROR";
-                            break;
-                        case LogLevel::SERVER_WARNING:
-                            levelStr = "WARNING";
-                            break;
-                        case LogLevel::SERVER_INFO:
-                            levelStr = "INFO";
-                            break;
-                        case LogLevel::SERVER_DEBUG:
-                            levelStr = "DEBUG";
-                            break;
-                        default:
-                            levelStr = "UNKNOWN";
-                        }
-                        logsList.push_back({{"timestamp", logEntry.timestamp}, {"level", levelStr}, {"message", logEntry.message}});
-                    }
-
-                    json response = {{"logs", logsList}};
-                    send_response(sock, 200, response.dump());
-                }
-                catch (const std::exception &ex)
-                {
-                    ServerLogger::logError("[Thread %u] Error handling server logs request: %s", std::this_thread::get_id(), ex.what());
-
-                    json jError = {
-                        {"error", {{"message", std::string("Server error: ") + ex.what()}, {"type", "server_error"}, {"param", nullptr}, {"code", nullptr}}}};
-
-                    send_response(sock, 500, jError.dump());
-                }
+                handleOptions(sock);
+                return;
             }
+
+            ServerLogger::logDebug("[Thread %u] Received server logs request", std::this_thread::get_id());
+
+            // Get the ServerLogger instance and retrieve logs
+            auto &logger = ServerLogger::instance();
+            const auto &logs = logger.getLogs();
+
+            json logsList = json::array();
+            for (const auto &logEntry : logs)
+            {
+                std::string levelStr;
+                switch (logEntry.level)
+                {
+                case LogLevel::SERVER_ERROR:
+                    levelStr = "ERROR";
+                    break;
+                case LogLevel::SERVER_WARNING:
+                    levelStr = "WARNING";
+                    break;
+                case LogLevel::SERVER_INFO:
+                    levelStr = "INFO";
+                    break;
+                case LogLevel::SERVER_DEBUG:
+                    levelStr = "DEBUG";
+                    break;
+                default:
+                    levelStr = "UNKNOWN";
+                }
+                logsList.push_back({{"timestamp", logEntry.timestamp}, {"level", levelStr}, {"message", logEntry.message}});
+            }
+
+            json response = {{"logs", logsList}};
+            send_response(sock, 200, response.dump());
         }
         catch (const std::exception &ex)
         {
