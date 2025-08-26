@@ -1,7 +1,7 @@
 #include "kolosal/retrieval/document_list_types.hpp"
 #include "kolosal/logger.hpp"
 #include <algorithm>
-#include <algorithm>
+#include <cctype>
 
 namespace kolosal
 {
@@ -24,9 +24,9 @@ nlohmann::json DocumentInfo::to_json() const
     j["text"] = text;
     j["metadata"] = nlohmann::json::object();
     
-    for (const auto& [key, value] : metadata)
+    for (const auto& kv : metadata)
     {
-        j["metadata"][key] = value;
+        j["metadata"][kv.first] = kv.second;
     }
     
     return j;
@@ -68,7 +68,7 @@ bool DocumentsInfoRequest::validate() const
     // Check for empty or whitespace-only IDs
     for (const auto& id : ids)
     {
-        if (id.empty() || std::all_of(id.begin(), id.end(), ::isspace))
+        if (id.empty() || std::all_of(id.begin(), id.end(), [](unsigned char ch) { return std::isspace(ch) != 0; }))
         {
             ServerLogger::logWarning("DocumentsInfoRequest validation failed: empty or whitespace-only ID");
             return false;

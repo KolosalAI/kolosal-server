@@ -31,8 +31,10 @@ void Document::from_json(const nlohmann::json& j)
         if (j["metadata"].is_object())
         {
             metadata.clear();
-            for (auto& [key, value] : j["metadata"].items())
+            for (auto it = j["metadata"].begin(); it != j["metadata"].end(); ++it)
             {
+                const std::string key = it.key();
+                const nlohmann::json& value = it.value();
                 metadata[key] = value;
             }
         }
