@@ -113,8 +113,6 @@ set(SOURCES
     src/logger.cpp
     src/download_utils.cpp
     src/download_manager.cpp
-    src/faiss_client.cpp
-    src/qdrant_client.cpp
     src/node_manager.cpp
     src/inference_loader.cpp
     src/inference_interface_impl.cpp
@@ -132,14 +130,6 @@ set(SOURCES
     src/routes/retrieval/documents_route.cpp
     src/routes/downloads_route.cpp
     src/routes/retrieval/chunking_route.cpp
-    src/retrieval/add_document_types.cpp
-    src/retrieval/remove_document_types.cpp
-    src/retrieval/document_list_types.cpp
-    src/retrieval/retrieve_types.cpp
-    src/retrieval/document_service.cpp
-    src/retrieval/parse_docx.cpp
-    src/retrieval/parse_html.cpp
-    src/retrieval/chunking_types.cpp
     src/models/embedding_request_model.cpp
     src/models/embedding_response_model.cpp
     src/models/chunking_request_model.cpp
@@ -149,12 +139,7 @@ set(SOURCES
     src/auth/auth_middleware.cpp
 )
 
-# Add PDF parser
-if(USE_PODOFO)
-    list(APPEND SOURCES src/retrieval/parse_pdf.cpp)
-else()
-    list(APPEND SOURCES src/retrieval/parse_pdf_stub.cpp)
-endif()
+# Retrieval sources are now built under retrieval/ subdirectory
 
 # Create shared library
 add_library(kolosal_server SHARED ${SOURCES})
@@ -196,6 +181,7 @@ message(STATUS "Building inference engine: ${INFERENCE_TARGET}")
 
 # Build inference engine
 add_subdirectory(inference)
+add_subdirectory(retrieval)
 
 # CURL configuration
 find_package(CURL QUIET)
@@ -274,23 +260,28 @@ if(USE_PODOFO AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/CMakeLists
     find_package(TIFF QUIET)
     find_package(LibXml2 QUIET)
     find_package(OpenSSL QUIET)
-    
-    # Configure PoDoFo
-    set(PODOFO_BUILD_STATIC ON CACHE BOOL "" FORCE)
-    set(PODOFO_BUILD_TEST OFF CACHE BOOL "" FORCE)
-    set(PODOFO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
-    set(PODOFO_BUILD_UNSUPPORTED_TOOLS OFF CACHE BOOL "" FORCE)
-    set(PODOFO_BUILD_LIB_ONLY ON CACHE BOOL "" FORCE)
-    set(CMAKE_SKIP_INSTALL_RULES TRUE)
-    add_subdirectory(external/podofo EXCLUDE_FROM_ALL)
-    set(CMAKE_SKIP_INSTALL_RULES FALSE)
-    
-    if(TARGET podofo_static)
-        set_target_properties(podofo_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
-    endif()
 
-    if(EXISTS "${CMAKE_BINARY_DIR}/external/podofo/src/podofo/podofo/auxiliary/podofo_config.h")
-        target_include_directories(kolosal_server PRIVATE "${CMAKE_BINARY_DIR}/external/podofo/src/podofo/podofo/auxiliary")
+    if(NOT OpenSSL_FOUND)
+        message(WARNING "OpenSSL not found; disabling USE_PODOFO and using PDF parser stub.")
+        set(USE_PODOFO OFF CACHE BOOL "Compile with PoDoFo PDF support" FORCE)
+    else()
+        # Configure PoDoFo
+        set(PODOFO_BUILD_STATIC ON CACHE BOOL "" FORCE)
+        set(PODOFO_BUILD_TEST OFF CACHE BOOL "" FORCE)
+        set(PODOFO_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+        set(PODOFO_BUILD_UNSUPPORTED_TOOLS OFF CACHE BOOL "" FORCE)
+        set(PODOFO_BUILD_LIB_ONLY ON CACHE BOOL "" FORCE)
+        set(CMAKE_SKIP_INSTALL_RULES TRUE)
+        add_subdirectory(external/podofo EXCLUDE_FROM_ALL)
+        set(CMAKE_SKIP_INSTALL_RULES FALSE)
+
+        if(TARGET podofo_static)
+            set_target_properties(podofo_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
+        endif()
+
+        if(EXISTS "${CMAKE_BINARY_DIR}/external/podofo/src/podofo/podofo/auxiliary/podofo_config.h")
+            target_include_directories(kolosal_server PRIVATE "${CMAKE_BINARY_DIR}/external/podofo/src/podofo/podofo/auxiliary")
+        endif()
     endif()
 endif()
 
@@ -384,6 +375,7 @@ target_compile_definitions(kolosal_server PUBLIC
 set(KOLOSAL_LINK_LIBRARIES 
     yaml-cpp 
     ${INFERENCE_TARGET} 
+    kolosal-retrieval
     minizip_static 
     pugixml
 )
