@@ -286,7 +286,9 @@ public:
                 // Process texts in this batch concurrently, but limit concurrency to avoid resource exhaustion
                 std::vector<std::future<std::vector<float>>> embedding_futures;
                 
-                for (const auto& [index, text] : texts) {
+                for (const auto& index_text : texts) {
+                    const size_t index = index_text.first;
+                    const std::string& text = index_text.second;
                     embedding_futures.push_back(std::async(std::launch::async, [this, text, effective_model_id]() -> std::vector<float> {
                         try {
                             // Get engine instance for this thread
@@ -554,7 +556,9 @@ std::future<AddDocumentsResponse> DocumentService::addDocuments(const AddDocumen
                     auto batch_results = batch_future.get();
                     
                     // Process batch results
-                    for (const auto& [original_index, embedding] : batch_results) {
+                    for (const auto& pair_index_embedding : batch_results) {
+                        const size_t original_index = pair_index_embedding.first;
+                        const std::vector<float>& embedding = pair_index_embedding.second;
                         try {
                             if (vector_size == 0) {
                                 vector_size = static_cast<int>(embedding.size());
@@ -568,8 +572,9 @@ std::future<AddDocumentsResponse> DocumentService::addDocuments(const AddDocumen
                             
                             // Add document metadata
                             point.payload["text"] = request.documents[original_index].text;
-                            for (const auto& [key, value] : request.documents[original_index].metadata) {
-                                point.payload[key] = value;
+                            for (auto md_it = request.documents[original_index].metadata.begin();
+                                 md_it != request.documents[original_index].metadata.end(); ++md_it) {
+                                point.payload[md_it->first] = md_it->second;
                             }
                             
                             // Add timestamp
@@ -589,8 +594,8 @@ std::future<AddDocumentsResponse> DocumentService::addDocuments(const AddDocumen
                     
                     // Handle any documents in this batch that failed to get embeddings
                     std::set<size_t> successful_indices;
-                    for (const auto& [index, _] : batch_results) {
-                        successful_indices.insert(index);
+                    for (const auto& pair_index_embedding : batch_results) {
+                        successful_indices.insert(pair_index_embedding.first);
                     }
                     
                     for (size_t i = batch_start; i < batch_end; ++i) {
@@ -773,11 +778,12 @@ std::future<RetrieveResponse> DocumentService::retrieveDocuments(const RetrieveR
                         }
                         
                         // Extract metadata (exclude text field)
-                        for (auto& [key, value] : payload.items())
+                        for (auto it = payload.begin(); it != payload.end(); ++it)
                         {
-                            if (key != "text")
+                            const std::string k = it.key();
+                            if (k != "text")
                             {
-                                doc.metadata[key] = value;
+                                doc.metadata[k] = it.value();
                             }
                         }
                         
