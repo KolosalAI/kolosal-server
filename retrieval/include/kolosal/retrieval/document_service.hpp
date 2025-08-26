@@ -1,11 +1,11 @@
 #pragma once
 
-#include "kolosal/export.hpp"
+#include "../export.hpp"
 #include "add_document_types.hpp"
 #include "retrieve_types.hpp"
 #include "remove_document_types.hpp"
-#include "kolosal/qdrant_client.hpp"
-#include "kolosal/server_config.hpp"
+#include "../qdrant_client.hpp"
+#include "../server_config.hpp"
 #include <memory>
 #include <future>
 #include <string>

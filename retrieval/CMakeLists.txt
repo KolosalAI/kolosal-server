@@ -47,7 +47,17 @@ add_library(kolosal-retrieval STATIC ${RETRIEVAL_SOURCES})
 # already added globally in the parent CMake via include_directories().
 target_include_directories(kolosal-retrieval PUBLIC
     ${CMAKE_SOURCE_DIR}/include
+    $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
 )
+
+# Also install public headers from retrieval/include when INSTALL_HEADERS is enabled at root
+if(INSTALL_HEADERS)
+    install(DIRECTORY include/
+        DESTINATION include/kolosal/retrieval
+        FILES_MATCHING PATTERN "*.hpp"
+    )
+endif()
 
 # Thread library for non-Windows platforms (harmless elsewhere)
 find_package(Threads)

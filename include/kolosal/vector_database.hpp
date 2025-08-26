@@ -1,9 +1,9 @@
 #pragma once
 
-#include "export.hpp"
-#include "qdrant_client.hpp"
+#include "kolosal/export.hpp"
+#include "kolosal/qdrant_client.hpp"
 #ifdef USE_FAISS
-#include "faiss_client.hpp"
+#include "kolosal/faiss_client.hpp"
 #endif
 #include <memory>
 #include <future>

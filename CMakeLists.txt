@@ -20,6 +20,13 @@ list(PREPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake/overrides")
 if(WIN32)
     set(VCPKG_APPLOCAL_DEPS OFF CACHE BOOL "Disable vcpkg applocal dependency copying" FORCE)
     set(VCPKG_PWSH_PATH "powershell.exe" CACHE STRING "Path to PowerShell for vcpkg applocal step" FORCE)
+    # Also propagate settings into generated MSBuild projects to avoid pwsh.exe requirement
+    # and to disable vcpkg's applocal copy step at build time.
+    if(MSVC)
+        set(CMAKE_VS_GLOBALS
+            "${CMAKE_VS_GLOBALS};VcpkgApplocalDeps=false;VcpkgUsePowerShellCore=false"
+        )
+    endif()
 endif()
 
 # Output directory configuration
@@ -76,6 +83,7 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/include
     ${CMAKE_CURRENT_SOURCE_DIR}/common
     ${CMAKE_CURRENT_SOURCE_DIR}/inference/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/external
     ${CMAKE_CURRENT_SOURCE_DIR}/external/nlohmann
     ${CMAKE_CURRENT_SOURCE_DIR}/external/yaml-cpp/include
     ${CMAKE_CURRENT_SOURCE_DIR}/external/pugixml/src
@@ -205,11 +213,15 @@ if(NOT ZLIB_FOUND)
     set(ZLIB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
     set(ZLIB_INSTALL OFF CACHE BOOL "" FORCE)
     add_subdirectory(external/zlib EXCLUDE_FROM_ALL)
-    set(ZLIB_FOUND TRUE)
-    set(ZLIB_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/external/zlib;${CMAKE_CURRENT_BINARY_DIR}/external/zlib")
-    if(TARGET zlibstatic)
-        add_library(ZLIB::ZLIB ALIAS zlibstatic)
+    # Create a consistent imported target for consumers
+    if(NOT TARGET ZLIB::ZLIB)
+        if(TARGET zlibstatic)
+            add_library(ZLIB::ZLIB ALIAS zlibstatic)
+        elseif(TARGET zlib)
+            add_library(ZLIB::ZLIB ALIAS zlib)
+        endif()
     endif()
+    set(ZLIB_FOUND TRUE)
 endif()
 
 # Minizip
