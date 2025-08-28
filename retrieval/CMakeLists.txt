@@ -42,6 +42,7 @@ else()
 endif()
 
 add_library(kolosal-retrieval STATIC ${RETRIEVAL_SOURCES})
+target_compile_definitions(kolosal-retrieval PUBLIC KOLOSAL_SERVER_BUILD)
 
 # Public headers live under ${CMAKE_SOURCE_DIR}/include; external headers are
 # already added globally in the parent CMake via include_directories().

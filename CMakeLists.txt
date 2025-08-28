@@ -47,7 +47,7 @@ endif()
 
 # Runtime library management
 include(${CMAKE_SOURCE_DIR}/cmake/ucm.cmake)
-ucm_set_runtime(STATIC)  # Fixed: comment said static but was set to DYNAMIC
+ucm_set_runtime(DYNAMIC)
 
 # C++ standard
 set(CMAKE_CXX_STANDARD 17)
