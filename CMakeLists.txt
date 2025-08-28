@@ -205,29 +205,13 @@ if(NOT CURL_FOUND)
     endif()
 endif()
 
-# ZLIB
-find_package(ZLIB QUIET)
-if(ZLIB_FOUND)
-    # Some FindZLIB versions don't define an imported target. Create a
-    # compatible INTERFACE target so downstream can reliably link ZLIB::ZLIB.
-    if(NOT TARGET ZLIB::ZLIB)
-        set(_ZLIB_INCLUDE_DIRS "${ZLIB_INCLUDE_DIRS}")
-        if(NOT _ZLIB_INCLUDE_DIRS)
-            set(_ZLIB_INCLUDE_DIRS "${ZLIB_INCLUDE_DIR}")
-        endif()
-        add_library(ZLIB::ZLIB INTERFACE IMPORTED)
-        set_target_properties(ZLIB::ZLIB PROPERTIES
-            INTERFACE_INCLUDE_DIRECTORIES "${_ZLIB_INCLUDE_DIRS}"
-            INTERFACE_LINK_LIBRARIES "${ZLIB_LIBRARIES}"
-        )
-    endif()
-else()
+# ZLIB: use vendored copy to ensure a concrete target on all platforms
+if(NOT TARGET ZLIB::ZLIB)
     set(ZLIB_BUILD_TESTING OFF CACHE BOOL "" FORCE)
     set(ZLIB_BUILD_MINIZIP OFF CACHE BOOL "" FORCE)
     set(ZLIB_BUILD_SHARED OFF CACHE BOOL "" FORCE)
     set(ZLIB_INSTALL OFF CACHE BOOL "" FORCE)
     add_subdirectory(external/zlib EXCLUDE_FROM_ALL)
-    # Create a consistent imported target for consumers
     if(NOT TARGET ZLIB::ZLIB)
         if(TARGET zlibstatic)
             add_library(ZLIB::ZLIB ALIAS zlibstatic)
@@ -235,8 +219,8 @@ else()
             add_library(ZLIB::ZLIB ALIAS zlib)
         endif()
     endif()
-    set(ZLIB_FOUND TRUE)
 endif()
+set(ZLIB_FOUND TRUE)
 
 # Minizip
 if(NOT TARGET minizip_static)
