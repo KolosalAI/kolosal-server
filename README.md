@@ -24,6 +24,40 @@ A high-performance inference server for large language models with OpenAI-compat
 
 ## Quick Start
 
+### Docker (CUDA GPU)
+
+Prerequisites:
+- NVIDIA GPU + drivers on host
+- NVIDIA Container Toolkit installed
+
+Build (CUDA by default):
+
+```powershell
+docker build -t kolosal-server:cuda . --build-arg BUILD_TYPE=Release --build-arg ENABLE_CUDA=ON
+```
+
+Run on GPU (uses configs/config_rms.yaml by default inside the image):
+
+```powershell
+# expose port 8080; mount models dir (optional)
+docker run --rm --gpus all -p 8080:8080 -v ${PWD}\models:/app/models kolosal-server:cuda
+```
+
+Use a custom config (for example, your edited config_rms.yaml in the local configs folder):
+
+```powershell
+docker run --rm --gpus all -p 8080:8080 ^
+  -v ${PWD}\models:/app/models ^
+  -v ${PWD}\configs:/app/config ^
+  kolosal-server:cuda
+```
+
+Health check:
+
+```powershell
+curl http://localhost:8080/v1/health
+```
+
 ### Linux (Recommended)
 
 #### Prerequisites
