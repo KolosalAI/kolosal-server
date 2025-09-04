@@ -80,6 +80,7 @@ RUN set -eux; \
       -DENABLE_NATIVE_OPTIMIZATION=${ENABLE_NATIVE_OPTIMIZATION} \
       -DUSE_CUDA=${ENABLE_CUDA} \
       -DUSE_PODOFO=${USE_PODOFO} \
+      -DCUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so \
       -DBUILD_TESTING=OFF \
       -DBUILD_INFERENCE_TESTS=OFF; \
     cmake --build build --config ${BUILD_TYPE}
