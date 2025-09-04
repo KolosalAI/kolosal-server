@@ -72,6 +72,23 @@ RUN set -eux; \
       echo "[Docker build] Found llama.cpp sources in repo"; \
     fi
 
+# Ensure other required externals are present when not vendored in context
+RUN set -eux; \
+    if [ ! -f external/zlib/contrib/minizip/ioapi.c ]; then \
+      echo "[Docker build] zlib not found – cloning..."; \
+      rm -rf external/zlib && mkdir -p external; \
+      git clone --depth=1 https://github.com/madler/zlib.git external/zlib; \
+    else \
+      echo "[Docker build] Found zlib"; \
+    fi; \
+    if [ ! -f external/pugixml/src/pugixml.cpp ]; then \
+      echo "[Docker build] pugixml not found – cloning..."; \
+      rm -rf external/pugixml && mkdir -p external; \
+      git clone --depth=1 https://github.com/zeux/pugixml.git external/pugixml; \
+    else \
+      echo "[Docker build] Found pugixml"; \
+    fi
+
 # Configure & build (CUDA by default)
 RUN set -eux; \
     cmake -S . -B build -G Ninja \
@@ -79,7 +96,8 @@ RUN set -eux; \
       -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
       -DENABLE_NATIVE_OPTIMIZATION=${ENABLE_NATIVE_OPTIMIZATION} \
       -DUSE_CUDA=${ENABLE_CUDA} \
-      -DUSE_PODOFO=${USE_PODOFO}; \
+      -DUSE_PODOFO=${USE_PODOFO} \
+      -DCUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so; \
     cmake --build build --config ${BUILD_TYPE}
 
 # Determine single-config output dir (project sets output to build/<TYPE>)
