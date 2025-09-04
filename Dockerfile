@@ -47,6 +47,16 @@ COPY . .
 # Initialize submodules when available (no-op if not a git context)
 RUN if [ -d .git ]; then git submodule update --init --recursive; else echo "No .git directory – skipping submodules"; fi
 
+# Ensure llama.cpp source is present (fallback when submodules are not in context)
+RUN set -eux; \
+    if [ ! -f inference/external/llama.cpp/CMakeLists.txt ] && [ ! -f external/llama.cpp/CMakeLists.txt ]; then \
+      echo "[Docker build] llama.cpp not found in repo – cloning shallow copy..."; \
+      mkdir -p inference/external; \
+      git clone --depth=1 https://github.com/ggerganov/llama.cpp.git inference/external/llama.cpp; \
+    else \
+      echo "[Docker build] Found llama.cpp sources in repo"; \
+    fi
+
 # Configure & build (CUDA by default)
 RUN set -eux; \
     cmake -S . -B build -G Ninja \
