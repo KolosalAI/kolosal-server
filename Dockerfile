@@ -18,6 +18,7 @@ ARG BUILD_TYPE=Release
 ARG ENABLE_CUDA=ON
 ARG ENABLE_NATIVE_OPTIMIZATION=OFF
 ARG USE_PODOFO=ON
+ARG CMAKE_VERSION=3.27.9
 
 ENV TZ=${TZ} \
     CC=gcc \
@@ -27,12 +28,26 @@ ENV TZ=${TZ} \
 # Build dependencies (system CURL required by inference/CMakeLists on Linux)
 RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential git pkg-config ca-certificates curl \
-  cmake ninja-build ccache \
+      cmake ninja-build ccache \
   libcurl4-openssl-dev libssl-dev libbz2-dev \
   libomp-dev libblas-dev liblapack-dev \
       # PDF (PoDoFo) optional deps – safe to install even if disabled
       libfreetype6-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libfontconfig1-dev \
     && rm -rf /var/lib/apt/lists/*
+
+# Upgrade to pinned CMake (>=3.23 required by PoDoFo)
+RUN set -eux; \
+    ver="$(${SHELL:-/bin/sh} -c 'cmake --version 2>/dev/null | awk "NR==1{print \$3}"' || true)"; \
+    need="${CMAKE_VERSION}"; \
+    if [ -z "$ver" ] || [ "$(printf '%s\n' "$need" "$ver" | sort -V | head -n1)" != "$need" ] || [ "$ver" != "$need" ]; then \
+      cd /tmp; \
+      curl -fsSL -o cmake.tar.gz https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/cmake-${CMAKE_VERSION}-linux-x86_64.tar.gz; \
+      tar -xf cmake.tar.gz; \
+      cp -r cmake-${CMAKE_VERSION}-linux-x86_64/bin/* /usr/local/bin/; \
+      cp -r cmake-${CMAKE_VERSION}-linux-x86_64/share/cmake* /usr/local/share/ || true; \
+      rm -rf cmake-* cmake.tar.gz; \
+    fi; \
+    cmake --version
 
 # Speed up rebuilds
 ENV PATH=/usr/lib/ccache:${PATH} \
