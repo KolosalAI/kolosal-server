@@ -88,7 +88,7 @@ inference_engines:
 
   # Optional CPU fallback (useful for Windows dev; will be ignored in Docker if not present)
   - name: llama-cpu
-  library_path: /usr/local/lib/libllama-cpu.so
+    library_path: /usr/local/lib/libllama-cpu.so
     version: 1.0.0
     description: CPU-based inference engine for LLaMA models
     load_on_startup: false
