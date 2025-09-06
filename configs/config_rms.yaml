@@ -3,7 +3,7 @@ server:
   port: "8080"                        # Port number to run the server on (Docker exposes 8080)
   host: "0.0.0.0"                     # Host to bind the server; 0.0.0.0 means all available interfaces
   idle_timeout: 300                  # Idle timeout in seconds
-  allow_public_access: false        # Allow access from other devices on the same network
+  allow_public_access: true         # Allow access from other devices on the same network
   allow_internet_access: false      # Allow internet access (requires proper port forwarding)
 
 # Logging Configuration
