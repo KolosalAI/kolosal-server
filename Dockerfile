@@ -97,10 +97,16 @@ RUN set -eux; \
     strip -s "${OUTDIR}/kolosal-server" || true; \
     mkdir -p /out/bin /out/config /out/libs /out/licenses; \
     cp "${OUTDIR}/kolosal-server" /out/bin/; \
-    # Prefer configs/config_rms.yaml by default
-    if [ -f configs/config_rms.yaml ]; then \
+    # Prefer basic (vanilla) config by default, then fall back
+    if [ -f configs/config_basic.yaml ]; then \
+      cp configs/config_basic.yaml /out/config/config_basic.yaml; \
+      cp configs/config_basic.yaml /out/config/config.yaml; \
+    elif [ -f configs/config_rms.yaml ]; then \
       cp configs/config_rms.yaml /out/config/config_rms.yaml; \
       cp configs/config_rms.yaml /out/config/config.yaml; \
+    elif [ -f config_basic.yaml ]; then \
+      cp config_basic.yaml /out/config/config_basic.yaml; \
+      cp config_basic.yaml /out/config/config.yaml; \
     elif [ -f config_rms.yaml ]; then \
       cp config_rms.yaml /out/config/config_rms.yaml; \
       cp config_rms.yaml /out/config/config.yaml; \
@@ -155,7 +161,8 @@ RUN set -eux; \
 # Simple entrypoint wrapper – use config_rms.yaml by default when present
 RUN printf '%s\n' '#!/bin/sh' \
   'set -e' \
-  'CONFIG="/app/config/config_rms.yaml"' \
+  'CONFIG="/app/config/config_basic.yaml"' \
+  'if [ ! -f "$CONFIG" ]; then CONFIG="/app/config/config_rms.yaml"; fi' \
   'if [ ! -f "$CONFIG" ]; then CONFIG="/app/config/config.yaml"; fi' \
   'echo "Starting kolosal-server with: $CONFIG"' \
   'exec kolosal-server --config "$CONFIG"' \
