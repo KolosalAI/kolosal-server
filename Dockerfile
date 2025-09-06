@@ -132,7 +132,8 @@ ENV LD_LIBRARY_PATH=/usr/local/lib:/app/libs:/usr/local/cuda/lib64 \
 
 # Minimal runtime deps (keep in sync with ldd if needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
-      libcurl4 libssl3 libbz2-1.0 zlib1g libgomp1 ca-certificates curl tini \
+  libcurl4 libssl3 libbz2-1.0 zlib1g libgomp1 ca-certificates curl tini \
+  libblas3 liblapack3 libgfortran5 \
       # PoDoFo runtime libs (safe if unused)
       libfreetype6 libjpeg-turbo8 libpng16-16 libtiff5 libxml2 fontconfig \
     && rm -rf /var/lib/apt/lists/*
