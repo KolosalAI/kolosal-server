@@ -24,6 +24,172 @@ A high-performance inference server for large language models with OpenAI-compat
 
 ## Quick Start
 
+### Docker (CUDA GPU)
+
+Prerequisites:
+- NVIDIA GPU + drivers on host
+- NVIDIA Container Toolkit installed
+
+Build (CUDA by default):
+
+```powershell
+docker build -t kolosal-server:cuda . --build-arg BUILD_TYPE=Release --build-arg ENABLE_CUDA=ON
+```
+
+Run on GPU (uses configs/config_rms.yaml by default inside the image):
+
+```powershell
+# expose port 8080; mount models dir (optional)
+docker run --rm --gpus all -p 8080:8080 -v ${PWD}\models:/app/models kolosal-server:cuda
+```
+
+Use a custom config (for example, your edited config_rms.yaml in the local configs folder):
+
+```powershell
+docker run --rm --gpus all -p 8080:8080 ^
+  -v ${PWD}\models:/app/models ^
+  -v ${PWD}\configs:/app/config ^
+  kolosal-server:cuda
+```
+
+Health check:
+
+```powershell
+curl http://localhost:8080/v1/health
+```
+
+## Docker (prebuilt images from GHCR)
+
+Use a ready-made image from GitHub Container Registry so you don’t rebuild on every VM.
+
+### Prerequisites
+
+- NVIDIA GPU + drivers on the host
+- NVIDIA Container Toolkit installed (for `--gpus all`)
+- Open port 8080/tcp on your VM firewall/security group if accessing remotely
+
+### Pull the image
+
+Windows PowerShell:
+
+```powershell
+docker pull ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+Linux/macOS:
+
+```bash
+docker pull ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+If your package is private, login first with a Personal Access Token (scopes: `read:packages`):
+
+```powershell
+$env:GHCR_TOKEN = "<YOUR_GHCR_PAT>"
+echo $env:GHCR_TOKEN | docker login ghcr.io -u <YOUR_GH_USERNAME> --password-stdin
+```
+
+### Run (GPU)
+
+Minimal run (exposes 8080 and runs with GPU):
+
+Windows PowerShell:
+
+```powershell
+docker run -d --name kolosal-server --gpus all --restart unless-stopped -p 8080:8080 ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+Linux/macOS:
+
+```bash
+docker run -d --name kolosal-server --gpus all --restart unless-stopped -p 8080:8080 ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+Mount a models directory (recommended):
+
+```powershell
+docker run -d --name kolosal-server --gpus all --restart unless-stopped `
+  -p 8080:8080 `
+  -v C:\\kolosal\\models:/app/models `
+  ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+Linux/macOS:
+
+```bash
+docker run -d --name kolosal-server --gpus all --restart unless-stopped \
+  -p 8080:8080 \
+  -v $PWD/models:/app/models \
+  ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+### Choose a config
+
+Images support these defaults inside the container:
+
+- Prefer `/app/config/config_basic.yaml` (embedding-only “vanilla”)
+- Fallback to `/app/config/config_rms.yaml`
+- Fallback to `/app/config/config.yaml`
+
+To use your own config, bind-mount it to `/app/config/config.yaml`:
+
+Windows PowerShell:
+
+```powershell
+docker run -d --name kolosal-server --gpus all --restart unless-stopped `
+  -p 8080:8080 `
+  -v ${PWD}\configs\config_basic.yaml:/app/config/config.yaml:ro `
+  -v ${PWD}\models:/app/models `
+  ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+Linux/macOS:
+
+```bash
+docker run -d --name kolosal-server --gpus all --restart unless-stopped \
+  -p 8080:8080 \
+  -v $PWD/configs/config_basic.yaml:/app/config/config.yaml:ro \
+  -v $PWD/models:/app/models \
+  ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+Note: Ensure `server.allow_public_access: true` in your config if you’ll call the API from outside the container/host.
+
+### Verify and logs
+
+```powershell
+curl http://localhost:8080/v1/health
+docker logs -f kolosal-server
+```
+
+If you see model “unloaded”, that’s okay if `load_immediately` is false; it will load on first use.
+
+### Persist data
+
+- Models: mount a host folder to `/app/models`
+- App data/cache: mount a host folder to `/app/data` if desired
+
+### Update or rollback
+
+```powershell
+# Update to a new tag
+docker pull ghcr.io/kolosalai/kolosal-server:v0.0.2
+docker rm -f kolosal-server
+docker run -d --name kolosal-server --gpus all --restart unless-stopped -p 8080:8080 ghcr.io/kolosalai/kolosal-server:v0.0.2
+
+# Rollback to previous
+docker rm -f kolosal-server
+docker run -d --name kolosal-server --gpus all --restart unless-stopped -p 8080:8080 ghcr.io/kolosalai/kolosal-server:v0.0.1
+```
+
+### Troubleshooting
+
+- Connection reset: confirm `-p 8080:8080` and `server.allow_public_access: true` in the config.
+- GPU not used: ensure NVIDIA drivers + NVIDIA Container Toolkit; run with `--gpus all`; check `nvidia-smi` on host.
+- Missing models: mount a models directory to `/app/models` or use paths/URLs in your config.
+- 404s: check path (`/v1/health`, `/v1/models`, etc.).
+- Authentication: set `auth.enabled` and `api_keys` in your config and send `X-API-Key` header.
+
 ### Linux (Recommended)
 
 #### Prerequisites
