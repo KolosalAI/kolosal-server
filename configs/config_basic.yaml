@@ -26,7 +26,7 @@ auth:
   api_keys:
     - change_me_if_enabled
   rate_limit:
-    enabled: false
+    enabled: true
     max_requests: 100
     window_size: 60
   cors:
