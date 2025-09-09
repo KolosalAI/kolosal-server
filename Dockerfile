@@ -32,7 +32,7 @@ RUN set -eux; \
   update-ca-certificates; \
   install -d -m 0755 /etc/apt/keyrings; \
   wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | gpg --dearmor -o /etc/apt/keyrings/lunarg-archive-keyring.gpg; \
-  echo "deb [signed-by=/etc/apt/keyrings/lunarg-archive-keyring.gpg] https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy main" > /etc/apt/sources.list.d/lunarg-vulkan-jammy.list; \
+  echo "deb [signed-by=/etc/apt/keyrings/lunarg-archive-keyring.gpg] https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy jammy main" > /etc/apt/sources.list.d/lunarg-vulkan-jammy.list; \
   apt-get update; \
   apt-get install -y --no-install-recommends \
   build-essential git pkg-config ca-certificates curl \
