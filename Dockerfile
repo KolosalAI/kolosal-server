@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       cmake ninja-build ccache \
   libcurl4-openssl-dev libssl-dev libbz2-dev \
   libomp-dev libblas-dev liblapack-dev \
-  libvulkan-dev vulkan-tools mesa-vulkan-drivers \
+  libvulkan-dev vulkan-tools mesa-vulkan-drivers glslang-tools \
       # PDF (PoDoFo) optional deps – safe to install even if disabled
       libfreetype6-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libfontconfig1-dev \
     && rm -rf /var/lib/apt/lists/*
