@@ -30,7 +30,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       cmake ninja-build ccache \
   libcurl4-openssl-dev libssl-dev libbz2-dev \
   libomp-dev libblas-dev liblapack-dev \
-  libvulkan-dev vulkan-tools mesa-vulkan-drivers glslang-tools \
+  libvulkan-dev vulkan-tools mesa-vulkan-drivers glslang-tools shaderc spirv-tools \
       # PDF (PoDoFo) optional deps – safe to install even if disabled
       libfreetype6-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libfontconfig1-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -80,6 +80,7 @@ RUN set -eux; \
       -DENABLE_NATIVE_OPTIMIZATION=${ENABLE_NATIVE_OPTIMIZATION} \
   -DUSE_VULKAN=${ENABLE_VULKAN} \
       -DUSE_PODOFO=${USE_PODOFO} \
+  -DVulkan_GLSLC_EXECUTABLE=/usr/bin/glslc \
       -DBUILD_TESTING=OFF \
       -DBUILD_INFERENCE_TESTS=OFF; \
     cmake --build build --config ${BUILD_TYPE}
