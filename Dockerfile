@@ -1,21 +1,20 @@
 # syntax=docker/dockerfile:1.7-labs
 
 ########################################
-# Kolosal Server – CUDA Docker image
+# Kolosal Server – Vulkan Docker image
 # - Multi-stage: build (devel) -> runtime (slim)
-# - Defaults to GPU (CUDA) build
-# - Uses config_rms.yaml as default config
+# - Defaults to GPU (Vulkan) build
+# - Uses config_rms.yaml/config_basic.yaml as default config
 # - Copies only required runtime bits
 ########################################
 
-ARG CUDA_VERSION=12.4.1
-ARG BASE_IMAGE=nvidia/cuda:${CUDA_VERSION}-devel-ubuntu22.04
+ARG BASE_IMAGE=ubuntu:22.04
 FROM ${BASE_IMAGE} AS build
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG TZ=UTC
 ARG BUILD_TYPE=Release
-ARG ENABLE_CUDA=ON
+ARG ENABLE_VULKAN=ON
 ARG ENABLE_NATIVE_OPTIMIZATION=OFF
 ARG USE_PODOFO=ON
 ARG CMAKE_VERSION=3.27.9
@@ -25,12 +24,13 @@ ENV TZ=${TZ} \
     CXX=g++ \
     BUILD_TYPE=${BUILD_TYPE}
 
-# Build dependencies (system CURL required by inference/CMakeLists on Linux)
+# Build dependencies (system CURL required by inference/CMakeLists on Linux) + Vulkan SDK/headers
 RUN apt-get update && apt-get install -y --no-install-recommends \
   build-essential git pkg-config ca-certificates curl \
       cmake ninja-build ccache \
   libcurl4-openssl-dev libssl-dev libbz2-dev \
   libomp-dev libblas-dev liblapack-dev \
+  libvulkan-dev vulkan-tools mesa-vulkan-drivers \
       # PDF (PoDoFo) optional deps – safe to install even if disabled
       libfreetype6-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libfontconfig1-dev \
     && rm -rf /var/lib/apt/lists/*
@@ -72,16 +72,14 @@ RUN set -eux; \
       echo "[Docker build] Found llama.cpp sources in repo"; \
     fi
 
-# Configure & build (CUDA by default)
+# Configure & build (Vulkan by default)
 RUN set -eux; \
     cmake -S . -B build -G Ninja \
       -DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
       -DCMAKE_C_COMPILER=${CC} -DCMAKE_CXX_COMPILER=${CXX} \
       -DENABLE_NATIVE_OPTIMIZATION=${ENABLE_NATIVE_OPTIMIZATION} \
-      -DUSE_CUDA=${ENABLE_CUDA} \
+  -DUSE_VULKAN=${ENABLE_VULKAN} \
       -DUSE_PODOFO=${USE_PODOFO} \
-  -DGGML_CUDA_NO_VMM=ON \
-      -DCUDA_CUDA_LIBRARY=/usr/local/cuda/lib64/stubs/libcuda.so \
       -DBUILD_TESTING=OFF \
       -DBUILD_INFERENCE_TESTS=OFF; \
     cmake --build build --config ${BUILD_TYPE}
@@ -130,16 +128,17 @@ RUN set -eux; \
 ########################################
 # Runtime image
 ########################################
-FROM nvidia/cuda:${CUDA_VERSION}-runtime-ubuntu22.04 AS runtime
+FROM ubuntu:22.04 AS runtime
 
 ARG DEBIAN_FRONTEND=noninteractive
-ENV LD_LIBRARY_PATH=/usr/local/lib:/app/libs:/usr/local/cuda/lib64 \
+ENV LD_LIBRARY_PATH=/usr/local/lib:/app/libs \
     KOL_MODELS_DIR=/app/models
 
 # Minimal runtime deps (keep in sync with ldd if needed)
 RUN apt-get update && apt-get install -y --no-install-recommends \
   libcurl4 libssl3 libbz2-1.0 zlib1g libgomp1 ca-certificates curl tini \
   libblas3 liblapack3 libgfortran5 \
+  libvulkan1 vulkan-tools mesa-vulkan-drivers \
       # PoDoFo runtime libs (safe if unused)
       libfreetype6 libjpeg-turbo8 libpng16-16 libtiff5 libxml2 fontconfig \
     && rm -rf /var/lib/apt/lists/*
