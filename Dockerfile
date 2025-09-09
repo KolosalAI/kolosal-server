@@ -25,12 +25,19 @@ ENV TZ=${TZ} \
     BUILD_TYPE=${BUILD_TYPE}
 
 # Build dependencies (system CURL required by inference/CMakeLists on Linux) + Vulkan SDK/headers
-RUN apt-get update && apt-get install -y --no-install-recommends \
+# Add LunarG Vulkan SDK repo to get glslc on Ubuntu 22.04
+RUN set -eux; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends wget gnupg; \
+  wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list; \
+  wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | apt-key add -; \
+  apt-get update; \
+  apt-get install -y --no-install-recommends \
   build-essential git pkg-config ca-certificates curl \
       cmake ninja-build ccache \
   libcurl4-openssl-dev libssl-dev libbz2-dev \
   libomp-dev libblas-dev liblapack-dev \
-  libvulkan-dev vulkan-tools mesa-vulkan-drivers glslang-tools shaderc spirv-tools \
+  libvulkan-dev vulkan-tools mesa-vulkan-drivers glslang-tools vulkan-sdk \
       # PDF (PoDoFo) optional deps – safe to install even if disabled
       libfreetype6-dev libjpeg-dev libpng-dev libtiff-dev libxml2-dev libfontconfig1-dev \
     && rm -rf /var/lib/apt/lists/*
