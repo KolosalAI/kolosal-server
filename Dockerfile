@@ -28,9 +28,11 @@ ENV TZ=${TZ} \
 # Add LunarG Vulkan SDK repo to get glslc on Ubuntu 22.04
 RUN set -eux; \
   apt-get update; \
-  apt-get install -y --no-install-recommends wget gnupg; \
-  wget -qO /etc/apt/sources.list.d/lunarg-vulkan-jammy.list https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy.list; \
-  wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | apt-key add -; \
+  apt-get install -y --no-install-recommends ca-certificates wget gnupg; \
+  update-ca-certificates; \
+  install -d -m 0755 /etc/apt/keyrings; \
+  wget -qO - https://packages.lunarg.com/lunarg-signing-key-pub.asc | gpg --dearmor -o /etc/apt/keyrings/lunarg-archive-keyring.gpg; \
+  echo "deb [signed-by=/etc/apt/keyrings/lunarg-archive-keyring.gpg] https://packages.lunarg.com/vulkan/lunarg-vulkan-jammy main" > /etc/apt/sources.list.d/lunarg-vulkan-jammy.list; \
   apt-get update; \
   apt-get install -y --no-install-recommends \
   build-essential git pkg-config ca-certificates curl \
