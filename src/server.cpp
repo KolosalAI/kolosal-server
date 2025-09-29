@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cctype>
 #include <sstream>
+#include <cerrno>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -380,10 +381,25 @@ namespace kolosal
 							int totalBytesReceived = 0;
 							
 							// Set socket timeout to prevent hanging
+		#ifdef _WIN32
+							DWORD timeoutMs = 30000; // 30 second timeout in milliseconds
+							if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO,
+									   reinterpret_cast<const char *>(&timeoutMs), sizeof(timeoutMs)) == SOCKET_ERROR)
+							{
+								ServerLogger::logWarning("[Thread %d] Failed to set receive timeout: %d",
+												std::this_thread::get_id(), WSAGetLastError());
+							}
+		#else
 							struct timeval timeout;
 							timeout.tv_sec = 30;  // 30 second timeout
 							timeout.tv_usec = 0;
-							setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO, (const char*)&timeout, sizeof(timeout));
+							if (setsockopt(client_sock, SOL_SOCKET, SO_RCVTIMEO,
+									   reinterpret_cast<const char *>(&timeout), sizeof(timeout)) == -1)
+							{
+								ServerLogger::logWarning("[Thread %d] Failed to set receive timeout: %s",
+												std::this_thread::get_id(), strerror(errno));
+							}
+		#endif
 							
 							while (!headersComplete && totalBytesReceived < bufferSize - 1)
 							{

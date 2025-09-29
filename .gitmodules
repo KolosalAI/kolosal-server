@@ -13,3 +13,6 @@
 [submodule "external/llama.cpp"]
 	path = inference/external/llama.cpp
 	url = https://github.com/ggerganov/llama.cpp.git
+[submodule "static/kolosal-product"]
+	path = static/kolosal-product
+	url = https://github.com/armadakapal/kolosal-product
