@@ -15,6 +15,7 @@ namespace kolosal {
         std::string current_path_;
         
         // Helper methods
+        bool isStaticAsset(const std::string& path);
         std::string getContentType(const std::string& filePath);
         std::string readStaticFile(const std::string& relativePath);
         void serveStaticFile(SocketType sock, const std::string& filePath, const std::string& contentType);

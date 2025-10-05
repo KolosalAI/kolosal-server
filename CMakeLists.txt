@@ -54,7 +54,7 @@ option(USE_VULKAN "Compile with VULKAN support" OFF)
 option(USE_METAL  "Compile with Metal support (macOS only)" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
-option(USE_PODOFO "Compile with PoDoFo PDF support" ON)
+option(USE_PODOFO "Compile with PoDoFo PDF support" OFF)
 option(USE_FAISS  "Compile with FAISS support" ON)
 
 if(APPLE AND NOT DEFINED USE_METAL)
@@ -494,3 +494,213 @@ if(INSTALL_HEADERS)
         FILES_MATCHING PATTERN "*.hpp"
     )
 endif()
+
+# === CPACK INSTALLER CONFIGURATION ===
+
+# Install targets for CPack
+install(TARGETS kolosal_server_exe
+    RUNTIME DESTINATION bin
+    COMPONENT Runtime
+)
+
+install(TARGETS kolosal_server
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT Runtime
+)
+
+# Install inference library
+install(TARGETS ${INFERENCE_TARGET}
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
+    ARCHIVE DESTINATION lib
+    COMPONENT Runtime
+)
+
+# Install configuration files
+install(FILES 
+    "${CMAKE_SOURCE_DIR}/configs/config.yaml"
+    "${CMAKE_SOURCE_DIR}/configs/config.json"
+    DESTINATION config
+    COMPONENT Configuration
+    OPTIONAL
+)
+
+# Install documentation
+install(FILES
+    "${CMAKE_SOURCE_DIR}/README.md"
+    "${CMAKE_SOURCE_DIR}/LICENSE"
+    DESTINATION .
+    COMPONENT Documentation
+    OPTIONAL
+)
+
+# Install assets
+install(FILES
+    "${CMAKE_SOURCE_DIR}/assets/icon.ico"
+    "${CMAKE_SOURCE_DIR}/assets/logo.png"
+    DESTINATION assets
+    COMPONENT Assets
+    OPTIONAL
+)
+
+# Install documentation directory
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/docs/"
+    DESTINATION docs
+    COMPONENT Documentation
+    OPTIONAL
+)
+
+# Create directories for runtime data
+install(DIRECTORY DESTINATION data/faiss_index COMPONENT Runtime)
+install(DIRECTORY DESTINATION logs COMPONENT Runtime)
+
+# Basic CPack configuration
+set(CPACK_PACKAGE_NAME "KolosalServer")
+set(CPACK_PACKAGE_VENDOR "Kolosal AI")
+set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "High-performance inference server for large language models")
+set(CPACK_PACKAGE_DESCRIPTION "Kolosal Server - A high-performance inference server for large language models with OpenAI-compatible API endpoints")
+set(CPACK_PACKAGE_HOMEPAGE_URL "https://github.com/KolosalAI/kolosal-server")
+set(CPACK_PACKAGE_VERSION_MAJOR ${PROJECT_VERSION_MAJOR})
+set(CPACK_PACKAGE_VERSION_MINOR ${PROJECT_VERSION_MINOR})
+set(CPACK_PACKAGE_VERSION_PATCH ${PROJECT_VERSION_PATCH})
+set(CPACK_PACKAGE_VERSION "${PROJECT_VERSION}")
+set(CPACK_PACKAGE_INSTALL_DIRECTORY "Kolosal Server")
+set(CPACK_PACKAGE_EXECUTABLES "kolosal-server;Kolosal Server")
+
+# License and readme
+set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
+set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
+
+# Components
+set(CPACK_COMPONENTS_ALL Runtime Configuration Documentation Assets)
+set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Kolosal Server Runtime")
+set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Core executable and libraries")
+set(CPACK_COMPONENT_RUNTIME_REQUIRED TRUE)
+
+set(CPACK_COMPONENT_CONFIGURATION_DISPLAY_NAME "Configuration Files")
+set(CPACK_COMPONENT_CONFIGURATION_DESCRIPTION "Sample configuration files")
+set(CPACK_COMPONENT_CONFIGURATION_DEPENDS Runtime)
+
+set(CPACK_COMPONENT_DOCUMENTATION_DISPLAY_NAME "Documentation")
+set(CPACK_COMPONENT_DOCUMENTATION_DESCRIPTION "User and developer documentation")
+
+set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Assets")
+set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Icons and images")
+
+# Platform-specific configuration
+if(WIN32)
+    # Set default generators - ZIP is always available
+    set(CPACK_GENERATOR "ZIP")
+    
+    # Add NSIS if available
+    find_program(NSIS_MAKE NAMES makensis)
+    if(NSIS_MAKE)
+        message(STATUS "NSIS found: ${NSIS_MAKE}")
+        list(APPEND CPACK_GENERATOR "NSIS")
+    else()
+        message(WARNING "NSIS not found. NSIS installer will not be generated. Install from: https://nsis.sourceforge.io/")
+    endif()
+    
+    # Add WiX if available
+    find_program(WIX_CANDLE NAMES candle)
+    if(WIX_CANDLE)
+        message(STATUS "WiX found: ${WIX_CANDLE}")
+        list(APPEND CPACK_GENERATOR "WIX")
+    else()
+        message(WARNING "WiX not found. MSI installer will not be generated. Install from: https://wixtoolset.org/")
+    endif()
+    
+    # NSIS Configuration (only used if NSIS is available)
+    set(CPACK_NSIS_PACKAGE_NAME "Kolosal Server")
+    set(CPACK_NSIS_DISPLAY_NAME "Kolosal Server ${PROJECT_VERSION}")
+    set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
+    set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/assets/icon.ico")
+    set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/assets/icon.ico")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\kolosal-server.exe")
+    set(CPACK_NSIS_HELP_LINK "https://github.com/KolosalAI/kolosal-server")
+    set(CPACK_NSIS_URL_INFO_ABOUT "https://github.com/KolosalAI/kolosal-server")
+    set(CPACK_NSIS_CONTACT "support@kolosalai.com")
+    set(CPACK_NSIS_MODIFY_PATH ON)
+    set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
+    
+    # Set custom output filename for NSIS
+    set(CPACK_PACKAGE_FILE_NAME "kolosal-installer")
+    set(CPACK_NSIS_OUTPUT_NAME "kolosal-installer.exe")
+    
+    # Create start menu shortcuts
+    set(CPACK_NSIS_CREATE_ICONS_EXTRA
+        "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Kolosal Server.lnk' '$INSTDIR\\\\bin\\\\kolosal-server.exe'"
+    )
+    set(CPACK_NSIS_DELETE_ICONS_EXTRA
+        "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Kolosal Server.lnk'"
+    )
+    
+    # Additional NSIS commands
+    set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
+        CreateDirectory '$INSTDIR\\\\logs'
+        CreateDirectory '$INSTDIR\\\\data\\\\faiss_index'
+        CreateDirectory '$INSTDIR\\\\models'
+    ")
+    
+    # WiX Configuration (only used if WiX is available)
+    set(CPACK_WIX_UPGRADE_GUID "A1B2C3D4-E5F6-7890-ABCD-EF1234567890")
+    set(CPACK_WIX_PRODUCT_ICON "${CMAKE_SOURCE_DIR}/assets/icon.ico")
+    set(CPACK_WIX_UI_BANNER "${CMAKE_SOURCE_DIR}/assets/logo.png")
+    set(CPACK_WIX_PROGRAM_MENU_FOLDER "Kolosal Server")
+    set(CPACK_WIX_PROPERTY_ARPURLINFOABOUT "https://github.com/KolosalAI/kolosal-server")
+    
+elseif(APPLE)
+    # Bundle and DMG for macOS
+    set(CPACK_GENERATOR "Bundle;DragNDrop")
+    set(CPACK_BUNDLE_NAME "Kolosal Server")
+    set(CPACK_BUNDLE_PLIST "${CMAKE_SOURCE_DIR}/installer/Info.plist")
+    set(CPACK_BUNDLE_ICON "${CMAKE_SOURCE_DIR}/assets/icon.icns")
+    set(CPACK_DMG_VOLUME_NAME "Kolosal Server ${PROJECT_VERSION}")
+    set(CPACK_DMG_FORMAT "UDBZ")
+    set(CPACK_DMG_BACKGROUND_IMAGE "${CMAKE_SOURCE_DIR}/assets/dmg_background.png")
+    
+elseif(UNIX)
+    # DEB and RPM for Linux
+    set(CPACK_GENERATOR "DEB;RPM;TGZ")
+    
+    # Debian package configuration
+    set(CPACK_DEBIAN_PACKAGE_MAINTAINER "Kolosal AI <support@kolosalai.com>")
+    set(CPACK_DEBIAN_PACKAGE_SECTION "devel")
+    set(CPACK_DEBIAN_PACKAGE_PRIORITY "optional")
+    set(CPACK_DEBIAN_PACKAGE_DEPENDS "libcurl4, libc6 (>= 2.27)")
+    set(CPACK_DEBIAN_PACKAGE_SUGGESTS "nvidia-cuda-toolkit")
+    set(CPACK_DEBIAN_PACKAGE_HOMEPAGE "https://github.com/KolosalAI/kolosal-server")
+    set(CPACK_DEBIAN_FILE_NAME "DEB-DEFAULT")
+    
+    # RPM package configuration
+    set(CPACK_RPM_PACKAGE_LICENSE "Apache-2.0")
+    set(CPACK_RPM_PACKAGE_GROUP "Development/Tools")
+    set(CPACK_RPM_PACKAGE_URL "https://github.com/KolosalAI/kolosal-server")
+    set(CPACK_RPM_PACKAGE_REQUIRES "libcurl")
+    set(CPACK_RPM_PACKAGE_SUGGESTS "cuda")
+    set(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
+    
+    # Post-install script for Linux
+    set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA 
+        "${CMAKE_SOURCE_DIR}/installer/postinst;${CMAKE_SOURCE_DIR}/installer/prerm")
+    set(CPACK_RPM_POST_INSTALL_SCRIPT_FILE "${CMAKE_SOURCE_DIR}/installer/postinst")
+    set(CPACK_RPM_PRE_UNINSTALL_SCRIPT_FILE "${CMAKE_SOURCE_DIR}/installer/prerm")
+endif()
+
+# Source package configuration
+set(CPACK_SOURCE_GENERATOR "TGZ;ZIP")
+set(CPACK_SOURCE_IGNORE_FILES
+    "/\\\\.git/"
+    "/\\\\.github/"
+    "/\\\\.vscode/"
+    "/build/"
+    "/dist/"
+    "\\\\.gitignore"
+    "\\\\.DS_Store"
+    ".*~$"
+)
+
+# Include CPack module
+include(CPack)

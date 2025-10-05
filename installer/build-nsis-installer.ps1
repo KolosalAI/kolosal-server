@@ -1,0 +1,232 @@
+# Build NSIS Installer for Kolosal Server
+# This script automates the creation of the NSIS installer
+# Usage: .\build-nsis-installer.ps1 [-NsisPath <path>] [-Version <version>]
+
+param(
+    [Parameter(Mandatory=$false)]
+    [string]$NsisPath = "",
+    
+    [Parameter(Mandatory=$false)]
+    [string]$Version = "1.0.0",
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$SkipBuildCheck = $false
+)
+
+# Color output functions
+function Write-Success {
+    param([string]$Message)
+    Write-Host "✓ $Message" -ForegroundColor Green
+}
+
+function Write-Info {
+    param([string]$Message)
+    Write-Host "ℹ $Message" -ForegroundColor Cyan
+}
+
+function Write-Warning {
+    param([string]$Message)
+    Write-Host "⚠ $Message" -ForegroundColor Yellow
+}
+
+function Write-Error {
+    param([string]$Message)
+    Write-Host "✗ $Message" -ForegroundColor Red
+}
+
+# Main script
+Write-Host ""
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host "   Kolosal Server NSIS Installer Builder v$Version" -ForegroundColor Cyan
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+
+# Find NSIS installation
+Write-Info "Searching for NSIS installation..."
+
+if ($NsisPath -eq "") {
+    # Common NSIS installation paths
+    $nsisSearchPaths = @(
+        "${env:ProgramFiles}\NSIS\makensis.exe",
+        "${env:ProgramFiles(x86)}\NSIS\makensis.exe",
+        "C:\Program Files\NSIS\makensis.exe",
+        "C:\Program Files (x86)\NSIS\makensis.exe"
+    )
+    
+    foreach ($path in $nsisSearchPaths) {
+        if (Test-Path $path) {
+            $NsisPath = $path
+            Write-Success "Found NSIS at: $NsisPath"
+            break
+        }
+    }
+    
+    # Try to find it in PATH
+    if ($NsisPath -eq "") {
+        try {
+            $makensis = Get-Command makensis -ErrorAction SilentlyContinue
+            if ($makensis) {
+                $NsisPath = $makensis.Source
+                Write-Success "Found NSIS in PATH: $NsisPath"
+            }
+        } catch {
+            # NSIS not in PATH
+        }
+    }
+}
+
+if ($NsisPath -eq "" -or -not (Test-Path $NsisPath)) {
+    Write-Error "NSIS not found!"
+    Write-Host ""
+    Write-Host "Please install NSIS from: https://nsis.sourceforge.io/Download" -ForegroundColor Yellow
+    Write-Host ""
+    Write-Host "Or specify the path manually:" -ForegroundColor Yellow
+    Write-Host "  .\build-nsis-installer.ps1 -NsisPath 'C:\Path\To\NSIS\makensis.exe'" -ForegroundColor White
+    Write-Host ""
+    exit 1
+}
+
+# Check if build exists
+if (-not $SkipBuildCheck) {
+    Write-Info "Checking for built binaries..."
+    
+    $buildLocations = @(
+        "..\build\Release\kolosal-server.exe",
+        "..\build\dist\kolosal-server.exe"
+    )
+    
+    $buildFound = $false
+    foreach ($location in $buildLocations) {
+        if (Test-Path $location) {
+            Write-Success "Found built executable: $location"
+            $buildFound = $true
+            break
+        }
+    }
+    
+    if (-not $buildFound) {
+        Write-Warning "No built executable found!"
+        Write-Host ""
+        Write-Host "Please build the project first:" -ForegroundColor Yellow
+        Write-Host "  cd ..\build" -ForegroundColor White
+        Write-Host "  cmake --build . --config Release" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Or use -SkipBuildCheck to bypass this check" -ForegroundColor Yellow
+        Write-Host ""
+        
+        $response = Read-Host "Continue anyway? (y/n)"
+        if ($response -ne "y" -and $response -ne "Y") {
+            exit 1
+        }
+    }
+}
+
+# Check for required assets
+Write-Info "Checking for required assets..."
+$assetsOk = $true
+
+$requiredAssets = @(
+    @{Path = "..\assets\icon.ico"; Name = "Icon file"},
+    @{Path = "..\LICENSE"; Name = "License file"}
+)
+
+foreach ($asset in $requiredAssets) {
+    if (Test-Path $asset.Path) {
+        Write-Success "$($asset.Name) found"
+    } else {
+        Write-Warning "$($asset.Name) not found: $($asset.Path)"
+        $assetsOk = $false
+    }
+}
+
+if (-not $assetsOk) {
+    Write-Warning "Some assets are missing, but we'll continue..."
+    Write-Info "The installer may not include all branding elements"
+}
+
+# Update version in script.nsi if needed
+Write-Info "Checking version in script.nsi..."
+$nsiContent = Get-Content "script.nsi" -Raw
+if ($nsiContent -match '!define PRODUCT_VERSION "([^"]+)"') {
+    $currentVersion = $matches[1]
+    if ($currentVersion -ne $Version) {
+        Write-Warning "Version mismatch: script.nsi has $currentVersion, but you specified $Version"
+        $response = Read-Host "Update script.nsi to version $Version? (y/n)"
+        if ($response -eq "y" -or $response -eq "Y") {
+            $nsiContent = $nsiContent -replace '!define PRODUCT_VERSION "[^"]+"', "!define PRODUCT_VERSION `"$Version`""
+            Set-Content -Path "script.nsi" -Value $nsiContent -NoNewline
+            Write-Success "Updated script.nsi to version $Version"
+        }
+    } else {
+        Write-Success "Version matches: $Version"
+    }
+}
+
+# Build the installer
+Write-Host ""
+Write-Info "Building NSIS installer..."
+Write-Info "This may take a few minutes..."
+Write-Host ""
+
+$startTime = Get-Date
+
+try {
+    # Run makensis with verbose output
+    $process = Start-Process -FilePath $NsisPath -ArgumentList "script.nsi" -NoNewWindow -Wait -PassThru
+    
+    if ($process.ExitCode -eq 0) {
+        $endTime = Get-Date
+        $duration = ($endTime - $startTime).TotalSeconds
+        
+        Write-Host ""
+        Write-Success "NSIS installer built successfully!"
+        Write-Info "Build time: $([math]::Round($duration, 2)) seconds"
+        
+        # Find the generated installer
+        $installerName = "kolosal-server-installer-$Version.exe"
+        if (Test-Path $installerName) {
+            $installerSize = (Get-Item $installerName).Length / 1MB
+            Write-Success "Installer created: $installerName"
+            Write-Success "Size: $([math]::Round($installerSize, 2)) MB"
+            
+            # Show full path
+            $fullPath = (Resolve-Path $installerName).Path
+            Write-Host ""
+            Write-Host "Full path: " -NoNewline
+            Write-Host $fullPath -ForegroundColor Yellow
+        } else {
+            Write-Warning "Installer file not found: $installerName"
+            Write-Info "Check the current directory for the .exe file"
+        }
+        
+    } else {
+        Write-Error "NSIS compilation failed with exit code: $($process.ExitCode)"
+        Write-Host ""
+        Write-Host "Common issues:" -ForegroundColor Yellow
+        Write-Host "  - Missing files referenced in script.nsi" -ForegroundColor White
+        Write-Host "  - Incorrect file paths" -ForegroundColor White
+        Write-Host "  - Syntax errors in script.nsi" -ForegroundColor White
+        Write-Host ""
+        Write-Host "Review the output above for specific errors" -ForegroundColor Yellow
+        exit 1
+    }
+} catch {
+    Write-Error "Failed to run NSIS: $_"
+    exit 1
+}
+
+# Summary
+Write-Host ""
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Green
+Write-Host "   NSIS Installer Created Successfully!" -ForegroundColor Green
+Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Green
+Write-Host ""
+Write-Host "Next steps:" -ForegroundColor Cyan
+Write-Host "  1. Test the installer on a clean Windows machine" -ForegroundColor White
+Write-Host "  2. Verify all features work correctly" -ForegroundColor White
+Write-Host "  3. (Optional) Sign the installer with your certificate" -ForegroundColor White
+Write-Host "  4. Upload to your distribution platform" -ForegroundColor White
+Write-Host ""
+Write-Host "To sign the installer:" -ForegroundColor Cyan
+Write-Host "  signtool sign /f certificate.pfx /p password /t http://timestamp.digicert.com $installerName" -ForegroundColor White
+Write-Host ""

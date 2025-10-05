@@ -174,12 +174,25 @@ endif()
 # Enable GGML acceleration based on options
 if(USE_CUDA)
     set(GGML_CUDA ON CACHE BOOL "Enable GGML CUDA support" FORCE)
+    set(LLAMA_CUDA ON CACHE BOOL "Enable LLAMA CUDA support" FORCE)
     message(STATUS "Using CUDA for GGML acceleration")
+    
+    # On Windows with MSVC, we need to ensure CUDA uses the host C++ standard library
+    if(WIN32 AND MSVC)
+        # This flag tells nvcc to use host libstdc++ for device code
+        set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use-local-env")
+        set(GGML_CUDA_USE_GRAPHS OFF CACHE BOOL "Disable CUDA graphs to avoid linking issues" FORCE)
+    endif()
     
     find_package(CUDA REQUIRED)
     if(CUDA_FOUND)
         target_include_directories(${TARGET_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
+        # Link CUDA runtime, cuBLAS, and the CUDA driver library
         target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_CUDA_LIBRARY})
+        # On Windows, we also need to link against the math library to resolve missing symbols
+        if(WIN32)
+            target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_cudart_static_LIBRARY})
+        endif()
     else()
         message(FATAL_ERROR "CUDA not found. Please install CUDA toolkit.")
     endif()
@@ -307,6 +320,12 @@ endif()
 set(LLAMA_LINK_LIBRARIES llama common ggml)
 target_link_libraries(${TARGET_NAME} PRIVATE ${LLAMA_LINK_LIBRARIES})
 
+# For CUDA on Windows, we need to link additional libraries for math functions
+if(USE_CUDA AND WIN32)
+    # Add CUDA device library which contains math functions
+    target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_cudadevrt_LIBRARY})
+endif()
+
 # On MSVC, ensure symbols from static libs are included into this shared lib
 if(MSVC)
     foreach(lib ${LLAMA_LINK_LIBRARIES})
@@ -361,6 +380,11 @@ target_link_libraries(${TARGET_NAME} PRIVATE Threads::Threads)
 # Platform-specific link libraries
 if(WIN32)
     target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
+    # For CUDA on Windows, we need to link the standard C library for math functions
+    if(USE_CUDA AND MSVC)
+        # Link the MSVC runtime library explicitly to resolve CUDA math function symbols
+        target_link_options(${TARGET_NAME} PRIVATE /DEFAULTLIB:libucrt.lib /DEFAULTLIB:libcmt.lib)
+    endif()
     # Copy the libcurl.dll to the bin directory
     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
@@ -514,7 +538,11 @@ if(BUILD_INFERENCE_TESTS)
             INSTALL_RPATH "\$ORIGIN;\$ORIGIN/../lib"
         )
     endif()
-    install(TARGETS inference_smoketest RUNTIME DESTINATION bin)
+    # Only install smoketest if the target was actually built
+    install(TARGETS inference_smoketest 
+        RUNTIME DESTINATION bin
+        OPTIONAL
+    )
 
     # Additional focused test executables
     set(INFERENCE_TEST_SOURCES
@@ -556,7 +584,11 @@ if(BUILD_INFERENCE_TESTS)
                 INSTALL_RPATH "\$ORIGIN;\$ORIGIN/../lib"
             )
         endif()
-        install(TARGETS ${test_name} RUNTIME DESTINATION bin)
+        # Only install test if the target was actually built
+        install(TARGETS ${test_name} 
+            RUNTIME DESTINATION bin
+            OPTIONAL
+        )
     endforeach()
 
     # Convenience aggregate target to build all inference test executables at once

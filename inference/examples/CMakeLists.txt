@@ -52,12 +52,14 @@ if(MSVC)
     )
 endif()
 
-# Install examples
+# Install examples (only if actually built)
 install(TARGETS grammar_example json_schema_example
     RUNTIME DESTINATION bin/examples
+    OPTIONAL
 )
 
 # Install example sources for reference
 install(FILES grammar_example.cpp json_schema_example.cpp README.md
     DESTINATION share/kolosal/examples
+    OPTIONAL
 )

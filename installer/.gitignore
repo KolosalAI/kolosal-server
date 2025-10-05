@@ -1,0 +1,19 @@
+# Ignore generated installer files
+*.exe
+*.zip
+
+# Ignore staging directories
+*-staging-*/
+
+# Ignore temporary files
+*.tmp
+*.temp
+*.bak
+
+# Ignore NSIS log files
+*.log
+
+# Keep the scripts and documentation
+!*.ps1
+!*.nsi
+!*.md
