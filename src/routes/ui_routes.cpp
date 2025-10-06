@@ -28,6 +28,12 @@ namespace kolosal {
                 return true;
             }
             
+            // Match test integration page
+            if (cleanPath == "/test" || cleanPath == "/test-integration" || cleanPath == "/test-integration.html") {
+                current_path_ = "/test-integration.html";
+                return true;
+            }
+            
             // Match discover routes
             if (cleanPath == "/discover" || cleanPath == "/discover/" || cleanPath == "/discover/index.html") {
                 current_path_ = "/discover/index.html";

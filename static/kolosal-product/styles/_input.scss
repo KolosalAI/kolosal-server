@@ -1,0 +1,138 @@
+@use 'variable' as *;
+@use 'mixin' as *;
+
+.input-file {
+    @include flex(column, center, center);
+    gap: 16px;
+    height: 132px;
+    width: 100%;
+    border: 1px dashed #6D6D6E;
+    position: relative;
+    background-color: var(--color-background);
+    border-radius: 8px;
+
+    .icon {
+        padding: 8px;
+        height: 32px;
+        width: 32px;
+        @include flex(row, center, center);
+        border-radius: 8px;
+        background-color: var(--color-neutral);
+    }
+
+    input {
+        position: absolute;
+        opacity: 0;
+    }
+
+    .file-info {
+        @include flex(row, space-between, center);
+        width: 100%;
+    }
+}
+
+.input-file.file-selected {
+    padding: 16px;
+    height: fit-content;
+}
+
+// input textarea
+.input-textarea {
+    width: 100%;
+    color: var(--color-subtitle);
+    background-color: var(--color-background);
+    border: 1px solid var(--color-stroke);
+    resize: none;
+    min-height: 104px;
+    color: var(--color-text);
+    border-radius: 8px;
+    font-size: 14px;
+    line-height: 20px;
+    font-family: "Inter", sans-serif;
+    padding: 8px 12px;
+}
+
+.input-textarea:active {
+    border-color: var(--color-information);
+}
+
+.input-textarea:focus-visible {
+    border: 1px solid var(--color-information);
+    outline: none;
+}
+
+// input text
+.input-text-md {
+    font-size: 14px;
+    line-height: 20px;
+    font-family: "Inter", sans-serif;
+    padding: 0px 12px;
+    height: 32px;
+    @include flex(row, flex-start, center);
+    border: 1px solid var(--color-stroke);
+    outline: none;
+    background-color: var(--color-background);
+    width: 100%;
+    border-radius: 8px;
+    color: var(--color-text);
+}
+
+.input-text-md:active {
+    border-color: var(--color-information);
+}
+
+.input-text-md:focus-visible {
+    border: 1px solid var(--color-information);
+    outline: none;
+}
+
+.input-text-md.disable {
+    user-select: none;
+    pointer-events: none;
+    opacity: 0.4;
+}
+
+.input-text-lg {
+    font-size: 14px;
+    line-height: 20px;
+    font-family: "Inter", sans-serif;
+    padding: 0px 12px;
+    height: 36px;
+    @include flex(row, flex-start, center);
+    border: 1px solid var(--color-stroke);
+    outline: none;
+    background-color: var(--color-background);
+    width: 100%;
+    border-radius: 8px;
+    color: var(--color-text);
+}
+
+.input-text-lg:active {
+    border-color: var(--color-information);
+}
+
+.input-text-lg:focus-visible {
+    border: 1px solid var(--color-information);
+    outline: none;
+}
+
+// input-range
+.input-range {
+    appearance: none;
+    width: 100%;
+    height: 16px;
+    background: var(--color-stroke);
+    border-radius: 999px;
+    outline: none;
+    cursor: pointer;
+
+    &::-webkit-slider-thumb {
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        border-radius: 999px;
+        background: var(--color-text);
+        border: 2px solid var(--color-neutral);
+        cursor: pointer;
+    }
+}

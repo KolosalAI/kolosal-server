@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolosal</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="playground/style.css">
+</head>
+<body>
+    <div class="sidebar"></div>
+    <div class="chat">
+        <div class="chat-title">
+            <h1 class="mono-14px medium">YOUR CHAT</h1>
+        </div>
+        <div class="chat-action">
+            <div class="list-item">            
+                <h2 class="text-14px medium">New Chat</h2>
+                <i class="ri-edit-box-line"></i>
+            </div>
+        </div>
+        <div class="chat-list">
+            <div class="list-item active">
+                <h2 class="text-14px reguler">title_chat</h2>
+                <button><i class="ri-more-line"></i></button>
+            </div>
+        </div>
+    </div>
+    <div class="wrapper">
+        <div class="box">
+            <div class="box-chat">
+                <div class="box-title">
+                    <div class="select">
+                        <div class="select-trigger">
+                            <h2 class="text-12px reguler">Qwen3-Coder-30B</h2>
+                            <i class="ri-arrow-down-s-fill select-icon"></i>
+                        </div>
+                        <div class="select-list">
+                            <div class="select-list-item">
+                                <h2 class="text-12px reguler">model-1</h2>
+                            </div>
+                            <div class="select-list-item">
+                                <h2 class="text-12px reguler">model-1</h2>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="box-title-col">
+                        <h2 class="mono-12px medium">LOCAL MODE</h2>
+                        <button class="btn-md btn-outline ButtonOption"><i class="ri-equalizer-line"></i>Options</button>
+                    </div>
+                </div>
+                <div class="box-body">
+                    <div class="blank">
+                        <img src="https://res.cloudinary.com/dh21tvktj/image/upload/v1758625415/kolosal-blank-chat_aeewug.png" alt="">
+                        <h2 class="text-32px semibold">Your first chat starts here</h2>
+                        <h3 class="text-32px semibold">What’s on your mind?</h3>
+                    </div>
+                    <div class="bubble">
+                        <div class="bubble-user">
+                            <div class="bubble-user-wrapper">
+                                <p class="article-text reguler">Test</p>
+                            </div>
+                        </div>
+                        <div class="bubble-bot">
+                            <div class="bubble-bot-wrapper">
+                                <p class="article-text reguler">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc nisi risus, auctor vel tellus nec, laoreet molestie mi. Vivamus ultrices lorem vulputate lacus varius, quis tincidunt tellus vehicula. Donec leo nibh, scelerisque nec ornare ut, mattis nec purus.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="box-action">
+                    <textarea class="text-14px reguler" placeholder="Type anything you like..."></textarea>
+                    <button><i class="ri-arrow-up-line"></i></button>
+                </div>
+            </div>
+            <div class="box-option">
+                <div class="wrapper">
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Temperature:</h2>
+                            <p class="text-12px reguler">10</p>
+                        </div>
+                        <input class="input-range" type="range">
+                    </div>
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Maximum Length:</h2>
+                            <p class="text-12px reguler">10</p>
+                        </div>
+                        <input class="input-range" type="range">
+                    </div>
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Top P:</h2>
+                            <p class="text-12px reguler">10</p>
+                        </div>
+                        <input class="input-range" type="range">
+                    </div>
+                    <div class="box-option-content">
+                        <h2 class="text-12px reguler">Instruction:</h2>
+                        <textarea class="input-textarea" placeholder="Enter query here..."></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- load javascript -->
+    <script type="module" src="playground/script.js"></script>
+</body>
+</html>

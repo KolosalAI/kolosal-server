@@ -1,0 +1,154 @@
+@use 'variable' as *;
+@use 'mixin' as *;
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+// font weight
+.reguler {
+    font-weight: 400;
+    font-style: normal;
+}
+
+.medium {
+    font-weight: 500;
+    font-style: normal;
+}
+
+.semibold {
+    font-weight: 600;
+    font-style: normal;
+}
+
+// font size
+.text-12px {
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: -0.2px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-14px {
+    font-size: 14px;
+    line-height: 20px;
+    letter-spacing: -0.2px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-16px {
+    font-size: 16px;
+    line-height: 24px;
+    letter-spacing: -0.3px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-20px {
+    font-size: 20px;
+    line-height: 28px;
+    letter-spacing: -0.5px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-22px {
+    font-size: 22px;
+    line-height: 32px;
+    letter-spacing: -0.5px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-24px {
+    font-size: 24px;
+    line-height: 36px;
+    letter-spacing: -0.5px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-28px {
+    font-size: 28px;
+    line-height: 40px;
+    letter-spacing: -1px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-32px {
+    font-size: 32px;
+    line-height: 40px;
+    letter-spacing: -1px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-36px {
+    font-size: 36px;
+    line-height: 44px;
+    letter-spacing: -1.2px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-40px {
+    font-size: 40px;
+    line-height: 48px;
+    letter-spacing: -1.2px;
+    font-family: "Inter", sans-serif;
+}
+
+.text-56px {
+    font-size: 56px;
+    line-height: 60px;
+    letter-spacing: -2px;
+    font-family: "Inter", sans-serif;
+}
+
+.article-text {
+    font-size: 14px;
+    line-height: 24px;
+    letter-spacing: 0.2px;
+    font-family: "Inter", sans-serif;
+}
+
+// mono font size utilities
+.mono-12px {
+    font-size: 12px;
+    line-height: 16px;
+    letter-spacing: -0.2px;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.mono-14px {
+    font-size: 14px;
+    line-height: 20px;
+    letter-spacing: -0.2px;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.mono-16px {
+    font-size: 16px;
+    line-height: 24px;
+    letter-spacing: -0.3px;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.mono-20px {
+    font-size: 20px;
+    line-height: 28px;
+    letter-spacing: -0.5px;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.mono-24px {
+    font-size: 24px;
+    line-height: 36px;
+    letter-spacing: -0.5px;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.mono-32px {
+    font-size: 32px;
+    line-height: 40px;
+    letter-spacing: -1px;
+    font-family: "IBM Plex Mono", monospace;
+}
+
+.mono-40px {
+    font-size: 40px;
+    line-height: 48px;
+    letter-spacing: -1.2px;
+    font-family: "IBM Plex Mono", monospace;
+}

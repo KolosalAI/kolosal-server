@@ -1,0 +1,131 @@
+:root {
+  --color-text: #FFFFFF;
+  --color-subtitle: #77777E;
+  --color-stroke: #252627;
+  --color-stroke-alt: #2F3031;
+  --color-neutral: #0D0E0F;
+  --color-background: #1C1C1D;
+  --color-information: #0370FF;
+  --color-success: #05E344;
+  --color-warning: #FFFF04;
+  --color-danger: #FF2723;
+}
+
+body {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: stretch;
+  overflow: hidden;
+}
+body .wrapper {
+  flex: 1 0 0;
+  padding: 32px;
+}
+
+.model {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 24px;
+  max-width: 968px;
+  width: 100%;
+  min-height: 100%;
+  margin-left: auto;
+  margin-right: auto;
+  opacity: 0;
+  animation: opacity 0.5s ease forwards;
+  animation-delay: 0.2s;
+}
+
+.model-title {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+}
+.model-title .col {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+}
+.model-title .col .divider {
+  height: 24px;
+  border-right: 1px solid var(--color-stroke);
+  margin-left: 8px;
+  margin-right: 8px;
+}
+.model-title .col input {
+  width: 240px;
+}
+
+.model-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 8px;
+}
+
+.model-list-item {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background-color: var(--color-background);
+  border-radius: 8px;
+  cursor: pointer;
+}
+.model-list-item .col {
+  display: flex;
+  flex-direction: row;
+  justify-content: flex-start;
+  align-items: center;
+  gap: 8px;
+}
+.model-list-item .col p {
+  color: var(--color-subtitle);
+}
+.model-list-item .col .badge {
+  background-color: var(--color-neutral);
+}
+
+.model-list-item:hover {
+  box-shadow: inset 0px 0px 0px 1px var(--color-stroke);
+}
+
+.model-list-loading {
+  height: 52px;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--color-background) 25%, var(--color-stroke) 37%, var(--color-background) 63%);
+  background-size: 400% 100%;
+  animation: loading 1.4s ease infinite;
+}
+
+.model-blank {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex: 1 0 0;
+  border: 1px dashed var(--color-stroke);
+  border-radius: 12px;
+  display: none;
+}
+.model-blank p {
+  color: var(--color-subtitle);
+}
+
+@keyframes loading {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}

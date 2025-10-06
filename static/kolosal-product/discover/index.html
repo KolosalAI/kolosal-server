@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolosal - Discover</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="sidebar"></div>
+    <div class="wrapper">
+        <div class="model">
+            <div class="model-title">
+                <div class="col">
+                    <h1 class="text-14px medium">Your Model</h1>
+                    <div class="divider"></div>
+                    <div class="badge" data-text="TEXT GENERATION"></div>
+                    <div class="badge" data-text="GGUF"></div>
+                </div>
+                <div class="col">
+                    <div class="badge" data-state="success" data-text="HF CONNECTION"></div>
+                    <input class="input-text-md" type="text" placeholder="Search model" id="SearchModel" autocomplete="off">
+                </div>
+            </div>
+            <div class="model-list"></div>
+        </div>
+    </div>
+    <div class="popup" data-popup="FileList">
+        <div class="popup-content">
+            <div class="popup-title">
+                <h1 class="text-14px medium">Files List</h1>
+                <button class="btn-sm-icon btn-outline ClosePopup"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="popup-body">
+                <div class="popup-model-wrapper">
+                    <div class="popup-model-list"></div>
+                </div>
+                <div class="popup-model-action">
+                    <button class="btn-md btn-primary AddModel">Add Model</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- load javascript -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>

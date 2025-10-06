@@ -77,7 +77,7 @@ database:
     metric_type: IP
 models:
   - id: gemma3-1b
-    path: https://huggingface.co/kolosal/gemma-3-1b/resolve/main/google_gemma-3-1b-it_q4_k_m.gguf
+    path: D:\Works\Genta\codes\kolosal-server\build\Release\models\google_gemma-3-1b-it_q4_k_m.gguf
     type: llm
     load_immediately: true
     main_gpu_id: 0
@@ -94,7 +94,7 @@ models:
       n_batch: 2048
       n_ubatch: 512
   - id: qwen3-embedding-0.6b
-    path: https://huggingface.co/kolosal/qwen3-embedding-0.6b/resolve/main/Qwen3-Embedding-0.6B-Q8_0.gguf
+    path: D:\Works\Genta\codes\kolosal-server\https:\huggingface.co\kolosal\qwen3-embedding-0.6b\resolve\main\Qwen3-Embedding-0.6B-Q8_0.gguf
     type: embedding
     load_immediately: true
     main_gpu_id: 0

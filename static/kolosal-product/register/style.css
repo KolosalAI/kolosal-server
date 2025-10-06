@@ -1,0 +1,77 @@
+:root {
+  --color-text: #FFFFFF;
+  --color-subtitle: #77777E;
+  --color-stroke: #252627;
+  --color-stroke-alt: #2F3031;
+  --color-neutral: #0D0E0F;
+  --color-background: #1C1C1D;
+  --color-information: #0370FF;
+  --color-success: #05E344;
+  --color-warning: #FFFF04;
+  --color-danger: #FF2723;
+}
+
+body {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  background-color: var(--color-background);
+  background-image: radial-gradient(var(--color-stroke) 1px, transparent 1px);
+  background-size: 16px 16px;
+  min-height: 100dvh;
+  padding: 24px;
+}
+body p {
+  color: var(--color-subtitle);
+}
+body a {
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 24px;
+  padding: 20px;
+  background-color: var(--color-neutral);
+  max-width: 360px;
+  width: 100%;
+  border-radius: 12px;
+  min-height: 388px;
+}
+.form button {
+  width: 100%;
+}
+
+.form-title p {
+  color: var(--color-subtitle);
+  margin-top: 2px;
+}
+
+.form-divider {
+  display: flex;
+  flex-direction: row;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+.form-divider p {
+  color: var(--color-subtitle);
+}
+.form-divider .rectangle {
+  border-bottom: 1px dashed var(--color-stroke);
+  flex: 1 0 0;
+}
+
+.form-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-items: stretch;
+  gap: 4px;
+}
