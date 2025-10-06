@@ -1,6 +1,6 @@
 # Build NSIS Installer for Kolosal Server
 # This script automates the creation of the NSIS installer
-# Usage: .\build-nsis-installer.ps1 [-NsisPath <path>] [-Version <version>]
+# Usage: .\build-nsis-installer.ps1 [-NsisPath <path>] [-Version <version>] [-SkipBuildCheck] [-AutoBuild]
 
 param(
     [Parameter(Mandatory=$false)]
@@ -10,7 +10,10 @@ param(
     [string]$Version = "1.0.0",
     
     [Parameter(Mandatory=$false)]
-    [switch]$SkipBuildCheck = $false
+    [switch]$SkipBuildCheck = $false,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$AutoBuild = $true
 )
 
 # Color output functions
@@ -86,7 +89,7 @@ if ($NsisPath -eq "" -or -not (Test-Path $NsisPath)) {
     exit 1
 }
 
-# Check if build exists
+# Check if build exists and build if necessary
 if (-not $SkipBuildCheck) {
     Write-Info "Checking for built binaries..."
     
@@ -96,27 +99,106 @@ if (-not $SkipBuildCheck) {
     )
     
     $buildFound = $false
+    $executablePath = ""
     foreach ($location in $buildLocations) {
         if (Test-Path $location) {
             Write-Success "Found built executable: $location"
             $buildFound = $true
+            $executablePath = $location
             break
         }
     }
     
     if (-not $buildFound) {
         Write-Warning "No built executable found!"
-        Write-Host ""
-        Write-Host "Please build the project first:" -ForegroundColor Yellow
-        Write-Host "  cd ..\build" -ForegroundColor White
-        Write-Host "  cmake --build . --config Release" -ForegroundColor White
-        Write-Host ""
-        Write-Host "Or use -SkipBuildCheck to bypass this check" -ForegroundColor Yellow
-        Write-Host ""
         
-        $response = Read-Host "Continue anyway? (y/n)"
-        if ($response -ne "y" -and $response -ne "Y") {
-            exit 1
+        if ($AutoBuild) {
+            Write-Info "Attempting to build the project automatically..."
+            Write-Host ""
+            
+            # Check if build directory exists
+            if (-not (Test-Path "..\build")) {
+                Write-Info "Creating build directory..."
+                try {
+                    New-Item -ItemType Directory -Path "..\build" -Force | Out-Null
+                    Write-Success "Build directory created"
+                } catch {
+                    Write-Error "Failed to create build directory: $_"
+                    exit 1
+                }
+            }
+            
+            # Navigate to build directory and configure cmake if needed
+            Push-Location "..\build"
+            try {
+                # Check if CMakeCache.txt exists
+                if (-not (Test-Path "CMakeCache.txt")) {
+                    Write-Info "Configuring CMake..."
+                    $cmakeProcess = Start-Process -FilePath "cmake" -ArgumentList ".." -NoNewWindow -Wait -PassThru
+                    if ($cmakeProcess.ExitCode -ne 0) {
+                        Write-Error "CMake configuration failed"
+                        Pop-Location
+                        exit 1
+                    }
+                    Write-Success "CMake configuration completed"
+                }
+                
+                # Build the project
+                Write-Info "Building the project (Release configuration)..."
+                Write-Info "This may take several minutes..."
+                
+                $buildProcess = Start-Process -FilePath "cmake" -ArgumentList "--build", ".", "--config", "Release" -NoNewWindow -Wait -PassThru
+                if ($buildProcess.ExitCode -ne 0) {
+                    Write-Error "Build failed!"
+                    Pop-Location
+                    exit 1
+                }
+                
+                Write-Success "Build completed successfully!"
+                
+            } catch {
+                Write-Error "Build process failed: $_"
+                Pop-Location
+                exit 1
+            } finally {
+                Pop-Location
+            }
+            
+            # Verify the build was successful
+            $buildFound = $false
+            foreach ($location in $buildLocations) {
+                if (Test-Path $location) {
+                    Write-Success "Built executable found: $location"
+                    $buildFound = $true
+                    $executablePath = $location
+                    break
+                }
+            }
+            
+            if (-not $buildFound) {
+                Write-Error "Build completed but executable not found!"
+                Write-Host ""
+                Write-Host "Expected executable locations:" -ForegroundColor Yellow
+                foreach ($location in $buildLocations) {
+                    Write-Host "  $location" -ForegroundColor White
+                }
+                Write-Host ""
+                exit 1
+            }
+        } else {
+            Write-Host ""
+            Write-Host "Please build the project first:" -ForegroundColor Yellow
+            Write-Host "  cd ..\build" -ForegroundColor White
+            Write-Host "  cmake --build . --config Release" -ForegroundColor White
+            Write-Host ""
+            Write-Host "Or use -AutoBuild to build automatically" -ForegroundColor Yellow
+            Write-Host "Or use -SkipBuildCheck to bypass this check" -ForegroundColor Yellow
+            Write-Host ""
+            
+            $response = Read-Host "Continue anyway? (y/n)"
+            if ($response -ne "y" -and $response -ne "Y") {
+                exit 1
+            }
         }
     }
 }

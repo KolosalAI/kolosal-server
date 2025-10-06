@@ -518,6 +518,31 @@ install(TARGETS ${INFERENCE_TARGET}
     COMPONENT Runtime
 )
 
+# Install required runtime DLLs (Windows only)
+if(WIN32)
+    # Install libcurl.dll if it exists
+    if(EXISTS "${CMAKE_BINARY_DIR}/Release/libcurl.dll")
+        install(FILES "${CMAKE_BINARY_DIR}/Release/libcurl.dll"
+            DESTINATION bin
+            COMPONENT Runtime
+        )
+    elseif(CURL_INCLUDE_DIR AND EXISTS "${CURL_INCLUDE_DIR}/../bin/libcurl.dll")
+        install(FILES "${CURL_INCLUDE_DIR}/../bin/libcurl.dll"
+            DESTINATION bin
+            COMPONENT Runtime
+        )
+    endif()
+    
+    # Install any other DLLs from Release directory
+    file(GLOB RELEASE_DLLS "${CMAKE_BINARY_DIR}/Release/*.dll")
+    if(RELEASE_DLLS)
+        install(FILES ${RELEASE_DLLS}
+            DESTINATION bin
+            COMPONENT Runtime
+        )
+    endif()
+endif()
+
 # Install configuration files
 install(FILES 
     "${CMAKE_SOURCE_DIR}/configs/config.yaml"
@@ -552,9 +577,43 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/docs/"
     OPTIONAL
 )
 
+# Install static web files
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/static/"
+    DESTINATION static
+    COMPONENT StaticFiles
+    OPTIONAL
+)
+
 # Create directories for runtime data
 install(DIRECTORY DESTINATION data/faiss_index COMPONENT Runtime)
 install(DIRECTORY DESTINATION logs COMPONENT Runtime)
+
+# Try to find and install OpenBLAS DLL if present (optional dependency for CPU acceleration)
+if(WIN32)
+    # Try to find openblas.dll in various locations
+    find_file(OPENBLAS_DLL_FILE
+        NAMES openblas.dll libopenblas.dll
+        PATHS
+            "${CMAKE_BINARY_DIR}/Release"
+            "${CMAKE_BINARY_DIR}/external/llama.cpp/bin/Release"
+            "${CMAKE_SOURCE_DIR}/inference/external/llama.cpp/build/bin/Release"
+            "$ENV{OPENBLAS_HOME}/bin"
+            "C:/Program Files/OpenBLAS/bin"
+            "C:/openblas/bin"
+        NO_DEFAULT_PATH
+    )
+    
+    if(OPENBLAS_DLL_FILE)
+        message(STATUS "Found OpenBLAS DLL: ${OPENBLAS_DLL_FILE}")
+        install(FILES "${OPENBLAS_DLL_FILE}"
+            DESTINATION .
+            COMPONENT Runtime
+            OPTIONAL
+        )
+    else()
+        message(STATUS "OpenBLAS DLL not found - CPU inference will use default implementation")
+    endif()
+endif()
 
 # Basic CPack configuration
 set(CPACK_PACKAGE_NAME "KolosalServer")
@@ -574,7 +633,7 @@ set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
 
 # Components
-set(CPACK_COMPONENTS_ALL Runtime Configuration Documentation Assets)
+set(CPACK_COMPONENTS_ALL Runtime Configuration Documentation Assets StaticFiles)
 set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Kolosal Server Runtime")
 set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Core executable and libraries")
 set(CPACK_COMPONENT_RUNTIME_REQUIRED TRUE)
@@ -588,6 +647,10 @@ set(CPACK_COMPONENT_DOCUMENTATION_DESCRIPTION "User and developer documentation"
 
 set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Assets")
 set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Icons and images")
+
+set(CPACK_COMPONENT_STATICFILES_DISPLAY_NAME "Web Interface")
+set(CPACK_COMPONENT_STATICFILES_DESCRIPTION "Static web files for the user interface")
+set(CPACK_COMPONENT_STATICFILES_DEPENDS Runtime)
 
 # Platform-specific configuration
 if(WIN32)

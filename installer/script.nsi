@@ -154,6 +154,16 @@ Section "!Core Files" SecCore
   File /nonfatal "..\build\dist\kolosal-server.exe"
   File /nonfatal "..\build\dist\*.dll"
   
+  ; Optional: Copy OpenBLAS DLL if present (for BLAS acceleration)
+  File /nonfatal "..\build\Release\openblas.dll"
+  File /nonfatal "..\build\Release\libopenblas.dll"
+  File /nonfatal "..\build\dist\openblas.dll"
+  File /nonfatal "..\build\dist\libopenblas.dll"
+  
+  ; Optional: Copy from inference build directory if present
+  File /nonfatal "..\inference\external\llama.cpp\build\bin\Release\openblas.dll"
+  File /nonfatal "..\build\external\llama.cpp\bin\Release\openblas.dll"
+  
   ; Create lib directory and copy libraries
   SetOutPath "$INSTDIR\lib"
   File /nonfatal /r "..\build\Release\lib\*.*"
@@ -203,10 +213,8 @@ Section "Documentation" SecDocs
 SectionEnd
 
 Section "Static Files" SecStatic
-  SetOutPath "$INSTDIR\static"
-  
-  ; Copy static web files if they exist
-  File /nonfatal /r "..\static\*.*"
+  ; This section is now handled by CPack installation rules
+  ; The static files will be automatically installed by the installer
   
 SectionEnd
 
@@ -362,7 +370,18 @@ Function .onInit
 FunctionEnd
 
 Function LaunchApplication
-  Exec "$INSTDIR\kolosal-server.exe"
+  ; Check if application can start (test for missing DLLs)
+  ExecWait '"$INSTDIR\kolosal-server.exe" --version' $0
+  ${If} $0 != 0
+    MessageBox MB_OK|MB_ICONINFORMATION \
+      "Kolosal Server has been installed successfully.$\n$\n\
+      Note: If you encounter missing DLL errors, you may need to install:$\n\
+      - Visual C++ Redistributable (https://aka.ms/vs/17/release/vc_redist.x64.exe)$\n\
+      - OpenBLAS (optional, for CPU acceleration)$\n$\n\
+      Please check the logs directory for more information."
+  ${Else}
+    Exec "$INSTDIR\kolosal-server.exe"
+  ${EndIf}
 FunctionEnd
 
 Function un.onInit
