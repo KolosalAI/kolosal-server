@@ -1,0 +1,110 @@
+@use '../styles/variable' as *;
+@use '../styles/mixin' as *;
+
+body {
+    @include flex(row);
+    overflow: hidden;
+
+    .wrapper {
+        flex: 1 0 0;
+        padding: 32px;
+    }
+}
+
+.model {
+    @include flex(column);
+    gap: 24px;
+    max-width: 968px;
+    width: 100%;
+    min-height: 100%;
+    margin-left: auto;
+    margin-right: auto;
+    opacity: 0;
+    animation: opacity 0.5s ease forwards;
+    animation-delay: 0.2s;
+}
+
+.model-title {
+    @include flex(row, space-between, center);
+
+    .col {
+        @include flex(row, flex-start, center);
+        gap: 8px;
+
+        .divider {
+            height: 24px;
+            border-right: 1px solid var(--color-stroke);
+            margin-left: 8px;
+            margin-right: 8px;
+        }
+
+        input {
+            width: 240px;
+        }
+    }
+}
+
+.model-list {
+    @include flex(column);
+    gap: 8px;
+}
+
+.model-list-item {
+    @include flex(row, space-between, center);    
+    padding: 12px 16px;
+    background-color: var(--color-background);
+    border-radius: 8px;
+    cursor: pointer;
+
+    .col {
+        @include flex(row, flex-start, center);
+        gap: 8px;
+
+        p {
+            color: var(--color-subtitle);
+        }
+
+        .badge {
+            background-color: var(--color-neutral);
+        }
+    }
+}
+
+.model-list-item:hover {
+    box-shadow: inset 0px 0px 0px 1px var(--color-stroke);
+}
+
+.model-list-loading {
+    height: 52px;
+    border-radius: 8px;
+    background: linear-gradient(
+        90deg,
+        var(--color-background) 25%,
+        var(--color-stroke) 37%,
+        var(--color-background) 63%
+    );
+    background-size: 400% 100%;
+    animation: loading 1.4s ease infinite;
+}
+
+.model-blank {
+    @include flex(column, center, center);
+    gap: 4px;
+    flex: 1 0 0;
+    border: 1px dashed var(--color-stroke);
+    border-radius: 12px;
+    display: none;
+
+    p {
+        color: var(--color-subtitle);
+    }
+}
+
+@keyframes loading {
+    0% {
+        background-position: 100% 0;
+    }
+    100% {
+        background-position: -100% 0;
+    }
+}

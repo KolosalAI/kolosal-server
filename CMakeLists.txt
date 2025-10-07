@@ -76,6 +76,8 @@ include_directories(
 
 if(USE_PODOFO)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/src)
+    # Include the build directory where podofo_config.h is generated
+    include_directories(${CMAKE_BINARY_DIR}/external/podofo/src)
 endif()
 if(USE_FAISS)
     include_directories(${CMAKE_CURRENT_SOURCE_DIR}/external/faiss)
@@ -273,7 +275,8 @@ if(USE_PODOFO AND EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/external/podofo/CMakeLists
             set_target_properties(podofo_static PROPERTIES POSITION_INDEPENDENT_CODE ON)
         endif()
 
-        target_include_directories(kolosal_server PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/external/podofo/src/podofo/podofo/auxiliary")
+        # Include the generated podofo_config.h directory
+        target_include_directories(kolosal_server PRIVATE "${CMAKE_BINARY_DIR}/external/podofo/src")
         message(STATUS "PoDoFo PDF support enabled with OpenSSL")
     else()
         message(WARNING "OpenSSL not found - PoDoFo PDF support will be disabled")

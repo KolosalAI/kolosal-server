@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolosal - Collection</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="style/collection.css">
+</head>
+<body>
+    <div class="sidebar"></div>
+    <div class="sidebar-alt"></div>
+    <div class="wrapper">
+        <div class="content">
+            <div class="content-title">
+                <div class="select" data-selected="Latest" id="SortingCollection">
+                    <div class="select-trigger">
+                        <h2 class="text-12px reguler">Latest</h2>
+                        <i class="ri-arrow-down-s-fill select-icon"></i>
+                    </div>
+                    <div class="select-list">
+                        <div class="select-list-item">
+                            <h2 class="text-12px reguler">Latest</h2>
+                        </div>
+                        <div class="select-list-item">
+                            <h2 class="text-12px reguler">Oldest</h2>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-14px reguler">total: <span id="CountDocument">0</span> items</p>      
+            </div>
+            <div class="content-list"></div>
+        </div>
+    </div>
+    <!-- load javascript -->
+    <script type="module" src="script/collection.js"></script>
+</body>
+</html>

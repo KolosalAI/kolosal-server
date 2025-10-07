@@ -1,0 +1,52 @@
+@use 'variable' as *;
+@use 'mixin' as *;
+
+.list-item {
+    @include flex(row, flex-start, center);
+    gap: 8px;
+    height: 40px;
+    padding: 0px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    text-decoration: none;
+    color: var(--color-text);
+
+    h2 {
+        width: 100%;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    button {
+        background-color: transparent;
+        border: none;
+        color: var(--color-text);
+        cursor: pointer;
+        display: none;
+
+        i {
+            font-size: 20px;
+        }
+    }
+
+    i {
+        color: var(--color-subtitle);
+    }
+}
+
+.list-item:hover {
+    background-color: var(--color-background);
+
+    button {
+        display: block;
+    }
+}
+
+.list-item.active {
+    background-color: var(--color-background);
+
+    i {
+        color: var(--color-text);
+    }
+}

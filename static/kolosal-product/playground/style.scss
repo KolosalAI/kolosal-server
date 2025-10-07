@@ -1,0 +1,278 @@
+@use '../styles/variable' as *;
+@use '../styles/mixin' as *;
+@use '../styles/animation' as *;
+
+body {
+    @include flex(row);
+    overflow: hidden;
+
+    .wrapper {
+        flex: 1 0 0;
+    }
+}
+
+.chat {
+    @include flex(column);
+    height: 100dvh;
+    max-width: 280px;
+    width: 100%;
+    opacity: 0;
+    animation: opacity 0.5s ease forwards;
+    animation-delay: 0.2s;
+}
+
+.chat-title {
+    @include flex(row, flex-start, center);
+    height: 56px;
+    padding: 0px 20px;
+
+    h1 {
+        letter-spacing: 1px;
+        color: var(--color-subtitle);
+    }
+}
+
+.chat-list {
+    @include flex(column);
+    gap: 4px;
+    padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+
+    .list-item {
+        position: relative;
+        
+        .delete-chat-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            color: var(--color-error, #e74c3c);
+            
+            i {
+                font-size: 16px;
+            }
+
+            &:hover {
+                opacity: 1 !important;
+            }
+        }
+
+        &:hover .delete-chat-btn {
+            opacity: 0.6;
+        }
+
+        h2 {
+            padding-right: 30px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
+}
+
+.chat-action {
+    padding: 8px;
+}
+
+.box {
+    @include flex(row);
+    gap: 12px;
+    background-color: var(--color-background);
+    background-image: radial-gradient(var(--color-stroke) 1px, transparent 1px);
+    background-size: 16px 16px;
+    height: 100%;
+    border-radius: 16px;
+    padding: 12px;
+    opacity: 0;
+    animation: opacity 0.5s ease forwards;
+    animation-delay: 0.3s;
+}
+
+.box-chat {
+    @include flex(column, flex-start, center);
+    gap: 16px;
+    height: 100%;
+    flex: 1 0 0;
+}
+
+.box-title {
+    @include flex(row, space-between, center);
+    width: 100%;
+
+    .select {
+        width: 200px;
+    }
+}
+
+.box-title-col {
+    @include flex(row, flex-start, center);
+    gap: 16px;
+
+    h2 {
+        color: var(--color-success);
+    }
+}
+
+.box-body {
+    @include flex(column, flex-start, center);
+    height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
+
+    .blank {
+        @include flex(column, center, center);
+        text-align: center;
+        max-width: 800px;
+        width: 100%;
+        height: 100%;
+
+        img {
+            width: 96px;
+            height: 96px;
+            aspect-ratio: 1/1;
+            object-fit: cover;
+            border-radius: 999px;
+            margin-bottom: 32px;
+        }
+        
+        h3 {
+            color: var(--color-information);
+        }
+    }
+}
+
+// bubble chat
+.bubble {
+    @include flex(column);
+    gap: 40px;
+    max-width: 800px;
+    width: 100%;
+    padding: 20px 0;
+
+    &:empty {
+        display: none;
+    }
+}
+
+.bubble-user {
+    @include flex(row, flex-end, flex-start);
+}
+
+.bubble-user-wrapper {
+    padding: 6px 10px;
+    background-color: var(--color-neutral);
+    border-radius: 8px;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+.bubble-bot {
+    @include flex(row, flex-start, flex-start);
+}
+
+.bubble-bot-wrapper {
+    padding: 6px 10px;
+    background-color: var(--color-background-alt);
+    border-radius: 8px;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+.box-action {
+    @include flex(column);
+    gap: 12px;
+    max-width: 800px;
+    width: 100%;
+    background-color: var(--color-neutral);
+    border-radius: 8px;
+    padding: 16px;
+    
+    textarea {
+        width: 100%;
+        color: var(--color-subtitle);
+        background-color: var(--color-background-alt);
+        border: none;
+        outline: none;
+        resize: none;
+        min-height: 64px;
+        color: var(--color-text);
+    }
+
+    button {
+        align-self: flex-end;
+        background-color: var(--color-text);
+        color: var(--color-neutral);
+        border: none;
+        height: 32px;
+        width: 32px;
+        @include flex(row, center, center);
+        border-radius: 999px;
+        cursor: pointer;
+
+        i {
+            font-size: 16px;
+        }
+    }
+}
+
+.box-option {
+    background-color: var(--color-neutral);
+    width: 0;
+    opacity: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    display: none;
+    transition: width 0.2s ease, opacity 0.2s ease;
+    box-sizing: border-box;
+
+    .wrapper {
+        @include flex(column);
+        gap: 24px;
+        padding: 20px;
+    }
+}
+
+.box-option.active {
+    width: 312px;
+    opacity: 1;
+}
+
+.box-option-content {
+    @include flex(column);
+    gap: 8px;
+
+    .title {
+        @include flex(row, space-between, center);
+    }
+
+    .input-textarea {
+        font-size: 12px;
+        line-height: 16px;
+    }
+
+    .input-number {
+        width: 100%;
+        padding: 8px 12px;
+        background-color: var(--color-background-alt);
+        border: 1px solid var(--color-stroke);
+        border-radius: 4px;
+        color: var(--color-text);
+        outline: none;
+        
+        &:focus {
+            border-color: var(--color-information);
+        }
+
+        &::placeholder {
+            color: var(--color-subtitle);
+        }
+    }
+}

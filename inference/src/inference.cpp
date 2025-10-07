@@ -1864,29 +1864,218 @@ InferenceEngine::Impl::Impl(const char *modelPath, const LoadingParameters lPara
 
 	common_params params;
 	params.model						= params_model;
+	
+	// Core model parameters
 	params.n_ctx						= lParams.n_ctx;
-	params.n_keep						= lParams.n_keep;
-	params.use_mlock					= lParams.use_mlock;
-	params.use_mmap						= lParams.use_mmap;
-	params.cont_batching				= lParams.cont_batching;
-	params.warmup						= lParams.warmup;
-	params.cpuparams.n_threads			= inferenceThreads;
-	params.n_parallel					= lParams.n_parallel;
 	params.n_batch						= lParams.n_batch;
-	params.n_ubatch                     = lParams.n_ubatch;
-	params.webui						= false;
+	params.n_ubatch						= lParams.n_ubatch;
+	params.n_keep						= lParams.n_keep;
+	params.n_chunks						= lParams.n_chunks;
+	params.n_parallel					= lParams.n_parallel;
+	params.n_sequences					= lParams.n_sequences;
+	params.grp_attn_n					= lParams.grp_attn_n;
+	params.grp_attn_w					= lParams.grp_attn_w;
+	params.n_print						= lParams.n_print;
+	
+	// RoPE parameters
+	params.rope_freq_base				= lParams.rope_freq_base;
+	params.rope_freq_scale				= lParams.rope_freq_scale;
+	params.yarn_ext_factor				= lParams.yarn_ext_factor;
+	params.yarn_attn_factor				= lParams.yarn_attn_factor;
+	params.yarn_beta_fast				= lParams.yarn_beta_fast;
+	params.yarn_beta_slow				= lParams.yarn_beta_slow;
+	params.yarn_orig_ctx				= lParams.yarn_orig_ctx;
+	params.defrag_thold					= lParams.defrag_thold;
+	
+	// Hardware acceleration and GPU parameters
+	params.n_gpu_layers					= lParams.n_gpu_layers;
+	params.main_gpu						= lParams.main_gpu;
+	// Copy tensor_split array
+	for (int i = 0; i < 128; i++) {
+		params.tensor_split[i] = lParams.tensor_split[i];
+	}
+	params.split_mode					= static_cast<llama_split_mode>(lParams.split_mode);
+	
+	// Memory management
+	params.use_mmap						= lParams.use_mmap;
+	params.use_mlock					= lParams.use_mlock;
+	params.no_kv_offload				= lParams.no_kv_offload;
+	params.no_op_offload				= lParams.no_op_offload;
+	params.no_extra_bufts				= lParams.no_extra_bufts;
+	
+	// Processing and performance settings
+	params.cont_batching				= lParams.cont_batching;
+	params.flash_attn					= lParams.flash_attn;
+	params.warmup						= lParams.warmup;
+	params.check_tensors				= lParams.check_tensors;
+	params.swa_full						= lParams.swa_full;
+	params.kv_unified					= lParams.kv_unified;
+	params.ctx_shift					= lParams.ctx_shift;
+	
+	// Cache data types
+	params.cache_type_k					= static_cast<ggml_type>(lParams.cache_type_k);
+	params.cache_type_v					= static_cast<ggml_type>(lParams.cache_type_v);
+	
+	// Rope scaling and pooling types
+	params.rope_scaling_type			= static_cast<llama_rope_scaling_type>(lParams.rope_scaling_type);
+	params.pooling_type					= static_cast<enum llama_pooling_type>(lParams.pooling_type);
+	params.attention_type				= static_cast<llama_attention_type>(lParams.attention_type);
+	
+	// NUMA strategy
+	params.numa							= static_cast<ggml_numa_strategy>(lParams.numa);
+	
+	// CPU parameters
+	params.cpuparams.n_threads			= lParams.cpuparams.n_threads == -1 ? inferenceThreads : lParams.cpuparams.n_threads;
+	for (int i = 0; i < 128; i++) {
+		params.cpuparams.cpumask[i] = lParams.cpuparams.cpumask[i];
+	}
+	params.cpuparams.mask_valid			= lParams.cpuparams.mask_valid;
+	params.cpuparams.priority			= static_cast<ggml_sched_priority>(lParams.cpuparams.priority);
+	params.cpuparams.strict_cpu			= lParams.cpuparams.strict_cpu;
+	params.cpuparams.poll				= lParams.cpuparams.poll;
+	
+	// Copy batch CPU parameters
+	params.cpuparams_batch				= params.cpuparams; // Use same as main CPU params
+	
+	// Embedding parameters
+	params.embedding					= lParams.embedding;
+	params.embd_normalize				= lParams.embd_normalize;
+	
+	// Model and adapter parameters
+	params.model_alias					= lParams.model_alias;
+	params.hf_token						= lParams.hf_token;
+	params.lora_init_without_apply		= lParams.lora_init_without_apply;
+	
+	// Control vectors
+	params.control_vector_layer_start	= lParams.control_vector_layer_start;
+	params.control_vector_layer_end		= lParams.control_vector_layer_end;
+	
+	// Server/API parameters
+	params.verbosity					= lParams.verbosity;
+	params.offline						= lParams.offline;
+	
+	// Multimodal parameters
+	if (!lParams.mmproj_path.empty()) {
+		params.mmproj.path = lParams.mmproj_path;
+	}
+	params.mmproj_use_gpu				= lParams.mmproj_use_gpu;
+	params.no_mmproj					= lParams.no_mmproj;
+	
+	// Chat template parameters
+	params.chat_template				= lParams.chat_template;
+	params.use_jinja					= lParams.use_jinja;
+	params.enable_chat_template			= lParams.enable_chat_template;
+	
+	// Input/output formatting
+	params.input_prefix_bos				= lParams.input_prefix_bos;
+	params.escape						= lParams.escape;
+	params.special						= lParams.special;
+	
+	// Performance and debugging
+	params.no_perf						= lParams.no_perf;
+	params.verbose_prompt				= lParams.verbose_prompt;
+	params.display_prompt				= lParams.display_prompt;
+	
+	// Conversation mode
+	params.conversation_mode			= static_cast<common_conversation_mode>(lParams.conversation_mode);
+	
+	// Advanced parameters
+	params.lookup_cache_static			= lParams.lookup_cache_static;
+	params.lookup_cache_dynamic			= lParams.lookup_cache_dynamic;
+	params.logits_file					= lParams.logits_file;
+	
+	// Perplexity calculation parameters
+	params.ppl_stride					= lParams.ppl_stride;
+	params.ppl_output_type				= lParams.ppl_output_type;
+	
+	// Evaluation parameters
+	params.hellaswag					= lParams.hellaswag;
+	params.hellaswag_tasks				= lParams.hellaswag_tasks;
+	params.winogrande					= lParams.winogrande;
+	params.winogrande_tasks				= lParams.winogrande_tasks;
+	params.multiple_choice				= lParams.multiple_choice;
+	params.multiple_choice_tasks		= lParams.multiple_choice_tasks;
+	params.kl_divergence				= lParams.kl_divergence;
+	
+	// Server-specific parameters
+	params.port							= lParams.port;
+	params.timeout_read					= lParams.timeout_read;
+	params.timeout_write				= lParams.timeout_write;
+	params.n_threads_http				= lParams.n_threads_http;
+	params.n_cache_reuse				= lParams.n_cache_reuse;
+	params.n_swa_checkpoints			= lParams.n_swa_checkpoints;
+	params.hostname						= lParams.hostname;
+	params.public_path					= lParams.public_path;
+	params.api_prefix					= lParams.api_prefix;
+	
+	// SSL parameters
+	params.ssl_file_key					= lParams.ssl_file_key;
+	params.ssl_file_cert				= lParams.ssl_file_cert;
+	
+	// Advanced server features
+	params.webui						= lParams.webui;
+	params.endpoint_slots				= lParams.endpoint_slots;
+	params.endpoint_props				= lParams.endpoint_props;
+	params.endpoint_metrics				= lParams.endpoint_metrics;
+	params.log_json						= lParams.log_json;
+	params.slot_save_path				= lParams.slot_save_path;
+	params.slot_prompt_similarity		= lParams.slot_prompt_similarity;
+	
+	// Reasoning parameters
+	params.reasoning_format				= static_cast<common_reasoning_format>(lParams.reasoning_format);
+	params.reasoning_budget				= lParams.reasoning_budget;
+	params.prefill_assistant			= lParams.prefill_assistant;
+	
+	// Batch benchmark parameters
+	params.is_pp_shared					= lParams.is_pp_shared;
+	params.n_pp							= lParams.n_pp;
+	params.n_tg							= lParams.n_tg;
+	params.n_pl							= lParams.n_pl;
+	
+	// Context and retrieval parameters
+	params.context_files				= lParams.context_files;
+	params.chunk_size					= lParams.chunk_size;
+	params.chunk_separator				= lParams.chunk_separator;
+	
+	// Passkey parameters
+	params.n_junk						= lParams.n_junk;
+	params.i_pos						= lParams.i_pos;
+	
+	// iMatrix parameters
+	params.n_out_freq					= lParams.n_out_freq;
+	params.n_save_freq					= lParams.n_save_freq;
+	params.i_chunk						= lParams.i_chunk;
+	params.imat_dat						= lParams.imat_dat;
+	params.process_output				= lParams.process_output;
+	params.compute_ppl					= lParams.compute_ppl;
+	params.show_statistics				= lParams.show_statistics;
+	params.parse_special				= lParams.parse_special;
+	
+	// Control vector generator parameters
+	params.n_pca_batch					= lParams.n_pca_batch;
+	params.n_pca_iterations				= lParams.n_pca_iterations;
+	params.cvector_dimre_method			= static_cast<dimre_method>(lParams.cvector_dimre_method);
+	params.cvector_positive_file		= lParams.cvector_positive_file;
+	params.cvector_negative_file		= lParams.cvector_negative_file;
+	
+	// Infill parameters
+	params.spm_infill					= lParams.spm_infill;
+	
+	// Batch benchmark output
+	params.batched_bench_output_jsonl	= lParams.batched_bench_output_jsonl;
+	
+	// Override some defaults for server usage
 	params.single_turn					= true;
-	params.compute_ppl					= false;
-	params.use_jinja					= true;
-	params.swa_full						= true;
 #if defined(USE_CUDA) || defined(USE_VULKAN)
 	std::cout << "[INFERENCE] Using CUDA or Vulkan" << std::endl;
-
-	params.n_gpu_layers = lParams.n_gpu_layers;
+	// GPU parameters are already set above from lParams
 #endif
 
 #ifndef USE_VULKAN
-	params.flash_attn = true;
+	// Only enable flash attention if not using Vulkan
+	if (!lParams.flash_attn) {
+		params.flash_attn = true; // Enable by default for non-Vulkan builds
+	}
 #endif
 
 #ifdef DEBUG

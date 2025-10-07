@@ -1,0 +1,38 @@
+@use 'variable' as *;
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-variation-settings: "slnt" 0;
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-smooth: never;
+    scrollbar-width: none;
+    scrollbar-gutter: stable overlay;
+}
+
+h1, h2, h3, h4, h5, h6, small, p, span, a {
+    margin: 0;
+    padding: 0;
+    text-shadow: none; 
+}
+
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-smooth: never;
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+    color: var(--color-text);
+    background-color: var(--color-neutral);
+
+    img {
+        display: block;
+    }
+}
+
+body::-webkit-scrollbar {
+    display: none;
+}

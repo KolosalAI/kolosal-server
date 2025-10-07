@@ -1,0 +1,21 @@
+@use 'variable' as *;
+@use 'mixin' as *;
+
+.badge {
+    @include flex(row, flex-start, center);
+    gap: 6px;
+    padding: 2px 12px;
+    border-radius: 999px;
+    background-color: var(--color-background);
+
+    h2 {
+        letter-spacing: 0.5px;
+    }
+}
+
+.badge-indicator {
+    height: 6px;
+    width: 6px;
+    background-color: var(--color-subtitle);
+    border-radius: 999px;
+}

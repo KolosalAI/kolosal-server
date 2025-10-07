@@ -16,3 +16,4 @@ build/
 models/**
 downloads/**
 build*/**
+*.log

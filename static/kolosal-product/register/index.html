@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolosal - Register</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <a class="btn-sm btn-secondary" href="/login/index.html"><i class="ri-arrow-left-line"></i>Back to Login</a>
+    <div class="form" data-form="form-1" style="display: flex;">
+        <div class="form-title">
+            <h2 class="text-14px medium">Create account</h2>
+            <p class="text-12px reguler">Start your journey with Kolosal today</p>
+        </div>
+        <button class="btn-md btn-secondary"><i class="ri-github-fill"></i>Continue with Github</button>
+        <div class="form-divider">
+            <div class="rectangle"></div>
+            <p class="text-12px reguler">OR</p>
+            <div class="rectangle"></div>
+        </div>
+        <div class="form-item">
+            <h2 class="text-12px reguler">Username:</h2>
+            <input class="input-text-md" type="text" placeholder="Username" autocomplete="off">
+        </div>
+        <div class="form-item">
+            <h2 class="text-12px reguler">Email:</h2>
+            <input class="input-text-md" type="text" placeholder="Email address" autocomplete="off">
+        </div>
+        <button class="btn-md btn-primary NextForm" style="margin-top: auto;">Continue</button>
+    </div>
+    <div class="form" data-form="form-2" style="display: none;">
+        <div class="form-title">
+            <h2 class="text-14px medium">Set your password</h2>
+            <p class="text-12px reguler">Choose a strong password to protect your account</p>
+        </div>
+        <div class="form-item">
+            <h2 class="text-12px reguler">Password:</h2>
+            <input class="input-text-md" type="text" placeholder="Password" autocomplete="off">
+        </div>
+        <div class="form-item">
+            <h2 class="text-12px reguler">Confirm password:</h2>
+            <input class="input-text-md" type="text" placeholder="Confirm password" autocomplete="off">
+        </div>
+        <button class="btn-md btn-primary NextForm" style="margin-top: auto;">Continue</button>
+    </div>
+    <div class="form" data-form="form-3" style="display: none;">
+        <div class="form-title">
+            <h2 class="text-14px medium">Company info</h2>
+            <p class="text-12px reguler">Provide your company information and your role</p>
+        </div>
+        <div class="form-item">
+            <h2 class="text-12px reguler">Company name:</h2>
+            <input class="input-text-md" type="text" placeholder="Company name" autocomplete="off">
+        </div>
+        <div class="form-item">
+            <h2 class="text-12px reguler">Company industry:</h2>
+            <input class="input-text-md" type="text" placeholder="Company industry" autocomplete="off">
+        </div>
+        <div class="form-item">
+            <h2 class="text-12px reguler">Your role:</h2>
+            <input class="input-text-md" type="text" placeholder="Your role" autocomplete="off">
+        </div>
+        <button class="btn-md btn-primary SubmitForm" style="margin-top: auto;">Register</button>
+    </div>
+    <p class="text-12px reguler">By continuing you agree to our <a class="medium" href="#">terms of service</a> and <a class="medium" href="#">privacy policy</a></p>
+    <!-- load javascript -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>

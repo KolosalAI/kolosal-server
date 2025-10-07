@@ -1,0 +1,62 @@
+@use '../styles/variable' as *;
+@use '../styles/mixin' as *;
+
+body {
+    @include flex(column, space-between, center);
+    background-color: var(--color-background);
+    background-image: radial-gradient(var(--color-stroke) 1px, transparent 1px);
+    background-size: 16px 16px;
+    min-height: 100dvh;
+    padding: 24px;
+
+    p {
+        color: var(--color-subtitle);
+    }
+
+    a {
+        color: var(--color-text);
+        text-decoration: none;
+    }
+}
+
+.form {
+    @include flex(column);
+    gap: 24px;
+    padding: 20px;
+    background-color: var(--color-neutral);
+    max-width: 360px;
+    width: 100%;
+    border-radius: 12px;
+    min-height: 388px;
+
+    button {
+        width: 100%;
+    }
+}
+
+.form-title {
+    p {
+        color: var(--color-subtitle);
+        margin-top: 2px;
+    }
+}
+
+.form-divider {
+    @include flex(row, center, center);
+    gap: 8px;
+    width: 100%;
+
+    p {
+        color: var(--color-subtitle);
+    }
+
+    .rectangle {
+        border-bottom: 1px dashed var(--color-stroke);
+        flex: 1 0 0;
+    }
+}
+
+.form-item {
+    @include flex(column);
+    gap: 4px;
+}

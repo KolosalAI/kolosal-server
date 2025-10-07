@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolosal - Status</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="style/search.css">
+</head>
+<body>
+    <div class="sidebar"></div>
+    <div class="sidebar-alt"></div>
+    <div class="wrapper">
+        <div class="content">
+            <div class="content-title">
+                <h1 class="text-14px medium">Search Documents</h1>
+                <p class="text-12px reguler">Find and search through your uploaded documents</p>
+            </div>
+            <div class="content-form">
+                <textarea class="input-textarea" placeholder="Enter query here..." id="FormQuery"></textarea>
+                <div class="content-form-list">
+                    <div class="form-item">
+                        <h2 class="text-12px reguler">Result limit</h2>
+                        <input class="input-text-md" type="number" value="10" id="FormLimit">
+                    </div>
+                    <div class="form-item">
+                        <h2 class="text-12px reguler">Score Threshold (0.0-1.0)</h2>
+                        <input class="input-text-md" type="number" value="0.2" max="1" min="0.1" step="0.1" id="FormThreshold">
+                    </div>
+                </div>
+                <button class="btn-md btn-primary" id="FormAction">Search Documents</button>
+            </div>
+            <div class="content-result">
+                <div class="content-result-title">
+                    <h2 class="text-14px medium">Result: 0 items</h2>
+                    <h2 class="text-14px medium">0s</h2>
+                </div>
+                <div class="content-result-blank">
+                    <h2 class="text-14px medium">No documents to display</h2>
+                    <p class="text-12px reguler">Start a search or adjust your query to see results from your collection.</p>
+                </div>
+                <div class="content-result-list"></div>
+            </div>
+        </div>
+    </div>
+    <!-- load javascript -->
+    <script type="module" src="script/search.js"></script>
+</body>
+</html>

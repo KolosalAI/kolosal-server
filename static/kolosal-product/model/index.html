@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolosal - Models</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="sidebar"></div>
+    <div class="wrapper">
+        <div class="model">
+            <div class="model-title">
+                <div class="col">
+                    <h1 class="text-14px medium">Your Model</h1>
+                    <div class="divider"></div>
+                    <div class="button-group" id="FilterModel">
+                        <button class="active">All</button>
+                        <button>LLM</button>
+                        <button>Embedding</button>
+                    </div>
+                </div>
+                <div class="col">
+                    <input class="input-text-md" type="text" placeholder="Search model" id="SearchModel" autocomplete="off">
+                    <a class="btn-md btn-primary" href="/discover/index.html">Explore</a>
+                </div>
+            </div>
+            <div class="model-list"></div>
+            <div class="model-blank">
+                <h2 class="text-14px medium">No engines added yet</h2>
+                <p class="text-12px reguler">Add a model to get started and enhance how you retrieve information.</p>
+            </div>
+        </div>
+    </div>
+    <!-- load javascript -->
+    <script type="module" src="script.js"></script>
+</body>
+</html>

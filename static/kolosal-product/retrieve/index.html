@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolosal - Status</title>
+    <link rel="stylesheet" href="/styles/main.css">
+    <link rel="stylesheet" href="style/status.css">
+</head>
+<body>
+    <div class="sidebar"></div>
+    <div class="sidebar-alt"></div>
+    <div class="wrapper">
+        <div class="content">
+            <div class="content-col-3">
+                <div class="content-card">
+                    <div class="title">
+                        <div class="title-icon"><i class="ri-cpu-line"></i></div>
+                        <h2 class="mono-12px medium">LLM Status</h2>
+                    </div>
+                    <div class="status">
+                        <p class="text-12px reguler">Status:</p>
+                        <div class="badge" id="LLMStatus" data-text="LOADING"></div>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="model">
+                        <div class="model-count">
+                            <i class="ri-bard-fill"></i>
+                            <h3 class="text-14px reguler"><span id="LLMCount">0</span> model available</h3>
+                        </div>
+                        <a class="btn-xs btn-secondary" href="/model/index.html">See All</a>
+                    </div>
+                </div>
+                <div class="content-card">
+                    <div class="title">
+                        <div class="title-icon"><i class="ri-function-add-line"></i></div>
+                        <h2 class="mono-12px medium">Embedding Status</h2>
+                    </div>
+                    <div class="status">
+                        <p class="text-12px reguler">Status:</p>
+                        <div class="badge" id="EmbeddingStatus" data-text="LOADING"></div>
+                    </div>
+                    <div class="divider"></div>
+                    <div class="model">
+                        <div class="model-count">
+                            <i class="ri-bard-fill"></i>
+                            <h3 class="text-14px reguler"><span id="EmbeddingCount">0</span> model available</h3>
+                        </div>
+                        <a class="btn-xs btn-secondary" href="/model/index.html">See All</a>
+                    </div>
+                </div>
+                <div class="content-discord">
+                    <img src="https://res.cloudinary.com/dh21tvktj/image/upload/v1758694359/kolosal-community_wa4gpy.svg" alt="">
+                    <h2 class="text-14px medium">Join our community to get support, share feedback, and stay updated.</h2>
+                    <button class="btn-sm btn-primary">Get Started</button>
+                </div>
+            </div>
+            <div class="content-col-4">
+                <div class="content-card">
+                    <div class="title">
+                        <div class="title-icon parser"><i class="ri-file-cloud-line"></i></div>
+                        <h2 class="mono-12px medium">Document Parser</h2>
+                    </div>
+                    <div class="status">
+                        <p class="text-12px reguler">Status:</p>
+                        <div class="badge" id="ParserStatus" data-text="LOADING"></div>
+                    </div>
+                    <div class="config">
+                        <h2 class="text-12px reguler">Service: kolosal-server</h2>
+                        <h2 class="text-12px reguler">Port: 8084</h2>
+                    </div>
+                </div>
+                <div class="content-card">
+                    <div class="title">
+                        <div class="title-icon markitdown"><i class="ri-markdown-line"></i></i></div>
+                        <h2 class="mono-12px medium">MarkItDown Status</h2>
+                    </div>
+                    <div class="status">
+                        <p class="text-12px reguler">Status:</p>
+                        <div class="badge" id="MarkItDownStatus" data-text="LOADING"></div>
+                    </div>
+                    <div class="config">
+                        <h2 class="text-12px reguler">Service: -</h2>
+                        <h2 class="text-12px reguler">Port: 8081</h2>
+                    </div>
+                </div>
+                <div class="content-card">
+                    <div class="title">
+                        <div class="title-icon docling"><i class="ri-code-block"></i></div>
+                        <h2 class="mono-12px medium">Docling Status</h2>
+                    </div>
+                    <div class="status">
+                        <p class="text-12px reguler">Status:</p>
+                        <div class="badge" id="DoclingStatus" data-text="LOADING"></div>
+                    </div>
+                    <div class="config">
+                        <h2 class="text-12px reguler">Service: docling-api</h2>
+                        <h2 class="text-12px reguler">Port: 8082</h2>
+                    </div>
+                </div>
+                <div class="content-card">
+                    <div class="title">
+                        <div class="title-icon chunks"><i class="ri-file-upload-line"></i></div>
+                        <h2 class="mono-12px medium">Document Chunks</h2>
+                    </div>
+                    <div class="status">
+                        <p class="text-12px reguler">Status:</p>
+                        <div class="badge" id="DocumentStatus" data-text="LOADING"></div>
+                    </div>
+                    <div class="config">
+                        <h2 class="text-12px reguler">Collection: <span id="CollectionName">Loading...</span></h2>
+                        <h2 class="text-12px reguler">Total: <span id="CountDocument">0</span></h2>
+                    </div>
+                </div>
+            </div>
+            <div class="enterprise">
+                <div class="enterprise-text">
+                    <h2 class="text-20px semibold">Upgrade to enterprise for scalability, efficient, security, and support</h2>
+                    <a class="btn-md btn-primary">Learn more</a>
+                </div>
+                <div class="enterprise-img">
+                    <div class="shadow"></div>
+                    <img src="https://res.cloudinary.com/dh21tvktj/image/upload/v1759283552/enterprise-img_oayrqi.webp">
+                </div>
+            </div>
+        </div>
+    </div>
+    <!-- load javascript -->
+    <script type="module" src="script/status.js"></script>
+</body>
+</html>

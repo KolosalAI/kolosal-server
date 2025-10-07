@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kolosal</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="playground/style.css">
+</head>
+<body>
+    <div class="sidebar"></div>
+    <div class="chat">
+        <div class="chat-title">
+            <h1 class="mono-14px medium">YOUR CHAT</h1>
+        </div>
+        <div class="chat-action">
+            <div class="list-item">            
+                <h2 class="text-14px medium">New Chat</h2>
+                <i class="ri-edit-box-line"></i>
+            </div>
+        </div>
+        <div class="chat-list">
+            <!-- Chat history will be dynamically loaded here -->
+        </div>
+    </div>
+    <div class="wrapper">
+        <div class="box">
+            <div class="box-chat">
+                <div class="box-title">
+                    <div class="select">
+                        <div class="select-trigger">
+                            <h2 class="text-12px reguler">Select Model</h2>
+                            <i class="ri-arrow-down-s-fill select-icon"></i>
+                        </div>
+                        <div class="select-list">
+                            <!-- Models will be dynamically loaded here -->
+                        </div>
+                    </div>
+                    <div class="box-title-col">
+                        <h2 class="mono-12px medium">LOCAL MODE</h2>
+                        <button class="btn-md btn-outline ButtonOption"><i class="ri-equalizer-line"></i>Options</button>
+                    </div>
+                </div>
+                <div class="box-body">
+                    <!-- Messages will be dynamically loaded here -->
+                </div>
+                <div class="box-action">
+                    <textarea class="text-14px reguler" placeholder="Type anything you like..." aria-label="Chat message input"></textarea>
+                    <button title="Send message" aria-label="Send message"><i class="ri-arrow-up-line"></i></button>
+                </div>
+            </div>
+            <div class="box-option">
+                <div class="wrapper">
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Temperature:</h2>
+                            <p class="text-12px reguler">0.7</p>
+                        </div>
+                        <input class="input-range" type="range" aria-label="Temperature" title="Temperature">
+                    </div>
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Maximum Length:</h2>
+                            <p class="text-12px reguler">2048</p>
+                        </div>
+                        <input class="input-range" type="range" aria-label="Maximum Length" title="Maximum Length">
+                    </div>
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Top P:</h2>
+                            <p class="text-12px reguler">0.90</p>
+                        </div>
+                        <input class="input-range" type="range" aria-label="Top P" title="Top P">
+                    </div>
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Top K:</h2>
+                            <p class="text-12px reguler">40</p>
+                        </div>
+                        <input class="input-range" type="range" aria-label="Top K" title="Top K">
+                    </div>
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Min P:</h2>
+                            <p class="text-12px reguler">0.05</p>
+                        </div>
+                        <input class="input-range" type="range" aria-label="Min P" title="Min P">
+                    </div>
+                    <div class="box-option-content">
+                        <div class="title">
+                            <h2 class="text-12px reguler">Repeat Penalty:</h2>
+                            <p class="text-12px reguler">1.10</p>
+                        </div>
+                        <input class="input-range" type="range" aria-label="Repeat Penalty" title="Repeat Penalty">
+                    </div>
+                    <div class="box-option-content">
+                        <h2 class="text-12px reguler">Seed (-1 for random):</h2>
+                        <input class="input-number text-12px reguler" type="number" value="-1" placeholder="-1" aria-label="Random seed" title="Seed">
+                    </div>
+                    <div class="box-option-content">
+                        <h2 class="text-12px reguler">System Instruction:</h2>
+                        <textarea class="input-textarea" placeholder="Enter system instruction here..." aria-label="System instruction"></textarea>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- load javascript -->
+    <script type="module" src="playground/script.js"></script>
+</body>
+</html>
