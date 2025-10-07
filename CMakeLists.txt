@@ -54,7 +54,7 @@ option(USE_VULKAN "Compile with VULKAN support" OFF)
 option(USE_METAL  "Compile with Metal support (macOS only)" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
-option(USE_PODOFO "Compile with PoDoFo PDF support" ON)
+option(USE_PODOFO "Compile with PoDoFo PDF support" OFF)
 option(USE_FAISS  "Compile with FAISS support" ON)
 
 if(APPLE AND NOT DEFINED USE_METAL)

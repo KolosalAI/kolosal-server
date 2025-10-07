@@ -14,6 +14,10 @@ const state = {
     temperature: 0.7,
     maxLength: 2048,
     topP: 0.9,
+    topK: 40,
+    minP: 0.05,
+    repeatPenalty: 1.1,
+    seed: -1,
     systemInstruction: ""
 };
 
@@ -320,6 +324,10 @@ async function sendMessage(message) {
                 temperature: state.temperature,
                 max_tokens: state.maxLength,
                 top_p: state.topP,
+                top_k: state.topK,
+                min_p: state.minP,
+                repeat_penalty: state.repeatPenalty,
+                seed: state.seed,
                 stream: true
             })
         });
@@ -497,8 +505,65 @@ function setupEventListeners() {
         });
     }
     
+    // Top K slider
+    const topKSlider = document.querySelector('.box-option-content:nth-child(4) .input-range');
+    const topKValue = document.querySelector('.box-option-content:nth-child(4) .title p');
+    if (topKSlider && topKValue) {
+        topKSlider.min = 0;
+        topKSlider.max = 100;
+        topKSlider.step = 1;
+        topKSlider.value = state.topK;
+        topKValue.textContent = state.topK;
+        
+        topKSlider.addEventListener('input', (e) => {
+            state.topK = parseInt(e.target.value);
+            topKValue.textContent = state.topK;
+        });
+    }
+    
+    // Min P slider
+    const minPSlider = document.querySelector('.box-option-content:nth-child(5) .input-range');
+    const minPValue = document.querySelector('.box-option-content:nth-child(5) .title p');
+    if (minPSlider && minPValue) {
+        minPSlider.min = 0;
+        minPSlider.max = 1;
+        minPSlider.step = 0.05;
+        minPSlider.value = state.minP;
+        minPValue.textContent = state.minP.toFixed(2);
+        
+        minPSlider.addEventListener('input', (e) => {
+            state.minP = parseFloat(e.target.value);
+            minPValue.textContent = state.minP.toFixed(2);
+        });
+    }
+    
+    // Repeat Penalty slider
+    const repeatPenaltySlider = document.querySelector('.box-option-content:nth-child(6) .input-range');
+    const repeatPenaltyValue = document.querySelector('.box-option-content:nth-child(6) .title p');
+    if (repeatPenaltySlider && repeatPenaltyValue) {
+        repeatPenaltySlider.min = 1.0;
+        repeatPenaltySlider.max = 2.0;
+        repeatPenaltySlider.step = 0.05;
+        repeatPenaltySlider.value = state.repeatPenalty;
+        repeatPenaltyValue.textContent = state.repeatPenalty.toFixed(2);
+        
+        repeatPenaltySlider.addEventListener('input', (e) => {
+            state.repeatPenalty = parseFloat(e.target.value);
+            repeatPenaltyValue.textContent = state.repeatPenalty.toFixed(2);
+        });
+    }
+    
+    // Seed input
+    const seedInput = document.querySelector('.box-option-content:nth-child(7) .input-number');
+    if (seedInput) {
+        seedInput.value = state.seed;
+        seedInput.addEventListener('input', (e) => {
+            state.seed = parseInt(e.target.value) || -1;
+        });
+    }
+    
     // System instruction textarea
-    const instructionTextarea = document.querySelector('.box-option-content:nth-child(4) .input-textarea');
+    const instructionTextarea = document.querySelector('.box-option-content:nth-child(8) .input-textarea');
     if (instructionTextarea) {
         instructionTextarea.value = state.systemInstruction;
         instructionTextarea.addEventListener('input', (e) => {

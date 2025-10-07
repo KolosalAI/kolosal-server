@@ -191,6 +191,339 @@
                             <small class="text-10px reguler" style="color: #666;">Leave empty to use server default</small>
                         </div>
                     </div>
+
+                    <!-- Advanced Configuration Toggle -->
+                    <div style="margin-bottom: 2rem;">
+                        <h2 class="text-14px medium" style="margin-bottom: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                                <input type="checkbox" id="advanced_toggle" name="advanced_toggle">
+                                Show Advanced Configuration
+                            </label>
+                        </h2>
+                        <small class="text-10px reguler" style="color: #666;">Enable to access all llama.cpp parameters</small>
+                    </div>
+
+                    <!-- Advanced Configuration Section (Hidden by default) -->
+                    <div id="advanced_config" style="display: none;">
+                        
+                        <!-- CPU Configuration -->
+                        <div style="margin-bottom: 2rem;">
+                            <h2 class="text-14px medium" style="margin-bottom: 1rem;">CPU Configuration</h2>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">CPU Threads (n_threads)</label>
+                                <input class="input-text-md" type="number" name="n_threads" value="0" min="0" max="64" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">Number of CPU threads (0 = auto-detect)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Batch Threads (n_threads_batch)</label>
+                                <input class="input-text-md" type="number" name="n_threads_batch" value="0" min="0" max="64" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">Threads for batch processing (0 = same as n_threads)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">CPU Affinity Mask</label>
+                                <input class="input-text-md" type="text" name="cpu_mask" placeholder="0xFFFF" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">CPU affinity mask in hexadecimal (e.g., 0xFFFF)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Batch CPU Mask</label>
+                                <input class="input-text-md" type="text" name="cpu_mask_batch" placeholder="0xFFFF" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">CPU affinity mask for batch processing</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">CPU Range</label>
+                                <input class="input-text-md" type="text" name="cpu_range" placeholder="0-7" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">CPU core range to use (e.g., "0-7" or "0,2,4")</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Batch CPU Range</label>
+                                <input class="input-text-md" type="text" name="cpu_range_batch" placeholder="0-7" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">CPU core range for batch processing</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">CPU Strict Mode</label>
+                                <select class="input-text-md" name="cpu_strict" style="width: 100%;">
+                                    <option value="0">Disabled</option>
+                                    <option value="1">Enabled</option>
+                                    <option value="2">Force</option>
+                                </select>
+                                <small class="text-10px reguler" style="color: #666;">CPU affinity enforcement level</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Polling Mode</label>
+                                <input class="input-text-md" type="number" name="poll" value="50" min="0" max="1000" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">Polling interval in milliseconds</small>
+                            </div>
+                        </div>
+
+                        <!-- RoPE Configuration -->
+                        <div style="margin-bottom: 2rem;">
+                            <h2 class="text-14px medium" style="margin-bottom: 1rem;">RoPE (Rotary Position Embedding)</h2>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">RoPE Scaling Type</label>
+                                <select class="input-text-md" name="rope_scaling_type" style="width: 100%;">
+                                    <option value="unspecified">Unspecified</option>
+                                    <option value="none">None</option>
+                                    <option value="linear">Linear</option>
+                                    <option value="yarn">YARN</option>
+                                </select>
+                                <small class="text-10px reguler" style="color: #666;">Type of RoPE scaling to apply</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">RoPE Frequency Base</label>
+                                <input class="input-text-md" type="number" name="rope_freq_base" value="0" step="0.01" min="0" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">RoPE base frequency (0 = auto)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">RoPE Frequency Scale</label>
+                                <input class="input-text-md" type="number" name="rope_freq_scale" value="0" step="0.01" min="0" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">RoPE frequency scaling factor (0 = auto)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">YARN Extension Factor</label>
+                                <input class="input-text-md" type="number" name="yarn_ext_factor" value="-1" step="0.01" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">YARN extension factor (-1 = auto)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">YARN Attention Factor</label>
+                                <input class="input-text-md" type="number" name="yarn_attn_factor" value="1" step="0.01" min="0" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">YARN attention scaling factor</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">YARN Beta Fast</label>
+                                <input class="input-text-md" type="number" name="yarn_beta_fast" value="32" step="0.01" min="0" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">YARN beta fast parameter</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">YARN Beta Slow</label>
+                                <input class="input-text-md" type="number" name="yarn_beta_slow" value="1" step="0.01" min="0" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">YARN beta slow parameter</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">YARN Original Context</label>
+                                <input class="input-text-md" type="number" name="yarn_orig_ctx" value="0" min="0" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">YARN original context size (0 = auto)</small>
+                            </div>
+                        </div>
+
+                        <!-- Memory Management -->
+                        <div style="margin-bottom: 2rem;">
+                            <h2 class="text-14px medium" style="margin-bottom: 1rem;">Memory Management</h2>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">NUMA Strategy</label>
+                                <select class="input-text-md" name="numa" style="width: 100%;">
+                                    <option value="disabled">Disabled</option>
+                                    <option value="distribute">Distribute</option>
+                                    <option value="isolate">Isolate</option>
+                                    <option value="numactl">NumaCTL</option>
+                                </select>
+                                <small class="text-10px reguler" style="color: #666;">NUMA memory allocation strategy</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Defragmentation Threshold</label>
+                                <input class="input-text-md" type="number" name="defrag_thold" value="-1" step="0.01" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">KV cache defragmentation threshold (-1 = disabled)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="no_gpu_accel"> Disable GPU Acceleration
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Force CPU-only processing</small>
+                            </div>
+                        </div>
+
+                        <!-- Cache Configuration -->
+                        <div style="margin-bottom: 2rem;">
+                            <h2 class="text-14px medium" style="margin-bottom: 1rem;">Cache Configuration</h2>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">K-Cache Type</label>
+                                <select class="input-text-md" name="cache_type_k" style="width: 100%;">
+                                    <option value="unspecified">Unspecified</option>
+                                    <option value="f16">Float16</option>
+                                    <option value="q8_0">Q8_0</option>
+                                    <option value="q4_0">Q4_0</option>
+                                    <option value="q4_1">Q4_1</option>
+                                    <option value="iq4_nl">IQ4_NL</option>
+                                    <option value="q5_0">Q5_0</option>
+                                    <option value="q5_1">Q5_1</option>
+                                </select>
+                                <small class="text-10px reguler" style="color: #666;">Key cache quantization type</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">V-Cache Type</label>
+                                <select class="input-text-md" name="cache_type_v" style="width: 100%;">
+                                    <option value="unspecified">Unspecified</option>
+                                    <option value="f16">Float16</option>
+                                    <option value="q8_0">Q8_0</option>
+                                    <option value="q4_0">Q4_0</option>
+                                    <option value="q4_1">Q4_1</option>
+                                    <option value="iq4_nl">IQ4_NL</option>
+                                    <option value="q5_0">Q5_0</option>
+                                    <option value="q5_1">Q5_1</option>
+                                </select>
+                                <small class="text-10px reguler" style="color: #666;">Value cache quantization type</small>
+                            </div>
+                        </div>
+
+                        <!-- Embedding Configuration -->
+                        <div style="margin-bottom: 2rem;">
+                            <h2 class="text-14px medium" style="margin-bottom: 1rem;">Embedding Configuration</h2>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="embedding"> Enable Embedding Mode
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Use model for embeddings instead of text generation</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Pooling Type</label>
+                                <select class="input-text-md" name="pooling_type" style="width: 100%;">
+                                    <option value="unspecified">Unspecified</option>
+                                    <option value="none">None</option>
+                                    <option value="mean">Mean</option>
+                                    <option value="cls">CLS</option>
+                                    <option value="last">Last</option>
+                                    <option value="rank">Rank</option>
+                                </select>
+                                <small class="text-10px reguler" style="color: #666;">Pooling method for embeddings</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Attention Type</label>
+                                <select class="input-text-md" name="attention" style="width: 100%;">
+                                    <option value="unspecified">Unspecified</option>
+                                    <option value="causal">Causal</option>
+                                    <option value="non_causal">Non-Causal</option>
+                                </select>
+                                <small class="text-10px reguler" style="color: #666;">Attention mechanism type</small>
+                            </div>
+                        </div>
+
+                        <!-- Advanced Features -->
+                        <div style="margin-bottom: 2rem;">
+                            <h2 class="text-14px medium" style="margin-bottom: 1rem;">Advanced Features</h2>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="logits_all"> Return Logits for All Tokens
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Return logits for all tokens, not just the last one</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="flash_attn"> Use Flash Attention
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Enable Flash Attention for improved performance</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="no_perf"> Disable Performance Metrics
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Disable performance measurement and reporting</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="simple_io"> Simple I/O Mode
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Use simple I/O for compatibility</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="use_color" checked> Use Color Output
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Enable colored output in logs</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="special"> Special Token Processing
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Enable special token processing</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="interactive_first"> Interactive First Mode
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Run in interactive mode initially</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="conversation"> Conversation Mode
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Enable conversation mode</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="chatml"> ChatML Format
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Use ChatML message format</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                    <input type="checkbox" name="no_display_prompt"> Hide Prompt Display
+                                </label>
+                                <small class="text-10px reguler" style="color: #666;">Don't display the prompt in output</small>
+                            </div>
+                        </div>
+
+                        <!-- Sampling Parameters -->
+                        <div style="margin-bottom: 2rem;">
+                            <h2 class="text-14px medium" style="margin-bottom: 1rem;">Sampling Parameters</h2>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Random Seed</label>
+                                <input class="input-text-md" type="number" name="seed" value="-1" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">Random seed for generation (-1 = random)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Max Tokens to Generate</label>
+                                <input class="input-text-md" type="number" name="n_predict" value="-1" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">Maximum tokens to generate (-1 = unlimited)</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Group Attention N</label>
+                                <input class="input-text-md" type="number" name="grp_attn_n" value="1" min="1" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">Group attention factor</small>
+                            </div>
+                            
+                            <div style="margin-bottom: 1rem;">
+                                <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Group Attention Width</label>
+                                <input class="input-text-md" type="number" name="grp_attn_w" value="512" min="1" style="width: 100%;">
+                                <small class="text-10px reguler" style="color: #666;">Group attention width</small>
+                            </div>
+                        </div>
+                    </div>
                     
                     <div class="popup-model-action" style="display: flex; gap: 1rem; justify-content: flex-end;">
                         <button type="button" class="btn-md btn-outline ClosePopup">Cancel</button>

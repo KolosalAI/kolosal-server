@@ -198,3 +198,76 @@ body .wrapper {
     background-position: -100% 0;
   }
 }
+
+/* Advanced Configuration Styles */
+#advanced_config {
+  border-top: 1px solid var(--color-stroke);
+  padding-top: 1rem;
+  margin-top: 1rem;
+}
+
+.config-section {
+  border: 1px solid var(--color-stroke);
+  border-radius: 8px;
+  padding: 1rem;
+  margin-bottom: 1.5rem;
+  background-color: rgba(255, 255, 255, 0.02);
+}
+
+.config-section h2 {
+  color: var(--color-information);
+  border-bottom: 1px solid var(--color-stroke);
+  padding-bottom: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.config-section .form-group {
+  margin-bottom: 1rem;
+}
+
+.config-section .form-group:last-child {
+  margin-bottom: 0;
+}
+
+.config-section label {
+  color: var(--color-text);
+}
+
+.config-section small {
+  color: var(--color-subtitle);
+  font-style: italic;
+}
+
+/* Advanced toggle styling */
+#advanced_toggle {
+  margin-right: 0.5rem;
+}
+
+/* Improve form spacing in popup */
+.popup form .form-group {
+  margin-bottom: 1rem;
+}
+
+.popup form .form-group label {
+  display: block;
+  margin-bottom: 0.5rem;
+  color: var(--color-text);
+}
+
+.popup form .form-group input,
+.popup form .form-group select {
+  width: 100%;
+}
+
+.popup form .form-group small {
+  display: block;
+  margin-top: 0.25rem;
+  color: var(--color-subtitle);
+  font-size: 0.875rem;
+}
+
+/* Checkbox alignment */
+.popup form .form-group label input[type="checkbox"] {
+  width: auto;
+  margin-right: 0.5rem;
+}

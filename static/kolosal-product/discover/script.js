@@ -196,6 +196,16 @@ function SetupLoadModelForm() {
     const form = document.getElementById("LoadModelForm");
     if (!form) return;
 
+    // Setup advanced configuration toggle
+    const advancedToggle = document.getElementById("advanced_toggle");
+    const advancedConfig = document.getElementById("advanced_config");
+    
+    if (advancedToggle && advancedConfig) {
+        advancedToggle.addEventListener("change", function() {
+            advancedConfig.style.display = this.checked ? "block" : "none";
+        });
+    }
+
     // Pre-populate the form when Load Model popup opens
     const loadModelButtons = document.querySelectorAll('[data-popup="LoadModel"]');
     loadModelButtons.forEach(button => {
@@ -229,26 +239,105 @@ function SetupLoadModelForm() {
         
         const formData = new FormData(form);
         
-        // Build the request payload
+        // Helper function to get checkbox value
+        const getCheckboxValue = (name) => formData.get(name) === "on";
+        
+        // Helper function to get number value with fallback
+        const getNumberValue = (name, defaultValue = 0) => {
+            const value = formData.get(name);
+            return value ? parseInt(value) : defaultValue;
+        };
+        
+        // Helper function to get float value with fallback
+        const getFloatValue = (name, defaultValue = 0.0) => {
+            const value = formData.get(name);
+            return value ? parseFloat(value) : defaultValue;
+        };
+        
+        // Helper function to get string value or undefined if empty
+        const getStringValue = (name) => {
+            const value = formData.get(name);
+            return value && value.trim() ? value.trim() : undefined;
+        };
+
+        // CPU configuration
+        const cpuParams = {
+            n_threads: getNumberValue("n_threads"),
+            n_threads_batch: getNumberValue("n_threads_batch"),
+            cpu_mask: getStringValue("cpu_mask"),
+            cpu_mask_batch: getStringValue("cpu_mask_batch"),
+            cpu_range: getStringValue("cpu_range"),
+            cpu_range_batch: getStringValue("cpu_range_batch"),
+            cpu_strict: getNumberValue("cpu_strict"),
+            poll: getNumberValue("poll", 50)
+        };
+        
+        // Build the comprehensive request payload
         const payload = {
             model_id: formData.get("model_id"),
             model_path: formData.get("model_path"),
             model_type: formData.get("model_type"),
-            load_immediately: formData.get("load_immediately") === "on",
-            main_gpu_id: parseInt(formData.get("main_gpu_id")),
-            inference_engine: formData.get("inference_engine") || undefined,
+            load_immediately: getCheckboxValue("load_immediately"),
+            main_gpu_id: getNumberValue("main_gpu_id"),
+            inference_engine: getStringValue("inference_engine"),
             loading_parameters: {
-                n_ctx: parseInt(formData.get("n_ctx")),
-                n_keep: parseInt(formData.get("n_keep")),
-                use_mlock: formData.get("use_mlock") === "on",
-                use_mmap: formData.get("use_mmap") === "on",
-                cont_batching: formData.get("cont_batching") === "on",
-                warmup: formData.get("warmup") === "on",
-                n_parallel: parseInt(formData.get("n_parallel")),
-                n_gpu_layers: parseInt(formData.get("n_gpu_layers")),
-                split_mode: parseInt(formData.get("split_mode")),
-                n_batch: parseInt(formData.get("n_batch")),
-                n_ubatch: parseInt(formData.get("n_ubatch"))
+                // Basic parameters
+                n_ctx: getNumberValue("n_ctx", 2048),
+                n_keep: getNumberValue("n_keep"),
+                use_mlock: getCheckboxValue("use_mlock"),
+                use_mmap: getCheckboxValue("use_mmap"),
+                cont_batching: getCheckboxValue("cont_batching"),
+                warmup: getCheckboxValue("warmup"),
+                n_parallel: getNumberValue("n_parallel", 1),
+                n_gpu_layers: getNumberValue("n_gpu_layers"),
+                split_mode: getNumberValue("split_mode"),
+                n_batch: getNumberValue("n_batch", 2048),
+                n_ubatch: getNumberValue("n_ubatch", 512),
+                
+                // CPU parameters
+                cpu_params: cpuParams,
+                
+                // RoPE parameters
+                rope_scaling_type: getStringValue("rope_scaling_type") || "unspecified",
+                rope_freq_base: getFloatValue("rope_freq_base"),
+                rope_freq_scale: getFloatValue("rope_freq_scale"),
+                yarn_ext_factor: getFloatValue("yarn_ext_factor", -1),
+                yarn_attn_factor: getFloatValue("yarn_attn_factor", 1),
+                yarn_beta_fast: getFloatValue("yarn_beta_fast", 32),
+                yarn_beta_slow: getFloatValue("yarn_beta_slow", 1),
+                yarn_orig_ctx: getNumberValue("yarn_orig_ctx"),
+                defrag_thold: getFloatValue("defrag_thold", -1),
+                
+                // Memory and GPU
+                numa: getStringValue("numa") || "disabled",
+                no_gpu_accel: getCheckboxValue("no_gpu_accel"),
+                
+                // Cache configuration
+                cache_type_k: getStringValue("cache_type_k") || "unspecified",
+                cache_type_v: getStringValue("cache_type_v") || "unspecified",
+                
+                // Embedding configuration
+                embedding: getCheckboxValue("embedding"),
+                pooling_type: getStringValue("pooling_type") || "unspecified",
+                attention: getStringValue("attention") || "unspecified",
+                
+                // Advanced features
+                logits_all: getCheckboxValue("logits_all"),
+                flash_attn: getCheckboxValue("flash_attn"),
+                no_perf: getCheckboxValue("no_perf"),
+                simple_io: getCheckboxValue("simple_io"),
+                use_color: getCheckboxValue("use_color"),
+                special: getCheckboxValue("special"),
+                interactive_first: getCheckboxValue("interactive_first"),
+                conversation: getCheckboxValue("conversation"),
+                chatml: getCheckboxValue("chatml"),
+                no_display_prompt: getCheckboxValue("no_display_prompt"),
+                
+                // Sampling parameters
+                seed: getNumberValue("seed", -1),
+                n_predict: getNumberValue("n_predict", -1),
+                grp_attn_n: getNumberValue("grp_attn_n", 1),
+                grp_attn_w: getNumberValue("grp_attn_w", 512)
             }
         };
         
@@ -261,10 +350,13 @@ function SetupLoadModelForm() {
             }
         }
         
-        // Remove inference_engine if not provided
-        if (!payload.inference_engine) {
-            delete payload.inference_engine;
-        }
+        // Remove undefined values to keep the payload clean
+        const cleanPayload = JSON.parse(JSON.stringify(payload, (key, value) => {
+            if (value === undefined || value === null || value === "") {
+                return undefined;
+            }
+            return value;
+        }));
         
         try {
             // Show loading state
@@ -278,7 +370,7 @@ function SetupLoadModelForm() {
                 headers: {
                     "Content-Type": "application/json"
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(cleanPayload)
             });
             
             if (!response.ok) {
