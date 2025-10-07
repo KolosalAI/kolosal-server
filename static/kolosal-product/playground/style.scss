@@ -36,6 +36,45 @@ body {
     @include flex(column);
     gap: 4px;
     padding: 8px;
+    overflow-y: auto;
+    flex: 1;
+
+    .list-item {
+        position: relative;
+        
+        .delete-chat-btn {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            padding: 4px;
+            opacity: 0;
+            transition: opacity 0.2s ease;
+            color: var(--color-error, #e74c3c);
+            
+            i {
+                font-size: 16px;
+            }
+
+            &:hover {
+                opacity: 1 !important;
+            }
+        }
+
+        &:hover .delete-chat-btn {
+            opacity: 0.6;
+        }
+
+        h2 {
+            padding-right: 30px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    }
 }
 
 .chat-action {
@@ -85,6 +124,8 @@ body {
     @include flex(column, flex-start, center);
     height: 100%;
     width: 100%;
+    overflow-y: auto;
+    overflow-x: hidden;
 
     .blank {
         @include flex(column, center, center);
@@ -92,7 +133,6 @@ body {
         max-width: 800px;
         width: 100%;
         height: 100%;
-        display: none;
 
         img {
             width: 96px;
@@ -115,8 +155,11 @@ body {
     gap: 40px;
     max-width: 800px;
     width: 100%;
-    height: 100%;
-    overflow: hidden;
+    padding: 20px 0;
+
+    &:empty {
+        display: none;
+    }
 }
 
 .bubble-user {
@@ -127,6 +170,20 @@ body {
     padding: 6px 10px;
     background-color: var(--color-neutral);
     border-radius: 8px;
+    max-width: 80%;
+    word-wrap: break-word;
+}
+
+.bubble-bot {
+    @include flex(row, flex-start, flex-start);
+}
+
+.bubble-bot-wrapper {
+    padding: 6px 10px;
+    background-color: var(--color-background-alt);
+    border-radius: 8px;
+    max-width: 80%;
+    word-wrap: break-word;
 }
 
 .box-action {

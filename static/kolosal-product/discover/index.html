@@ -37,8 +37,166 @@
                     <div class="popup-model-list"></div>
                 </div>
                 <div class="popup-model-action">
-                    <button class="btn-md btn-primary AddModel">Add Model</button>
+                    <button class="btn-md btn-primary" data-popup="LoadModel">Load Model</button>
                 </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="popup" data-popup="LoadModel">
+        <div class="popup-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <div class="popup-title">
+                <h1 class="text-14px medium">Load Model Configuration</h1>
+                <button class="btn-sm-icon btn-outline ClosePopup"><i class="ri-close-line"></i></button>
+            </div>
+            <div class="popup-body" style="padding: 1.5rem;">
+                <form id="LoadModelForm">
+                    <!-- Basic Settings -->
+                    <div style="margin-bottom: 2rem;">
+                        <h2 class="text-14px medium" style="margin-bottom: 1rem;">Basic Settings</h2>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Model ID *</label>
+                            <input class="input-text-md" type="text" name="model_id" required style="width: 100%;" placeholder="my-model-id">
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Model Path *</label>
+                            <input class="input-text-md" type="text" name="model_path" required style="width: 100%;" placeholder="path/to/model.gguf">
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Model Type</label>
+                            <select class="input-text-md" name="model_type" style="width: 100%;">
+                                <option value="llm">LLM</option>
+                                <option value="embedding">Embedding</option>
+                            </select>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                <input type="checkbox" name="load_immediately" checked> Load Immediately
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Context and Memory Settings -->
+                    <div style="margin-bottom: 2rem;">
+                        <h2 class="text-14px medium" style="margin-bottom: 1rem;">Context & Memory Settings</h2>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Context Length (n_ctx)</label>
+                            <input class="input-text-md" type="number" name="n_ctx" value="4096" min="128" max="1000000" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Maximum context size (default: 4096)</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Keep Tokens (n_keep)</label>
+                            <input class="input-text-md" type="number" name="n_keep" value="2048" min="0" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Tokens to keep in memory (default: 2048)</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                <input type="checkbox" name="use_mlock" checked> Use Memory Lock (mlock)
+                            </label>
+                            <small class="text-10px reguler" style="color: #666;">Lock memory pages to prevent swapping</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                <input type="checkbox" name="use_mmap" checked> Use Memory Mapping (mmap)
+                            </label>
+                            <small class="text-10px reguler" style="color: #666;">Use memory mapping for faster loading</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Processing Settings -->
+                    <div style="margin-bottom: 2rem;">
+                        <h2 class="text-14px medium" style="margin-bottom: 1rem;">Processing Settings</h2>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                <input type="checkbox" name="cont_batching" checked> Continuous Batching
+                            </label>
+                            <small class="text-10px reguler" style="color: #666;">Enable continuous batching for better throughput</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">
+                                <input type="checkbox" name="warmup"> Warmup
+                            </label>
+                            <small class="text-10px reguler" style="color: #666;">Perform warmup before inference</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Parallel Sequences (n_parallel)</label>
+                            <input class="input-text-md" type="number" name="n_parallel" value="1" min="1" max="16" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Number of parallel sequences (default: 1)</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Batch Processing -->
+                    <div style="margin-bottom: 2rem;">
+                        <h2 class="text-14px medium" style="margin-bottom: 1rem;">Batch Processing</h2>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Batch Size (n_batch)</label>
+                            <input class="input-text-md" type="number" name="n_batch" value="2048" min="1" max="8192" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Prompt processing batch size (default: 2048)</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Micro-batch Size (n_ubatch)</label>
+                            <input class="input-text-md" type="number" name="n_ubatch" value="512" min="1" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Physical batch size for prompt processing (default: 512)</small>
+                        </div>
+                    </div>
+                    
+                    <!-- Hardware Acceleration -->
+                    <div style="margin-bottom: 2rem;">
+                        <h2 class="text-14px medium" style="margin-bottom: 1rem;">Hardware Acceleration</h2>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">GPU Layers (n_gpu_layers)</label>
+                            <input class="input-text-md" type="number" name="n_gpu_layers" value="100" min="0" max="1000" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Number of layers to offload to GPU (default: 100, 0 = CPU only)</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Main GPU ID</label>
+                            <input class="input-text-md" type="number" name="main_gpu_id" value="0" min="-1" max="15" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Primary GPU to use (-1 for auto-select, default: 0)</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Split Mode</label>
+                            <select class="input-text-md" name="split_mode" style="width: 100%;">
+                                <option value="0">None - Single GPU</option>
+                                <option value="1" selected>Layer - Split by layers</option>
+                                <option value="2">Row - Split by tensor rows</option>
+                            </select>
+                            <small class="text-10px reguler" style="color: #666;">How to split model across multiple GPUs</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Tensor Split (optional)</label>
+                            <input class="input-text-md" type="text" name="tensor_split" placeholder="0.3,0.7" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Comma-separated fractions for multi-GPU split (e.g., "0.3,0.7" for 2 GPUs)</small>
+                        </div>
+                        
+                        <div style="margin-bottom: 1rem;">
+                            <label class="text-12px reguler" style="display: block; margin-bottom: 0.5rem;">Inference Engine</label>
+                            <input class="input-text-md" type="text" name="inference_engine" placeholder="llama-cpu, llama-cuda, llama-vulkan" style="width: 100%;">
+                            <small class="text-10px reguler" style="color: #666;">Leave empty to use server default</small>
+                        </div>
+                    </div>
+                    
+                    <div class="popup-model-action" style="display: flex; gap: 1rem; justify-content: flex-end;">
+                        <button type="button" class="btn-md btn-outline ClosePopup">Cancel</button>
+                        <button type="submit" class="btn-md btn-primary">Load Model</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>

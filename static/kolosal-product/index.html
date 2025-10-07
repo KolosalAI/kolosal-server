@@ -20,10 +20,7 @@
             </div>
         </div>
         <div class="chat-list">
-            <div class="list-item active">
-                <h2 class="text-14px reguler">title_chat</h2>
-                <button><i class="ri-more-line"></i></button>
-            </div>
+            <!-- Chat history will be dynamically loaded here -->
         </div>
     </div>
     <div class="wrapper">
@@ -32,16 +29,11 @@
                 <div class="box-title">
                     <div class="select">
                         <div class="select-trigger">
-                            <h2 class="text-12px reguler">Qwen3-Coder-30B</h2>
+                            <h2 class="text-12px reguler">Select Model</h2>
                             <i class="ri-arrow-down-s-fill select-icon"></i>
                         </div>
                         <div class="select-list">
-                            <div class="select-list-item">
-                                <h2 class="text-12px reguler">model-1</h2>
-                            </div>
-                            <div class="select-list-item">
-                                <h2 class="text-12px reguler">model-1</h2>
-                            </div>
+                            <!-- Models will be dynamically loaded here -->
                         </div>
                     </div>
                     <div class="box-title-col">
@@ -50,27 +42,11 @@
                     </div>
                 </div>
                 <div class="box-body">
-                    <div class="blank">
-                        <img src="https://res.cloudinary.com/dh21tvktj/image/upload/v1758625415/kolosal-blank-chat_aeewug.png" alt="">
-                        <h2 class="text-32px semibold">Your first chat starts here</h2>
-                        <h3 class="text-32px semibold">What’s on your mind?</h3>
-                    </div>
-                    <div class="bubble">
-                        <div class="bubble-user">
-                            <div class="bubble-user-wrapper">
-                                <p class="article-text reguler">Test</p>
-                            </div>
-                        </div>
-                        <div class="bubble-bot">
-                            <div class="bubble-bot-wrapper">
-                                <p class="article-text reguler">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Nunc nisi risus, auctor vel tellus nec, laoreet molestie mi. Vivamus ultrices lorem vulputate lacus varius, quis tincidunt tellus vehicula. Donec leo nibh, scelerisque nec ornare ut, mattis nec purus.</p>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Messages will be dynamically loaded here -->
                 </div>
                 <div class="box-action">
-                    <textarea class="text-14px reguler" placeholder="Type anything you like..."></textarea>
-                    <button><i class="ri-arrow-up-line"></i></button>
+                    <textarea class="text-14px reguler" placeholder="Type anything you like..." aria-label="Chat message input"></textarea>
+                    <button title="Send message" aria-label="Send message"><i class="ri-arrow-up-line"></i></button>
                 </div>
             </div>
             <div class="box-option">
@@ -78,27 +54,27 @@
                     <div class="box-option-content">
                         <div class="title">
                             <h2 class="text-12px reguler">Temperature:</h2>
-                            <p class="text-12px reguler">10</p>
+                            <p class="text-12px reguler">0.7</p>
                         </div>
-                        <input class="input-range" type="range">
+                        <input class="input-range" type="range" aria-label="Temperature" title="Temperature">
                     </div>
                     <div class="box-option-content">
                         <div class="title">
                             <h2 class="text-12px reguler">Maximum Length:</h2>
-                            <p class="text-12px reguler">10</p>
+                            <p class="text-12px reguler">2048</p>
                         </div>
-                        <input class="input-range" type="range">
+                        <input class="input-range" type="range" aria-label="Maximum Length" title="Maximum Length">
                     </div>
                     <div class="box-option-content">
                         <div class="title">
                             <h2 class="text-12px reguler">Top P:</h2>
-                            <p class="text-12px reguler">10</p>
+                            <p class="text-12px reguler">0.90</p>
                         </div>
-                        <input class="input-range" type="range">
+                        <input class="input-range" type="range" aria-label="Top P" title="Top P">
                     </div>
                     <div class="box-option-content">
-                        <h2 class="text-12px reguler">Instruction:</h2>
-                        <textarea class="input-textarea" placeholder="Enter query here..."></textarea>
+                        <h2 class="text-12px reguler">System Instruction:</h2>
+                        <textarea class="input-textarea" placeholder="Enter system instruction here..." aria-label="System instruction"></textarea>
                     </div>
                 </div>
             </div>
