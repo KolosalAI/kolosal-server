@@ -134,8 +134,8 @@ if (-not $SkipBuildCheck) {
                 # Check if CMakeCache.txt exists
                 if (-not (Test-Path "CMakeCache.txt")) {
                     Write-Info "Configuring CMake..."
-                    $cmakeProcess = Start-Process -FilePath "cmake" -ArgumentList ".." -NoNewWindow -Wait -PassThru
-                    if ($cmakeProcess.ExitCode -ne 0) {
+                    & cmake .. 2>&1 | Out-Host
+                    if ($LASTEXITCODE -ne 0) {
                         Write-Error "CMake configuration failed"
                         Pop-Location
                         exit 1
@@ -146,14 +146,16 @@ if (-not $SkipBuildCheck) {
                 # Build the project
                 Write-Info "Building the project (Release configuration)..."
                 Write-Info "This may take several minutes..."
+                Write-Host ""
                 
-                $buildProcess = Start-Process -FilePath "cmake" -ArgumentList "--build", ".", "--config", "Release" -NoNewWindow -Wait -PassThru
-                if ($buildProcess.ExitCode -ne 0) {
+                & cmake --build . --config Release 2>&1 | Out-Host
+                if ($LASTEXITCODE -ne 0) {
                     Write-Error "Build failed!"
                     Pop-Location
                     exit 1
                 }
                 
+                Write-Host ""
                 Write-Success "Build completed successfully!"
                 
             } catch {

@@ -70,7 +70,8 @@ Page custom ConfigPage ConfigPageLeave
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Start Kolosal Server"
 !define MUI_FINISHPAGE_RUN_FUNCTION "LaunchApplication"
-!define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\README.md"
+!define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\POST_INSTALL_README.md"
+!define MUI_FINISHPAGE_SHOWREADME_TEXT "View Post-Installation Guide"
 !define MUI_FINISHPAGE_LINK "Visit the Kolosal Server website"
 !define MUI_FINISHPAGE_LINK_LOCATION "${PRODUCT_WEB_SITE}"
 !insertmacro MUI_PAGE_FINISH
@@ -174,6 +175,8 @@ Section "!Core Files" SecCore
   File /nonfatal "..\README.md"
   File /nonfatal "..\LICENSE"
   File /nonfatal "..\changes.log"
+  File /nonfatal "POST_INSTALL_README.md"
+  File /nonfatal "cleanup-config.ps1"
   
   ; Assets
   SetOutPath "$INSTDIR\assets"
@@ -190,6 +193,30 @@ Section "!Core Files" SecCore
 SectionEnd
 
 Section "Configuration Files" SecConfig
+  ; Backup old user config if it exists
+  IfFileExists "$APPDATA\Kolosal\config.yaml" 0 +3
+    CreateDirectory "$APPDATA\Kolosal\backup"
+    CopyFiles "$APPDATA\Kolosal\config.yaml" "$APPDATA\Kolosal\backup\config.yaml.backup"
+    DetailPrint "Backed up old user config to $APPDATA\Kolosal\backup\config.yaml.backup"
+  
+  ; Create ProgramData directory structure for system-wide config
+  SetOutPath "$COMMONAPPDATA\Kolosal"
+  CreateDirectory "$COMMONAPPDATA\Kolosal\bin"
+  CreateDirectory "$COMMONAPPDATA\Kolosal\models"
+  CreateDirectory "$COMMONAPPDATA\Kolosal\data"
+  CreateDirectory "$COMMONAPPDATA\Kolosal\data\faiss_index"
+  CreateDirectory "$COMMONAPPDATA\Kolosal\logs"
+  
+  ; Install fresh config to ProgramData (system location - higher priority)
+  ${If} ${FileExists} "..\configs\config-install.yaml"
+    File /oname=config.yaml "..\configs\config-install.yaml"
+    DetailPrint "Installed fresh config to $COMMONAPPDATA\Kolosal\config.yaml"
+  ${ElseIf} ${FileExists} "..\configs\config.yaml"
+    File /oname=config.yaml "..\configs\config.yaml"
+    DetailPrint "Installed fresh config to $COMMONAPPDATA\Kolosal\config.yaml"
+  ${EndIf}
+  
+  ; Also install configs to installation directory for reference
   SetOutPath "$INSTDIR\configs"
   
   ; Copy sample configuration files
@@ -198,9 +225,35 @@ Section "Configuration Files" SecConfig
   File /nonfatal "..\configs\config_rms.yaml"
   File /nonfatal "..\configs\local-retrieval-config.yaml"
   
-  ; Create default config if none exists
-  IfFileExists "$INSTDIR\config.yaml" +2 0
-    CopyFiles "$INSTDIR\configs\config.yaml" "$INSTDIR\config.yaml"
+  ; Copy sample files with .default extension (always update these as reference)
+  SetOutPath "$INSTDIR\configs"
+  ${If} ${FileExists} "..\configs\config.yaml"
+    File /oname=config.yaml.default "..\configs\config.yaml"
+  ${EndIf}
+  ${If} ${FileExists} "..\configs\config.json"
+    File /oname=config.json.default "..\configs\config.json"
+  ${EndIf}
+  ${If} ${FileExists} "..\configs\config_rms.yaml"
+    File /oname=config_rms.yaml.default "..\configs\config_rms.yaml"
+  ${EndIf}
+  ${If} ${FileExists} "..\configs\local-retrieval-config.yaml"
+    File /oname=local-retrieval-config.yaml.default "..\configs\local-retrieval-config.yaml"
+  ${EndIf}
+  
+  ; Copy inference engine DLLs to ProgramData\Kolosal\bin
+  ; Use CopyFiles to avoid path expansion issues
+  IfFileExists "..\build\Release\llama-cpu.dll" 0 +2
+    CopyFiles /SILENT "..\build\Release\llama-cpu.dll" "$COMMONAPPDATA\Kolosal\bin\llama-cpu.dll"
+  
+  IfFileExists "..\build\Release\llama-vulkan.dll" 0 +2
+    CopyFiles /SILENT "..\build\Release\llama-vulkan.dll" "$COMMONAPPDATA\Kolosal\bin\llama-vulkan.dll"
+  
+  IfFileExists "..\build\Release\llama-cuda.dll" 0 +2
+    CopyFiles /SILENT "..\build\Release\llama-cuda.dll" "$COMMONAPPDATA\Kolosal\bin\llama-cuda.dll"
+  
+  ; Notify user about old config
+  IfFileExists "$APPDATA\Kolosal\config.yaml" 0 +2
+    MessageBox MB_OK|MB_ICONINFORMATION "Note: An old configuration was found in:$\n$APPDATA\Kolosal\config.yaml$\n$\nA backup has been created at:$\n$APPDATA\Kolosal\backup\config.yaml.backup$\n$\nA fresh configuration has been installed to:$\nC:\ProgramData\Kolosal\config.yaml$\n$\nTo use the fresh configuration, please delete the old config file at:$\n$APPDATA\Kolosal\config.yaml$\n$\nOr update it with the new paths from the fresh config."
   
 SectionEnd
 
@@ -213,8 +266,10 @@ Section "Documentation" SecDocs
 SectionEnd
 
 Section "Static Files" SecStatic
-  ; This section is now handled by CPack installation rules
-  ; The static files will be automatically installed by the installer
+  SetOutPath "$INSTDIR\static"
+  
+  ; Copy static web files
+  File /nonfatal /r "..\static\*.*"
   
 SectionEnd
 
@@ -247,8 +302,11 @@ Section -Post
   ; Create start menu shortcuts
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Kolosal Server.lnk" "$INSTDIR\kolosal-server.exe" "" "$INSTDIR\assets\icon.ico"
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\uninstall.exe"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Configuration Cleanup Tool.lnk" "powershell.exe" '-ExecutionPolicy Bypass -File "$INSTDIR\cleanup-config.ps1"' "$INSTDIR\assets\icon.ico"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Configuration File.lnk" "$COMMONAPPDATA\Kolosal\config.yaml"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Post-Installation Guide.lnk" "$INSTDIR\POST_INSTALL_README.md"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Documentation.lnk" "$INSTDIR\README.md"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\uninstall.exe"
   
   ; Desktop shortcut (if checked)
   ${NSD_GetState} $CreateDesktopIcon $0

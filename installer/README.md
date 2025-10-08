@@ -115,22 +115,63 @@ dumpbin /DEPENDENTS "path\to\kolosal-server.exe"
 
 Or use [Dependencies](https://github.com/lucasg/Dependencies) GUI tool.
 
-## Configuration After Installation
+## Configuration Management (Updated)
 
-After installation, users should:
+### Configuration File Priority
 
-1. Edit `config.yaml` to set up:
-   - Model paths
-   - API keys (if needed)
-   - Server settings (host, port)
+The server loads configuration in this order:
+1. **User Config** (Highest): `%APPDATA%\Kolosal\config.yaml`
+2. **System Config** (Recommended): `%PROGRAMDATA%\Kolosal\config.yaml`
+3. **Install Dir**: `C:\Program Files\Kolosal Server\config.yaml`
+4. **Working Dir**: `.\config.yaml`
 
-2. Place model files in the `models` directory
+### What the Installer Does
 
-3. Run the server:
+The installer now:
+1. Creates fresh config at: `%PROGRAMDATA%\Kolosal\config.yaml`
+2. Backs up old user config if found: `%APPDATA%\Kolosal\backup\config.yaml.backup`
+3. Installs inference engine DLLs to: `%PROGRAMDATA%\Kolosal\bin\`
+4. Creates data directories: `%PROGRAMDATA%\Kolosal\data\`
+5. Notifies user about old configuration backups
+
+### Installation-Ready Configuration
+
+The installer uses `config-install.yaml` which:
+- Has paths pre-configured for `%PROGRAMDATA%\Kolosal\`
+- Uses safe defaults (localhost-only, no public access)
+- Has empty models list (users add their own)
+- Points to installed inference engines in `%PROGRAMDATA%\Kolosal\bin\`
+
+### After Installation
+
+Users should:
+
+1. **Review** the Post-Installation Guide (`POST_INSTALL_README.md`)
+
+2. **For fresh installation**: Edit the config at:
+   ```
+   %PROGRAMDATA%\Kolosal\config.yaml
+   ```
+   Or: `C:\ProgramData\Kolosal\config.yaml`
+
+3. **For upgrade**: Either:
+   - Delete old config at: `%APPDATA%\Kolosal\config.yaml` to use fresh config
+   - Or update old config with new paths from the backup location
+
+4. **Add models** to the config or place in: `C:\ProgramData\Kolosal\models\`
+
+5. **Run the server**:
    ```powershell
    cd "C:\Program Files\Kolosal Server"
    .\kolosal-server.exe
    ```
+
+### Configuration Shortcuts
+
+The installer creates Start Menu shortcuts to:
+- Configuration file: Direct link to `%PROGRAMDATA%\Kolosal\config.yaml`
+- Post-Installation Guide: Setup instructions
+- Documentation: Full documentation
 
 ## Uninstallation
 
