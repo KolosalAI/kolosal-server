@@ -164,7 +164,7 @@ cd Release && ls -la kolosal-server
 ./kolosal-server --help
 ```
 
-**6. Install to System Path (Optional):**
+**6. Install to System Path (Alternative):**
 ```bash
 # Install binary to /usr/local/bin
 sudo cp build/Release/kolosal-server /usr/local/bin/
@@ -175,6 +175,7 @@ sudo chmod +x /usr/local/bin/kolosal-server
 # Now you can run from anywhere
 kolosal-server --help
 ```
+
 
 #### Running the Server
 

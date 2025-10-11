@@ -48,9 +48,11 @@ SetCompressorDictSize 32
 !define MUI_ABORTWARNING
 !define MUI_ICON "..\assets\icon.ico"
 !define MUI_UNICON "..\assets\icon.ico"
-!define MUI_HEADERIMAGE
-!define MUI_HEADERIMAGE_BITMAP "..\assets\logo.png"
-!define MUI_WELCOMEFINISHPAGE_BITMAP "..\assets\logo.png"
+; Note: NSIS only supports BMP format for welcome/finish images
+; Uncomment and convert logo.png to logo.bmp if you want to use custom images
+; !define MUI_HEADERIMAGE
+; !define MUI_HEADERIMAGE_BITMAP "..\assets\logo.bmp"
+; !define MUI_WELCOMEFINISHPAGE_BITMAP "..\assets\logo.bmp"
 
 ;--------------------------------
 ; Pages
@@ -156,32 +158,23 @@ Section "!Core Files" SecCore
   File /nonfatal "..\build\dist\*.dll"
   
   ; Optional: Copy OpenBLAS DLL if present (for BLAS acceleration)
-  File /nonfatal "..\build\Release\openblas.dll"
-  File /nonfatal "..\build\Release\libopenblas.dll"
-  File /nonfatal "..\build\dist\openblas.dll"
-  File /nonfatal "..\build\dist\libopenblas.dll"
-  
-  ; Optional: Copy from inference build directory if present
-  File /nonfatal "..\inference\external\llama.cpp\build\bin\Release\openblas.dll"
-  File /nonfatal "..\build\external\llama.cpp\bin\Release\openblas.dll"
-  
-  ; Create lib directory and copy libraries
-  SetOutPath "$INSTDIR\lib"
-  File /nonfatal /r "..\build\Release\lib\*.*"
-  File /nonfatal /r "..\build\dist\lib\*.*"
+  ; The /nonfatal flag allows these to fail silently if files don't exist
+  ${IfNot} ${FileExists} "..\build\Release\openblas.dll"
+  ${AndIfNot} ${FileExists} "..\build\Release\libopenblas.dll"
+    DetailPrint "Note: OpenBLAS DLLs not found (optional)"
+  ${EndIf}
   
   ; Documentation
   SetOutPath "$INSTDIR"
-  File /nonfatal "..\README.md"
-  File /nonfatal "..\LICENSE"
-  File /nonfatal "..\changes.log"
-  File /nonfatal "POST_INSTALL_README.md"
-  File /nonfatal "cleanup-config.ps1"
+  File "..\README.md"
+  File "..\LICENSE"
+  File "POST_INSTALL_README.md"
+  File "cleanup-config.ps1"
   
   ; Assets
   SetOutPath "$INSTDIR\assets"
-  File /nonfatal "..\assets\*.ico"
-  File /nonfatal "..\assets\*.png"
+  File "..\assets\icon.ico"
+  File "..\assets\logo.png"
   
   ; Create necessary directories
   CreateDirectory "$INSTDIR\logs"
@@ -200,56 +193,44 @@ Section "Configuration Files" SecConfig
     DetailPrint "Backed up old user config to $APPDATA\Kolosal\backup\config.yaml.backup"
   
   ; Create ProgramData directory structure for system-wide config
-  SetOutPath "$COMMONAPPDATA\Kolosal"
-  CreateDirectory "$COMMONAPPDATA\Kolosal\bin"
-  CreateDirectory "$COMMONAPPDATA\Kolosal\models"
-  CreateDirectory "$COMMONAPPDATA\Kolosal\data"
-  CreateDirectory "$COMMONAPPDATA\Kolosal\data\faiss_index"
-  CreateDirectory "$COMMONAPPDATA\Kolosal\logs"
+  ; Note: NSIS uses $PROGRAMDATA for C:\ProgramData
+  CreateDirectory "$PROGRAMDATA\Kolosal"
+  CreateDirectory "$PROGRAMDATA\Kolosal\bin"
+  CreateDirectory "$PROGRAMDATA\Kolosal\models"
+  CreateDirectory "$PROGRAMDATA\Kolosal\data"
+  CreateDirectory "$PROGRAMDATA\Kolosal\data\faiss_index"
+  CreateDirectory "$PROGRAMDATA\Kolosal\logs"
   
   ; Install fresh config to ProgramData (system location - higher priority)
-  ${If} ${FileExists} "..\configs\config-install.yaml"
-    File /oname=config.yaml "..\configs\config-install.yaml"
-    DetailPrint "Installed fresh config to $COMMONAPPDATA\Kolosal\config.yaml"
-  ${ElseIf} ${FileExists} "..\configs\config.yaml"
-    File /oname=config.yaml "..\configs\config.yaml"
-    DetailPrint "Installed fresh config to $COMMONAPPDATA\Kolosal\config.yaml"
-  ${EndIf}
+  SetOutPath "$PROGRAMDATA\Kolosal"
+  File /oname=config.yaml "..\configs\config-install.yaml"
+  DetailPrint "Installed fresh config to $PROGRAMDATA\Kolosal\config.yaml"
   
   ; Also install configs to installation directory for reference
   SetOutPath "$INSTDIR\configs"
   
   ; Copy sample configuration files
-  File /nonfatal "..\configs\config.yaml"
-  File /nonfatal "..\configs\config.json"
-  File /nonfatal "..\configs\config_rms.yaml"
-  File /nonfatal "..\configs\local-retrieval-config.yaml"
-  
-  ; Copy sample files with .default extension (always update these as reference)
-  SetOutPath "$INSTDIR\configs"
-  ${If} ${FileExists} "..\configs\config.yaml"
-    File /oname=config.yaml.default "..\configs\config.yaml"
-  ${EndIf}
-  ${If} ${FileExists} "..\configs\config.json"
-    File /oname=config.json.default "..\configs\config.json"
-  ${EndIf}
-  ${If} ${FileExists} "..\configs\config_rms.yaml"
-    File /oname=config_rms.yaml.default "..\configs\config_rms.yaml"
-  ${EndIf}
-  ${If} ${FileExists} "..\configs\local-retrieval-config.yaml"
-    File /oname=local-retrieval-config.yaml.default "..\configs\local-retrieval-config.yaml"
-  ${EndIf}
+  File "..\configs\config.yaml"
+  File "..\configs\config.json"
+  File "..\configs\config_rms.yaml"
+  File "..\configs\local-retrieval-config.yaml"
+  File "..\configs\config-install.yaml"
   
   ; Copy inference engine DLLs to ProgramData\Kolosal\bin
-  ; Use CopyFiles to avoid path expansion issues
-  IfFileExists "..\build\Release\llama-cpu.dll" 0 +2
-    CopyFiles /SILENT "..\build\Release\llama-cpu.dll" "$COMMONAPPDATA\Kolosal\bin\llama-cpu.dll"
+  SetOutPath "$PROGRAMDATA\Kolosal\bin"
   
-  IfFileExists "..\build\Release\llama-vulkan.dll" 0 +2
-    CopyFiles /SILENT "..\build\Release\llama-vulkan.dll" "$COMMONAPPDATA\Kolosal\bin\llama-vulkan.dll"
+  ; Copy engine DLLs if they exist (using /nonfatal for optional files)
+  File /nonfatal "..\build\Release\llama-cpu.dll"
+  File /nonfatal "..\build\Release\llama-vulkan.dll"
+  File /nonfatal "..\build\Release\llama-cuda.dll"
   
-  IfFileExists "..\build\Release\llama-cuda.dll" 0 +2
-    CopyFiles /SILENT "..\build\Release\llama-cuda.dll" "$COMMONAPPDATA\Kolosal\bin\llama-cuda.dll"
+  ; Notify which engines were installed
+  IfFileExists "$PROGRAMDATA\Kolosal\bin\llama-cpu.dll" 0 +2
+    DetailPrint "Installed CPU engine support"
+  IfFileExists "$PROGRAMDATA\Kolosal\bin\llama-vulkan.dll" 0 +2
+    DetailPrint "Installed Vulkan engine support"
+  IfFileExists "$PROGRAMDATA\Kolosal\bin\llama-cuda.dll" 0 +2
+    DetailPrint "Installed CUDA engine support"
   
   ; Notify user about old config
   IfFileExists "$APPDATA\Kolosal\config.yaml" 0 +2
@@ -303,7 +284,7 @@ Section -Post
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Kolosal Server.lnk" "$INSTDIR\kolosal-server.exe" "" "$INSTDIR\assets\icon.ico"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Configuration Cleanup Tool.lnk" "powershell.exe" '-ExecutionPolicy Bypass -File "$INSTDIR\cleanup-config.ps1"' "$INSTDIR\assets\icon.ico"
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Configuration File.lnk" "$COMMONAPPDATA\Kolosal\config.yaml"
+  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Configuration File.lnk" "$PROGRAMDATA\Kolosal\config.yaml"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Post-Installation Guide.lnk" "$INSTDIR\POST_INSTALL_README.md"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Documentation.lnk" "$INSTDIR\README.md"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\uninstall.exe"

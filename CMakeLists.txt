@@ -464,6 +464,57 @@ add_custom_command(TARGET kolosal_server_exe POST_BUILD
     COMMENT "Copying ${INFERENCE_TARGET} to executable directory"
 )
 
+# Copy runtime dependencies for Windows
+if(WIN32)
+    # Find and copy OpenBLAS/LAPACK DLLs
+    set(RUNTIME_DLL_SEARCH_PATHS
+        "${CMAKE_BINARY_DIR}"
+        "${CMAKE_BINARY_DIR}/Release"
+        "${CMAKE_BINARY_DIR}/Debug"
+        "${CMAKE_BINARY_DIR}/external/faiss/faiss"
+        "${CMAKE_BINARY_DIR}/external/faiss"
+        "C:/msys64/mingw64/bin"
+        "C:/msys64/ucrt64/bin"
+        "$ENV{VCPKG_ROOT}/installed/x64-windows/bin"
+        "C:/vcpkg/installed/x64-windows/bin"
+        "$ENV{SystemRoot}/System32"
+    )
+    
+    set(REQUIRED_RUNTIME_DLLS
+        libopenblas.dll
+        VCOMP140.DLL
+        vcomp140.dll
+    )
+    
+    foreach(dll_name ${REQUIRED_RUNTIME_DLLS})
+        foreach(search_path ${RUNTIME_DLL_SEARCH_PATHS})
+            if(EXISTS "${search_path}/${dll_name}")
+                add_custom_command(TARGET kolosal_server_exe POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${search_path}/${dll_name}"
+                    "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+                    COMMENT "Copying ${dll_name} to executable directory"
+                )
+                break()
+            endif()
+        endforeach()
+    endforeach()
+    
+    # Create openblas.dll and liblapack.dll from libopenblas.dll
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/libopenblas.dll"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/openblas.dll"
+        COMMENT "Creating openblas.dll from libopenblas.dll"
+    )
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/libopenblas.dll"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/liblapack.dll"
+        COMMENT "Creating liblapack.dll from libopenblas.dll"
+    )
+endif()
+
 # === SELF-CONTAINED DIST PACKAGE ===
 set(KOLOSAL_FULL_DIST_DIR "${CMAKE_BINARY_DIR}/dist")
 add_custom_target(dist
@@ -477,6 +528,26 @@ add_custom_target(dist
         -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/overrides/MakeDist.cmake"
     COMMENT "Assembling self-contained distribution in dist/"
 )
+
+# === PORTABLE ZIP PACKAGE ===
+set(KOLOSAL_PORTABLE_DIR "${CMAKE_BINARY_DIR}/portable")
+set(KOLOSAL_PORTABLE_ZIP "${CMAKE_BINARY_DIR}/KolosalServer-${PROJECT_VERSION}-portable.zip")
+add_custom_target(portable
+    DEPENDS kolosal_server_exe
+    COMMAND ${CMAKE_COMMAND}
+        -DEXECUTABLE_PATH="$<TARGET_FILE:kolosal_server_exe>"
+        -DLIB_SERVER_PATH="$<TARGET_FILE:kolosal_server>"
+        -DLIB_INFERENCE_PATH="$<TARGET_FILE:${INFERENCE_TARGET}>"
+        -DSOURCE_DIR="$<TARGET_FILE_DIR:kolosal_server_exe>"
+        -DZIP_DIR="${KOLOSAL_PORTABLE_DIR}"
+        -DZIP_FILE="${KOLOSAL_PORTABLE_ZIP}"
+        -DSOURCE_ROOT="${CMAKE_CURRENT_SOURCE_DIR}"
+        -DPROJECT_VERSION="${PROJECT_VERSION}"
+        -P "${CMAKE_CURRENT_SOURCE_DIR}/cmake/MakePortableZip.cmake"
+    COMMENT "Creating portable ZIP package with all dependencies"
+)
+
+
 
 # === INSTALLATION ===
 if(APPLE)
@@ -500,51 +571,26 @@ endif()
 
 # === CPACK INSTALLER CONFIGURATION ===
 
-# Install targets for CPack
+# Install targets for CPack - all executables and DLLs go to root (.)
 install(TARGETS kolosal_server_exe
-    RUNTIME DESTINATION bin
+    RUNTIME DESTINATION .
     COMPONENT Runtime
 )
 
 install(TARGETS kolosal_server
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION .
+    LIBRARY DESTINATION .
     ARCHIVE DESTINATION lib
     COMPONENT Runtime
 )
 
 # Install inference library
 install(TARGETS ${INFERENCE_TARGET}
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
+    RUNTIME DESTINATION .
+    LIBRARY DESTINATION .
     ARCHIVE DESTINATION lib
     COMPONENT Runtime
 )
-
-# Install required runtime DLLs (Windows only)
-if(WIN32)
-    # Install libcurl.dll if it exists
-    if(EXISTS "${CMAKE_BINARY_DIR}/Release/libcurl.dll")
-        install(FILES "${CMAKE_BINARY_DIR}/Release/libcurl.dll"
-            DESTINATION bin
-            COMPONENT Runtime
-        )
-    elseif(CURL_INCLUDE_DIR AND EXISTS "${CURL_INCLUDE_DIR}/../bin/libcurl.dll")
-        install(FILES "${CURL_INCLUDE_DIR}/../bin/libcurl.dll"
-            DESTINATION bin
-            COMPONENT Runtime
-        )
-    endif()
-    
-    # Install any other DLLs from Release directory
-    file(GLOB RELEASE_DLLS "${CMAKE_BINARY_DIR}/Release/*.dll")
-    if(RELEASE_DLLS)
-        install(FILES ${RELEASE_DLLS}
-            DESTINATION bin
-            COMPONENT Runtime
-        )
-    endif()
-endif()
 
 # Install configuration files
 install(FILES 
@@ -580,43 +626,9 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/docs/"
     OPTIONAL
 )
 
-# Install static web files
-install(DIRECTORY "${CMAKE_SOURCE_DIR}/static/"
-    DESTINATION static
-    COMPONENT StaticFiles
-    OPTIONAL
-)
-
 # Create directories for runtime data
 install(DIRECTORY DESTINATION data/faiss_index COMPONENT Runtime)
 install(DIRECTORY DESTINATION logs COMPONENT Runtime)
-
-# Try to find and install OpenBLAS DLL if present (optional dependency for CPU acceleration)
-if(WIN32)
-    # Try to find openblas.dll in various locations
-    find_file(OPENBLAS_DLL_FILE
-        NAMES openblas.dll libopenblas.dll
-        PATHS
-            "${CMAKE_BINARY_DIR}/Release"
-            "${CMAKE_BINARY_DIR}/external/llama.cpp/bin/Release"
-            "${CMAKE_SOURCE_DIR}/inference/external/llama.cpp/build/bin/Release"
-            "$ENV{OPENBLAS_HOME}/bin"
-            "C:/Program Files/OpenBLAS/bin"
-            "C:/openblas/bin"
-        NO_DEFAULT_PATH
-    )
-    
-    if(OPENBLAS_DLL_FILE)
-        message(STATUS "Found OpenBLAS DLL: ${OPENBLAS_DLL_FILE}")
-        install(FILES "${OPENBLAS_DLL_FILE}"
-            DESTINATION .
-            COMPONENT Runtime
-            OPTIONAL
-        )
-    else()
-        message(STATUS "OpenBLAS DLL not found - CPU inference will use default implementation")
-    endif()
-endif()
 
 # Basic CPack configuration
 set(CPACK_PACKAGE_NAME "KolosalServer")
@@ -636,7 +648,7 @@ set(CPACK_RESOURCE_FILE_LICENSE "${CMAKE_SOURCE_DIR}/LICENSE")
 set(CPACK_RESOURCE_FILE_README "${CMAKE_SOURCE_DIR}/README.md")
 
 # Components
-set(CPACK_COMPONENTS_ALL Runtime Configuration Documentation Assets StaticFiles)
+set(CPACK_COMPONENTS_ALL Runtime Configuration Documentation Assets)
 set(CPACK_COMPONENT_RUNTIME_DISPLAY_NAME "Kolosal Server Runtime")
 set(CPACK_COMPONENT_RUNTIME_DESCRIPTION "Core executable and libraries")
 set(CPACK_COMPONENT_RUNTIME_REQUIRED TRUE)
@@ -651,14 +663,15 @@ set(CPACK_COMPONENT_DOCUMENTATION_DESCRIPTION "User and developer documentation"
 set(CPACK_COMPONENT_ASSETS_DISPLAY_NAME "Assets")
 set(CPACK_COMPONENT_ASSETS_DESCRIPTION "Icons and images")
 
-set(CPACK_COMPONENT_STATICFILES_DISPLAY_NAME "Web Interface")
-set(CPACK_COMPONENT_STATICFILES_DESCRIPTION "Static web files for the user interface")
-set(CPACK_COMPONENT_STATICFILES_DEPENDS Runtime)
-
 # Platform-specific configuration
 if(WIN32)
     # Set default generators - ZIP is always available
     set(CPACK_GENERATOR "ZIP")
+    
+    # Configure ZIP to use portable package structure
+    set(CPACK_ZIP_COMPONENT_INSTALL OFF)
+    set(CPACK_INCLUDE_TOPLEVEL_DIRECTORY OFF)
+    set(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}-${CPACK_PACKAGE_VERSION}-win64")
     
     # Add NSIS if available
     find_program(NSIS_MAKE NAMES makensis)
@@ -678,26 +691,120 @@ if(WIN32)
         message(WARNING "WiX not found. MSI installer will not be generated. Install from: https://wixtoolset.org/")
     endif()
     
+    # Enhanced Windows DLL discovery and installation
+    # Install all DLLs from the Release directory to root (.)
+    file(GLOB WIN_DLLS "${CMAKE_BINARY_DIR}/Release/*.dll")
+    foreach(dll_file ${WIN_DLLS})
+        install(FILES "${dll_file}"
+            DESTINATION .
+            COMPONENT Runtime
+        )
+    endforeach()
+    
+    # Install additional required DLLs if found in system paths
+    set(REQUIRED_DLLS
+        libcurl.dll
+        libcurl-x64.dll
+        openblas.dll
+        libopenblas.dll
+        liblapack.dll
+        libgfortran-5.dll
+        libquadmath-0.dll
+        libgcc_s_seh-1.dll
+        libstdc++-6.dll
+        libwinpthread-1.dll
+        libgomp-1.dll
+        zlib1.dll
+        libssl-3-x64.dll
+        libcrypto-3-x64.dll
+        libssl-1_1-x64.dll
+        libcrypto-1_1-x64.dll
+        VCOMP140.DLL
+        vcomp140.dll
+        vcruntime140.dll
+        msvcp140.dll
+    )
+    
+    # Search for DLLs in common locations
+    set(DLL_SEARCH_PATHS
+        "${CMAKE_BINARY_DIR}/Release"
+        "${CMAKE_BINARY_DIR}"
+        "$ENV{VCPKG_ROOT}/installed/x64-windows/bin"
+        "$ENV{VCPKG_ROOT}/installed/x64-windows-static/bin"
+        "C:/msys64/mingw64/bin"
+        "C:/msys64/ucrt64/bin"
+        "C:/msys32/mingw32/bin"
+        "C:/MinGW/bin"
+        "C:/Program Files/mingw-w64/bin"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2019/*/Redist/MSVC/*/x64/Microsoft.VC*.CRT"
+        "C:/Program Files (x86)/Microsoft Visual Studio/2022/*/Redist/MSVC/*/x64/Microsoft.VC*.CRT"
+        "C:/Program Files/Microsoft Visual Studio/2019/*/Redist/MSVC/*/x64/Microsoft.VC*.CRT"
+        "C:/Program Files/Microsoft Visual Studio/2022/*/Redist/MSVC/*/x64/Microsoft.VC*.CRT"
+        "$ENV{SystemRoot}/System32"
+    )
+    
+    # Also search in PATH
+    if(DEFINED ENV{PATH})
+        string(REPLACE ";" ";" PATH_DIRS "$ENV{PATH}")
+        list(APPEND DLL_SEARCH_PATHS ${PATH_DIRS})
+    endif()
+    
+    # Add System32 for Visual C++ runtime
+    if(DEFINED ENV{SystemRoot})
+        list(APPEND DLL_SEARCH_PATHS "$ENV{SystemRoot}/System32")
+    endif()
+    
+    foreach(dll_name ${REQUIRED_DLLS})
+        set(dll_found FALSE)
+        foreach(search_path ${DLL_SEARCH_PATHS})
+            # Normalize path to use forward slashes
+            string(REPLACE "\\" "/" normalized_search_path "${search_path}")
+            if(EXISTS "${normalized_search_path}/${dll_name}")
+                install(FILES "${normalized_search_path}/${dll_name}"
+                    DESTINATION .
+                    COMPONENT Runtime
+                    OPTIONAL
+                )
+                set(dll_found TRUE)
+                message(STATUS "Found and will install DLL: ${dll_name} from ${normalized_search_path}")
+                break()
+            endif()
+        endforeach()
+        if(NOT dll_found)
+            message(STATUS "Optional DLL not found: ${dll_name}")
+        endif()
+    endforeach()
+    
+    # Create symlinks for OpenBLAS compatibility
+    install(CODE "
+        # Create openblas.dll symlink if libopenblas.dll exists
+        if(EXISTS \"\${CMAKE_INSTALL_PREFIX}/libopenblas.dll\" AND NOT EXISTS \"\${CMAKE_INSTALL_PREFIX}/openblas.dll\")
+            execute_process(COMMAND \${CMAKE_COMMAND} -E copy \"\${CMAKE_INSTALL_PREFIX}/libopenblas.dll\" \"\${CMAKE_INSTALL_PREFIX}/openblas.dll\")
+            message(STATUS \"Created openblas.dll symlink\")
+        endif()
+        # Create liblapack.dll symlink since OpenBLAS includes LAPACK
+        if(EXISTS \"\${CMAKE_INSTALL_PREFIX}/libopenblas.dll\" AND NOT EXISTS \"\${CMAKE_INSTALL_PREFIX}/liblapack.dll\")
+            execute_process(COMMAND \${CMAKE_COMMAND} -E copy \"\${CMAKE_INSTALL_PREFIX}/libopenblas.dll\" \"\${CMAKE_INSTALL_PREFIX}/liblapack.dll\")
+            message(STATUS \"Created liblapack.dll symlink\")
+        endif()
+    " COMPONENT Runtime)
+    
     # NSIS Configuration (only used if NSIS is available)
     set(CPACK_NSIS_PACKAGE_NAME "Kolosal Server")
     set(CPACK_NSIS_DISPLAY_NAME "Kolosal Server ${PROJECT_VERSION}")
     set(CPACK_NSIS_INSTALL_ROOT "$PROGRAMFILES64")
     set(CPACK_NSIS_MUI_ICON "${CMAKE_SOURCE_DIR}/assets/icon.ico")
     set(CPACK_NSIS_MUI_UNIICON "${CMAKE_SOURCE_DIR}/assets/icon.ico")
-    set(CPACK_NSIS_INSTALLED_ICON_NAME "bin\\\\kolosal-server.exe")
+    set(CPACK_NSIS_INSTALLED_ICON_NAME "kolosal-server.exe")
     set(CPACK_NSIS_HELP_LINK "https://github.com/KolosalAI/kolosal-server")
     set(CPACK_NSIS_URL_INFO_ABOUT "https://github.com/KolosalAI/kolosal-server")
     set(CPACK_NSIS_CONTACT "support@kolosalai.com")
     set(CPACK_NSIS_MODIFY_PATH ON)
     set(CPACK_NSIS_ENABLE_UNINSTALL_BEFORE_INSTALL ON)
     
-    # Set custom output filename for NSIS
-    set(CPACK_PACKAGE_FILE_NAME "kolosal-installer")
-    set(CPACK_NSIS_OUTPUT_NAME "kolosal-installer.exe")
-    
     # Create start menu shortcuts
     set(CPACK_NSIS_CREATE_ICONS_EXTRA
-        "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Kolosal Server.lnk' '$INSTDIR\\\\bin\\\\kolosal-server.exe'"
+        "CreateShortCut '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Kolosal Server.lnk' '$INSTDIR\\\\kolosal-server.exe'"
     )
     set(CPACK_NSIS_DELETE_ICONS_EXTRA
         "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Kolosal Server.lnk'"

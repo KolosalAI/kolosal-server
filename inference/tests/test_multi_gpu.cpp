@@ -25,10 +25,10 @@ int main(int argc, char **argv) {
     // Prepare loading parameters with two-way split (50/50) limited to available devices
     LoadingParameters lp; lp.n_ctx = 512; lp.n_keep = 256; lp.n_parallel = 1; lp.n_batch = 128; lp.n_ubatch = 64; lp.n_gpu_layers = 10; // small offload
     lp.split_mode = 1; // layer split
-    lp.tensor_split = {0.5f, 0.5f};
+    lp.tensor_split[0] = 0.5f;
+    lp.tensor_split[1] = 0.5f;
     if (max_devices > 2) {
-        // Normalize to first 2 devices only; remaining implicitly zero
-        lp.tensor_split.resize(2);
+        // Normalize to first 2 devices only; remaining implicitly zero (already initialized to 0)
     }
 
     InferenceEngine engine;
