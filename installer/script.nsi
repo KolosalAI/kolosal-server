@@ -16,6 +16,12 @@ ${StrStr}
 ${StrRep}
 
 ;--------------------------------
+; Define Variables
+
+; PROGRAMDATA for Windows (usually C:\ProgramData)
+Var PROGRAMDATA
+
+;--------------------------------
 ; General Configuration
 
 ; Application name and version
@@ -72,8 +78,6 @@ Page custom ConfigPage ConfigPageLeave
 !define MUI_FINISHPAGE_RUN
 !define MUI_FINISHPAGE_RUN_TEXT "Start Kolosal Server"
 !define MUI_FINISHPAGE_RUN_FUNCTION "LaunchApplication"
-!define MUI_FINISHPAGE_SHOWREADME "$INSTDIR\POST_INSTALL_README.md"
-!define MUI_FINISHPAGE_SHOWREADME_TEXT "View Post-Installation Guide"
 !define MUI_FINISHPAGE_LINK "Visit the Kolosal Server website"
 !define MUI_FINISHPAGE_LINK_LOCATION "${PRODUCT_WEB_SITE}"
 !insertmacro MUI_PAGE_FINISH
@@ -157,10 +161,12 @@ Section "!Core Files" SecCore
   File /nonfatal "..\build\dist\kolosal-server.exe"
   File /nonfatal "..\build\dist\*.dll"
   
-  ; Optional: Copy OpenBLAS DLL if present (for BLAS acceleration)
-  ; The /nonfatal flag allows these to fail silently if files don't exist
-  ${IfNot} ${FileExists} "..\build\Release\openblas.dll"
-  ${AndIfNot} ${FileExists} "..\build\Release\libopenblas.dll"
+  ; Create openblas.dll and liblapack.dll from libopenblas.dll if it exists
+  ${If} ${FileExists} "$INSTDIR\libopenblas.dll"
+    CopyFiles /SILENT "$INSTDIR\libopenblas.dll" "$INSTDIR\openblas.dll"
+    CopyFiles /SILENT "$INSTDIR\libopenblas.dll" "$INSTDIR\liblapack.dll"
+    DetailPrint "Created openblas.dll and liblapack.dll from libopenblas.dll"
+  ${Else}
     DetailPrint "Note: OpenBLAS DLLs not found (optional)"
   ${EndIf}
   
@@ -168,13 +174,10 @@ Section "!Core Files" SecCore
   SetOutPath "$INSTDIR"
   File "..\README.md"
   File "..\LICENSE"
-  File "POST_INSTALL_README.md"
-  File "cleanup-config.ps1"
   
   ; Assets
   SetOutPath "$INSTDIR\assets"
   File "..\assets\icon.ico"
-  File "..\assets\logo.png"
   
   ; Create necessary directories
   CreateDirectory "$INSTDIR\logs"
@@ -186,11 +189,12 @@ Section "!Core Files" SecCore
 SectionEnd
 
 Section "Configuration Files" SecConfig
-  ; Backup old user config if it exists
-  IfFileExists "$APPDATA\Kolosal\config.yaml" 0 +3
+  ; Backup and remove old user config if it exists
+  IfFileExists "$APPDATA\Kolosal\config.yaml" 0 +5
     CreateDirectory "$APPDATA\Kolosal\backup"
     CopyFiles "$APPDATA\Kolosal\config.yaml" "$APPDATA\Kolosal\backup\config.yaml.backup"
-    DetailPrint "Backed up old user config to $APPDATA\Kolosal\backup\config.yaml.backup"
+    Delete "$APPDATA\Kolosal\config.yaml"
+    DetailPrint "Moved old user config to $APPDATA\Kolosal\backup\config.yaml.backup"
   
   ; Create ProgramData directory structure for system-wide config
   ; Note: NSIS uses $PROGRAMDATA for C:\ProgramData
@@ -203,10 +207,21 @@ Section "Configuration Files" SecConfig
   
   ; Install fresh config to ProgramData (system location - higher priority)
   SetOutPath "$PROGRAMDATA\Kolosal"
-  File /oname=config.yaml "..\configs\config-install.yaml"
+  File /oname=config.yaml "..\configs\config.yaml"
   DetailPrint "Installed fresh config to $PROGRAMDATA\Kolosal\config.yaml"
   
-  ; Also install configs to installation directory for reference
+  ; Also copy config to installation directory (where the exe expects it)
+  SetOutPath "$INSTDIR"
+  File /oname=config.yaml "..\configs\config.yaml"
+  DetailPrint "Installed config to $INSTDIR\config.yaml"
+  
+  ; Create kolosal subdirectory and copy config there as well (for kolosal/config.yaml path)
+  CreateDirectory "$INSTDIR\kolosal"
+  SetOutPath "$INSTDIR\kolosal"
+  File /oname=config.yaml "..\configs\config.yaml"
+  DetailPrint "Installed config to $INSTDIR\kolosal\config.yaml"
+  
+  ; Install sample configs to installation directory for reference
   SetOutPath "$INSTDIR\configs"
   
   ; Copy sample configuration files
@@ -214,27 +229,144 @@ Section "Configuration Files" SecConfig
   File "..\configs\config.json"
   File "..\configs\config_rms.yaml"
   File "..\configs\local-retrieval-config.yaml"
-  File "..\configs\config-install.yaml"
   
-  ; Copy inference engine DLLs to ProgramData\Kolosal\bin
-  SetOutPath "$PROGRAMDATA\Kolosal\bin"
+  ; Copy inference engine DLLs to installation directory (same as exe)
+  SetOutPath "$INSTDIR"
   
-  ; Copy engine DLLs if they exist (using /nonfatal for optional files)
+  ; Try multiple possible locations for inference engine DLLs
+  ; Location 1: build/Release (MSVC multi-config)
+  ; Location 2: build/bin (CMake single config)
+  ; Location 3: inference/build/Release (standalone inference build)
+  
+  ; Copy CPU engine DLL (REQUIRED)
   File /nonfatal "..\build\Release\llama-cpu.dll"
+  ${If} ${FileExists} "$INSTDIR\llama-cpu.dll"
+    DetailPrint "Found llama-cpu.dll in build/Release"
+  ${Else}
+    File /nonfatal "..\build\bin\llama-cpu.dll"
+    ${If} ${FileExists} "$INSTDIR\llama-cpu.dll"
+      DetailPrint "Found llama-cpu.dll in build/bin"
+    ${Else}
+      File /nonfatal "..\inference\build\Release\llama-cpu.dll"
+      ${If} ${FileExists} "$INSTDIR\llama-cpu.dll"
+        DetailPrint "Found llama-cpu.dll in inference/build/Release"
+      ${Else}
+        DetailPrint "WARNING: llama-cpu.dll not found! CPU inference will not work."
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+  
+  ; Copy Vulkan engine DLL (optional but recommended for GPU support)
   File /nonfatal "..\build\Release\llama-vulkan.dll"
+  ${If} ${FileExists} "$INSTDIR\llama-vulkan.dll"
+    DetailPrint "Found llama-vulkan.dll in build/Release"
+  ${Else}
+    File /nonfatal "..\build\bin\llama-vulkan.dll"
+    ${If} ${FileExists} "$INSTDIR\llama-vulkan.dll"
+      DetailPrint "Found llama-vulkan.dll in build/bin"
+    ${Else}
+      File /nonfatal "..\inference\build\Release\llama-vulkan.dll"
+      ${If} ${FileExists} "$INSTDIR\llama-vulkan.dll"
+        DetailPrint "Found llama-vulkan.dll in inference/build/Release"
+      ${Else}
+        DetailPrint "Note: llama-vulkan.dll not found (optional - GPU acceleration via Vulkan)"
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
+  
+  ; Copy CUDA engine DLL (optional)
   File /nonfatal "..\build\Release\llama-cuda.dll"
+  ${If} ${FileExists} "$INSTDIR\llama-cuda.dll"
+    DetailPrint "Found llama-cuda.dll in build/Release"
+  ${Else}
+    File /nonfatal "..\build\bin\llama-cuda.dll"
+    ${If} ${FileExists} "$INSTDIR\llama-cuda.dll"
+      DetailPrint "Found llama-cuda.dll in build/bin"
+    ${Else}
+      File /nonfatal "..\inference\build\Release\llama-cuda.dll"
+      ${If} ${FileExists} "$INSTDIR\llama-cuda.dll"
+        DetailPrint "Found llama-cuda.dll in inference/build/Release"
+      ${Else}
+        DetailPrint "Note: llama-cuda.dll not found (optional - GPU acceleration via CUDA)"
+      ${EndIf}
+    ${EndIf}
+  ${EndIf}
   
-  ; Notify which engines were installed
-  IfFileExists "$PROGRAMDATA\Kolosal\bin\llama-cpu.dll" 0 +2
+  ; Copy Vulkan runtime DLLs if they exist (required for Vulkan support)
+  File /nonfatal "..\build\Release\vulkan-1.dll"
+  ${If} ${FileExists} "$INSTDIR\vulkan-1.dll"
+    DetailPrint "Found vulkan-1.dll (Vulkan runtime)"
+  ${Else}
+    DetailPrint "Note: vulkan-1.dll not found (install Vulkan SDK or runtime for GPU support)"
+  ${EndIf}
+  
+  ; Copy DLLs to both original name and libllama-*.dll naming convention in the executable directory
+  ; Keep original names for runtime loading
+  ${If} ${FileExists} "$INSTDIR\llama-cpu.dll"
+    CopyFiles /SILENT "$INSTDIR\llama-cpu.dll" "$INSTDIR\libllama-cpu.dll"
+    DetailPrint "Created libllama-cpu.dll (keeping original llama-cpu.dll)"
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\llama-vulkan.dll"
+    CopyFiles /SILENT "$INSTDIR\llama-vulkan.dll" "$INSTDIR\libllama-vulkan.dll"
+    DetailPrint "Created libllama-vulkan.dll (keeping original llama-vulkan.dll)"
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\llama-cuda.dll"
+    CopyFiles /SILENT "$INSTDIR\llama-cuda.dll" "$INSTDIR\libllama-cuda.dll"
+    DetailPrint "Created libllama-cuda.dll (keeping original llama-cuda.dll)"
+  ${EndIf}
+  
+  ; Create lib directory and copy engine DLLs there as well (for fallback)
+  CreateDirectory "$INSTDIR\lib"
+  ${If} ${FileExists} "$INSTDIR\llama-cpu.dll"
+    CopyFiles /SILENT "$INSTDIR\llama-cpu.dll" "$INSTDIR\lib\llama-cpu.dll"
+    CopyFiles /SILENT "$INSTDIR\libllama-cpu.dll" "$INSTDIR\lib\libllama-cpu.dll"
+    DetailPrint "Installed CPU engine to $INSTDIR\lib\ (both llama-cpu.dll and libllama-cpu.dll)"
+  ${Else}
+    DetailPrint "WARNING: CPU engine DLL not found! Please rebuild with CPU support."
+    MessageBox MB_OK|MB_ICONEXCLAMATION "Warning: llama-cpu.dll not found!$\n$\nCPU inference will not work. Please rebuild the project or contact support."
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\llama-vulkan.dll"
+    CopyFiles /SILENT "$INSTDIR\llama-vulkan.dll" "$INSTDIR\lib\llama-vulkan.dll"
+    CopyFiles /SILENT "$INSTDIR\libllama-vulkan.dll" "$INSTDIR\lib\libllama-vulkan.dll"
+    DetailPrint "Installed Vulkan engine to $INSTDIR\lib\ (both llama-vulkan.dll and libllama-vulkan.dll)"
+    ; Copy vulkan-1.dll to lib as well if it exists
+    ${If} ${FileExists} "$INSTDIR\vulkan-1.dll"
+      CopyFiles /SILENT "$INSTDIR\vulkan-1.dll" "$INSTDIR\lib\vulkan-1.dll"
+      DetailPrint "Installed Vulkan runtime to $INSTDIR\lib\vulkan-1.dll"
+    ${EndIf}
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\llama-cuda.dll"
+    CopyFiles /SILENT "$INSTDIR\llama-cuda.dll" "$INSTDIR\lib\llama-cuda.dll"
+    CopyFiles /SILENT "$INSTDIR\libllama-cuda.dll" "$INSTDIR\lib\libllama-cuda.dll"
+    DetailPrint "Installed CUDA engine to $INSTDIR\lib\ (both llama-cuda.dll and libllama-cuda.dll)"
+  ${EndIf}
+  
+  ; Also copy to ProgramData\Kolosal\bin for backward compatibility
+  CreateDirectory "$PROGRAMDATA\Kolosal\bin"
+  ${If} ${FileExists} "$INSTDIR\lib\llama-cpu.dll"
+    CopyFiles /SILENT "$INSTDIR\lib\llama-cpu.dll" "$PROGRAMDATA\Kolosal\bin\llama-cpu.dll"
+    CopyFiles /SILENT "$INSTDIR\lib\libllama-cpu.dll" "$PROGRAMDATA\Kolosal\bin\libllama-cpu.dll"
     DetailPrint "Installed CPU engine support"
-  IfFileExists "$PROGRAMDATA\Kolosal\bin\llama-vulkan.dll" 0 +2
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\lib\llama-vulkan.dll"
+    CopyFiles /SILENT "$INSTDIR\lib\llama-vulkan.dll" "$PROGRAMDATA\Kolosal\bin\llama-vulkan.dll"
+    CopyFiles /SILENT "$INSTDIR\lib\libllama-vulkan.dll" "$PROGRAMDATA\Kolosal\bin\libllama-vulkan.dll"
     DetailPrint "Installed Vulkan engine support"
-  IfFileExists "$PROGRAMDATA\Kolosal\bin\llama-cuda.dll" 0 +2
+    ; Copy vulkan runtime DLL
+    ${If} ${FileExists} "$INSTDIR\vulkan-1.dll"
+      CopyFiles /SILENT "$INSTDIR\vulkan-1.dll" "$PROGRAMDATA\Kolosal\bin\vulkan-1.dll"
+      DetailPrint "Installed Vulkan runtime support"
+    ${EndIf}
+  ${EndIf}
+  ${If} ${FileExists} "$INSTDIR\lib\llama-cuda.dll"
+    CopyFiles /SILENT "$INSTDIR\lib\llama-cuda.dll" "$PROGRAMDATA\Kolosal\bin\llama-cuda.dll"
+    CopyFiles /SILENT "$INSTDIR\lib\libllama-cuda.dll" "$PROGRAMDATA\Kolosal\bin\libllama-cuda.dll"
     DetailPrint "Installed CUDA engine support"
+  ${EndIf}
   
-  ; Notify user about old config
-  IfFileExists "$APPDATA\Kolosal\config.yaml" 0 +2
-    MessageBox MB_OK|MB_ICONINFORMATION "Note: An old configuration was found in:$\n$APPDATA\Kolosal\config.yaml$\n$\nA backup has been created at:$\n$APPDATA\Kolosal\backup\config.yaml.backup$\n$\nA fresh configuration has been installed to:$\nC:\ProgramData\Kolosal\config.yaml$\n$\nTo use the fresh configuration, please delete the old config file at:$\n$APPDATA\Kolosal\config.yaml$\n$\nOr update it with the new paths from the fresh config."
+  ; Notify user about old config migration
+  IfFileExists "$APPDATA\Kolosal\backup\config.yaml.backup" 0 +2
+    MessageBox MB_OK|MB_ICONINFORMATION "Note: Your old configuration has been migrated.$\n$\nOld config backed up to:$\n$APPDATA\Kolosal\backup\config.yaml.backup$\n$\nNew config installed to:$\nC:\ProgramData\Kolosal\config.yaml$\n$\nPlease review and update the new configuration with your custom settings if needed."
   
 SectionEnd
 
@@ -246,11 +378,12 @@ Section "Documentation" SecDocs
   
 SectionEnd
 
-Section "Static Files" SecStatic
+Section "!Static Files (Web UI)" SecStatic
+  SectionIn RO  ; Read-only, required for web UI
   SetOutPath "$INSTDIR\static"
   
-  ; Copy static web files
-  File /nonfatal /r "..\static\*.*"
+  ; Copy static web files - REQUIRED for web UI to work
+  File /r "..\static\*.*"
   
 SectionEnd
 
@@ -283,9 +416,7 @@ Section -Post
   ; Create start menu shortcuts
   CreateDirectory "$SMPROGRAMS\${PRODUCT_NAME}"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Kolosal Server.lnk" "$INSTDIR\kolosal-server.exe" "" "$INSTDIR\assets\icon.ico"
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Configuration Cleanup Tool.lnk" "powershell.exe" '-ExecutionPolicy Bypass -File "$INSTDIR\cleanup-config.ps1"' "$INSTDIR\assets\icon.ico"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Configuration File.lnk" "$PROGRAMDATA\Kolosal\config.yaml"
-  CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Post-Installation Guide.lnk" "$INSTDIR\POST_INSTALL_README.md"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Documentation.lnk" "$INSTDIR\README.md"
   CreateShortCut "$SMPROGRAMS\${PRODUCT_NAME}\Uninstall.lnk" "$INSTDIR\uninstall.exe"
   
@@ -324,7 +455,7 @@ SectionEnd
   !insertmacro MUI_DESCRIPTION_TEXT ${SecCore} "Core application files (required)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecConfig} "Sample configuration files for server setup"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDocs} "User and developer documentation"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecStatic} "Static web files for the web interface"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecStatic} "Static web files for the web interface (required)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecHeaders} "Header files for development (optional)"
 !insertmacro MUI_FUNCTION_DESCRIPTION_END
 
@@ -339,6 +470,13 @@ Section Uninstall
   ; Remove files and directories
   Delete "$INSTDIR\kolosal-server.exe"
   Delete "$INSTDIR\*.dll"
+  Delete "$INSTDIR\llama-cpu.dll"
+  Delete "$INSTDIR\llama-vulkan.dll"
+  Delete "$INSTDIR\llama-cuda.dll"
+  Delete "$INSTDIR\libllama-cpu.dll"
+  Delete "$INSTDIR\libllama-vulkan.dll"
+  Delete "$INSTDIR\libllama-cuda.dll"
+  Delete "$INSTDIR\vulkan-1.dll"
   Delete "$INSTDIR\README.md"
   Delete "$INSTDIR\LICENSE"
   Delete "$INSTDIR\changes.log"
@@ -352,6 +490,17 @@ Section Uninstall
   RMDir /r "$INSTDIR\static"
   RMDir /r "$INSTDIR\include"
   RMDir /r "$INSTDIR\configs"
+  RMDir /r "$INSTDIR\kolosal"
+  
+  ; Also remove ProgramData inference engines
+  Delete "$PROGRAMDATA\Kolosal\bin\llama-cpu.dll"
+  Delete "$PROGRAMDATA\Kolosal\bin\llama-vulkan.dll"
+  Delete "$PROGRAMDATA\Kolosal\bin\llama-cuda.dll"
+  Delete "$PROGRAMDATA\Kolosal\bin\libllama-cpu.dll"
+  Delete "$PROGRAMDATA\Kolosal\bin\libllama-vulkan.dll"
+  Delete "$PROGRAMDATA\Kolosal\bin\libllama-cuda.dll"
+  Delete "$PROGRAMDATA\Kolosal\bin\vulkan-1.dll"
+  RMDir "$PROGRAMDATA\Kolosal\bin"
   
   ; Ask user if they want to keep data and logs
   MessageBox MB_YESNO|MB_ICONQUESTION "Do you want to keep your data, logs, and models?" IDYES KeepData
@@ -384,6 +533,12 @@ SectionEnd
 ; Functions
 
 Function .onInit
+  ; Initialize PROGRAMDATA variable from environment
+  ReadEnvStr $PROGRAMDATA "PROGRAMDATA"
+  ${If} $PROGRAMDATA == ""
+    StrCpy $PROGRAMDATA "C:\ProgramData"
+  ${EndIf}
+  
   ; Check if 64-bit Windows
   ${IfNot} ${RunningX64}
     MessageBox MB_OK|MB_ICONSTOP "This application requires 64-bit Windows."

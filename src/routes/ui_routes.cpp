@@ -9,6 +9,19 @@
 #include <algorithm>
 #include <vector>
 
+#ifdef _WIN32
+#include <windows.h>
+#ifndef MAX_PATH
+#define MAX_PATH 260
+#endif
+#else
+#include <unistd.h>
+#include <limits.h>
+#ifndef PATH_MAX
+#define PATH_MAX 4096
+#endif
+#endif
+
 namespace kolosal {
 
     bool UIRoute::match(const std::string &method, const std::string &path) {
@@ -190,7 +203,30 @@ namespace kolosal {
 
     std::string UIRoute::readStaticFile(const std::string& relativePath) {
         // Get the absolute path to the executable's directory
-        std::filesystem::path executablePath = std::filesystem::current_path();
+        // Use the executable path instead of current_path() to handle cases where
+        // the program is started from a different working directory
+        std::filesystem::path executablePath;
+        
+#ifdef _WIN32
+        wchar_t exePath[MAX_PATH];
+        DWORD len = GetModuleFileNameW(NULL, exePath, MAX_PATH);
+        if (len > 0) {
+            executablePath = std::filesystem::path(exePath).parent_path();
+        } else {
+            // Fallback to current_path if GetModuleFileName fails
+            executablePath = std::filesystem::current_path();
+        }
+#else
+        char exePath[PATH_MAX];
+        ssize_t len = readlink("/proc/self/exe", exePath, sizeof(exePath) - 1);
+        if (len != -1) {
+            exePath[len] = '\0';
+            executablePath = std::filesystem::path(exePath).parent_path();
+        } else {
+            // Fallback to current_path if readlink fails
+            executablePath = std::filesystem::current_path();
+        }
+#endif
         
         // All files are served from the kolosal-product directory
         std::filesystem::path staticDir = executablePath / "static" / "kolosal-product";

@@ -178,6 +178,14 @@ else()
 endif()
 message(STATUS "Building inference engine: ${INFERENCE_TARGET}")
 
+# When building Vulkan, also ensure CPU fallback is available
+# by forcing GGML_CPU to be ON (it should be by default)
+if(USE_VULKAN OR USE_CUDA OR USE_METAL)
+    # Ensure CPU backend is always available as fallback
+    set(GGML_CPU ON CACHE BOOL "Enable CPU backend as fallback" FORCE)
+    message(STATUS "CPU backend enabled as fallback")
+endif()
+
 # === ZLIB DEPENDENCY (needed by PoDoFo) ===
 find_package(ZLIB QUIET)
 if(NOT ZLIB_FOUND)

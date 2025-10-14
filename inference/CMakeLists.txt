@@ -114,6 +114,32 @@ target_include_directories(${TARGET_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/external
 )
 
+# Find dependencies again if needed for target configuration
+if(USE_VULKAN)
+    find_package(Vulkan REQUIRED)
+endif()
+
+if(USE_CUDA)
+    find_package(CUDA REQUIRED)
+endif()
+
+# Add Vulkan include directories if Vulkan is found and enabled
+if(USE_VULKAN AND Vulkan_FOUND)
+    target_include_directories(${TARGET_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
+    target_compile_definitions(${TARGET_NAME} PRIVATE USE_VULKAN)
+endif()
+
+# Add CUDA include directories if CUDA is found and enabled  
+if(USE_CUDA AND CUDA_FOUND)
+    target_include_directories(${TARGET_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
+    target_compile_definitions(${TARGET_NAME} PRIVATE USE_CUDA)
+endif()
+
+# Add Metal definitions if Metal is enabled
+if(USE_METAL)
+    target_compile_definitions(${TARGET_NAME} PRIVATE USE_METAL GGML_USE_METAL)
+endif()
+
 # Find and setup llama.cpp (moved under inference/external)
 # Primary (new) location: inference/external/llama.cpp
 # Fallback (legacy) location: ../external/llama.cpp (for out-of-tree or un-migrated workspaces)
@@ -127,6 +153,8 @@ endif()
 if(NOT EXISTS "${LLAMA_CPP_PATH}/CMakeLists.txt")
     message(FATAL_ERROR "llama.cpp not found. Expected at inference/external/llama.cpp or external/llama.cpp relative to inference.")
 endif()
+
+# Find and setup dependencies first, before creating targets
 
 # Find CURL
 if(WIN32)
@@ -144,6 +172,59 @@ else()
         message(FATAL_ERROR "CURL not found. Please install libcurl4-openssl-dev (Ubuntu/Debian) or libcurl-devel (RHEL/CentOS)")
     endif()
     message(STATUS "Found system CURL: ${CURL_INCLUDE_DIRS}")
+endif()
+
+# Find Vulkan early if needed
+if(USE_VULKAN)
+    find_package(Vulkan)
+    if(Vulkan_FOUND)
+        message(STATUS "Found Vulkan: ${Vulkan_LIBRARY}")
+        message(STATUS "Vulkan headers: ${Vulkan_INCLUDE_DIRS}")
+    else()
+        message(WARNING "Vulkan not found. This will cause build failure.")
+        message(STATUS "Please install Vulkan SDK from https://vulkan.lunarg.com/")
+        message(FATAL_ERROR "Vulkan SDK required for Vulkan backend")
+    endif()
+endif()
+
+# Find CUDA early if needed
+if(USE_CUDA)
+    find_package(CUDA REQUIRED)
+    if(CUDA_FOUND)
+        message(STATUS "Found CUDA: ${CUDA_INCLUDE_DIRS}")
+    else()
+        message(FATAL_ERROR "CUDA not found. Please install CUDA toolkit.")
+    endif()
+endif()
+
+# Find Metal frameworks early if needed
+if(USE_METAL)
+    if(NOT APPLE)
+        message(FATAL_ERROR "Metal support is only available on macOS. Please disable USE_METAL or build on macOS.")
+    endif()
+    
+    find_library(METAL_FRAMEWORK Metal REQUIRED)
+    find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
+    find_library(METALKIT_FRAMEWORK MetalKit REQUIRED)
+    find_library(METALPERFORMANCE_FRAMEWORK MetalPerformanceShaders REQUIRED)
+    
+    if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK AND METALKIT_FRAMEWORK AND METALPERFORMANCE_FRAMEWORK)
+        message(STATUS "Found Metal framework: ${METAL_FRAMEWORK}")
+        message(STATUS "Found Foundation framework: ${FOUNDATION_FRAMEWORK}")
+        message(STATUS "Found MetalKit framework: ${METALKIT_FRAMEWORK}")
+        message(STATUS "Found MetalPerformanceShaders framework: ${METALPERFORMANCE_FRAMEWORK}")
+        
+        # Add Metal-specific compiler flags
+        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
+            set(METAL_ARCH_FLAGS "-O3")
+            message(STATUS "Using ARM64 optimizations for Metal")
+        else()
+            set(METAL_ARCH_FLAGS "-march=native -O3")
+            message(STATUS "Using x86_64 optimizations for Metal")
+        endif()
+    else()
+        message(FATAL_ERROR "Metal frameworks not found. Metal support requires macOS with Metal development frameworks.")
+    endif()
 endif()
 
 # Configure llama.cpp options
@@ -183,91 +264,39 @@ if(USE_CUDA)
         set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use-local-env")
         set(GGML_CUDA_USE_GRAPHS OFF CACHE BOOL "Disable CUDA graphs to avoid linking issues" FORCE)
     endif()
-    
-    find_package(CUDA REQUIRED)
-    if(CUDA_FOUND)
-        target_include_directories(${TARGET_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
-        # Link CUDA runtime, cuBLAS, and the CUDA driver library
-        target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_CUDA_LIBRARY})
-        # On Windows, we also need to link against the math library to resolve missing symbols
-        if(WIN32)
-            target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_cudart_static_LIBRARY})
-        endif()
-    else()
-        message(FATAL_ERROR "CUDA not found. Please install CUDA toolkit.")
-    endif()
 elseif(USE_VULKAN)
     set(GGML_VULKAN ON CACHE BOOL "Enable GGML Vulkan support" FORCE)
     message(STATUS "Using vulkan for GGML acceleration")
-    
-    # Try to find Vulkan with better error handling
-    find_package(Vulkan)
-    if(Vulkan_FOUND)
-        message(STATUS "Found Vulkan: ${Vulkan_LIBRARY}")
-        message(STATUS "Vulkan headers: ${Vulkan_INCLUDE_DIRS}")
-        target_include_directories(${TARGET_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
-        target_link_libraries(${TARGET_NAME} PRIVATE ${Vulkan_LIBRARIES})
-    else()
-        message(WARNING "Vulkan not found. Falling back to CPU-only mode.")
-        message(STATUS "To enable Vulkan support, install Vulkan development libraries:")
-        message(STATUS "  Ubuntu/Debian: sudo apt install libvulkan-dev vulkan-tools vulkan-validationlayers-dev")
-        message(STATUS "  RHEL/CentOS: sudo yum install vulkan-headers vulkan-loader-devel vulkan-tools")
-        message(STATUS "  Fedora: sudo dnf install vulkan-headers vulkan-loader-devel vulkan-tools")
-        message(STATUS "  Arch: sudo pacman -S vulkan-headers vulkan-icd-loader vulkan-tools")
-        message(STATUS "")
-        message(STATUS "Or run: ./install-linux-deps.sh")
-        
-        # Disable Vulkan and fall back to CPU
-        set(GGML_VULKAN OFF CACHE BOOL "Disable GGML Vulkan support" FORCE)
-        set(USE_VULKAN OFF)
-        message(STATUS "Continuing build without Vulkan support...")
-    endif()
 elseif(USE_METAL)
-    # Check if we're on macOS
-    if(NOT APPLE)
-        message(FATAL_ERROR "Metal support is only available on macOS. Please disable USE_METAL or build on macOS.")
-    endif()
-    
     set(GGML_METAL ON CACHE BOOL "Enable GGML Metal support" FORCE)
     message(STATUS "Using Metal for GGML acceleration")
-    
-    # Find Metal framework
-    find_library(METAL_FRAMEWORK Metal REQUIRED)
-    find_library(FOUNDATION_FRAMEWORK Foundation REQUIRED)
-    find_library(METALKIT_FRAMEWORK MetalKit REQUIRED)
-    find_library(METALPERFORMANCE_FRAMEWORK MetalPerformanceShaders REQUIRED)
-    
-    if(METAL_FRAMEWORK AND FOUNDATION_FRAMEWORK AND METALKIT_FRAMEWORK AND METALPERFORMANCE_FRAMEWORK)
-        message(STATUS "Found Metal framework: ${METAL_FRAMEWORK}")
-        message(STATUS "Found Foundation framework: ${FOUNDATION_FRAMEWORK}")
-        message(STATUS "Found MetalKit framework: ${METALKIT_FRAMEWORK}")
-        message(STATUS "Found MetalPerformanceShaders framework: ${METALPERFORMANCE_FRAMEWORK}")
-        
-        target_link_libraries(${TARGET_NAME} PRIVATE 
-            ${METAL_FRAMEWORK} 
-            ${FOUNDATION_FRAMEWORK} 
-            ${METALKIT_FRAMEWORK}
-            ${METALPERFORMANCE_FRAMEWORK}
-        )
-        
-        # Add Metal-specific compiler flags
-        if(CMAKE_SYSTEM_PROCESSOR MATCHES "arm64|aarch64")
-            set(METAL_ARCH_FLAGS "-O3")
-            message(STATUS "Using ARM64 optimizations for Metal")
-        else()
-            set(METAL_ARCH_FLAGS "-march=native -O3")
-            message(STATUS "Using x86_64 optimizations for Metal")
-        endif()
-        
-        target_compile_options(${TARGET_NAME} PRIVATE ${METAL_ARCH_FLAGS})
-        
-        # Add Metal-specific compile definitions
-        target_compile_definitions(${TARGET_NAME} PRIVATE GGML_USE_METAL)
-    else()
-        message(FATAL_ERROR "Metal frameworks not found. Metal support requires macOS with Metal development frameworks.")
-    endif()
 else()
     message(STATUS "Using OpenBLAS for GGML acceleration")
+endif()
+
+# Link libraries based on acceleration type
+if(USE_CUDA AND CUDA_FOUND)
+    # Link CUDA runtime, cuBLAS, and the CUDA driver library
+    target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_CUDA_LIBRARY})
+    # On Windows, we also need to link against the math library to resolve missing symbols
+    if(WIN32)
+        target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_cudart_static_LIBRARY})
+    endif()
+endif()
+
+if(USE_VULKAN AND Vulkan_FOUND)
+    target_link_libraries(${TARGET_NAME} PRIVATE ${Vulkan_LIBRARIES})
+endif()
+
+if(USE_METAL)
+    target_link_libraries(${TARGET_NAME} PRIVATE 
+        ${METAL_FRAMEWORK} 
+        ${FOUNDATION_FRAMEWORK} 
+        ${METALKIT_FRAMEWORK}
+        ${METALPERFORMANCE_FRAMEWORK}
+    )
+    
+    target_compile_options(${TARGET_NAME} PRIVATE ${METAL_ARCH_FLAGS})
 endif()
 
 # Find and configure MPI if enabled

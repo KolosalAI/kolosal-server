@@ -14,6 +14,77 @@
    cmake --build . --config Release
    ```
 
+### Optional: Vulkan GPU Acceleration
+
+Vulkan provides cross-platform GPU acceleration for inference.
+
+#### Installing Vulkan SDK
+
+If you want to include Vulkan support in the installer:
+
+1. Download and install the Vulkan SDK:
+   - From: https://vulkan.lunarg.com/sdk/home
+   - Download the latest Windows installer
+   - Run the installer and follow the setup wizard
+   - The installer will set up the required environment variables
+
+2. Verify Vulkan installation:
+   ```powershell
+   $env:VULKAN_SDK
+   # Should show the SDK installation path
+   ```
+
+#### Building with Vulkan Support
+
+**Option 1: Using the build script (Recommended)**
+```powershell
+cd installer
+.\build-nsis-installer.ps1 -EnableVulkan
+```
+
+This will:
+- Configure the build with `-DUSE_VULKAN=ON`
+- Build both `llama-cpu.dll` and `llama-vulkan.dll`
+- Package both DLLs in the installer
+- Include `vulkan-1.dll` if available
+
+**Option 2: Manual CMake configuration**
+```powershell
+cd build
+cmake .. -DUSE_VULKAN=ON
+cmake --build . --config Release
+```
+
+The Vulkan-enabled build will produce:
+- `llama-cpu.dll` in `build/Release/` (always built as fallback)
+- `llama-vulkan.dll` in `build/Release/` (for GPU acceleration)
+- Both DLLs will be automatically included in the installer
+
+#### Building Without Vulkan (CPU-only)
+
+If Vulkan SDK is not installed, use the standard build:
+```powershell
+cd installer
+.\build-nsis-installer.ps1
+```
+
+This will:
+- Build only `llama-cpu.dll` (required for basic operation)
+- Package CPU inference engine in the installer
+- The server will use CPU-only inference
+
+**Important:** The `llama-cpu.dll` is **required** for the installer to work properly. If this file is missing:
+1. The installer will display a warning during installation
+2. The server will fail to load models
+3. You must rebuild the project to generate this DLL
+
+To ensure `llama-cpu.dll` is built:
+```powershell
+cd build
+cmake ..
+cmake --build . --config Release --target llama-cpu
+```
+
 ### Optional: OpenBLAS for CPU Acceleration
 
 OpenBLAS is an optional dependency that provides optimized CPU computation for inference.
@@ -39,9 +110,31 @@ If OpenBLAS is not present, the installer will work fine without it. The server 
 
 #### Using PowerShell Script
 
+**Standard Build (CPU only):**
 ```powershell
 cd installer
 .\build-nsis-installer.ps1
+```
+
+**With Vulkan Support:**
+```powershell
+cd installer
+.\build-nsis-installer.ps1 -EnableVulkan
+```
+
+**Additional Options:**
+```powershell
+# Skip build check
+.\build-nsis-installer.ps1 -SkipBuildCheck
+
+# Custom NSIS path
+.\build-nsis-installer.ps1 -NsisPath "C:\Path\To\NSIS\makensis.exe"
+
+# Custom version
+.\build-nsis-installer.ps1 -Version "1.0.1"
+
+# Combined options
+.\build-nsis-installer.ps1 -EnableVulkan -Version "1.0.1"
 ```
 
 #### Manual Build
@@ -62,14 +155,50 @@ cd build
 cpack -C Release -G ZIP
 ```
 
+## Installation Structure
+
+The installer creates the following directory structure:
+
+```
+C:\Program Files\Kolosal Server\
+├── kolosal-server.exe          # Main executable
+├── *.dll                        # Core library dependencies
+├── lib\
+│   ├── libllama-cpu.dll        # CPU inference engine
+│   ├── libllama-vulkan.dll     # Vulkan GPU engine (if built with Vulkan)
+│   └── libllama-cuda.dll       # CUDA GPU engine (if built with CUDA)
+├── assets\                      # Application icons and resources
+├── configs\                     # Sample configuration files
+├── static\                      # Web UI files
+├── docs\                        # Documentation
+└── data\                        # Runtime data directory
+
+C:\ProgramData\Kolosal\
+├── config.yaml                  # System-wide configuration
+├── bin\
+│   ├── libllama-cpu.dll        # Backup inference engines
+│   ├── libllama-vulkan.dll
+│   └── libllama-cuda.dll
+├── models\                      # Model storage
+├── data\
+│   └── faiss_index\            # Vector database
+└── logs\                        # Application logs
+```
+
+**Important:** The inference engine DLLs MUST be in the `lib/` subdirectory of the installation directory for the server to find them automatically.
+
 ## Installation Components
 
 The installer includes the following components:
 
 1. **Core Files** (Required)
    - Main executable (`kolosal-server.exe`)
-   - Required DLLs (`kolosal_server.dll`, `libcurl.dll`, `llama-cpu.dll`)
-   - Optional: `openblas.dll` (if available)
+   - Required DLLs (`kolosal_server.dll`, `libcurl.dll`)
+   - Inference engines in `lib/` subdirectory:
+     - `lib/libllama-cpu.dll` (CPU inference)
+     - `lib/libllama-vulkan.dll` (Vulkan GPU, if built with Vulkan support)
+     - `lib/libllama-cuda.dll` (CUDA GPU, if built with CUDA support)
+   - Optional: `openblas.dll` (for CPU acceleration)
 
 2. **Configuration Files**
    - Sample YAML and JSON configurations
@@ -96,12 +225,18 @@ If users encounter "DLL not found" errors:
    - Most common issue
    - Download: https://aka.ms/vs/17/release/vc_redist.x64.exe
 
-2. **OpenBLAS DLL** (Optional)
+2. **Vulkan Runtime** (For Vulkan builds)
+   - Required if using `llama-vulkan.dll`
+   - Download: https://vulkan.lunarg.com/sdk/home
+   - Or install GPU drivers with Vulkan support
+   - Server will fall back to CPU if Vulkan is unavailable
+
+3. **OpenBLAS DLL** (Optional)
    - Only needed if built with BLAS support
    - Server will work without it using default CPU implementation
    - Can be downloaded separately and placed in installation directory
 
-3. **libcurl.dll**
+4. **libcurl.dll**
    - Should be included automatically from the build
    - If missing, check that curl is properly built
 
@@ -172,6 +307,50 @@ The installer creates Start Menu shortcuts to:
 - Configuration file: Direct link to `%PROGRAMDATA%\Kolosal\config.yaml`
 - Post-Installation Guide: Setup instructions
 - Documentation: Full documentation
+
+## GPU Acceleration Support
+
+### Vulkan
+
+Vulkan provides cross-platform GPU acceleration and works with most modern GPUs (NVIDIA, AMD, Intel).
+
+**Advantages:**
+- Cross-platform (Windows, Linux, macOS)
+- Works with most GPU vendors
+- Good performance for inference
+- No proprietary drivers required (uses standard GPU drivers)
+
+**Requirements:**
+- Vulkan-capable GPU
+- Updated GPU drivers with Vulkan support
+- Vulkan SDK (for building only, not required for end users with modern GPU drivers)
+
+**To build with Vulkan:**
+```powershell
+.\build-nsis-installer.ps1 -EnableVulkan
+```
+
+**To verify Vulkan support after installation:**
+```powershell
+# Check if llama-vulkan.dll exists
+Test-Path "C:\Program Files\Kolosal Server\llama-vulkan.dll"
+
+# Check Vulkan runtime availability
+vulkaninfo
+```
+
+### CUDA (Alternative)
+
+For NVIDIA GPUs, CUDA can also be used instead of Vulkan:
+
+**To build with CUDA:**
+```powershell
+cd build
+cmake .. -DUSE_CUDA=ON
+cmake --build . --config Release
+```
+
+Note: CUDA requires NVIDIA GPU and CUDA Toolkit installation.
 
 ## Uninstallation
 

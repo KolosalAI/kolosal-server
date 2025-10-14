@@ -225,6 +225,7 @@ void print_version()
 
 int main(int argc, char *argv[])
 {
+    try {
     // Load configuration from command line arguments
     ServerConfig config;
     if (!config.loadFromArgs(argc, argv))
@@ -572,4 +573,16 @@ int main(int argc, char *argv[])
     std::cout << "Server stopped." << std::endl;
 
     return 0;
+    
+    } catch (const std::exception& e) {
+        std::cerr << "\nFatal error: " << e.what() << std::endl;
+        std::cerr << "Press Enter to exit..." << std::endl;
+        std::cin.get();
+        return 1;
+    } catch (...) {
+        std::cerr << "\nUnknown fatal error occurred" << std::endl;
+        std::cerr << "Press Enter to exit..." << std::endl;
+        std::cin.get();
+        return 1;
+    }
 }

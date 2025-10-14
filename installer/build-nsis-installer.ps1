@@ -1,6 +1,6 @@
 # Build NSIS Installer for Kolosal Server
 # This script automates the creation of the NSIS installer
-# Usage: .\build-nsis-installer.ps1 [-NsisPath <path>] [-Version <version>] [-SkipBuildCheck] [-AutoBuild]
+# Usage: .\build-nsis-installer.ps1 [-NsisPath <path>] [-Version <version>] [-SkipBuildCheck] [-AutoBuild] [-EnableVulkan]
 
 param(
     [Parameter(Mandatory=$false)]
@@ -13,7 +13,10 @@ param(
     [switch]$SkipBuildCheck = $false,
     
     [Parameter(Mandatory=$false)]
-    [switch]$AutoBuild = $true
+    [switch]$AutoBuild = $true,
+    
+    [Parameter(Mandatory=$false)]
+    [switch]$EnableVulkan = $false
 )
 
 # Color output functions
@@ -42,6 +45,16 @@ Write-Host ""
 Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
 Write-Host "   Kolosal Server NSIS Installer Builder v$Version" -ForegroundColor Cyan
 Write-Host "═══════════════════════════════════════════════════════" -ForegroundColor Cyan
+Write-Host ""
+
+if ($EnableVulkan) {
+    Write-Info "Vulkan support: ENABLED"
+    Write-Warning "Note: Vulkan SDK must be installed for this build to succeed!"
+    Write-Info "The installer will include both llama-cpu.dll and llama-vulkan.dll"
+} else {
+    Write-Info "Vulkan support: DISABLED (use -EnableVulkan to enable)"
+    Write-Info "The installer will include llama-cpu.dll only"
+}
 Write-Host ""
 
 # Find NSIS installation
@@ -134,17 +147,38 @@ if (-not $SkipBuildCheck) {
                 # Check if CMakeCache.txt exists
                 if (-not (Test-Path "CMakeCache.txt")) {
                     Write-Info "Configuring CMake..."
-                    & cmake .. 2>&1 | Out-Host
+                    
+                    # Build CMake arguments
+                    $cmakeArgs = @("..")
+                    if ($EnableVulkan) {
+                        Write-Info "Enabling Vulkan support..."
+                        $cmakeArgs += "-DUSE_VULKAN=ON"
+                    }
+                    
+                    & cmake @cmakeArgs 2>&1 | Out-Host
                     if ($LASTEXITCODE -ne 0) {
                         Write-Error "CMake configuration failed"
                         Pop-Location
                         exit 1
                     }
                     Write-Success "CMake configuration completed"
+                } elseif ($EnableVulkan) {
+                    # Reconfigure if Vulkan is requested but cache exists
+                    Write-Info "Reconfiguring CMake with Vulkan support..."
+                    & cmake .. -DUSE_VULKAN=ON 2>&1 | Out-Host
+                    if ($LASTEXITCODE -ne 0) {
+                        Write-Error "CMake reconfiguration failed"
+                        Pop-Location
+                        exit 1
+                    }
+                    Write-Success "CMake reconfiguration completed"
                 }
                 
                 # Build the project
                 Write-Info "Building the project (Release configuration)..."
+                if ($EnableVulkan) {
+                    Write-Info "Building with Vulkan support - Vulkan SDK must be installed!"
+                }
                 Write-Info "This may take several minutes..."
                 Write-Host ""
                 
@@ -187,6 +221,68 @@ if (-not $SkipBuildCheck) {
                 Write-Host ""
                 exit 1
             }
+            
+            # Verify inference engine DLLs exist
+            Write-Host ""
+            Write-Info "Checking for inference engine DLLs..."
+            $dllLocations = @(
+                "..\build\Release\llama-cpu.dll",
+                "..\build\bin\llama-cpu.dll",
+                "..\inference\build\Release\llama-cpu.dll"
+            )
+            
+            $cpuDllFound = $false
+            foreach ($location in $dllLocations) {
+                if (Test-Path $location) {
+                    Write-Success "Found llama-cpu.dll at: $location"
+                    $cpuDllFound = $true
+                    break
+                }
+            }
+            
+            if (-not $cpuDllFound) {
+                Write-Error "llama-cpu.dll not found!"
+                Write-Warning "The installer will be missing the CPU inference engine."
+                Write-Host ""
+                Write-Host "To fix this, make sure the inference engine is built:" -ForegroundColor Yellow
+                Write-Host "  cd ..\build" -ForegroundColor White
+                Write-Host "  cmake --build . --config Release --target llama-cpu" -ForegroundColor White
+                Write-Host ""
+                $response = Read-Host "Continue anyway? (y/n)"
+                if ($response -ne "y" -and $response -ne "Y") {
+                    exit 1
+                }
+            }
+            
+            # Check for Vulkan DLL if enabled
+            if ($EnableVulkan) {
+                $vulkanDllLocations = @(
+                    "..\build\Release\llama-vulkan.dll",
+                    "..\build\bin\llama-vulkan.dll",
+                    "..\inference\build\Release\llama-vulkan.dll"
+                )
+                
+                $vulkanDllFound = $false
+                foreach ($location in $vulkanDllLocations) {
+                    if (Test-Path $location) {
+                        Write-Success "Found llama-vulkan.dll at: $location"
+                        $vulkanDllFound = $true
+                        break
+                    }
+                }
+                
+                if (-not $vulkanDllFound) {
+                    Write-Warning "llama-vulkan.dll not found despite -EnableVulkan flag!"
+                    Write-Host ""
+                    Write-Host "Vulkan support was requested but the DLL is missing." -ForegroundColor Yellow
+                    Write-Host "Make sure to build with Vulkan support:" -ForegroundColor Yellow
+                    Write-Host "  cd ..\build" -ForegroundColor White
+                    Write-Host "  cmake .. -DUSE_VULKAN=ON" -ForegroundColor White
+                    Write-Host "  cmake --build . --config Release" -ForegroundColor White
+                    Write-Host ""
+                }
+            }
+            Write-Host ""
         } else {
             Write-Host ""
             Write-Host "Please build the project first:" -ForegroundColor Yellow
