@@ -225,6 +225,12 @@ void print_version()
 
 int main(int argc, char *argv[])
 {
+    // Enable console output buffering on Windows for better error visibility
+#ifdef _WIN32
+    setvbuf(stdout, NULL, _IONBF, 0);
+    setvbuf(stderr, NULL, _IONBF, 0);
+#endif
+
     try {
     // Load configuration from command line arguments
     ServerConfig config;

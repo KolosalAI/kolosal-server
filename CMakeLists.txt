@@ -159,6 +159,19 @@ add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
 
+# On Windows, ensure console is shown for debugging
+if(WIN32)
+    if(MSVC)
+        set_target_properties(kolosal_server_exe PROPERTIES
+            LINK_FLAGS "/SUBSYSTEM:CONSOLE"
+        )
+    else()
+        set_target_properties(kolosal_server_exe PROPERTIES
+            LINK_FLAGS "-mconsole"
+        )
+    endif()
+endif()
+
 # === DEPENDENCIES ===
 
 set(YAML_CPP_BUILD_TESTS OFF CACHE BOOL "" FORCE)
@@ -481,6 +494,8 @@ if(WIN32)
         "${CMAKE_BINARY_DIR}/Debug"
         "${CMAKE_BINARY_DIR}/external/faiss/faiss"
         "${CMAKE_BINARY_DIR}/external/faiss"
+        "${CMAKE_BINARY_DIR}/inference/Release"
+        "${CMAKE_BINARY_DIR}/inference/Debug"
         "C:/msys64/mingw64/bin"
         "C:/msys64/ucrt64/bin"
         "$ENV{VCPKG_ROOT}/installed/x64-windows/bin"
@@ -488,13 +503,26 @@ if(WIN32)
         "$ENV{SystemRoot}/System32"
     )
     
+    # Also search in PATH
+    if(DEFINED ENV{PATH})
+        string(REPLACE ";" ";" PATH_DIRS "$ENV{PATH}")
+        list(APPEND RUNTIME_DLL_SEARCH_PATHS ${PATH_DIRS})
+    endif()
+    
     set(REQUIRED_RUNTIME_DLLS
         libopenblas.dll
         VCOMP140.DLL
         vcomp140.dll
     )
     
+    set(CRITICAL_RUNTIME_DLLS
+        # Empty for now - we'll warn instead of fail
+    )
+    
+    set(FOUND_CRITICAL_DLLS TRUE)
+    
     foreach(dll_name ${REQUIRED_RUNTIME_DLLS})
+        set(dll_found FALSE)
         foreach(search_path ${RUNTIME_DLL_SEARCH_PATHS})
             if(EXISTS "${search_path}/${dll_name}")
                 add_custom_command(TARGET kolosal_server_exe POST_BUILD
@@ -503,25 +531,85 @@ if(WIN32)
                     "$<TARGET_FILE_DIR:kolosal_server_exe>/"
                     COMMENT "Copying ${dll_name} to executable directory"
                 )
+                message(STATUS "Found ${dll_name} at: ${search_path}")
+                set(dll_found TRUE)
                 break()
             endif()
         endforeach()
+        if(NOT dll_found)
+            if(dll_name STREQUAL "libopenblas.dll")
+                message(WARNING "OpenBLAS DLL not found: ${dll_name}\n"
+                    "========================================\n"
+                    "FAISS functionality will NOT work without OpenBLAS!\n"
+                    "To fix this:\n"
+                    "  1. Install MSYS2 from https://www.msys2.org/\n"
+                    "  2. Run: pacman -S mingw-w64-x86_64-openblas\n"
+                    "  3. Copy libopenblas.dll from C:/msys64/mingw64/bin/ to build/Release/\n"
+                    "Or download from: https://github.com/xianyi/OpenBLAS/releases\n"
+                    "========================================")
+                set(FOUND_CRITICAL_DLLS FALSE)
+            else()
+                message(STATUS "Optional DLL not found: ${dll_name}")
+            endif()
+        endif()
     endforeach()
     
-    # Create openblas.dll and liblapack.dll from libopenblas.dll
+    if(NOT FOUND_CRITICAL_DLLS AND USE_FAISS)
+        message(WARNING "\n"
+            "╔════════════════════════════════════════════════════════════════╗\n"
+            "║  OpenBLAS is REQUIRED for FAISS but was not found!            ║\n"
+            "║  The application will build but FAISS features will CRASH!    ║\n"
+            "║                                                                ║\n"
+            "║  To install OpenBLAS:                                          ║\n"
+            "║  1. Install MSYS2: https://www.msys2.org/                     ║\n"
+            "║  2. Run: pacman -S mingw-w64-x86_64-openblas                  ║\n"
+            "║  3. Rebuild or manually copy libopenblas.dll to build/Release ║\n"
+            "║                                                                ║\n"
+            "║  Alternatively, disable FAISS with: cmake -DUSE_FAISS=OFF     ║\n"
+            "╚════════════════════════════════════════════════════════════════╝")
+    endif()
+    
+    # Create openblas.dll and liblapack.dll from libopenblas.dll (only if it exists)
+    # Use a CMake script to check at build time
     add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/libopenblas.dll"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/openblas.dll"
-        COMMENT "Creating openblas.dll from libopenblas.dll"
+        COMMAND ${CMAKE_COMMAND} -E echo "Checking for libopenblas.dll..."
+        COMMAND ${CMAKE_COMMAND} -E true
+        COMMENT "Preparing OpenBLAS symlinks"
     )
+    
+    # Generate a script to conditionally copy DLLs
+    file(WRITE "${CMAKE_BINARY_DIR}/copy_openblas.cmake" "
+        if(EXISTS \"\${SOURCE_DIR}/libopenblas.dll\")
+            message(STATUS \"Creating openblas.dll from libopenblas.dll\")
+            execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+                \"\${SOURCE_DIR}/libopenblas.dll\"
+                \"\${SOURCE_DIR}/openblas.dll\"
+            )
+            message(STATUS \"Creating liblapack.dll from libopenblas.dll\")
+            execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+                \"\${SOURCE_DIR}/libopenblas.dll\"
+                \"\${SOURCE_DIR}/liblapack.dll\"
+            )
+        else()
+            message(WARNING \"libopenblas.dll not found in \${SOURCE_DIR}, skipping OpenBLAS symlinks\")
+        endif()
+    ")
+    
     add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_if_different
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/libopenblas.dll"
-        "$<TARGET_FILE_DIR:kolosal_server_exe>/liblapack.dll"
-        COMMENT "Creating liblapack.dll from libopenblas.dll"
+        COMMAND ${CMAKE_COMMAND} 
+            -DSOURCE_DIR="$<TARGET_FILE_DIR:kolosal_server_exe>"
+            -P "${CMAKE_BINARY_DIR}/copy_openblas.cmake"
+        COMMENT "Creating OpenBLAS compatibility DLLs if available"
     )
 endif()
+
+# Copy static web files to build directory for development
+add_custom_command(TARGET kolosal_server_exe POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    "${CMAKE_SOURCE_DIR}/static"
+    "$<TARGET_FILE_DIR:kolosal_server_exe>/static"
+    COMMENT "Copying static web files to build directory"
+)
 
 # === SELF-CONTAINED DIST PACKAGE ===
 set(KOLOSAL_FULL_DIST_DIR "${CMAKE_BINARY_DIR}/dist")
@@ -631,6 +719,13 @@ install(FILES
 install(DIRECTORY "${CMAKE_SOURCE_DIR}/docs/"
     DESTINATION docs
     COMPONENT Documentation
+    OPTIONAL
+)
+
+# Install static web files
+install(DIRECTORY "${CMAKE_SOURCE_DIR}/static/"
+    DESTINATION static
+    COMPONENT Runtime
     OPTIONAL
 )
 

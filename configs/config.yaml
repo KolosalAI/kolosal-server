@@ -112,7 +112,7 @@ models:
       n_ubatch: 64
 inference_engines:
   - name: llama-cpu
-    library_path: D:\Works\Genta\codes\kolosal-server\build\Release\llama-cpu.dll
+    library_path: .\build\Release\llama-cpu.dll
     version: 1.0.0
     description: CPU-based inference engine for LLaMA models
     load_on_startup: true
