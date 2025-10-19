@@ -1,0 +1,11 @@
+@echo off
+REM Kolosal Server Launcher
+REM This script ensures DLLs in the bin folder are found
+
+set "SCRIPT_DIR=%~dp0"
+set "PATH=%SCRIPT_DIR%bin;%PATH%"
+
+echo Starting Kolosal Server...
+echo DLL search path: %SCRIPT_DIR%bin
+
+"%SCRIPT_DIR%kolosal-server.exe" %*

@@ -1,0 +1,23 @@
+# Create openblas.dll and liblapack.dll symlinks in root directory if libopenblas.dll exists
+if(EXISTS "${CMAKE_INSTALL_PREFIX}/libopenblas.dll")
+    if(NOT EXISTS "${CMAKE_INSTALL_PREFIX}/openblas.dll")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_INSTALL_PREFIX}/libopenblas.dll" "${CMAKE_INSTALL_PREFIX}/openblas.dll")
+        message(STATUS "Created openblas.dll symlink in root directory")
+    endif()
+    if(NOT EXISTS "${CMAKE_INSTALL_PREFIX}/liblapack.dll")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_INSTALL_PREFIX}/libopenblas.dll" "${CMAKE_INSTALL_PREFIX}/liblapack.dll")
+        message(STATUS "Created liblapack.dll symlink in root directory")
+    endif()
+endif()
+
+# Create openblas.dll and liblapack.dll symlinks in bin directory if libopenblas.dll exists
+if(EXISTS "${CMAKE_INSTALL_PREFIX}/bin/libopenblas.dll")
+    if(NOT EXISTS "${CMAKE_INSTALL_PREFIX}/bin/openblas.dll")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_INSTALL_PREFIX}/bin/libopenblas.dll" "${CMAKE_INSTALL_PREFIX}/bin/openblas.dll")
+        message(STATUS "Created openblas.dll symlink in bin directory")
+    endif()
+    if(NOT EXISTS "${CMAKE_INSTALL_PREFIX}/bin/liblapack.dll")
+        execute_process(COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_INSTALL_PREFIX}/bin/libopenblas.dll" "${CMAKE_INSTALL_PREFIX}/bin/liblapack.dll")
+        message(STATUS "Created liblapack.dll symlink in bin directory")
+    endif()
+endif()

@@ -50,7 +50,7 @@ if(WIN32)
 endif()
 
 option(USE_CUDA   "Compile with CUDA support" OFF)
-option(USE_VULKAN "Compile with VULKAN support" OFF)
+option(USE_VULKAN "Compile with VULKAN support" ON)
 option(USE_METAL  "Compile with Metal support (macOS only)" OFF)
 option(USE_MPI    "Compile with MPI support" OFF)
 option(DEBUG      "Compile with debugging information" OFF)
@@ -159,17 +159,27 @@ add_executable(kolosal_server_exe src/main.cpp)
 target_link_libraries(kolosal_server_exe PRIVATE kolosal_server)
 set_target_properties(kolosal_server_exe PROPERTIES OUTPUT_NAME "kolosal-server")
 
-# On Windows, ensure console is shown for debugging
+# On Windows, ensure console is shown and DLL loading works properly
 if(WIN32)
+    # Force use the standard entry point and console subsystem
     if(MSVC)
         set_target_properties(kolosal_server_exe PROPERTIES
-            LINK_FLAGS "/SUBSYSTEM:CONSOLE"
+            LINK_FLAGS "/SUBSYSTEM:CONSOLE /ENTRY:mainCRTStartup"
+            WIN32_EXECUTABLE FALSE
         )
     else()
         set_target_properties(kolosal_server_exe PROPERTIES
             LINK_FLAGS "-mconsole"
+            WIN32_EXECUTABLE FALSE
         )
     endif()
+    
+    # Ensure the executable can find DLLs in the same directory
+    # This is the key to making DLLs load from the executable directory
+    target_compile_definitions(kolosal_server_exe PRIVATE
+        WIN32_LEAN_AND_MEAN
+        NOMINMAX
+    )
 endif()
 
 # === DEPENDENCIES ===
@@ -468,9 +478,25 @@ elseif(APPLE)
         BUILD_WITH_INSTALL_RPATH TRUE
         MACOSX_RPATH TRUE
     )
+elseif(WIN32)
+    # Set Windows-specific DLL search path behavior
+    # This helps the executable find DLLs in the same directory first
+    # Note: WIN32_EXECUTABLE is already set to FALSE above
+    
+    # Add manifest to specify DLL search path behavior (optional)
+    if(MSVC)
+        set_target_properties(kolosal_server_exe PROPERTIES
+            LINK_FLAGS "/MANIFEST:EMBED"
+        )
+    endif()
 endif()
 
 # === POST-BUILD COPY ===
+add_custom_command(TARGET kolosal_server_exe POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E make_directory "$<TARGET_FILE_DIR:kolosal_server_exe>/bin"
+    COMMENT "Creating bin directory for DLLs"
+)
+
 add_custom_command(TARGET kolosal_server_exe POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_if_different
     "$<TARGET_FILE:kolosal_server>"
@@ -485,9 +511,24 @@ add_custom_command(TARGET kolosal_server_exe POST_BUILD
     COMMENT "Copying ${INFERENCE_TARGET} to executable directory"
 )
 
+# Also copy to bin directory for portable packaging
+add_custom_command(TARGET kolosal_server_exe POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "$<TARGET_FILE:kolosal_server>"
+    "$<TARGET_FILE_DIR:kolosal_server_exe>/bin/"
+    COMMENT "Copying kolosal_server library to bin directory"
+)
+
+add_custom_command(TARGET kolosal_server_exe POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "$<TARGET_FILE:${INFERENCE_TARGET}>"
+    "$<TARGET_FILE_DIR:kolosal_server_exe>/bin/"
+    COMMENT "Copying ${INFERENCE_TARGET} to bin directory"
+)
+
 # Copy runtime dependencies for Windows
 if(WIN32)
-    # Find and copy OpenBLAS/LAPACK DLLs
+    # Find and copy all required DLLs
     set(RUNTIME_DLL_SEARCH_PATHS
         "${CMAKE_BINARY_DIR}"
         "${CMAKE_BINARY_DIR}/Release"
@@ -501,6 +542,7 @@ if(WIN32)
         "$ENV{VCPKG_ROOT}/installed/x64-windows/bin"
         "C:/vcpkg/installed/x64-windows/bin"
         "$ENV{SystemRoot}/System32"
+        "$ENV{WINDIR}/System32"
     )
     
     # Also search in PATH
@@ -509,35 +551,52 @@ if(WIN32)
         list(APPEND RUNTIME_DLL_SEARCH_PATHS ${PATH_DIRS})
     endif()
     
+    # Common runtime DLLs that might be needed
     set(REQUIRED_RUNTIME_DLLS
         libopenblas.dll
+        libgfortran-5.dll
+        libquadmath-0.dll
+        libgcc_s_seh-1.dll
         VCOMP140.DLL
         vcomp140.dll
+        libcurl.dll
+        libcurl-x64.dll
+        vcruntime140.dll
+        msvcp140.dll
+        libstdc++-6.dll
+        libwinpthread-1.dll
+        libgomp-1.dll
+        zlib1.dll
     )
     
-    set(CRITICAL_RUNTIME_DLLS
-        # Empty for now - we'll warn instead of fail
-    )
-    
-    set(FOUND_CRITICAL_DLLS TRUE)
-    
+    # Copy all found DLLs to the executable directory (primary location)
     foreach(dll_name ${REQUIRED_RUNTIME_DLLS})
         set(dll_found FALSE)
         foreach(search_path ${RUNTIME_DLL_SEARCH_PATHS})
-            if(EXISTS "${search_path}/${dll_name}")
+            # Handle paths with backslashes
+            file(TO_CMAKE_PATH "${search_path}" norm_search_path)
+            if(EXISTS "${norm_search_path}/${dll_name}")
+                # Copy to main directory for direct execution (this is the key fix!)
                 add_custom_command(TARGET kolosal_server_exe POST_BUILD
                     COMMAND ${CMAKE_COMMAND} -E copy_if_different
-                    "${search_path}/${dll_name}"
+                    "${norm_search_path}/${dll_name}"
                     "$<TARGET_FILE_DIR:kolosal_server_exe>/"
                     COMMENT "Copying ${dll_name} to executable directory"
                 )
-                message(STATUS "Found ${dll_name} at: ${search_path}")
+                # Also copy to bin directory for portable packaging
+                add_custom_command(TARGET kolosal_server_exe POST_BUILD
+                    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                    "${norm_search_path}/${dll_name}"
+                    "$<TARGET_FILE_DIR:kolosal_server_exe>/bin/"
+                    COMMENT "Copying ${dll_name} to bin directory"
+                )
+                message(STATUS "Found ${dll_name} at: ${norm_search_path}")
                 set(dll_found TRUE)
                 break()
             endif()
         endforeach()
         if(NOT dll_found)
-            if(dll_name STREQUAL "libopenblas.dll")
+            if(dll_name MATCHES "libopenblas.dll")
                 message(WARNING "OpenBLAS DLL not found: ${dll_name}\n"
                     "========================================\n"
                     "FAISS functionality will NOT work without OpenBLAS!\n"
@@ -547,51 +606,51 @@ if(WIN32)
                     "  3. Copy libopenblas.dll from C:/msys64/mingw64/bin/ to build/Release/\n"
                     "Or download from: https://github.com/xianyi/OpenBLAS/releases\n"
                     "========================================")
-                set(FOUND_CRITICAL_DLLS FALSE)
             else()
                 message(STATUS "Optional DLL not found: ${dll_name}")
             endif()
         endif()
     endforeach()
     
-    if(NOT FOUND_CRITICAL_DLLS AND USE_FAISS)
-        message(WARNING "\n"
-            "╔════════════════════════════════════════════════════════════════╗\n"
-            "║  OpenBLAS is REQUIRED for FAISS but was not found!            ║\n"
-            "║  The application will build but FAISS features will CRASH!    ║\n"
-            "║                                                                ║\n"
-            "║  To install OpenBLAS:                                          ║\n"
-            "║  1. Install MSYS2: https://www.msys2.org/                     ║\n"
-            "║  2. Run: pacman -S mingw-w64-x86_64-openblas                  ║\n"
-            "║  3. Rebuild or manually copy libopenblas.dll to build/Release ║\n"
-            "║                                                                ║\n"
-            "║  Alternatively, disable FAISS with: cmake -DUSE_FAISS=OFF     ║\n"
-            "╚════════════════════════════════════════════════════════════════╝")
-    endif()
-    
-    # Create openblas.dll and liblapack.dll from libopenblas.dll (only if it exists)
-    # Use a CMake script to check at build time
-    add_custom_command(TARGET kolosal_server_exe POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E echo "Checking for libopenblas.dll..."
-        COMMAND ${CMAKE_COMMAND} -E true
-        COMMENT "Preparing OpenBLAS symlinks"
-    )
-    
-    # Generate a script to conditionally copy DLLs
+    # Enhanced OpenBLAS handling - create compatibility DLLs
     file(WRITE "${CMAKE_BINARY_DIR}/copy_openblas.cmake" "
+        set(SOURCE_DIR \"\${SOURCE_DIR}\")
+        
+        # Check for libopenblas.dll in the executable directory first
         if(EXISTS \"\${SOURCE_DIR}/libopenblas.dll\")
-            message(STATUS \"Creating openblas.dll from libopenblas.dll\")
+            message(STATUS \"Found libopenblas.dll, creating compatibility DLLs...\")
+            
+            # Create openblas.dll symlink/copy
             execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
                 \"\${SOURCE_DIR}/libopenblas.dll\"
                 \"\${SOURCE_DIR}/openblas.dll\"
             )
-            message(STATUS \"Creating liblapack.dll from libopenblas.dll\")
+            
+            # Create liblapack.dll symlink/copy  
             execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
                 \"\${SOURCE_DIR}/libopenblas.dll\"
                 \"\${SOURCE_DIR}/liblapack.dll\"
             )
+            
+            # Also copy to bin directory if it exists
+            if(EXISTS \"\${SOURCE_DIR}/bin\")
+                execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+                    \"\${SOURCE_DIR}/libopenblas.dll\"
+                    \"\${SOURCE_DIR}/bin/libopenblas.dll\"
+                )
+                execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+                    \"\${SOURCE_DIR}/openblas.dll\"
+                    \"\${SOURCE_DIR}/bin/openblas.dll\"
+                )
+                execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+                    \"\${SOURCE_DIR}/liblapack.dll\"
+                    \"\${SOURCE_DIR}/bin/liblapack.dll\"
+                )
+            endif()
+            
+            message(STATUS \"Created OpenBLAS compatibility DLLs: openblas.dll and liblapack.dll\")
         else()
-            message(WARNING \"libopenblas.dll not found in \${SOURCE_DIR}, skipping OpenBLAS symlinks\")
+            message(STATUS \"libopenblas.dll not found in \${SOURCE_DIR}, skipping OpenBLAS compatibility DLLs\")
         endif()
     ")
     
@@ -600,6 +659,102 @@ if(WIN32)
             -DSOURCE_DIR="$<TARGET_FILE_DIR:kolosal_server_exe>"
             -P "${CMAKE_BINARY_DIR}/copy_openblas.cmake"
         COMMENT "Creating OpenBLAS compatibility DLLs if available"
+    )
+    
+    # Copy any additional DLLs that might be in the build directory
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E echo "Copying additional DLLs from build directory..."
+        COMMAND ${CMAKE_COMMAND} -E true
+        COMMENT "Checking for additional runtime DLLs"
+    )
+    
+    # Create a script to copy any DLL found in the build output directory
+    file(WRITE "${CMAKE_BINARY_DIR}/copy_additional_dlls.cmake" "
+        file(GLOB FOUND_DLLS \"\${BUILD_DIR}/*.dll\")
+        foreach(dll_file \${FOUND_DLLS})
+            get_filename_component(dll_name \"\${dll_file}\" NAME)
+            # Skip if it's already our main executables/libraries
+            if(NOT dll_name MATCHES \"kolosal.*\\\\.(exe|dll)\" AND NOT dll_name MATCHES \"llama-.*\\\\.dll\")
+                execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+                    \"\${dll_file}\"
+                    \"\${TARGET_DIR}/\"
+                )
+                # Also copy to bin directory
+                if(EXISTS \"\${TARGET_DIR}/bin\")
+                    execute_process(COMMAND \${CMAKE_COMMAND} -E copy_if_different
+                        \"\${dll_file}\"
+                        \"\${TARGET_DIR}/bin/\"
+                    )
+                endif()
+                message(STATUS \"Copied additional DLL: \${dll_name}\")
+            endif()
+        endforeach()
+    ")
+    
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DBUILD_DIR="${CMAKE_BINARY_DIR}"
+            -DTARGET_DIR="$<TARGET_FILE_DIR:kolosal_server_exe>"
+            -P "${CMAKE_BINARY_DIR}/copy_additional_dlls.cmake"
+        COMMENT "Copying additional runtime DLLs"
+    )
+    
+    # Create a DLL verification script to help debug DLL loading issues
+    file(WRITE "${CMAKE_BINARY_DIR}/verify_dlls.cmake" "
+        set(TARGET_DIR \"\${TARGET_DIR}\")
+        set(EXECUTABLE_NAME \"kolosal-server.exe\")
+        
+        message(STATUS \"=== DLL Verification Report ===\")
+        message(STATUS \"Executable directory: \${TARGET_DIR}\")
+        
+        # Check if executable exists
+        if(EXISTS \"\${TARGET_DIR}/\${EXECUTABLE_NAME}\")
+            message(STATUS \"✓ Executable found: \${EXECUTABLE_NAME}\")
+        else()
+            message(STATUS \"✗ Executable NOT found: \${EXECUTABLE_NAME}\")
+        endif()
+        
+        # List all DLLs in the directory
+        file(GLOB DLLS_IN_DIR \"\${TARGET_DIR}/*.dll\")
+        message(STATUS \"DLLs in executable directory:\")
+        foreach(dll_file \${DLLS_IN_DIR})
+            get_filename_component(dll_name \"\${dll_file}\" NAME)
+            message(STATUS \"  ✓ \${dll_name}\")
+        endforeach()
+        
+        # Check bin directory
+        if(EXISTS \"\${TARGET_DIR}/bin\")
+            file(GLOB DLLS_IN_BIN \"\${TARGET_DIR}/bin/*.dll\")
+            message(STATUS \"DLLs in bin subdirectory:\")
+            foreach(dll_file \${DLLS_IN_BIN})
+                get_filename_component(dll_name \"\${dll_file}\" NAME)
+                message(STATUS \"  ✓ bin/\${dll_name}\")
+            endforeach()
+        else()
+            message(STATUS \"No bin subdirectory found\")
+        endif()
+        
+        # Check for critical DLLs
+        set(CRITICAL_DLLS kolosal_server.dll ${INFERENCE_TARGET}.dll)
+        message(STATUS \"Critical DLL check:\")
+        foreach(critical_dll \${CRITICAL_DLLS})
+            if(EXISTS \"\${TARGET_DIR}/\${critical_dll}\")
+                message(STATUS \"  ✓ \${critical_dll} - Found in executable directory\")
+            elseif(EXISTS \"\${TARGET_DIR}/bin/\${critical_dll}\")
+                message(STATUS \"  ⚠ \${critical_dll} - Found only in bin directory (may cause issues)\")
+            else()
+                message(STATUS \"  ✗ \${critical_dll} - NOT FOUND\")
+            endif()
+        endforeach()
+        
+        message(STATUS \"=== End DLL Verification ===\")
+    ")
+    
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND}
+            -DTARGET_DIR="$<TARGET_FILE_DIR:kolosal_server_exe>"
+            -P "${CMAKE_BINARY_DIR}/verify_dlls.cmake"
+        COMMENT "Verifying DLL setup"
     )
 endif()
 
@@ -667,26 +822,71 @@ endif()
 
 # === CPACK INSTALLER CONFIGURATION ===
 
-# Install targets for CPack - all executables and DLLs go to root (.)
+# Install targets for CPack - executables and all DLLs to root directory for proper DLL loading
 install(TARGETS kolosal_server_exe
     RUNTIME DESTINATION .
     COMPONENT Runtime
 )
 
+# Install main kolosal_server.dll to bin/ directory (matching ZIP structure)
 install(TARGETS kolosal_server
-    RUNTIME DESTINATION .
-    LIBRARY DESTINATION .
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     COMPONENT Runtime
 )
 
-# Install inference library
+# Install inference library to bin/ directory (matching ZIP structure)
 install(TARGETS ${INFERENCE_TARGET}
-    RUNTIME DESTINATION .
-    LIBRARY DESTINATION .
+    RUNTIME DESTINATION bin
+    LIBRARY DESTINATION lib
     ARCHIVE DESTINATION lib
     COMPONENT Runtime
 )
+
+# Install all discovered runtime DLLs to root directory alongside executable
+if(WIN32)
+    # Copy all DLLs from Release directory and bin subdirectory to package root at install time
+    install(CODE "
+        message(STATUS \"Installing runtime DLLs to package root...\")
+        
+        # Install DLLs from Release directory to bin/ (excluding main targets which go to root)
+        file(GLOB RELEASE_DLLS \"${CMAKE_BINARY_DIR}/Release/*.dll\")
+        list(REMOVE_ITEM RELEASE_DLLS 
+            \"${CMAKE_BINARY_DIR}/Release/kolosal_server.dll\"
+            \"${CMAKE_BINARY_DIR}/Release/${INFERENCE_TARGET}.dll\"
+        )
+        foreach(dll_file IN LISTS RELEASE_DLLS)
+            get_filename_component(dll_name \"\${dll_file}\" NAME)
+            file(INSTALL \"\${dll_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin\")
+            message(STATUS \"  Installed runtime DLL to bin: \${dll_name}\")
+        endforeach()
+        
+        # Install additional DLLs from bin directory that might not be in Release
+        file(GLOB BIN_DLLS \"${CMAKE_BINARY_DIR}/Release/bin/*.dll\")
+        foreach(dll_file IN LISTS BIN_DLLS)
+            get_filename_component(dll_name \"\${dll_file}\" NAME)
+            # Only install if not already in the bin directory
+            if(NOT EXISTS \"\${CMAKE_INSTALL_PREFIX}/bin/\${dll_name}\")
+                file(INSTALL \"\${dll_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin\")
+                message(STATUS \"  Installed additional DLL to bin: \${dll_name}\")
+            endif()
+        endforeach()
+        
+        # Install all executables except main executable to bin/ (matching ZIP structure)
+        file(GLOB ALL_EXES \"${CMAKE_BINARY_DIR}/Release/*.exe\")
+        foreach(exe_file IN LISTS ALL_EXES)
+            get_filename_component(exe_name \"\${exe_file}\" NAME)
+            # Main executable stays in root, others go to bin
+            if(NOT exe_name STREQUAL \"kolosal-server.exe\")
+                file(INSTALL \"\${exe_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin\")
+                message(STATUS \"  Installed additional executable to bin: \${exe_name}\")
+            endif()
+        endforeach()
+        
+        message(STATUS \"Runtime DLL installation completed.\")
+    " COMPONENT Runtime)
+endif()
 
 # Install configuration files
 install(FILES 
@@ -732,6 +932,7 @@ install(DIRECTORY "${CMAKE_SOURCE_DIR}/static/"
 # Create directories for runtime data
 install(DIRECTORY DESTINATION data/faiss_index COMPONENT Runtime)
 install(DIRECTORY DESTINATION logs COMPONENT Runtime)
+install(DIRECTORY DESTINATION models COMPONENT Runtime)
 
 # Basic CPack configuration
 set(CPACK_PACKAGE_NAME "KolosalServer")
@@ -795,13 +996,17 @@ if(WIN32)
     endif()
     
     # Enhanced Windows DLL discovery and installation
-    # Install all DLLs from the Release directory to root (.)
+    # Install all DLLs from the Release directory to bin/ (excluding main targets which go to root)
     file(GLOB WIN_DLLS "${CMAKE_BINARY_DIR}/Release/*.dll")
     foreach(dll_file ${WIN_DLLS})
-        install(FILES "${dll_file}"
-            DESTINATION .
-            COMPONENT Runtime
-        )
+        get_filename_component(dll_name "${dll_file}" NAME)
+        # Skip main targets as they're handled separately
+        if(NOT dll_name MATCHES "kolosal_server\\.dll" AND NOT dll_name MATCHES "${INFERENCE_TARGET}\\.dll")
+            install(FILES "${dll_file}"
+                DESTINATION bin
+                COMPONENT Runtime
+            )
+        endif()
     endforeach()
     
     # Install additional required DLLs if found in system paths
@@ -836,9 +1041,12 @@ if(WIN32)
         "$ENV{VCPKG_ROOT}/installed/x64-windows-static/bin"
         "C:/msys64/mingw64/bin"
         "C:/msys64/ucrt64/bin"
+        "C:/msys64/clang64/bin"
         "C:/msys32/mingw32/bin"
         "C:/MinGW/bin"
+        "C:/MinGW/x86_64-w64-mingw32/bin"
         "C:/Program Files/mingw-w64/bin"
+        "C:/Program Files/mingw-w64/x86_64-w64-mingw32/bin"
         "C:/Program Files (x86)/Microsoft Visual Studio/2019/*/Redist/MSVC/*/x64/Microsoft.VC*.CRT"
         "C:/Program Files (x86)/Microsoft Visual Studio/2022/*/Redist/MSVC/*/x64/Microsoft.VC*.CRT"
         "C:/Program Files/Microsoft Visual Studio/2019/*/Redist/MSVC/*/x64/Microsoft.VC*.CRT"
@@ -863,8 +1071,9 @@ if(WIN32)
             # Normalize path to use forward slashes
             string(REPLACE "\\" "/" normalized_search_path "${search_path}")
             if(EXISTS "${normalized_search_path}/${dll_name}")
+                # Install to bin/ subdirectory only (matching ZIP structure)
                 install(FILES "${normalized_search_path}/${dll_name}"
-                    DESTINATION .
+                    DESTINATION bin
                     COMPONENT Runtime
                     OPTIONAL
                 )
@@ -878,18 +1087,50 @@ if(WIN32)
         endif()
     endforeach()
     
-    # Create symlinks for OpenBLAS compatibility
+    # Create symlinks for OpenBLAS compatibility using separate script
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/openblas-symlinks.cmake.in"
+                   "${CMAKE_BINARY_DIR}/openblas-symlinks.cmake" @ONLY)
+    install(SCRIPT "${CMAKE_BINARY_DIR}/openblas-symlinks.cmake"
+        COMPONENT Runtime
+    )
+    
+    # Install launcher script that adds bin/ to PATH
+    # Use a separate CMake file to avoid quoting issues
+    configure_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/launcher-script-template.bat.in"
+                   "${CMAKE_BINARY_DIR}/start-kolosal-server.bat" @ONLY)
+    install(FILES "${CMAKE_BINARY_DIR}/start-kolosal-server.bat"
+        DESTINATION .
+        COMPONENT Runtime
+    )
+    
+    # Install README for installer package
     install(CODE "
-        # Create openblas.dll symlink if libopenblas.dll exists
-        if(EXISTS \"\${CMAKE_INSTALL_PREFIX}/libopenblas.dll\" AND NOT EXISTS \"\${CMAKE_INSTALL_PREFIX}/openblas.dll\")
-            execute_process(COMMAND \${CMAKE_COMMAND} -E copy \"\${CMAKE_INSTALL_PREFIX}/libopenblas.dll\" \"\${CMAKE_INSTALL_PREFIX}/openblas.dll\")
-            message(STATUS \"Created openblas.dll symlink\")
-        endif()
-        # Create liblapack.dll symlink since OpenBLAS includes LAPACK
-        if(EXISTS \"\${CMAKE_INSTALL_PREFIX}/libopenblas.dll\" AND NOT EXISTS \"\${CMAKE_INSTALL_PREFIX}/liblapack.dll\")
-            execute_process(COMMAND \${CMAKE_COMMAND} -E copy \"\${CMAKE_INSTALL_PREFIX}/libopenblas.dll\" \"\${CMAKE_INSTALL_PREFIX}/liblapack.dll\")
-            message(STATUS \"Created liblapack.dll symlink\")
-        endif()
+        file(WRITE \"\${CMAKE_INSTALL_PREFIX}/README.txt\" 
+            \"Kolosal Server Portable Package\\r\\n\"
+            \"\\r\\n\"
+            \"QUICK START:\\r\\n\"
+            \"------------\\r\\n\"
+            \"Run start-kolosal-server.bat to start the server.\\r\\n\"
+            \"Alternatively, you can run kolosal-server.exe directly from this directory.\\r\\n\"
+            \"\\r\\n\"
+            \"STRUCTURE:\\r\\n\"
+            \"----------\\r\\n\"
+            \"bin/       - All DLL dependencies\\r\\n\"
+            \"config/    - Configuration files\\r\\n\"
+            \"models/    - Place your model files here\\r\\n\"
+            \"logs/      - Server logs will be written here\\r\\n\"
+            \"data/      - Runtime data and indexes\\r\\n\"
+            \"docs/      - Documentation\\r\\n\"
+            \"static/    - Web UI files\\r\\n\"
+            \"\\r\\n\"
+            \"NOTES:\\r\\n\"
+            \"------\\r\\n\"
+            \"- All required DLL files are in the bin/ directory\\r\\n\"
+            \"- The launcher script automatically adds bin/ to the PATH\\r\\n\"
+            \"- If you have both llama-cpu.dll and llama-vulkan.dll, the server will use the appropriate one\\r\\n\"
+            \"\\r\\n\"
+        )
+        message(STATUS \"Created README.txt for installer package\")
     " COMPONENT Runtime)
     
     # NSIS Configuration (only used if NSIS is available)
@@ -913,11 +1154,16 @@ if(WIN32)
         "Delete '$SMPROGRAMS\\\\$STARTMENU_FOLDER\\\\Kolosal Server.lnk'"
     )
     
-    # Additional NSIS commands
+    # Additional NSIS commands - create directories matching ZIP structure
     set(CPACK_NSIS_EXTRA_INSTALL_COMMANDS "
+        CreateDirectory '$INSTDIR\\\\bin'
         CreateDirectory '$INSTDIR\\\\logs'
+        CreateDirectory '$INSTDIR\\\\data'
         CreateDirectory '$INSTDIR\\\\data\\\\faiss_index'
         CreateDirectory '$INSTDIR\\\\models'
+        CreateDirectory '$INSTDIR\\\\config'
+        CreateDirectory '$INSTDIR\\\\docs'
+        CreateDirectory '$INSTDIR\\\\static'
     ")
     
     # WiX Configuration (only used if WiX is available)

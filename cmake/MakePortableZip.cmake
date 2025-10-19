@@ -14,6 +14,7 @@ file(MAKE_DIRECTORY "${ZIP_DIR}")
 # Create kolosal-server root directory inside the staging area
 set(ROOT_DIR "${ZIP_DIR}/kolosal-server")
 file(MAKE_DIRECTORY "${ROOT_DIR}")
+file(MAKE_DIRECTORY "${ROOT_DIR}/bin")
 file(MAKE_DIRECTORY "${ROOT_DIR}/config")
 file(MAKE_DIRECTORY "${ROOT_DIR}/data/faiss_index")
 file(MAKE_DIRECTORY "${ROOT_DIR}/logs")
@@ -28,48 +29,52 @@ if(DEFINED EXECUTABLE_PATH AND EXISTS "${EXECUTABLE_PATH}")
     message(STATUS "  Copied main executable to root: ${EXECUTABLE_PATH}")
 endif()
 
-# Copy libraries (DLLs) to root directory
+# First, copy all DLL files from SOURCE_DIR to bin directory
+message(STATUS "Copying all DLLs from build directory to bin...")
+file(GLOB _ALL_DLLS "${SOURCE_DIR}/*.dll")
+foreach(_dll IN LISTS _ALL_DLLS)
+    get_filename_component(_dll_name "${_dll}" NAME)
+    file(COPY "${_dll}" DESTINATION "${ROOT_DIR}/bin")
+    message(STATUS "  Copied DLL to bin: ${_dll_name}")
+endforeach()
+
+# Copy libraries (DLLs) to bin directory
 foreach(_f IN ITEMS LIB_SERVER_PATH LIB_INFERENCE_PATH)
     if(DEFINED ${_f} AND EXISTS "${${_f}}")
-        file(COPY "${${_f}}" DESTINATION "${ROOT_DIR}")
-        message(STATUS "  Copied: ${${_f}}")
+        file(COPY "${${_f}}" DESTINATION "${ROOT_DIR}/bin")
+        message(STATUS "  Copied to bin: ${${_f}}")
     endif()
 endforeach()
 
-# Copy all executable files from SOURCE_DIR (test executables, examples, etc.)
+# Copy all executable files from SOURCE_DIR (test executables, examples, etc.) to bin
 message(STATUS "Copying all executables from build directory...")
 file(GLOB _ALL_EXES "${SOURCE_DIR}/*.exe")
 foreach(_exe IN LISTS _ALL_EXES)
     get_filename_component(_exe_name "${_exe}" NAME)
-    # Skip if already copied (all executables go to root)
-    if(NOT EXISTS "${ROOT_DIR}/${_exe_name}")
-        file(COPY "${_exe}" DESTINATION "${ROOT_DIR}")
-        message(STATUS "  Copied executable: ${_exe_name}")
+    # Main executable goes to root, others to bin
+    if(_exe_name STREQUAL "kolosal-server.exe")
+        if(NOT EXISTS "${ROOT_DIR}/${_exe_name}")
+            file(COPY "${_exe}" DESTINATION "${ROOT_DIR}")
+            message(STATUS "  Copied executable to root: ${_exe_name}")
+        endif()
+    else()
+        if(NOT EXISTS "${ROOT_DIR}/bin/${_exe_name}")
+            file(COPY "${_exe}" DESTINATION "${ROOT_DIR}/bin")
+            message(STATUS "  Copied executable to bin: ${_exe_name}")
+        endif()
     endif()
 endforeach()
 
-# Copy all DLL files from SOURCE_DIR to root directory
-message(STATUS "Copying all DLLs from build directory...")
-file(GLOB _ALL_DLLS "${SOURCE_DIR}/*.dll")
-foreach(_dll IN LISTS _ALL_DLLS)
-    get_filename_component(_dll_name "${_dll}" NAME)
-    # Skip if already copied
-    if(NOT EXISTS "${ROOT_DIR}/${_dll_name}")
-        file(COPY "${_dll}" DESTINATION "${ROOT_DIR}")
-        message(STATUS "  Copied DLL: ${_dll_name}")
-    endif()
-endforeach()
-
-# Search for required DLLs in common locations and copy to root
+# Search for required DLLs in common locations and copy to bin
 set(_REQUIRED_DLLS libgfortran-5.dll libquadmath-0.dll libgcc_s_seh-1.dll libwinpthread-1.dll libgomp-1.dll libopenblas.dll)
 set(_SEARCH_PATHS "C:/msys64/mingw64/bin" "C:/msys64/ucrt64/bin")
 
 foreach(_dll IN LISTS _REQUIRED_DLLS)
-    if(NOT EXISTS "${ROOT_DIR}/${_dll}")
+    if(NOT EXISTS "${ROOT_DIR}/bin/${_dll}")
         foreach(_path IN LISTS _SEARCH_PATHS)
             if(EXISTS "${_path}/${_dll}")
-                file(COPY "${_path}/${_dll}" DESTINATION "${ROOT_DIR}")
-                message(STATUS "Found and copied: ${_dll} from ${_path}")
+                file(COPY "${_path}/${_dll}" DESTINATION "${ROOT_DIR}/bin")
+                message(STATUS "Found and copied to bin: ${_dll} from ${_path}")
                 break()
             endif()
         endforeach()
@@ -91,8 +96,57 @@ foreach(_doc IN ITEMS README.md LICENSE)
     endif()
 endforeach()
 
+# Copy documentation directory
+if(EXISTS "${SOURCE_ROOT}/docs")
+    file(COPY "${SOURCE_ROOT}/docs" DESTINATION "${ROOT_DIR}")
+endif()
+
+# Copy static web files
+if(EXISTS "${SOURCE_ROOT}/static")
+    file(COPY "${SOURCE_ROOT}/static" DESTINATION "${ROOT_DIR}")
+endif()
+
+# Create a launcher script that adds bin to PATH
+file(WRITE "${ROOT_DIR}/start-kolosal-server.bat" 
+    "@echo off\r\n"
+    "REM Kolosal Server Launcher\r\n"
+    "REM This script ensures DLLs in the bin folder are found\r\n"
+    "\r\n"
+    "set \"SCRIPT_DIR=%~dp0\"\r\n"
+    "set \"PATH=%SCRIPT_DIR%bin;%PATH%\"\r\n"
+    "\r\n"
+    "echo Starting Kolosal Server...\r\n"
+    "echo DLL search path: %SCRIPT_DIR%bin\r\n"
+    "\r\n"
+    "\"%SCRIPT_DIR%kolosal-server.exe\" %*\r\n"
+)
+
 # Create README
-file(WRITE "${ROOT_DIR}/README.txt" "Kolosal Server Portable Package\n\nRun kolosal-server.exe from this directory to start the server.\nAll required DLL files are included in this directory.\n\nConfiguration files are in the config/ directory.\nModels should be placed in the models/ directory.\nLogs will be written to the logs/ directory.\n")
+file(WRITE "${ROOT_DIR}/README.txt" 
+    "Kolosal Server Portable Package\r\n"
+    "\r\n"
+    "QUICK START:\r\n"
+    "------------\r\n"
+    "Run start-kolosal-server.bat to start the server.\r\n"
+    "Alternatively, you can run kolosal-server.exe directly from this directory.\r\n"
+    "\r\n"
+    "STRUCTURE:\r\n"
+    "----------\r\n"
+    "bin/       - All DLL dependencies\r\n"
+    "config/    - Configuration files\r\n"
+    "models/    - Place your model files here\r\n"
+    "logs/      - Server logs will be written here\r\n"
+    "data/      - Runtime data and indexes\r\n"
+    "docs/      - Documentation\r\n"
+    "static/    - Web UI files\r\n"
+    "\r\n"
+    "NOTES:\r\n"
+    "------\r\n"
+    "- All required DLL files are in the bin/ directory\r\n"
+    "- The launcher script automatically adds bin/ to the PATH\r\n"
+    "- If you have both llama-cpu.dll and llama-vulkan.dll, the server will use the appropriate one\r\n"
+    "\r\n"
+)
 
 # Create ZIP file
 message(STATUS "Creating ZIP archive: ${ZIP_FILE}")
