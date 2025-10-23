@@ -8,18 +8,25 @@ The portable ZIP package has been restructured to have a cleaner organization wi
 
 ```
 kolosal-server/
-├── kolosal-server.exe          # Main executable (root level)
-├── start-kolosal-server.bat    # Launcher script (automatically sets PATH)
+├── kolosal-server.exe          # Main executable
+├── kolosal_server.dll          # Main server library (in root!)
+├── llama-cpu.dll               # CPU inference engine (in root!)
+├── llama-vulkan.dll            # Vulkan inference engine (in root, if available)
+├── libopenblas.dll             # And all other runtime DLLs in root
+├── libcurl.dll
+├── msvcp140.dll
+├── vcruntime140.dll
+├── ... (other runtime DLLs)
+├── start-kolosal-server.bat    # Launcher script (optional)
 ├── README.txt                  # Quick start guide
 ├── README.md                   # Full documentation
 ├── LICENSE                     # License file
-├── bin/                        # All DLL dependencies
+├── bin/                        # Backup copy of all DLL dependencies
 │   ├── kolosal_server.dll
-│   ├── llama-cpu.dll           # CPU inference engine
-│   ├── llama-vulkan.dll        # Vulkan inference engine (if available)
+│   ├── llama-cpu.dll
+│   ├── llama-vulkan.dll
 │   ├── libopenblas.dll
-│   ├── libcurl.dll
-│   └── ... (other runtime DLLs)
+│   └── ... (all other DLLs)
 ├── config/                     # Configuration files
 │   ├── config.yaml
 │   └── config.json
@@ -33,11 +40,11 @@ kolosal-server/
 
 ## Running the Server
 
-### Option 1: Using the Launcher (Recommended)
-Simply run `start-kolosal-server.bat` which automatically adds the `bin` folder to PATH.
+### Option 1: Direct Execution (Recommended)
+Simply double-click or run `kolosal-server.exe` directly. All required DLLs are in the same directory, so Windows will find them automatically.
 
-### Option 2: Direct Execution
-Run `kolosal-server.exe` directly. Windows will automatically search for DLLs in the same directory and the `bin` subdirectory.
+### Option 2: Using the Launcher
+Run `start-kolosal-server.bat` which adds the `bin` folder to PATH (useful if you move DLLs to the bin folder).
 
 ## Building with Multiple Inference Engines
 
@@ -75,22 +82,27 @@ The resulting ZIP will contain both `llama-cpu.dll` and `llama-vulkan.dll` in th
 ## Automatic DLL Discovery
 
 The build system automatically:
-- Creates a `bin` folder in the build directory
-- Copies all DLLs to both the root and `bin` folder during build
+- Creates a `bin` folder in the build directory as backup
+- Copies all DLLs to the root directory alongside the executable for direct execution
+- Copies all DLLs to the `bin` folder as well for alternative deployment
 - Searches for required system DLLs (OpenBLAS, MinGW runtime, etc.)
 - Includes both llama-cpu and llama-vulkan if present in the build directory
 
 ## DLL Search Order
 
-The `start-kolosal-server.bat` launcher adds `bin` to PATH, ensuring:
-1. DLLs in `bin` folder are found first
-2. System DLLs are used as fallback
-3. No need to modify system PATH permanently
+When running `kolosal-server.exe` directly:
+1. Windows finds DLLs in the same directory (root) first - this is where all DLLs are now located
+2. No launcher script needed
+3. No need to modify system PATH
+
+Alternatively, using `start-kolosal-server.bat`:
+1. Adds `bin` folder to PATH for that session
+2. Useful if you reorganize DLLs into the bin folder
 
 ## Notes
 
-- The main executable remains at the root for easy access
-- All DLL dependencies are isolated in the `bin` folder
-- The launcher script ensures proper PATH configuration
+- **All DLL dependencies are now in the root directory alongside the executable**
+- This provides the best out-of-the-box experience - just run the .exe
+- A backup copy of all DLLs is also in the `bin` folder
 - Both CPU and GPU (Vulkan) inference engines can coexist
 - The server will automatically select the appropriate inference engine based on configuration

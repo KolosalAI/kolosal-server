@@ -190,23 +190,42 @@ set(YAML_CPP_BUILD_CONTRIB OFF CACHE BOOL "" FORCE)
 set(YAML_BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/yaml-cpp)
 
-if(USE_CUDA)
-    set(INFERENCE_TARGET "llama-cuda")
-elseif(USE_VULKAN)
-    set(INFERENCE_TARGET "llama-vulkan")
-elseif(USE_METAL)
-    set(INFERENCE_TARGET "llama-metal")
-else()
-    set(INFERENCE_TARGET "llama-cpu")
-endif()
-message(STATUS "Building inference engine: ${INFERENCE_TARGET}")
+# Build multiple inference targets for comprehensive hardware support
+set(INFERENCE_TARGETS "llama-cpu")
+set(PRIMARY_INFERENCE_TARGET "llama-cpu")
 
-# When building Vulkan, also ensure CPU fallback is available
-# by forcing GGML_CPU to be ON (it should be by default)
+# Always build CPU version as base
+message(STATUS "Including CPU inference target: llama-cpu")
+
+# Add accelerated targets based on options
+if(USE_VULKAN)
+    list(APPEND INFERENCE_TARGETS "llama-vulkan")
+    set(PRIMARY_INFERENCE_TARGET "llama-vulkan")
+    message(STATUS "Including Vulkan inference target: llama-vulkan")
+endif()
+
+if(USE_CUDA)
+    list(APPEND INFERENCE_TARGETS "llama-cuda") 
+    set(PRIMARY_INFERENCE_TARGET "llama-cuda")
+    message(STATUS "Including CUDA inference target: llama-cuda")
+endif()
+
+if(USE_METAL)
+    list(APPEND INFERENCE_TARGETS "llama-metal")
+    set(PRIMARY_INFERENCE_TARGET "llama-metal") 
+    message(STATUS "Including Metal inference target: llama-metal")
+endif()
+
+# Set main target for backward compatibility
+set(INFERENCE_TARGET ${PRIMARY_INFERENCE_TARGET})
+
+message(STATUS "Primary inference engine: ${PRIMARY_INFERENCE_TARGET}")
+message(STATUS "All inference engines to build: ${INFERENCE_TARGETS}")
+
+# When building accelerated backends, ensure CPU backend is available as fallback
 if(USE_VULKAN OR USE_CUDA OR USE_METAL)
-    # Ensure CPU backend is always available as fallback
     set(GGML_CPU ON CACHE BOOL "Enable CPU backend as fallback" FORCE)
-    message(STATUS "CPU backend enabled as fallback")
+    message(STATUS "CPU backend enabled as fallback within accelerated targets")
 endif()
 
 # === ZLIB DEPENDENCY (needed by PoDoFo) ===
@@ -227,6 +246,8 @@ if(NOT ZLIB_FOUND)
     endif()
 endif()
 
+# Pass the list of targets to build to inference CMakeLists.txt
+set(INFERENCE_TARGETS_TO_BUILD ${INFERENCE_TARGETS})
 add_subdirectory(inference)
 
 find_package(CURL QUIET)
@@ -393,7 +414,7 @@ target_compile_definitions(kolosal_server PUBLIC
 # === LINKING ===
 set(KOLOSAL_LINK_LIBRARIES 
     yaml-cpp 
-    ${INFERENCE_TARGET} 
+    ${PRIMARY_INFERENCE_TARGET}
     minizip_static 
     pugixml
 )
@@ -416,7 +437,7 @@ if(CURL_FOUND OR CURL_LIBRARY)
 endif()
 
 target_link_libraries(kolosal_server PRIVATE ${KOLOSAL_LINK_LIBRARIES})
-target_link_libraries(kolosal_server PUBLIC ${INFERENCE_TARGET})
+target_link_libraries(kolosal_server PUBLIC ${PRIMARY_INFERENCE_TARGET})
 if(TARGET llama)
     target_link_libraries(kolosal_server PRIVATE llama)
 endif()
@@ -504,12 +525,15 @@ add_custom_command(TARGET kolosal_server_exe POST_BUILD
     COMMENT "Copying kolosal_server library to executable directory"
 )
 
-add_custom_command(TARGET kolosal_server_exe POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "$<TARGET_FILE:${INFERENCE_TARGET}>"
-    "$<TARGET_FILE_DIR:kolosal_server_exe>/"
-    COMMENT "Copying ${INFERENCE_TARGET} to executable directory"
-)
+# Copy all inference engines to executable directory  
+foreach(INFERENCE_ENGINE ${INFERENCE_TARGETS})
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:${INFERENCE_ENGINE}>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/"
+        COMMENT "Copying ${INFERENCE_ENGINE} to executable directory"
+    )
+endforeach()
 
 # Also copy to bin directory for portable packaging
 add_custom_command(TARGET kolosal_server_exe POST_BUILD
@@ -519,12 +543,15 @@ add_custom_command(TARGET kolosal_server_exe POST_BUILD
     COMMENT "Copying kolosal_server library to bin directory"
 )
 
-add_custom_command(TARGET kolosal_server_exe POST_BUILD
-    COMMAND ${CMAKE_COMMAND} -E copy_if_different
-    "$<TARGET_FILE:${INFERENCE_TARGET}>"
-    "$<TARGET_FILE_DIR:kolosal_server_exe>/bin/"
-    COMMENT "Copying ${INFERENCE_TARGET} to bin directory"
-)
+# Copy all inference engines to bin directory for portable packaging
+foreach(INFERENCE_ENGINE ${INFERENCE_TARGETS})
+    add_custom_command(TARGET kolosal_server_exe POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        "$<TARGET_FILE:${INFERENCE_ENGINE}>"
+        "$<TARGET_FILE_DIR:kolosal_server_exe>/bin/"
+        COMMENT "Copying ${INFERENCE_ENGINE} to bin directory"
+    )
+endforeach()
 
 # Copy runtime dependencies for Windows
 if(WIN32)
@@ -735,7 +762,10 @@ if(WIN32)
         endif()
         
         # Check for critical DLLs
-        set(CRITICAL_DLLS kolosal_server.dll ${INFERENCE_TARGET}.dll)
+        set(CRITICAL_DLLS kolosal_server.dll)
+        foreach(engine ${INFERENCE_TARGETS})
+            list(APPEND CRITICAL_DLLS \${engine}.dll)
+        endforeach()
         message(STATUS \"Critical DLL check:\")
         foreach(critical_dll \${CRITICAL_DLLS})
             if(EXISTS \"\${TARGET_DIR}/\${critical_dll}\")
@@ -836,13 +866,15 @@ install(TARGETS kolosal_server
     COMPONENT Runtime
 )
 
-# Install inference library to bin/ directory (matching ZIP structure)
-install(TARGETS ${INFERENCE_TARGET}
-    RUNTIME DESTINATION bin
-    LIBRARY DESTINATION lib
-    ARCHIVE DESTINATION lib
-    COMPONENT Runtime
-)
+# Install all inference libraries to bin/ directory (matching ZIP structure)
+foreach(INFERENCE_ENGINE ${INFERENCE_TARGETS})
+    install(TARGETS ${INFERENCE_ENGINE}
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib
+        COMPONENT Runtime
+    )
+endforeach()
 
 # Install all discovered runtime DLLs to root directory alongside executable
 if(WIN32)
@@ -852,10 +884,11 @@ if(WIN32)
         
         # Install DLLs from Release directory to bin/ (excluding main targets which go to root)
         file(GLOB RELEASE_DLLS \"${CMAKE_BINARY_DIR}/Release/*.dll\")
-        list(REMOVE_ITEM RELEASE_DLLS 
-            \"${CMAKE_BINARY_DIR}/Release/kolosal_server.dll\"
-            \"${CMAKE_BINARY_DIR}/Release/${INFERENCE_TARGET}.dll\"
-        )
+        # Remove main server DLL and all inference engine DLLs from generic installation
+        list(REMOVE_ITEM RELEASE_DLLS \"${CMAKE_BINARY_DIR}/Release/kolosal_server.dll\")
+        foreach(engine_name ${INFERENCE_TARGETS})
+            list(REMOVE_ITEM RELEASE_DLLS \"${CMAKE_BINARY_DIR}/Release/\${engine_name}.dll\")
+        endforeach()
         foreach(dll_file IN LISTS RELEASE_DLLS)
             get_filename_component(dll_name \"\${dll_file}\" NAME)
             file(INSTALL \"\${dll_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin\")
@@ -1001,7 +1034,18 @@ if(WIN32)
     foreach(dll_file ${WIN_DLLS})
         get_filename_component(dll_name "${dll_file}" NAME)
         # Skip main targets as they're handled separately
-        if(NOT dll_name MATCHES "kolosal_server\\.dll" AND NOT dll_name MATCHES "${INFERENCE_TARGET}\\.dll")
+        # Skip if it's our main executables/libraries or any inference target
+        set(skip_dll FALSE)
+        if(dll_name MATCHES "kolosal.*\\.(exe|dll)")
+            set(skip_dll TRUE)
+        endif()
+        foreach(engine_name ${INFERENCE_TARGETS})
+            if(dll_name MATCHES "\${engine_name}\\.dll")
+                set(skip_dll TRUE)
+                break()
+            endif()
+        endforeach()
+        if(NOT skip_dll)
             install(FILES "${dll_file}"
                 DESTINATION bin
                 COMPONENT Runtime
@@ -1127,7 +1171,8 @@ if(WIN32)
             \"------\\r\\n\"
             \"- All required DLL files are in the bin/ directory\\r\\n\"
             \"- The launcher script automatically adds bin/ to the PATH\\r\\n\"
-            \"- If you have both llama-cpu.dll and llama-vulkan.dll, the server will use the appropriate one\\r\\n\"
+            \"- Multiple inference engines available: CPU and optionally Vulkan/CUDA/Metal\\r\\n\"
+            \"- The server automatically selects the best available engine for your hardware\\r\\n\"
             \"\\r\\n\"
         )
         message(STATUS \"Created README.txt for installer package\")

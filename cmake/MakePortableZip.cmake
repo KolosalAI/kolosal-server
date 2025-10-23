@@ -32,6 +32,9 @@ endif()
 # First, copy all DLL files from SOURCE_DIR to bin directory
 message(STATUS "Copying all DLLs from build directory to bin...")
 file(GLOB _ALL_DLLS "${SOURCE_DIR}/*.dll")
+if(NOT _ALL_DLLS)
+    message(STATUS "  No DLLs found in ${SOURCE_DIR}, this is expected for non-Windows or if DLLs are in a subdirectory")
+endif()
 foreach(_dll IN LISTS _ALL_DLLS)
     get_filename_component(_dll_name "${_dll}" NAME)
     file(COPY "${_dll}" DESTINATION "${ROOT_DIR}/bin")
@@ -45,6 +48,45 @@ foreach(_f IN ITEMS LIB_SERVER_PATH LIB_INFERENCE_PATH)
         message(STATUS "  Copied to bin: ${${_f}}")
     endif()
 endforeach()
+
+# CRITICAL: Also copy essential DLLs to root directory for direct .exe execution
+# This allows kolosal-server.exe to run without the launcher script
+message(STATUS "Copying critical DLLs to root directory for direct execution...")
+
+# Copy kolosal_server.dll to root
+if(DEFINED LIB_SERVER_PATH AND EXISTS "${LIB_SERVER_PATH}")
+    file(COPY "${LIB_SERVER_PATH}" DESTINATION "${ROOT_DIR}")
+    get_filename_component(_lib_name "${LIB_SERVER_PATH}" NAME)
+    message(STATUS "  Copied ${_lib_name} to root from ${LIB_SERVER_PATH}")
+else()
+    message(WARNING "  LIB_SERVER_PATH not found: ${LIB_SERVER_PATH}")
+endif()
+
+# Copy all inference engine DLLs to root (llama-cpu.dll, llama-vulkan.dll, etc.)
+file(GLOB _INFERENCE_DLLS "${SOURCE_DIR}/llama-*.dll")
+if(_INFERENCE_DLLS)
+    foreach(_dll IN LISTS _INFERENCE_DLLS)
+        get_filename_component(_dll_name "${_dll}" NAME)
+        file(COPY "${_dll}" DESTINATION "${ROOT_DIR}")
+        message(STATUS "  Copied ${_dll_name} to root")
+    endforeach()
+else()
+    message(STATUS "  No inference DLLs (llama-*.dll) found in ${SOURCE_DIR}")
+endif()
+
+# Copy all runtime DLLs from SOURCE_DIR to root (for direct execution)
+if(_ALL_DLLS)
+    foreach(_dll IN LISTS _ALL_DLLS)
+        get_filename_component(_dll_name "${_dll}" NAME)
+        # Skip the main DLLs we already copied explicitly
+        if(NOT _dll_name MATCHES "^(kolosal_server|llama-.*)\\.dll$")
+            file(COPY "${_dll}" DESTINATION "${ROOT_DIR}")
+            message(STATUS "  Copied runtime DLL to root: ${_dll_name}")
+        endif()
+    endforeach()
+else()
+    message(STATUS "  No additional runtime DLLs found to copy to root")
+endif()
 
 # Copy all executable files from SOURCE_DIR (test executables, examples, etc.) to bin
 message(STATUS "Copying all executables from build directory...")
@@ -65,7 +107,7 @@ foreach(_exe IN LISTS _ALL_EXES)
     endif()
 endforeach()
 
-# Search for required DLLs in common locations and copy to bin
+# Search for required DLLs in common locations and copy to both bin and root
 set(_REQUIRED_DLLS libgfortran-5.dll libquadmath-0.dll libgcc_s_seh-1.dll libwinpthread-1.dll libgomp-1.dll libopenblas.dll)
 set(_SEARCH_PATHS "C:/msys64/mingw64/bin" "C:/msys64/ucrt64/bin")
 
@@ -75,6 +117,9 @@ foreach(_dll IN LISTS _REQUIRED_DLLS)
             if(EXISTS "${_path}/${_dll}")
                 file(COPY "${_path}/${_dll}" DESTINATION "${ROOT_DIR}/bin")
                 message(STATUS "Found and copied to bin: ${_dll} from ${_path}")
+                # Also copy to root for direct execution
+                file(COPY "${_path}/${_dll}" DESTINATION "${ROOT_DIR}")
+                message(STATUS "Found and copied to root: ${_dll} from ${_path}")
                 break()
             endif()
         endforeach()
@@ -127,24 +172,28 @@ file(WRITE "${ROOT_DIR}/README.txt"
     "\r\n"
     "QUICK START:\r\n"
     "------------\r\n"
-    "Run start-kolosal-server.bat to start the server.\r\n"
-    "Alternatively, you can run kolosal-server.exe directly from this directory.\r\n"
+    "Simply run kolosal-server.exe directly!\r\n"
+    "Alternatively, use start-kolosal-server.bat.\r\n"
     "\r\n"
     "STRUCTURE:\r\n"
     "----------\r\n"
-    "bin/       - All DLL dependencies\r\n"
-    "config/    - Configuration files\r\n"
-    "models/    - Place your model files here\r\n"
-    "logs/      - Server logs will be written here\r\n"
-    "data/      - Runtime data and indexes\r\n"
-    "docs/      - Documentation\r\n"
-    "static/    - Web UI files\r\n"
+    "kolosal-server.exe    - Main executable\r\n"
+    "*.dll                 - All required DLLs in root for easy access\r\n"
+    "bin/                  - Backup copy of DLL dependencies\r\n"
+    "config/               - Configuration files\r\n"
+    "models/               - Place your model files here\r\n"
+    "logs/                 - Server logs will be written here\r\n"
+    "data/                 - Runtime data and indexes\r\n"
+    "docs/                 - Documentation\r\n"
+    "static/               - Web UI files\r\n"
     "\r\n"
     "NOTES:\r\n"
     "------\r\n"
-    "- All required DLL files are in the bin/ directory\r\n"
-    "- The launcher script automatically adds bin/ to the PATH\r\n"
-    "- If you have both llama-cpu.dll and llama-vulkan.dll, the server will use the appropriate one\r\n"
+    "- All required DLL files are in the root directory alongside the executable\r\n"
+    "- Backup copies are also available in the bin/ directory\r\n"
+    "- The server works out of the box - just run kolosal-server.exe\r\n"
+    "- Multiple inference engines available: CPU and optionally Vulkan/CUDA/Metal\r\n"
+    "- The server automatically selects the best available engine for your hardware\r\n"
     "\r\n"
 )
 

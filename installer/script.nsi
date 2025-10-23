@@ -53,8 +53,7 @@ InstallDirRegKey HKLM "${PRODUCT_DIR_REGKEY}" ""
 RequestExecutionLevel admin
 
 ; Compression
-SetCompressor /SOLID lzma
-SetCompressorDictSize 32
+SetCompressor zlib
 
 ;--------------------------------
 ; Interface Settings
@@ -164,6 +163,11 @@ Section "!Core Files" SecCore
   File "..\build\Release\kolosal-server.exe"
   
   ; All DLLs go to bin/ subdirectory (matching ZIP structure)
+  ; This includes multiple inference engines:
+  ; - llama-cpu.dll (CPU-only, maximum compatibility)
+  ; - llama-vulkan.dll (Vulkan GPU acceleration + CPU fallback)
+  ; - llama-cuda.dll (CUDA GPU acceleration + CPU fallback, if built)
+  ; Plus all runtime dependencies
   CreateDirectory "$INSTDIR\bin"
   SetOutPath "$INSTDIR\bin"
   File "..\build\Release\*.dll"
@@ -217,11 +221,21 @@ Section "!Core Files" SecCore
   FileWrite $0 "docs/      - Documentation$\r$\n"
   FileWrite $0 "static/    - Web UI files$\r$\n"
   FileWrite $0 "$\r$\n"
+  FileWrite $0 "INFERENCE ENGINES:$\r$\n"
+  FileWrite $0 "------------------$\r$\n"
+  FileWrite $0 "This package includes multiple inference engines:$\r$\n"
+  FileWrite $0 "- llama-cpu.dll      : CPU-only inference (works on any hardware)$\r$\n"
+  FileWrite $0 "- llama-vulkan.dll   : Vulkan + CPU inference (GPU acceleration when available)$\r$\n"
+  FileWrite $0 "$\r$\n"
+  FileWrite $0 "The application can dynamically choose which engine to use.$\r$\n"
+  FileWrite $0 "Use the CPU-only engine for maximum compatibility.$\r$\n"
+  FileWrite $0 "Use the Vulkan engine for GPU performance when available.$\r$\n"
+  FileWrite $0 "$\r$\n"
   FileWrite $0 "NOTES:$\r$\n"
   FileWrite $0 "------$\r$\n"
   FileWrite $0 "- All required DLL files are in the bin/ directory$\r$\n"
   FileWrite $0 "- The launcher script automatically adds bin/ to the PATH$\r$\n"
-  FileWrite $0 "- If you have both llama-cpu.dll and llama-vulkan.dll, the server will use the appropriate one$\r$\n"
+  FileWrite $0 "- Both inference engines are available for maximum flexibility$\r$\n"
   FileWrite $0 "$\r$\n"
   FileClose $0
   
@@ -250,23 +264,33 @@ Section "Configuration Files" SecConfig
   File /nonfatal "..\configs\local-retrieval-config.yaml"
   
   ; Check if inference engines are available in bin directory
+  DetailPrint "Checking available inference engines..."
+  
   ${If} ${FileExists} "$INSTDIR\bin\llama-cpu.dll"
-    DetailPrint "Found llama-cpu.dll in bin/ (CPU inference available)"
+    DetailPrint "  [OK] llama-cpu.dll - CPU-only inference engine"
   ${Else}
-    DetailPrint "WARNING: llama-cpu.dll not found in bin/! CPU inference will not work."
+    DetailPrint "  [MISSING] llama-cpu.dll - CPU inference will not work!"
   ${EndIf}
   
   ${If} ${FileExists} "$INSTDIR\bin\llama-vulkan.dll"
-    DetailPrint "Found llama-vulkan.dll in bin/ (Vulkan GPU support enabled)"
+    DetailPrint "  [OK] llama-vulkan.dll - Vulkan + CPU inference engine"
   ${Else}
-    DetailPrint "Note: llama-vulkan.dll not found in bin/ (optional - GPU acceleration via Vulkan)"
+    DetailPrint "  [INFO] llama-vulkan.dll not included (optional GPU acceleration)"
   ${EndIf}
   
   ${If} ${FileExists} "$INSTDIR\bin\llama-cuda.dll"
-    DetailPrint "Found llama-cuda.dll in bin/ (CUDA GPU support enabled)"
+    DetailPrint "  [OK] llama-cuda.dll - CUDA + CPU inference engine"
   ${Else}
-    DetailPrint "Note: llama-cuda.dll not found in bin/ (optional - GPU acceleration via CUDA)"
+    DetailPrint "  [INFO] llama-cuda.dll not included (optional GPU acceleration)"
   ${EndIf}
+  
+  ${If} ${FileExists} "$INSTDIR\bin\llama-metal.dll"
+    DetailPrint "  [OK] llama-metal.dll - Metal + CPU inference engine"
+  ${Else}
+    DetailPrint "  [INFO] llama-metal.dll not included (macOS only)"
+  ${EndIf}
+  
+  DetailPrint "Multiple inference engines provide maximum compatibility and performance."
   
 SectionEnd
 
@@ -360,8 +384,8 @@ SectionEnd
 ; Section Descriptions
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecCore} "Core application files (required)"
-  !insertmacro MUI_DESCRIPTION_TEXT ${SecConfig} "Sample configuration files for server setup"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecCore} "Core application files including multiple inference engines (required)"
+  !insertmacro MUI_DESCRIPTION_TEXT ${SecConfig} "Sample configuration files and inference engine verification"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecDocs} "User and developer documentation"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecStatic} "Static web files for the web interface (optional)"
   !insertmacro MUI_DESCRIPTION_TEXT ${SecHeaders} "Header files for development (optional)"

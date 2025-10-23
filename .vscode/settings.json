@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "filesystem": "cpp"
-    }
+    },
+    "dotnet.defaultSolution": "disable"
 }

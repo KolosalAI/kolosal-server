@@ -85,34 +85,53 @@ set(HEADERS
     include/inference_interface.h
 )
 
-# Determine the target name based on acceleration options
-if(USE_CUDA)
-    set(TARGET_NAME "llama-cuda")
-    set(ACCELERATION_TYPE "cuda")
-elseif(USE_VULKAN)
-    set(TARGET_NAME "llama-vulkan")
-    set(ACCELERATION_TYPE "vulkan")
-elseif(USE_METAL)
-    set(TARGET_NAME "llama-metal")
-    set(ACCELERATION_TYPE "metal")
+# Determine which inference targets to build
+if(DEFINED INFERENCE_TARGETS_TO_BUILD)
+    # Building multiple targets as specified by parent CMakeLists.txt
+    set(TARGETS_TO_BUILD ${INFERENCE_TARGETS_TO_BUILD})
+    message(STATUS "Building multiple inference engines: ${TARGETS_TO_BUILD}")
 else()
-    set(TARGET_NAME "llama-cpu")
-    set(ACCELERATION_TYPE "cpu")
+    # Building single target based on options (backward compatibility)
+    if(USE_CUDA)
+        set(TARGETS_TO_BUILD "llama-cuda")
+        set(ACCELERATION_TYPE "cuda")
+    elseif(USE_VULKAN)
+        set(TARGETS_TO_BUILD "llama-vulkan")
+        set(ACCELERATION_TYPE "vulkan-cpu")
+    elseif(USE_METAL)
+        set(TARGETS_TO_BUILD "llama-metal")
+        set(ACCELERATION_TYPE "metal")
+    else()
+        set(TARGETS_TO_BUILD "llama-cpu")
+        set(ACCELERATION_TYPE "cpu")
+    endif()
+    message(STATUS "Building single inference engine: ${TARGETS_TO_BUILD} (${ACCELERATION_TYPE})")
 endif()
 
-message(STATUS "Building inference engine: ${TARGET_NAME} (${ACCELERATION_TYPE})")
+# Create shared library targets for each inference engine
+foreach(TARGET_NAME ${TARGETS_TO_BUILD})
+    message(STATUS "Creating target: ${TARGET_NAME}")
+    add_library(${TARGET_NAME} SHARED ${SOURCES} ${HEADERS})
+endforeach()
 
-# Create the shared library target
-add_library(${TARGET_NAME} SHARED ${SOURCES} ${HEADERS})
+# Set primary target for configuration (use first target for compatibility)
+list(GET TARGETS_TO_BUILD 0 PRIMARY_TARGET)
+set(TARGET_NAME ${PRIMARY_TARGET})
 
-# Define compile definitions for the library
-target_compile_definitions(${TARGET_NAME} PRIVATE INFERENCE_EXPORTS)
+# Configure all inference targets
+foreach(TARGET_NAME ${TARGETS_TO_BUILD})
+    # Define compile definitions for the library
+    target_compile_definitions(${TARGET_NAME} PRIVATE INFERENCE_EXPORTS)
 
-# Include directories
-target_include_directories(${TARGET_NAME} PUBLIC
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/external
-)
+    # Include directories
+    target_include_directories(${TARGET_NAME} PUBLIC
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
+        ${CMAKE_CURRENT_SOURCE_DIR}/external
+    )
+endforeach()
+
+# Set back to primary target for further configuration
+set(TARGET_NAME ${PRIMARY_TARGET})
 
 # Find dependencies again if needed for target configuration
 if(USE_VULKAN)
@@ -123,22 +142,30 @@ if(USE_CUDA)
     find_package(CUDA REQUIRED)
 endif()
 
-# Add Vulkan include directories if Vulkan is found and enabled
-if(USE_VULKAN AND Vulkan_FOUND)
-    target_include_directories(${TARGET_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
-    target_compile_definitions(${TARGET_NAME} PRIVATE USE_VULKAN)
-endif()
+# Configure acceleration-specific settings for each target
+foreach(TARGET_NAME ${TARGETS_TO_BUILD})
+    # Always add CPU backend support for all targets
+    target_compile_definitions(${TARGET_NAME} PRIVATE GGML_USE_CPU)
+    
+    if(TARGET_NAME STREQUAL "llama-vulkan" AND Vulkan_FOUND)
+        target_include_directories(${TARGET_NAME} PRIVATE ${Vulkan_INCLUDE_DIRS})
+        target_compile_definitions(${TARGET_NAME} PRIVATE USE_VULKAN GGML_USE_VULKAN)
+        message(STATUS "Configured ${TARGET_NAME} with Vulkan support")
+    elseif(TARGET_NAME STREQUAL "llama-cuda" AND CUDA_FOUND)
+        target_include_directories(${TARGET_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
+        target_compile_definitions(${TARGET_NAME} PRIVATE USE_CUDA GGML_USE_CUDA)
+        message(STATUS "Configured ${TARGET_NAME} with CUDA support")
+    elseif(TARGET_NAME STREQUAL "llama-metal")
+        target_compile_definitions(${TARGET_NAME} PRIVATE USE_METAL GGML_USE_METAL)
+        message(STATUS "Configured ${TARGET_NAME} with Metal support")
+    elseif(TARGET_NAME STREQUAL "llama-cpu")
+        # CPU-only target - no additional acceleration backends
+        message(STATUS "Configured ${TARGET_NAME} with CPU-only support")
+    endif()
+endforeach()
 
-# Add CUDA include directories if CUDA is found and enabled  
-if(USE_CUDA AND CUDA_FOUND)
-    target_include_directories(${TARGET_NAME} PRIVATE ${CUDA_INCLUDE_DIRS})
-    target_compile_definitions(${TARGET_NAME} PRIVATE USE_CUDA)
-endif()
-
-# Add Metal definitions if Metal is enabled
-if(USE_METAL)
-    target_compile_definitions(${TARGET_NAME} PRIVATE USE_METAL GGML_USE_METAL)
-endif()
+# Reset to primary target for llama.cpp configuration
+set(TARGET_NAME ${PRIMARY_TARGET})
 
 # Find and setup llama.cpp (moved under inference/external)
 # Primary (new) location: inference/external/llama.cpp
@@ -252,52 +279,77 @@ if(BUILD_SHARED_LIBS OR CMAKE_POSITION_INDEPENDENT_CODE)
     message(STATUS "Forcing position-independent code for llama.cpp compatibility")
 endif()
 
-# Enable GGML acceleration based on options
-if(USE_CUDA)
+# Enable GGML backends based on what targets we're building
+# Always enable CPU backend as it's available in all configurations
+set(GGML_CPU ON CACHE BOOL "Enable GGML CPU support" FORCE)
+
+# Check if we need Vulkan support
+list(FIND TARGETS_TO_BUILD "llama-vulkan" VULKAN_INDEX)
+if(VULKAN_INDEX GREATER -1)
+    set(GGML_VULKAN ON CACHE BOOL "Enable GGML Vulkan support" FORCE)
+    message(STATUS "Enabling Vulkan backend for llama-vulkan target")
+else()
+    set(GGML_VULKAN OFF CACHE BOOL "Disable GGML Vulkan support" FORCE)
+endif()
+
+# Check if we need CUDA support  
+list(FIND TARGETS_TO_BUILD "llama-cuda" CUDA_INDEX)
+if(CUDA_INDEX GREATER -1)
     set(GGML_CUDA ON CACHE BOOL "Enable GGML CUDA support" FORCE)
     set(LLAMA_CUDA ON CACHE BOOL "Enable LLAMA CUDA support" FORCE)
-    message(STATUS "Using CUDA for GGML acceleration")
+    message(STATUS "Enabling CUDA backend for llama-cuda target")
     
     # On Windows with MSVC, we need to ensure CUDA uses the host C++ standard library
     if(WIN32 AND MSVC)
-        # This flag tells nvcc to use host libstdc++ for device code
         set(CMAKE_CUDA_FLAGS "${CMAKE_CUDA_FLAGS} --use-local-env")
         set(GGML_CUDA_USE_GRAPHS OFF CACHE BOOL "Disable CUDA graphs to avoid linking issues" FORCE)
     endif()
-elseif(USE_VULKAN)
-    set(GGML_VULKAN ON CACHE BOOL "Enable GGML Vulkan support" FORCE)
-    message(STATUS "Using vulkan for GGML acceleration")
-elseif(USE_METAL)
-    set(GGML_METAL ON CACHE BOOL "Enable GGML Metal support" FORCE)
-    message(STATUS "Using Metal for GGML acceleration")
 else()
-    message(STATUS "Using OpenBLAS for GGML acceleration")
+    set(GGML_CUDA OFF CACHE BOOL "Disable GGML CUDA support" FORCE)
 endif()
 
-# Link libraries based on acceleration type
-if(USE_CUDA AND CUDA_FOUND)
-    # Link CUDA runtime, cuBLAS, and the CUDA driver library
-    target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_CUDA_LIBRARY})
-    # On Windows, we also need to link against the math library to resolve missing symbols
-    if(WIN32)
-        target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_cudart_static_LIBRARY})
+# Check if we need Metal support
+list(FIND TARGETS_TO_BUILD "llama-metal" METAL_INDEX)
+if(METAL_INDEX GREATER -1)
+    set(GGML_METAL ON CACHE BOOL "Enable GGML Metal support" FORCE)
+    message(STATUS "Enabling Metal backend for llama-metal target")
+else()
+    set(GGML_METAL OFF CACHE BOOL "Disable GGML Metal support" FORCE)
+endif()
+
+message(STATUS "GGML backends enabled: CPU=ON, Vulkan=${GGML_VULKAN}, CUDA=${GGML_CUDA}, Metal=${GGML_METAL}")
+
+# Link libraries based on target type
+foreach(TARGET_NAME ${TARGETS_TO_BUILD})
+    if(TARGET_NAME STREQUAL "llama-cuda" AND CUDA_FOUND)
+        # Link CUDA runtime, cuBLAS, and the CUDA driver library
+        target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_LIBRARIES} ${CUDA_CUBLAS_LIBRARIES} ${CUDA_CUDA_LIBRARY})
+        # On Windows, we also need to link against the math library to resolve missing symbols
+        if(WIN32)
+            target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_cudart_static_LIBRARY})
+        endif()
+        message(STATUS "Linked CUDA libraries to ${TARGET_NAME}")
     endif()
-endif()
 
-if(USE_VULKAN AND Vulkan_FOUND)
-    target_link_libraries(${TARGET_NAME} PRIVATE ${Vulkan_LIBRARIES})
-endif()
+    if(TARGET_NAME STREQUAL "llama-vulkan" AND Vulkan_FOUND)
+        target_link_libraries(${TARGET_NAME} PRIVATE ${Vulkan_LIBRARIES})
+        message(STATUS "Linked Vulkan libraries to ${TARGET_NAME}")
+    endif()
 
-if(USE_METAL)
-    target_link_libraries(${TARGET_NAME} PRIVATE 
-        ${METAL_FRAMEWORK} 
-        ${FOUNDATION_FRAMEWORK} 
-        ${METALKIT_FRAMEWORK}
-        ${METALPERFORMANCE_FRAMEWORK}
-    )
-    
-    target_compile_options(${TARGET_NAME} PRIVATE ${METAL_ARCH_FLAGS})
-endif()
+    if(TARGET_NAME STREQUAL "llama-metal")
+        target_link_libraries(${TARGET_NAME} PRIVATE 
+            ${METAL_FRAMEWORK} 
+            ${FOUNDATION_FRAMEWORK} 
+            ${METALKIT_FRAMEWORK}
+            ${METALPERFORMANCE_FRAMEWORK}
+        )
+        target_compile_options(${TARGET_NAME} PRIVATE ${METAL_ARCH_FLAGS})
+        message(STATUS "Linked Metal frameworks to ${TARGET_NAME}")
+    endif()
+endforeach()
+
+# Reset to primary target for common linking
+set(TARGET_NAME ${PRIMARY_TARGET})
 
 # Find and configure MPI if enabled
 if(USE_MPI)
@@ -320,14 +372,8 @@ if(USE_MPI)
     endif()
 endif()
 
-# Define inference-related compile definitions
-target_compile_definitions(${TARGET_NAME} PUBLIC
-    $<$<BOOL:${USE_CUDA}>:USE_CUDA>
-    $<$<BOOL:${USE_VULKAN}>:USE_VULKAN>
-    $<$<BOOL:${USE_METAL}>:USE_METAL>
-    $<$<BOOL:${USE_MPI}>:USE_MPI>
-    $<$<BOOL:${DEBUG}>:DEBUG>
-)
+# Note: Target-specific definitions are already set in the acceleration-specific configuration above
+# Do not add global USE_VULKAN/USE_CUDA/etc definitions here as they would apply to all targets
 
 # Add subdirectories for external libraries
 add_subdirectory(${LLAMA_CPP_PATH} llama-cpp-build)
@@ -344,16 +390,21 @@ if(CMAKE_POSITION_INDEPENDENT_CODE)
     message(STATUS "Applied -fPIC to llama.cpp static libraries")
 endif()
 
-# Link llama.cpp libraries
-# Link only the required llama.cpp libraries (toolcall disabled)
+# Link llama.cpp libraries to all targets
 set(LLAMA_LINK_LIBRARIES llama common ggml)
-target_link_libraries(${TARGET_NAME} PRIVATE ${LLAMA_LINK_LIBRARIES})
+foreach(TARGET_NAME ${TARGETS_TO_BUILD})
+    target_link_libraries(${TARGET_NAME} PRIVATE ${LLAMA_LINK_LIBRARIES})
+endforeach()
+set(TARGET_NAME ${PRIMARY_TARGET})
 
 # For CUDA on Windows, we need to link additional libraries for math functions
-if(USE_CUDA AND WIN32)
-    # Add CUDA device library which contains math functions
-    target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_cudadevrt_LIBRARY})
-endif()
+foreach(TARGET_NAME ${TARGETS_TO_BUILD})
+    if(TARGET_NAME STREQUAL "llama-cuda" AND WIN32)
+        # Add CUDA device library which contains math functions
+        target_link_libraries(${TARGET_NAME} PRIVATE ${CUDA_cudadevrt_LIBRARY})
+    endif()
+endforeach()
+set(TARGET_NAME ${PRIMARY_TARGET})
 
 # On MSVC, ensure symbols from static libs are included into this shared lib
 if(MSVC)
@@ -365,14 +416,17 @@ if(MSVC)
     endforeach()
 endif()
 
-# Link CURL libraries and include directories
-if(WIN32)
-    target_include_directories(${TARGET_NAME} PRIVATE ${CURL_INCLUDE_DIR})
-    target_link_libraries(${TARGET_NAME} PRIVATE ${CURL_LIBRARIES})
-else()
-    target_include_directories(${TARGET_NAME} PRIVATE ${CURL_INCLUDE_DIRS})
-    target_link_libraries(${TARGET_NAME} PRIVATE ${CURL_LIBRARIES})
-endif()
+# Link CURL libraries and include directories to all targets
+foreach(TARGET_NAME ${TARGETS_TO_BUILD})
+    if(WIN32)
+        target_include_directories(${TARGET_NAME} PRIVATE ${CURL_INCLUDE_DIR})
+        target_link_libraries(${TARGET_NAME} PRIVATE ${CURL_LIBRARIES})
+    else()
+        target_include_directories(${TARGET_NAME} PRIVATE ${CURL_INCLUDE_DIRS})
+        target_link_libraries(${TARGET_NAME} PRIVATE ${CURL_LIBRARIES})
+    endif()
+endforeach()
+set(TARGET_NAME ${PRIMARY_TARGET})
 
 # Check for OpenSSL on Linux (often required for CURL)
 if(UNIX AND NOT APPLE)
@@ -402,46 +456,52 @@ target_include_directories(${TARGET_NAME} PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/external
 )
 
-# Find and link thread library
+# Find and link thread library to all targets
 find_package(Threads REQUIRED)
-target_link_libraries(${TARGET_NAME} PRIVATE Threads::Threads)
+foreach(TARGET_NAME ${TARGETS_TO_BUILD})
+    target_link_libraries(${TARGET_NAME} PRIVATE Threads::Threads)
 
-# Platform-specific link libraries
-if(WIN32)
-    target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
-    # For CUDA on Windows, we need to link the standard C library for math functions
-    if(USE_CUDA AND MSVC)
-        # Link the MSVC runtime library explicitly to resolve CUDA math function symbols
-        target_link_options(${TARGET_NAME} PRIVATE /DEFAULTLIB:libucrt.lib /DEFAULTLIB:libcmt.lib)
+    # Platform-specific link libraries
+    if(WIN32)
+        target_link_libraries(${TARGET_NAME} PRIVATE ws2_32)
+        # For CUDA on Windows, we need to link the standard C library for math functions
+        if(TARGET_NAME STREQUAL "llama-cuda" AND MSVC)
+            # Link the MSVC runtime library explicitly to resolve CUDA math function symbols
+            target_link_options(${TARGET_NAME} PRIVATE /DEFAULTLIB:libucrt.lib /DEFAULTLIB:libcmt.lib)
+        endif()
+    elseif(APPLE)
+        # For macOS, link with required system libraries
+        target_link_libraries(${TARGET_NAME} PRIVATE dl pthread)
+        
+        # Add macOS-specific compile definitions
+        target_compile_definitions(${TARGET_NAME} PRIVATE 
+            __APPLE__
+            __MACH__
+        )
+        
+        # macOS-specific compiler flags for better performance
+        if(TARGET_NAME STREQUAL "llama-metal")
+            target_compile_options(${TARGET_NAME} PRIVATE 
+                -Wno-format 
+                -Wno-unused-variable 
+                -Wno-unused-function
+            )
+        endif()
+    else()
+        # For Linux, link with required system libraries
+        target_link_libraries(${TARGET_NAME} PRIVATE dl rt pthread)
     endif()
-    # Copy the libcurl.dll to the bin directory
+endforeach()
+
+# Copy DLL for Windows (only for primary target to avoid conflicts)
+set(TARGET_NAME ${PRIMARY_TARGET})
+if(WIN32)
     add_custom_command(TARGET ${TARGET_NAME} POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${CURL_INCLUDE_DIR}/../bin/libcurl.dll"
             "$<TARGET_FILE_DIR:${TARGET_NAME}>"
         COMMENT "Copying libcurl.dll to bin directory"
     )
-elseif(APPLE)
-    # For macOS, link with required system libraries
-    target_link_libraries(${TARGET_NAME} PRIVATE dl pthread)
-    
-    # Add macOS-specific compile definitions
-    target_compile_definitions(${TARGET_NAME} PRIVATE 
-        __APPLE__
-        __MACH__
-    )
-    
-    # macOS-specific compiler flags for better performance
-    if(USE_METAL)
-        target_compile_options(${TARGET_NAME} PRIVATE 
-            -Wno-format 
-            -Wno-unused-variable 
-            -Wno-unused-function
-        )
-    endif()
-else()
-    # For Linux, link with required system libraries
-    target_link_libraries(${TARGET_NAME} PRIVATE dl rt pthread)
 endif()
 
 # Add aggressive optimization flags for better performance
