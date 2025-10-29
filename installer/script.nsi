@@ -19,7 +19,7 @@ ${StrRep}
 ; Conditional Compilation
 
 ; Check if static files exist and define flag accordingly
-!if /FileExists "..\build\Release\static\kolosal-product\index.html"
+!if /FileExists "..\build\Release\static\kolosal-studio-interface\index.html"
   !define INCLUDE_STATIC_FILES
 !endif
 

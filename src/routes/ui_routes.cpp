@@ -228,8 +228,8 @@ namespace kolosal {
         }
 #endif
         
-        // All files are served from the kolosal-product directory
-        std::filesystem::path staticDir = executablePath / "static" / "kolosal-product";
+        // All files are served from the kolosal-studio-interface directory
+        std::filesystem::path staticDir = executablePath / "static" / "kolosal-studio-interface";
         
         // Remove leading slash from path
         std::string filePath = relativePath;

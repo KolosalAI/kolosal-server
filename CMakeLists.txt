@@ -858,7 +858,7 @@ install(TARGETS kolosal_server_exe
     COMPONENT Runtime
 )
 
-# Install main kolosal_server.dll to bin/ directory (matching ZIP structure)
+# Install main kolosal_server.dll to bin/ directory only (target installs don't seem to work for root)
 install(TARGETS kolosal_server
     RUNTIME DESTINATION bin
     LIBRARY DESTINATION lib
@@ -866,7 +866,7 @@ install(TARGETS kolosal_server
     COMPONENT Runtime
 )
 
-# Install all inference libraries to bin/ directory (matching ZIP structure)
+# Install all inference libraries to bin/ directory only
 foreach(INFERENCE_ENGINE ${INFERENCE_TARGETS})
     install(TARGETS ${INFERENCE_ENGINE}
         RUNTIME DESTINATION bin
@@ -878,47 +878,62 @@ endforeach()
 
 # Install all discovered runtime DLLs to root directory alongside executable
 if(WIN32)
-    # Copy all DLLs from Release directory and bin subdirectory to package root at install time
-    install(CODE "
-        message(STATUS \"Installing runtime DLLs to package root...\")
-        
-        # Install DLLs from Release directory to bin/ (excluding main targets which go to root)
-        file(GLOB RELEASE_DLLS \"${CMAKE_BINARY_DIR}/Release/*.dll\")
-        # Remove main server DLL and all inference engine DLLs from generic installation
-        list(REMOVE_ITEM RELEASE_DLLS \"${CMAKE_BINARY_DIR}/Release/kolosal_server.dll\")
-        foreach(engine_name ${INFERENCE_TARGETS})
-            list(REMOVE_ITEM RELEASE_DLLS \"${CMAKE_BINARY_DIR}/Release/\${engine_name}.dll\")
-        endforeach()
-        foreach(dll_file IN LISTS RELEASE_DLLS)
-            get_filename_component(dll_name \"\${dll_file}\" NAME)
-            file(INSTALL \"\${dll_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin\")
-            message(STATUS \"  Installed runtime DLL to bin: \${dll_name}\")
-        endforeach()
-        
-        # Install additional DLLs from bin directory that might not be in Release
-        file(GLOB BIN_DLLS \"${CMAKE_BINARY_DIR}/Release/bin/*.dll\")
-        foreach(dll_file IN LISTS BIN_DLLS)
-            get_filename_component(dll_name \"\${dll_file}\" NAME)
-            # Only install if not already in the bin directory
-            if(NOT EXISTS \"\${CMAKE_INSTALL_PREFIX}/bin/\${dll_name}\")
-                file(INSTALL \"\${dll_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin\")
-                message(STATUS \"  Installed additional DLL to bin: \${dll_name}\")
-            endif()
-        endforeach()
-        
-        # Install all executables except main executable to bin/ (matching ZIP structure)
-        file(GLOB ALL_EXES \"${CMAKE_BINARY_DIR}/Release/*.exe\")
-        foreach(exe_file IN LISTS ALL_EXES)
-            get_filename_component(exe_name \"\${exe_file}\" NAME)
-            # Main executable stays in root, others go to bin
-            if(NOT exe_name STREQUAL \"kolosal-server.exe\")
-                file(INSTALL \"\${exe_file}\" DESTINATION \"\${CMAKE_INSTALL_PREFIX}/bin\")
-                message(STATUS \"  Installed additional executable to bin: \${exe_name}\")
-            endif()
-        endforeach()
-        
-        message(STATUS \"Runtime DLL installation completed.\")
-    " COMPONENT Runtime)
+    # Get list of DLLs at configuration time
+    file(GLOB RUNTIME_DLLS "${CMAKE_BINARY_DIR}/Release/*.dll")
+    
+    # Install each DLL individually to both root and bin directories
+    foreach(dll_file ${RUNTIME_DLLS})
+        get_filename_component(dll_name "${dll_file}" NAME)
+        # Skip the main executable's DLL as it's handled by target installation
+        if(NOT dll_name MATCHES "kolosal-server")
+            # Install to root directory for direct loading
+            install(FILES "${dll_file}"
+                DESTINATION .
+                COMPONENT Runtime
+                OPTIONAL
+            )
+            message(STATUS "Will install DLL to root: ${dll_name}")
+        endif()
+        # Install to bin directory for consistency
+        install(FILES "${dll_file}"
+            DESTINATION bin
+            COMPONENT Runtime
+            OPTIONAL
+        )
+    endforeach()
+    
+    # Also check for DLLs in Release/bin directory
+    file(GLOB BIN_RUNTIME_DLLS "${CMAKE_BINARY_DIR}/Release/bin/*.dll")
+    foreach(dll_file ${BIN_RUNTIME_DLLS})
+        get_filename_component(dll_name "${dll_file}" NAME)
+        # Install to root directory for direct loading
+        install(FILES "${dll_file}"
+            DESTINATION .
+            COMPONENT Runtime
+            OPTIONAL
+        )
+        # Install to bin directory for consistency
+        install(FILES "${dll_file}"
+            DESTINATION bin
+            COMPONENT Runtime
+            OPTIONAL
+        )
+        message(STATUS "Will install bin DLL to root: ${dll_name}")
+    endforeach()
+    
+    # Install additional executables to bin/ (excluding main executable)
+    file(GLOB RUNTIME_EXES "${CMAKE_BINARY_DIR}/Release/*.exe")
+    foreach(exe_file ${RUNTIME_EXES})
+        get_filename_component(exe_name "${exe_file}" NAME)
+        if(NOT exe_name STREQUAL "kolosal-server.exe")
+            install(FILES "${exe_file}"
+                DESTINATION bin
+                COMPONENT Runtime
+                OPTIONAL
+            )
+            message(STATUS "Will install executable to bin: ${exe_name}")
+        endif()
+    endforeach()
 endif()
 
 # Install configuration files
@@ -1115,14 +1130,20 @@ if(WIN32)
             # Normalize path to use forward slashes
             string(REPLACE "\\" "/" normalized_search_path "${search_path}")
             if(EXISTS "${normalized_search_path}/${dll_name}")
-                # Install to bin/ subdirectory only (matching ZIP structure)
+                # Install to ROOT directory for DLL loading by executable
+                install(FILES "${normalized_search_path}/${dll_name}"
+                    DESTINATION .
+                    COMPONENT Runtime
+                    OPTIONAL
+                )
+                # Also install to bin/ subdirectory for consistency with portable structure
                 install(FILES "${normalized_search_path}/${dll_name}"
                     DESTINATION bin
                     COMPONENT Runtime
                     OPTIONAL
                 )
                 set(dll_found TRUE)
-                message(STATUS "Found and will install DLL: ${dll_name} from ${normalized_search_path}")
+                message(STATUS "Found and will install DLL to root and bin/: ${dll_name} from ${normalized_search_path}")
                 break()
             endif()
         endforeach()
@@ -1156,21 +1177,25 @@ if(WIN32)
             \"------------\\r\\n\"
             \"Run start-kolosal-server.bat to start the server.\\r\\n\"
             \"Alternatively, you can run kolosal-server.exe directly from this directory.\\r\\n\"
+            \"All required DLL files are now in the same directory as the executable.\\r\\n\"
             \"\\r\\n\"
             \"STRUCTURE:\\r\\n\"
             \"----------\\r\\n\"
-            \"bin/       - All DLL dependencies\\r\\n\"
-            \"config/    - Configuration files\\r\\n\"
-            \"models/    - Place your model files here\\r\\n\"
-            \"logs/      - Server logs will be written here\\r\\n\"
-            \"data/      - Runtime data and indexes\\r\\n\"
-            \"docs/      - Documentation\\r\\n\"
-            \"static/    - Web UI files\\r\\n\"
+            \"kolosal-server.exe - Main executable\\r\\n\"
+            \"*.dll          - All required DLL dependencies (in root for direct loading)\\r\\n\"
+            \"bin/           - Additional executables and backup DLL copies\\r\\n\"
+            \"config/        - Configuration files\\r\\n\"
+            \"models/        - Place your model files here\\r\\n\"
+            \"logs/          - Server logs will be written here\\r\\n\"
+            \"data/          - Runtime data and indexes\\r\\n\"
+            \"docs/          - Documentation\\r\\n\"
+            \"static/        - Web UI files\\r\\n\"
             \"\\r\\n\"
             \"NOTES:\\r\\n\"
             \"------\\r\\n\"
-            \"- All required DLL files are in the bin/ directory\\r\\n\"
-            \"- The launcher script automatically adds bin/ to the PATH\\r\\n\"
+            \"- All required DLL files are in the root directory for immediate loading\\r\\n\"
+            \"- Backup copies of DLLs are also in the bin/ directory\\r\\n\"
+            \"- The launcher script is provided for convenience but not required\\r\\n\"
             \"- Multiple inference engines available: CPU and optionally Vulkan/CUDA/Metal\\r\\n\"
             \"- The server automatically selects the best available engine for your hardware\\r\\n\"
             \"\\r\\n\"

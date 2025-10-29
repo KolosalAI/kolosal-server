@@ -274,7 +274,23 @@ namespace kolosal
         }
 #endif
         
-        // If no system config found, try config.yaml in working directory (development)
+        // If no system config found, try configs/config.yaml in working directory (development/portable)
+        if (!configLoaded) {
+            std::ifstream yamlFile("configs/config.yaml");
+            if (yamlFile.good()) {
+                yamlFile.close();
+                if (loadFromFile("configs/config.yaml")) {
+                    ServerLogger::instance().info("Loaded configuration from configs/config.yaml");
+                    // For relative paths, store the absolute path to ensure we can always find it later
+                    currentConfigFilePath = std::filesystem::absolute("configs/config.yaml").string();
+                    ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                    ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
+                    configLoaded = true;
+                }
+            }
+        }
+        
+        // If configs/config.yaml not found, try config.yaml in working directory (legacy)
         if (!configLoaded) {
             std::ifstream yamlFile("config.yaml");
             if (yamlFile.good()) {
@@ -290,7 +306,23 @@ namespace kolosal
             }
         }
         
-        // If config.yaml not found, try config.json in working directory
+        // If config.yaml not found, try configs/config.json in working directory
+        if (!configLoaded) {
+            std::ifstream jsonFile("configs/config.json");
+            if (jsonFile.good()) {
+                jsonFile.close();
+                if (loadFromFile("configs/config.json")) {
+                    ServerLogger::instance().info("Loaded configuration from configs/config.json");
+                    // For relative paths, store the absolute path to ensure we can always find it later
+                    currentConfigFilePath = std::filesystem::absolute("configs/config.json").string();
+                    ServerLogger::instance().info("Stored config file path: " + currentConfigFilePath);
+                    ServerLogger::instance().info("ServerConfig instance address during load: " + std::to_string(reinterpret_cast<uintptr_t>(this)));
+                    configLoaded = true;
+                }
+            }
+        }
+        
+        // If config.json not found, try config.json in working directory (legacy)
         if (!configLoaded) {
             std::ifstream jsonFile("config.json");
             if (jsonFile.good()) {
